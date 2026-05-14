@@ -129,3 +129,97 @@ func TestInt16ArrayDeque_Generated_String(t *testing.T) {
 		t.Errorf("String is empty")
 	}
 }
+
+// TestInt16ArrayDeque_Generated_RingBufferWrapAround exercises the ring buffer's
+// wrap-around logic: insert enough at the back, drain from the front,
+// then insert again so head+size straddles the end of the underlying
+// slice. ToSlice and iteration must still yield logical order.
+func TestInt16ArrayDeque_Generated_RingBufferWrapAround(t *testing.T) {
+	d := NewInt16ArrayDeque()
+	// Initial capacity is 16. Fill past it to force a grow, then drain
+	// and refill in a pattern that leaves head deep inside the buffer.
+	for i := 0; i < 10; i++ {
+		d.AddLast(1)
+	}
+	for i := 0; i < 8; i++ {
+		if _, err := d.RemoveFirst(); err != nil {
+			t.Fatalf("RemoveFirst during setup: %v", err)
+		}
+	}
+	// Now head ~= 8, size == 2. Add 10 more via AddLast — this must
+	// wrap through index 0 without corrupting logical order.
+	for i := 0; i < 10; i++ {
+		d.AddLast(2)
+	}
+	if d.Size() != 12 {
+		t.Fatalf("Size after wrap = %d, want 12", d.Size())
+	}
+	// ToSlice must yield the 2 original tail elements followed by 10 new ones.
+	out := d.ToSlice()
+	if len(out) != 12 {
+		t.Fatalf("ToSlice len after wrap = %d, want 12", len(out))
+	}
+	for i := 0; i < 2; i++ {
+		if !(out[i] == 1) {
+			t.Errorf("ToSlice()[%d] = %v, want 1", i, out[i])
+		}
+	}
+	for i := 2; i < 12; i++ {
+		if !(out[i] == 2) {
+			t.Errorf("ToSlice()[%d] = %v, want 2", i, out[i])
+		}
+	}
+}
+
+// TestInt16ArrayDeque_Generated_AddFirstIsO1 is a complexity sanity check.
+// Under the old shift-based implementation, N AddFirst calls cost
+// O(N^2) element moves; under the ring buffer it's O(N) amortised.
+// We don't measure time (flaky in CI) — we just assert the deque
+// stays functional at a size that would have been quadratic before.
+func TestInt16ArrayDeque_Generated_AddFirstIsO1(t *testing.T) {
+	const N = 10000
+	d := NewInt16ArrayDeque()
+	for i := 0; i < N; i++ {
+		d.AddFirst(1)
+	}
+	if d.Size() != N {
+		t.Fatalf("Size after %d AddFirst = %d", N, d.Size())
+	}
+	for i := 0; i < N; i++ {
+		if _, err := d.RemoveLast(); err != nil {
+			t.Fatalf("RemoveLast at %d: %v", i, err)
+		}
+	}
+	if !d.IsEmpty() {
+		t.Fatalf("not empty after full drain, size=%d", d.Size())
+	}
+}
+
+// TestInt16ArrayDeque_Generated_AlternatingEndsGrow exercises the grow path while
+// head is non-zero: grow() must unwrap the logical order into a
+// contiguous prefix so that subsequent mask arithmetic stays correct.
+func TestInt16ArrayDeque_Generated_AlternatingEndsGrow(t *testing.T) {
+	d := NewInt16ArrayDeque()
+	// Drive head to a non-zero value via AddFirst.
+	for i := 0; i < 5; i++ {
+		d.AddFirst(3)
+	}
+	// Then pile enough in to force multiple grows.
+	for i := 0; i < 100; i++ {
+		d.AddLast(2)
+	}
+	if d.Size() != 105 {
+		t.Fatalf("Size = %d, want 105", d.Size())
+	}
+	out := d.ToSlice()
+	for i := 0; i < 5; i++ {
+		if !(out[i] == 3) {
+			t.Errorf("prefix[%d] = %v, want 3", i, out[i])
+		}
+	}
+	for i := 5; i < 105; i++ {
+		if !(out[i] == 2) {
+			t.Errorf("suffix[%d] = %v, want 2", i, out[i])
+		}
+	}
+}

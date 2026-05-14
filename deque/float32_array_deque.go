@@ -8,87 +8,155 @@ import (
 	"strings"
 )
 
-// Float32ArrayDeque is a double-ended queue of float32 values, backed by a slice.
-// Back ops (AddLast, RemoveLast) are O(1) amortized; front ops
-// (AddFirst, RemoveFirst) are O(n) because they shift.
+// Float32ArrayDeque is a double-ended queue of float32 values, backed by a
+// power-of-two ring buffer. AddFirst, AddLast, RemoveFirst, RemoveLast,
+// PeekFirst and PeekLast are all O(1) amortised.
+//
+// The public API is intentionally identical to the slice-backed deque
+// that preceded it: callers that iterate via ToSlice or ForEach see
+// elements in logical front-to-back order regardless of where head
+// happens to sit in the underlying buffer.
 type Float32ArrayDeque struct {
-	items []float32
+	items []float32 // len == capacity, always a power of two; indexed modulo cap
+	head  int       // index of the front element (0 when empty)
+	size  int       // number of logical elements
+}
+
+// initialDequeCap is the smallest power-of-two capacity allocated for a
+// freshly constructed deque. It matches the previous slice-backed
+// implementation's starting capacity so behaviour around the first few
+// reallocations stays comparable.
+const initialFloat32DequeCap = 16
+
+// ceilPow2 rounds n up to the next power of two, with a floor of
+// initialFloat32DequeCap. Used when sizing the buffer to fit a
+// caller-supplied slice in Float32ArrayDequeOf.
+func ceilPow2Float32Deque(n int) int {
+	cap := initialFloat32DequeCap
+	for cap < n {
+		cap <<= 1
+	}
+	return cap
 }
 
 // NewFloat32ArrayDeque creates a new empty Float32ArrayDeque.
 func NewFloat32ArrayDeque() *Float32ArrayDeque {
-	return &Float32ArrayDeque{items: make([]float32, 0, 16)}
+	return &Float32ArrayDeque{items: make([]float32, initialFloat32DequeCap)}
 }
 
 // Float32ArrayDequeOf creates a new Float32ArrayDeque from the given values in
 // front-to-back order.
 func Float32ArrayDequeOf(values ...float32) *Float32ArrayDeque {
-	d := &Float32ArrayDeque{items: make([]float32, len(values))}
+	d := &Float32ArrayDeque{
+		items: make([]float32, ceilPow2Float32Deque(len(values))),
+		size:  len(values),
+	}
 	copy(d.items, values)
 	return d
 }
 
-// AddFirst prepends a value to the front of the deque. O(n).
+// grow doubles the backing buffer and repacks elements so that head is at 0.
+// Called lazily when size would exceed capacity.
+func (d *Float32ArrayDeque) grow() {
+	newCap := len(d.items) * 2
+	if newCap == 0 {
+		newCap = initialFloat32DequeCap
+	}
+	next := make([]float32, newCap)
+	// Copy tail segment (head..end), then wrap segment (0..head) so that
+	// logical order is preserved and head resets to 0.
+	n := copy(next, d.items[d.head:])
+	copy(next[n:], d.items[:d.head])
+	d.items = next
+	d.head = 0
+}
+
+// AddFirst prepends a value to the front of the deque. O(1) amortised.
 func (d *Float32ArrayDeque) AddFirst(value float32) {
-	d.items = append(d.items, 0.0)
-	copy(d.items[1:], d.items[:len(d.items)-1])
-	d.items[0] = value
+	if d.size == len(d.items) {
+		d.grow()
+	}
+	mask := len(d.items) - 1
+	d.head = (d.head - 1) & mask
+	d.items[d.head] = value
+	d.size++
 }
 
-// AddLast appends a value to the back of the deque. O(1) amortized.
+// AddLast appends a value to the back of the deque. O(1) amortised.
 func (d *Float32ArrayDeque) AddLast(value float32) {
-	d.items = append(d.items, value)
+	if d.size == len(d.items) {
+		d.grow()
+	}
+	mask := len(d.items) - 1
+	d.items[(d.head+d.size)&mask] = value
+	d.size++
 }
 
-// RemoveFirst removes and returns the front element, or an error if empty. O(n).
+// RemoveFirst removes and returns the front element, or an error if empty. O(1).
 func (d *Float32ArrayDeque) RemoveFirst() (float32, error) {
-	if len(d.items) == 0 {
+	if d.size == 0 {
 		return 0.0, fmt.Errorf("Float32ArrayDeque: RemoveFirst on empty deque")
 	}
-	v := d.items[0]
-	copy(d.items, d.items[1:])
-	d.items = d.items[:len(d.items)-1]
+	mask := len(d.items) - 1
+	v := d.items[d.head]
+	d.items[d.head] = 0.0 // let GC reclaim references if float32 ever carries them
+	d.head = (d.head + 1) & mask
+	d.size--
 	return v, nil
 }
 
 // RemoveLast removes and returns the back element, or an error if empty. O(1).
 func (d *Float32ArrayDeque) RemoveLast() (float32, error) {
-	if len(d.items) == 0 {
+	if d.size == 0 {
 		return 0.0, fmt.Errorf("Float32ArrayDeque: RemoveLast on empty deque")
 	}
-	last := d.items[len(d.items)-1]
-	d.items = d.items[:len(d.items)-1]
-	return last, nil
+	mask := len(d.items) - 1
+	d.size--
+	idx := (d.head + d.size) & mask
+	v := d.items[idx]
+	d.items[idx] = 0.0
+	return v, nil
 }
 
 // PeekFirst returns the front element without removing it, or an error if empty.
 func (d *Float32ArrayDeque) PeekFirst() (float32, error) {
-	if len(d.items) == 0 {
+	if d.size == 0 {
 		return 0.0, fmt.Errorf("Float32ArrayDeque: PeekFirst on empty deque")
 	}
-	return d.items[0], nil
+	return d.items[d.head], nil
 }
 
 // PeekLast returns the back element without removing it, or an error if empty.
 func (d *Float32ArrayDeque) PeekLast() (float32, error) {
-	if len(d.items) == 0 {
+	if d.size == 0 {
 		return 0.0, fmt.Errorf("Float32ArrayDeque: PeekLast on empty deque")
 	}
-	return d.items[len(d.items)-1], nil
+	mask := len(d.items) - 1
+	return d.items[(d.head+d.size-1)&mask], nil
 }
 
 // Size returns the number of elements in the deque.
-func (d *Float32ArrayDeque) Size() int { return len(d.items) }
+func (d *Float32ArrayDeque) Size() int { return d.size }
 
 // IsEmpty returns true if the deque contains no elements.
-func (d *Float32ArrayDeque) IsEmpty() bool { return len(d.items) == 0 }
+func (d *Float32ArrayDeque) IsEmpty() bool { return d.size == 0 }
 
-// Clear removes all elements.
-func (d *Float32ArrayDeque) Clear() { d.items = d.items[:0] }
+// Clear removes all elements. The backing buffer is retained.
+func (d *Float32ArrayDeque) Clear() {
+	// Wipe slots so retained references are released. Cheap for value types.
+	mask := len(d.items) - 1
+	for i := 0; i < d.size; i++ {
+		d.items[(d.head+i)&mask] = 0.0
+	}
+	d.head = 0
+	d.size = 0
+}
 
 // Contains returns true if the deque contains the given value.
 func (d *Float32ArrayDeque) Contains(value float32) bool {
-	for _, v := range d.items {
+	mask := len(d.items) - 1
+	for i := 0; i < d.size; i++ {
+		v := d.items[(d.head+i)&mask]
 		if math.Float32bits(v) == math.Float32bits(value) {
 			return true
 		}
@@ -98,15 +166,17 @@ func (d *Float32ArrayDeque) Contains(value float32) bool {
 
 // ForEach applies the function to each element from front to back.
 func (d *Float32ArrayDeque) ForEach(f func(float32)) {
-	for _, v := range d.items {
-		f(v)
+	mask := len(d.items) - 1
+	for i := 0; i < d.size; i++ {
+		f(d.items[(d.head+i)&mask])
 	}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
 func (d *Float32ArrayDeque) AnySatisfy(predicate func(float32) bool) bool {
-	for _, v := range d.items {
-		if predicate(v) {
+	mask := len(d.items) - 1
+	for i := 0; i < d.size; i++ {
+		if predicate(d.items[(d.head+i)&mask]) {
 			return true
 		}
 	}
@@ -115,8 +185,9 @@ func (d *Float32ArrayDeque) AnySatisfy(predicate func(float32) bool) bool {
 
 // AllSatisfy returns true if every element satisfies the predicate.
 func (d *Float32ArrayDeque) AllSatisfy(predicate func(float32) bool) bool {
-	for _, v := range d.items {
-		if !predicate(v) {
+	mask := len(d.items) - 1
+	for i := 0; i < d.size; i++ {
+		if !predicate(d.items[(d.head+i)&mask]) {
 			return false
 		}
 	}
@@ -125,18 +196,32 @@ func (d *Float32ArrayDeque) AllSatisfy(predicate func(float32) bool) bool {
 
 // ToSlice returns a copy of the elements in front-to-back order.
 func (d *Float32ArrayDeque) ToSlice() []float32 {
-	out := make([]float32, len(d.items))
-	copy(out, d.items)
+	out := make([]float32, d.size)
+	if d.size == 0 {
+		return out
+	}
+	cap := len(d.items)
+	tail := cap - d.head
+	if d.size <= tail {
+		copy(out, d.items[d.head:d.head+d.size])
+	} else {
+		n := copy(out, d.items[d.head:])
+		copy(out[n:], d.items[:d.size-n])
+	}
 	return out
 }
 
 // Equals returns true if the other deque has the same elements in the same order.
 func (d *Float32ArrayDeque) Equals(other *Float32ArrayDeque) bool {
-	if len(d.items) != len(other.items) {
+	if d.size != other.size {
 		return false
 	}
-	for i, v := range d.items {
-		if !(math.Float32bits(v) == math.Float32bits(other.items[i])) {
+	dMask := len(d.items) - 1
+	oMask := len(other.items) - 1
+	for i := 0; i < d.size; i++ {
+		a := d.items[(d.head+i)&dMask]
+		b := other.items[(other.head+i)&oMask]
+		if !(math.Float32bits(a) == math.Float32bits(b)) {
 			return false
 		}
 	}
@@ -145,16 +230,17 @@ func (d *Float32ArrayDeque) Equals(other *Float32ArrayDeque) bool {
 
 // String returns a string representation in front-to-back order.
 func (d *Float32ArrayDeque) String() string {
-	if len(d.items) == 0 {
+	if d.size == 0 {
 		return "[]"
 	}
 	var sb strings.Builder
 	sb.WriteString("[")
-	for i, v := range d.items {
+	mask := len(d.items) - 1
+	for i := 0; i < d.size; i++ {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		fmt.Fprintf(&sb, "%v", v)
+		fmt.Fprintf(&sb, "%v", d.items[(d.head+i)&mask])
 	}
 	sb.WriteString("]")
 	return sb.String()

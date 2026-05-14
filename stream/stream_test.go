@@ -152,3 +152,71 @@ func TestSumMinMax(t *testing.T) {
 		t.Errorf("Max = (%d, %v), want (5, true)", max, ok)
 	}
 }
+
+func TestPartition(t *testing.T) {
+	yes, no := Partition(seqOf(1, 2, 3, 4, 5, 6), func(v int) bool { return v%2 == 0 })
+	evens := ToSlice(yes)
+	odds := ToSlice(no)
+	if !slices.Equal(evens, []int{2, 4, 6}) {
+		t.Errorf("Partition matching = %v, want [2, 4, 6]", evens)
+	}
+	if !slices.Equal(odds, []int{1, 3, 5}) {
+		t.Errorf("Partition notMatching = %v, want [1, 3, 5]", odds)
+	}
+}
+
+// TestPartition_SingleShotSeq checks that Partition works when the source
+// seq can only be iterated once (a generator with internal state). The
+// old lazy implementation ran Filter twice over `seq`, which silently
+// dropped one side of the partition on single-shot seqs.
+func TestPartition_SingleShotSeq(t *testing.T) {
+	var consumed bool
+	seq := iter.Seq[int](func(yield func(int) bool) {
+		if consumed {
+			return
+		}
+		consumed = true
+		for _, v := range []int{1, 2, 3, 4, 5} {
+			if !yield(v) {
+				return
+			}
+		}
+	})
+	yes, no := Partition(seq, func(v int) bool { return v > 2 })
+	// Consumed at Partition-time, so both sides must have full data.
+	if !slices.Equal(ToSlice(yes), []int{3, 4, 5}) {
+		t.Errorf("Partition over single-shot seq lost matching side")
+	}
+	if !slices.Equal(ToSlice(no), []int{1, 2}) {
+		t.Errorf("Partition over single-shot seq lost notMatching side")
+	}
+}
+
+// TestPartition_PredicateCalledOncePerElement guards the O(n) contract:
+// under the old double-filter implementation, each element was tested
+// twice (once by each branch's filter).
+func TestPartition_PredicateCalledOncePerElement(t *testing.T) {
+	calls := 0
+	yes, no := Partition(seqOf(1, 2, 3, 4, 5), func(v int) bool {
+		calls++
+		return v%2 == 0
+	})
+	// Force both seqs to fully materialise.
+	_ = ToSlice(yes)
+	_ = ToSlice(no)
+	if calls != 5 {
+		t.Errorf("predicate invoked %d times for 5 elements, want 5 (Partition must consume seq once)", calls)
+	}
+}
+
+// TestPartition_IterableMultipleTimes: the returned seqs must be
+// re-runnable even when the input was single-shot. Materialising
+// eagerly into slices gives us this for free.
+func TestPartition_IterableMultipleTimes(t *testing.T) {
+	yes, _ := Partition(seqOf(1, 2, 3, 4, 5, 6), func(v int) bool { return v%2 == 0 })
+	first := ToSlice(yes)
+	second := ToSlice(yes)
+	if !slices.Equal(first, second) {
+		t.Errorf("returned seq not re-runnable: first=%v second=%v", first, second)
+	}
+}

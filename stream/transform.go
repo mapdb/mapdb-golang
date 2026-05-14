@@ -2,7 +2,10 @@
 
 package stream
 
-import "iter"
+import (
+	"iter"
+	"slices"
+)
 
 // GroupBy groups elements by a key function, returning a map from key to slice.
 func GroupBy[V any, K comparable](seq iter.Seq[V], keyFunc func(V) K) map[K][]V {
@@ -14,12 +17,31 @@ func GroupBy[V any, K comparable](seq iter.Seq[V], keyFunc func(V) K) map[K][]V 
 	return result
 }
 
-// Partition splits elements into two sequences: matching and not matching the predicate.
-// Both returned sequences are lazy.
+// Partition splits elements into two sequences: the elements matching
+// the predicate and the elements that do not.
+//
+// The source seq is consumed exactly once and the predicate is called
+// exactly once per element. The result is materialised eagerly — the
+// returned seqs are backed by two slices and are therefore re-runnable
+// even when the input is a single-shot seq (e.g. one backed by a
+// channel, a generator with state, or any pull-based source).
+//
+// This matches Eclipse Collections Java's PartitionIterable contract,
+// where the selected/rejected sides are already materialised by the
+// time partition() returns. An earlier implementation re-ran the
+// source seq twice under two separate Filters; that silently broke
+// single-shot seqs and doubled the predicate-call count on re-runnable
+// seqs.
 func Partition[V any](seq iter.Seq[V], predicate func(V) bool) (matching iter.Seq[V], notMatching iter.Seq[V]) {
-	matching = Filter(seq, predicate)
-	notMatching = Filter(seq, func(v V) bool { return !predicate(v) })
-	return
+	var yes, no []V
+	for v := range seq {
+		if predicate(v) {
+			yes = append(yes, v)
+		} else {
+			no = append(no, v)
+		}
+	}
+	return slices.Values(yes), slices.Values(no)
 }
 
 // Distinct returns a sequence with duplicate elements removed.

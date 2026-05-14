@@ -10,7 +10,6 @@ import (
 	"cmp"
 	"hash/maphash"
 	"strings"
-	"unsafe"
 )
 
 // ── HashingStrategy ───────────────────────────────────────────────────
@@ -46,24 +45,22 @@ func CaseInsensitiveHashingStrategy() HashingStrategy[string] {
 }
 
 // ByField returns a hashing strategy that hashes and compares by an
-// extracted field. For example, to key persons by name only:
+// extracted field. Works for any comparable field type — strings,
+// numeric types, bools, pointers, channels, interfaces, and structs
+// or fixed-size arrays composed thereof.
 //
 //	strategy := ByField(func(p Person) string { return p.Name })
+//
+// The hash respects Go's == semantics: if extract(a) == extract(b)
+// then the hashes are equal. This is guaranteed by hash/maphash's
+// Comparable, which dispatches on the runtime representation rather
+// than the in-memory byte pattern (so two strings with different
+// backing pointers but equal content hash identically).
 func ByField[T any, F comparable](extract func(T) F) HashingStrategy[T] {
 	seed := maphash.MakeSeed()
 	return HashingStrategy[T]{
-		HashCode: func(v T) uint64 {
-			f := extract(v)
-			// Use maphash via unsafe pointer for any comparable type.
-			// This works because Go's comparable types have stable representations.
-			size := unsafe.Sizeof(f)
-			ptr := unsafe.Pointer(&f)
-			var h maphash.Hash
-			h.SetSeed(seed)
-			h.Write(unsafe.Slice((*byte)(ptr), size))
-			return h.Sum64()
-		},
-		Equals: func(a, b T) bool { return extract(a) == extract(b) },
+		HashCode: func(v T) uint64 { return maphash.Comparable(seed, extract(v)) },
+		Equals:   func(a, b T) bool { return extract(a) == extract(b) },
 	}
 }
 

@@ -7,6 +7,7 @@
 package object
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -76,6 +77,85 @@ func TestByFieldHashMap(t *testing.T) {
 	v, _ := m.Get(Person{"Alice", 0, ""})
 	if v != "second" {
 		t.Fatalf("expected 'second', got %v", v)
+	}
+}
+
+// TestByField_StringContent exercises the core hashmap invariant
+// (a == b ⇒ hash(a) == hash(b)) for ByField with a string field.
+// The two equal-content strings are built from different sources,
+// so the underlying byte-header pointers differ. Before the fix
+// that used unsafe.Sizeof on the string header, this test failed.
+func TestByField_StringContent(t *testing.T) {
+	strategy := ByField(func(p Person) string { return p.Name })
+	m := NewHashMapWithStrategy[Person, string](strategy)
+
+	// Two Persons with equal-content names from different sources.
+	p1 := Person{Name: "alice", Age: 30}
+	p2 := Person{Name: fmt.Sprintf("ali%s", "ce"), Age: 40}
+
+	if p1.Name != p2.Name {
+		t.Fatalf("precondition: names should compare equal (%q vs %q)", p1.Name, p2.Name)
+	}
+
+	m.Put(p1, "first")
+	if !m.ContainsKey(p2) {
+		t.Fatalf("ContainsKey must find equal-content string built differently")
+	}
+	v, ok := m.Get(p2)
+	if !ok || v != "first" {
+		t.Fatalf("Get must return inserted value regardless of string source; got (%q, %v)", v, ok)
+	}
+
+	m.Put(p2, "second") // should overwrite
+	if m.Size() != 1 {
+		t.Fatalf("expected overwrite, size=%d", m.Size())
+	}
+}
+
+// TestByField_StructWithString covers a struct field that contains
+// a string (not just a plain string). hash/maphash.Comparable must
+// recurse into the struct and respect == content semantics.
+func TestByField_StructWithString(t *testing.T) {
+	type addr struct {
+		Street string
+		ZIP    int
+	}
+	type user struct {
+		Name string
+		Home addr
+	}
+	strategy := ByField(func(u user) addr { return u.Home })
+	s := NewHashSetWithStrategy(strategy)
+
+	// Build the two addr values via different string constructions.
+	a := addr{Street: "Main St", ZIP: 10001}
+	b := addr{Street: fmt.Sprint("Main ", "St"), ZIP: 10001}
+
+	if a != b {
+		t.Fatalf("precondition: addrs should be == (%+v vs %+v)", a, b)
+	}
+
+	s.Add(user{Name: "u1", Home: a})
+	if !s.Contains(user{Name: "u2", Home: b}) {
+		t.Fatalf("Contains must find struct-field-equal user built with differently-sourced strings")
+	}
+}
+
+// TestByField_NumericRoundTrip is a sanity check for the common
+// numeric case — the maphash.Comparable path must behave for plain
+// numeric fields the same way the old unsafe path did (no regression).
+func TestByField_NumericRoundTrip(t *testing.T) {
+	strategy := ByField(func(p Person) int { return p.Age })
+	m := NewHashMapWithStrategy[Person, string](strategy)
+	m.Put(Person{Name: "A", Age: 20}, "twenty")
+	m.Put(Person{Name: "B", Age: 30}, "thirty")
+
+	v, ok := m.Get(Person{Name: "ignored", Age: 20})
+	if !ok || v != "twenty" {
+		t.Fatalf("expected 'twenty', got (%q, %v)", v, ok)
+	}
+	if m.Size() != 2 {
+		t.Fatalf("expected 2 entries, got %d", m.Size())
 	}
 }
 

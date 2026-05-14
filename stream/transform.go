@@ -5,10 +5,30 @@ package stream
 import (
 	"iter"
 	"slices"
+
+	"github.com/mapdb/mapdb-golang/object"
 )
 
-// GroupBy groups elements by a key function, returning a map from key to slice.
-func GroupBy[V any, K comparable](seq iter.Seq[V], keyFunc func(V) K) map[K][]V {
+// GroupBy groups elements by a key function, returning an
+// object.HashMultimap so callers get a first-class library-native type
+// instead of a raw Go map. Size/SizeDistinct/All iteration/ForEach
+// work as on any HashMultimap.
+//
+// An earlier version returned map[K][]V; that shape forced callers out
+// of the library's functional API for the grouped result. The rename
+// is source-breaking for that handful of callers — use GroupByToMap
+// below if you need the raw map shape.
+func GroupBy[V any, K comparable](seq iter.Seq[V], keyFunc func(V) K) *object.HashMultimap[K, V] {
+	result := object.NewHashMultimap[K, V]()
+	for v := range seq {
+		result.Put(keyFunc(v), v)
+	}
+	return result
+}
+
+// GroupByToMap is the escape hatch for callers that genuinely want a
+// bare map[K][]V (e.g. for marshalling) rather than a HashMultimap.
+func GroupByToMap[V any, K comparable](seq iter.Seq[V], keyFunc func(V) K) map[K][]V {
 	result := make(map[K][]V)
 	for v := range seq {
 		key := keyFunc(v)

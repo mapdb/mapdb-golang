@@ -72,8 +72,18 @@ func TestGroupBy(t *testing.T) {
 		}
 		return "odd"
 	})
-	if len(groups["even"]) != 3 || len(groups["odd"]) != 3 {
+	if len(groups.Get("even")) != 3 || len(groups.Get("odd")) != 3 {
 		t.Errorf("GroupBy = %v", groups)
+	}
+	if groups.Size() != 6 || groups.SizeDistinct() != 2 {
+		t.Errorf("GroupBy sizes = (%d, %d)", groups.Size(), groups.SizeDistinct())
+	}
+}
+
+func TestGroupByToMap(t *testing.T) {
+	m := GroupByToMap(seqOf(1, 2, 3, 4), func(v int) bool { return v%2 == 0 })
+	if len(m[true]) != 2 || len(m[false]) != 2 {
+		t.Errorf("GroupByToMap = %v", m)
 	}
 }
 

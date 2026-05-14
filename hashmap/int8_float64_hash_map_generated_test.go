@@ -330,3 +330,25 @@ func TestInt8Float64HashMap_Generated_Resize(t *testing.T) {
 		}
 	}
 }
+
+func TestInt8Float64HashMap_NaNValue_ContainsValue(t *testing.T) {
+	m := NewInt8Float64HashMap()
+	nan := float64(math.NaN())
+	m.Put(1, nan)
+	if !m.ContainsValue(nan) {
+		t.Error("ContainsValue(NaN) should be true (bit-level comparison)")
+	}
+}
+
+func TestInt8Float64HashMap_NaNValue_GetReturnsNaN(t *testing.T) {
+	m := NewInt8Float64HashMap()
+	nan := float64(math.NaN())
+	m.Put(1, nan)
+	v, ok := m.Get(1)
+	if !ok {
+		t.Fatal("expected Get to find the key")
+	}
+	if !math.IsNaN(float64(v)) {
+		t.Errorf("Get returned %v, want NaN", v)
+	}
+}

@@ -397,7 +397,7 @@ func (m *CharCharSentinelHashMap) String() string {
 }
 
 func (m *CharCharSentinelHashMap) hashKey(key uint16) uint64 {
-	return uint64(key)
+	return func() uint64 { h := uint64(key) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
 }
 
 func (m *CharCharSentinelHashMap) needsResize() bool {

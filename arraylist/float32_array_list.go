@@ -5,63 +5,48 @@ package arraylist
 import (
 	"fmt"
 	"iter"
+	"math"
 	"sort"
 	"strings"
 )
 
 // Float32ArrayList is a resizable array-backed list of float32 values.
+// Length is always len(l.items); there is no separate size counter.
 type Float32ArrayList struct {
 	items []float32
-	size  int
 }
 
 // NewFloat32ArrayList creates a new empty Float32ArrayList.
 func NewFloat32ArrayList() *Float32ArrayList {
-	return &Float32ArrayList{
-		items: make([]float32, 0, 16),
-		size:  0,
-	}
+	return &Float32ArrayList{items: make([]float32, 0, 16)}
 }
 
 // NewFloat32ArrayListWithCapacity creates a new empty Float32ArrayList with the given initial capacity.
 func NewFloat32ArrayListWithCapacity(capacity int) *Float32ArrayList {
-	return &Float32ArrayList{
-		items: make([]float32, 0, capacity),
-		size:  0,
-	}
+	return &Float32ArrayList{items: make([]float32, 0, capacity)}
 }
 
 // Float32ArrayListOf creates a new Float32ArrayList from the given values.
 func Float32ArrayListOf(values ...float32) *Float32ArrayList {
-	l := &Float32ArrayList{
-		items: make([]float32, len(values)),
-		size:  len(values),
-	}
+	l := &Float32ArrayList{items: make([]float32, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
 func (l *Float32ArrayList) Add(value float32) {
-	if l.size == cap(l.items) {
-		l.grow()
-	}
-	l.items = l.items[:l.size+1]
-	l.items[l.size] = value
-	l.size++
+	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
 func (l *Float32ArrayList) AddAll(values ...float32) {
-	for _, v := range values {
-		l.Add(v)
-	}
+	l.items = append(l.items, values...)
 }
 
 // Get returns the value at the given index, or an error if the index is out of bounds.
 func (l *Float32ArrayList) Get(index int) (float32, error) {
-	if index < 0 || index >= l.size {
-		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, l.size)
+	if index < 0 || index >= len(l.items) {
+		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
 	}
 	return l.items[index], nil
 }
@@ -69,8 +54,8 @@ func (l *Float32ArrayList) Get(index int) (float32, error) {
 // Set sets the value at the given index, returning the previous value.
 // Returns an error if the index is out of bounds.
 func (l *Float32ArrayList) Set(index int, value float32) (float32, error) {
-	if index < 0 || index >= l.size {
-		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, l.size)
+	if index < 0 || index >= len(l.items) {
+		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
 	}
 	old := l.items[index]
 	l.items[index] = value
@@ -80,20 +65,19 @@ func (l *Float32ArrayList) Set(index int, value float32) (float32, error) {
 // RemoveAtIndex removes the value at the given index and returns it.
 // Returns an error if the index is out of bounds.
 func (l *Float32ArrayList) RemoveAtIndex(index int) (float32, error) {
-	if index < 0 || index >= l.size {
-		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, l.size)
+	if index < 0 || index >= len(l.items) {
+		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
 	}
 	old := l.items[index]
-	copy(l.items[index:], l.items[index+1:l.size])
-	l.size--
-	l.items = l.items[:l.size]
+	copy(l.items[index:], l.items[index+1:])
+	l.items = l.items[:len(l.items)-1]
 	return old, nil
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
 func (l *Float32ArrayList) Remove(value float32) bool {
-	for i := 0; i < l.size; i++ {
-		if l.items[i] == value {
+	for i, v := range l.items {
+		if math.Float32bits(v) == math.Float32bits(value) {
 			_, _ = l.RemoveAtIndex(i)
 			return true
 		}
@@ -103,8 +87,8 @@ func (l *Float32ArrayList) Remove(value float32) bool {
 
 // Contains returns true if the list contains the given value.
 func (l *Float32ArrayList) Contains(value float32) bool {
-	for i := 0; i < l.size; i++ {
-		if l.items[i] == value {
+	for _, v := range l.items {
+		if math.Float32bits(v) == math.Float32bits(value) {
 			return true
 		}
 	}
@@ -113,8 +97,8 @@ func (l *Float32ArrayList) Contains(value float32) bool {
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
 func (l *Float32ArrayList) IndexOf(value float32) int {
-	for i := 0; i < l.size; i++ {
-		if l.items[i] == value {
+	for i, v := range l.items {
+		if math.Float32bits(v) == math.Float32bits(value) {
 			return i
 		}
 	}
@@ -122,26 +106,19 @@ func (l *Float32ArrayList) IndexOf(value float32) int {
 }
 
 // Size returns the number of elements in the list.
-func (l *Float32ArrayList) Size() int {
-	return l.size
-}
+func (l *Float32ArrayList) Size() int { return len(l.items) }
 
 // IsEmpty returns true if the list contains no elements.
-func (l *Float32ArrayList) IsEmpty() bool {
-	return l.size == 0
-}
+func (l *Float32ArrayList) IsEmpty() bool { return len(l.items) == 0 }
 
 // Clear removes all elements from the list.
-func (l *Float32ArrayList) Clear() {
-	l.items = l.items[:0]
-	l.size = 0
-}
+func (l *Float32ArrayList) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
 func (l *Float32ArrayList) All() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
-		for i := 0; i < l.size; i++ {
-			if !yield(l.items[i]) {
+		for _, v := range l.items {
+			if !yield(v) {
 				return
 			}
 		}
@@ -151,8 +128,8 @@ func (l *Float32ArrayList) All() iter.Seq[float32] {
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
 func (l *Float32ArrayList) AllWithIndex() iter.Seq2[int, float32] {
 	return func(yield func(int, float32) bool) {
-		for i := 0; i < l.size; i++ {
-			if !yield(i, l.items[i]) {
+		for i, v := range l.items {
+			if !yield(i, v) {
 				return
 			}
 		}
@@ -161,24 +138,24 @@ func (l *Float32ArrayList) AllWithIndex() iter.Seq2[int, float32] {
 
 // ForEach calls the given function for each element.
 func (l *Float32ArrayList) ForEach(f func(float32)) {
-	for i := 0; i < l.size; i++ {
-		f(l.items[i])
+	for _, v := range l.items {
+		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
 func (l *Float32ArrayList) ForEachWithIndex(f func(float32, int)) {
-	for i := 0; i < l.size; i++ {
-		f(l.items[i], i)
+	for i, v := range l.items {
+		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
 func (l *Float32ArrayList) Select(predicate func(float32) bool) *Float32ArrayList {
 	result := NewFloat32ArrayList()
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
-			result.Add(l.items[i])
+	for _, v := range l.items {
+		if predicate(v) {
+			result.Add(v)
 		}
 	}
 	return result
@@ -187,9 +164,9 @@ func (l *Float32ArrayList) Select(predicate func(float32) bool) *Float32ArrayLis
 // Reject returns a new list containing only elements that do not satisfy the predicate.
 func (l *Float32ArrayList) Reject(predicate func(float32) bool) *Float32ArrayList {
 	result := NewFloat32ArrayList()
-	for i := 0; i < l.size; i++ {
-		if !predicate(l.items[i]) {
-			result.Add(l.items[i])
+	for _, v := range l.items {
+		if !predicate(v) {
+			result.Add(v)
 		}
 	}
 	return result
@@ -197,9 +174,9 @@ func (l *Float32ArrayList) Reject(predicate func(float32) bool) *Float32ArrayLis
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
 func (l *Float32ArrayList) Detect(predicate func(float32) bool) (float32, bool) {
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
-			return l.items[i], true
+	for _, v := range l.items {
+		if predicate(v) {
+			return v, true
 		}
 	}
 	return 0.0, false
@@ -207,8 +184,8 @@ func (l *Float32ArrayList) Detect(predicate func(float32) bool) (float32, bool) 
 
 // AnySatisfy returns true if any element satisfies the predicate.
 func (l *Float32ArrayList) AnySatisfy(predicate func(float32) bool) bool {
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
+	for _, v := range l.items {
+		if predicate(v) {
 			return true
 		}
 	}
@@ -217,8 +194,8 @@ func (l *Float32ArrayList) AnySatisfy(predicate func(float32) bool) bool {
 
 // AllSatisfy returns true if all elements satisfy the predicate.
 func (l *Float32ArrayList) AllSatisfy(predicate func(float32) bool) bool {
-	for i := 0; i < l.size; i++ {
-		if !predicate(l.items[i]) {
+	for _, v := range l.items {
+		if !predicate(v) {
 			return false
 		}
 	}
@@ -227,8 +204,8 @@ func (l *Float32ArrayList) AllSatisfy(predicate func(float32) bool) bool {
 
 // NoneSatisfy returns true if no element satisfies the predicate.
 func (l *Float32ArrayList) NoneSatisfy(predicate func(float32) bool) bool {
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
+	for _, v := range l.items {
+		if predicate(v) {
 			return false
 		}
 	}
@@ -238,8 +215,8 @@ func (l *Float32ArrayList) NoneSatisfy(predicate func(float32) bool) bool {
 // Count returns the number of elements that satisfy the predicate.
 func (l *Float32ArrayList) Count(predicate func(float32) bool) int {
 	count := 0
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
+	for _, v := range l.items {
+		if predicate(v) {
 			count++
 		}
 	}
@@ -249,8 +226,8 @@ func (l *Float32ArrayList) Count(predicate func(float32) bool) int {
 // InjectInto performs a left fold over the list.
 func (l *Float32ArrayList) InjectInto(initial float32, f func(float32, float32) float32) float32 {
 	result := initial
-	for i := 0; i < l.size; i++ {
-		result = f(result, l.items[i])
+	for _, v := range l.items {
+		result = f(result, v)
 	}
 	return result
 }
@@ -258,21 +235,21 @@ func (l *Float32ArrayList) InjectInto(initial float32, f func(float32, float32) 
 // Sum returns the sum of all elements.
 func (l *Float32ArrayList) Sum() float32 {
 	var sum float32
-	for i := 0; i < l.size; i++ {
-		sum += l.items[i]
+	for _, v := range l.items {
+		sum += v
 	}
 	return sum
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
 func (l *Float32ArrayList) Min() (float32, bool) {
-	if l.size == 0 {
+	if len(l.items) == 0 {
 		return 0.0, false
 	}
 	min := l.items[0]
-	for i := 1; i < l.size; i++ {
-		if l.items[i] < min {
-			min = l.items[i]
+	for _, v := range l.items[1:] {
+		if v < min {
+			min = v
 		}
 	}
 	return min, true
@@ -280,13 +257,13 @@ func (l *Float32ArrayList) Min() (float32, bool) {
 
 // Max returns the maximum element, or the zero value and false if empty.
 func (l *Float32ArrayList) Max() (float32, bool) {
-	if l.size == 0 {
+	if len(l.items) == 0 {
 		return 0.0, false
 	}
 	max := l.items[0]
-	for i := 1; i < l.size; i++ {
-		if l.items[i] > max {
-			max = l.items[i]
+	for _, v := range l.items[1:] {
+		if v > max {
+			max = v
 		}
 	}
 	return max, true
@@ -294,24 +271,24 @@ func (l *Float32ArrayList) Max() (float32, bool) {
 
 // Sort sorts the list in ascending order.
 func (l *Float32ArrayList) Sort() {
-	sort.Slice(l.items[:l.size], func(i, j int) bool {
+	sort.Slice(l.items, func(i, j int) bool {
 		return l.items[i] < l.items[j]
 	})
 }
 
 // SortWithComparator sorts the list using the given comparison function.
 func (l *Float32ArrayList) SortWithComparator(less func(float32, float32) bool) {
-	sort.Slice(l.items[:l.size], func(i, j int) bool {
+	sort.Slice(l.items, func(i, j int) bool {
 		return less(l.items[i], l.items[j])
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
 func (l *Float32ArrayList) BinarySearch(value float32) (int, bool) {
-	lo, hi := 0, l.size-1
+	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
-		if l.items[mid] == value {
+		if math.Float32bits(l.items[mid]) == math.Float32bits(value) {
 			return mid, true
 		}
 		if l.items[mid] < value {
@@ -325,8 +302,9 @@ func (l *Float32ArrayList) BinarySearch(value float32) (int, bool) {
 
 // Reversed returns a new list with elements in reverse order.
 func (l *Float32ArrayList) Reversed() *Float32ArrayList {
-	result := NewFloat32ArrayListWithCapacity(l.size)
-	for i := l.size - 1; i >= 0; i-- {
+	n := len(l.items)
+	result := NewFloat32ArrayListWithCapacity(n)
+	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
 	return result
@@ -336,10 +314,10 @@ func (l *Float32ArrayList) Reversed() *Float32ArrayList {
 func (l *Float32ArrayList) Distinct() *Float32ArrayList {
 	seen := make(map[float32]struct{})
 	result := NewFloat32ArrayList()
-	for i := 0; i < l.size; i++ {
-		if _, ok := seen[l.items[i]]; !ok {
-			seen[l.items[i]] = struct{}{}
-			result.Add(l.items[i])
+	for _, v := range l.items {
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			result.Add(v)
 		}
 	}
 	return result
@@ -347,8 +325,8 @@ func (l *Float32ArrayList) Distinct() *Float32ArrayList {
 
 // ToSlice returns a copy of the list elements as a slice.
 func (l *Float32ArrayList) ToSlice() []float32 {
-	result := make([]float32, l.size)
-	copy(result, l.items[:l.size])
+	result := make([]float32, len(l.items))
+	copy(result, l.items)
 	return result
 }
 
@@ -366,16 +344,16 @@ func (l *Float32ArrayList) Without(value float32) *Float32ArrayList {
 
 // String returns a string representation of the list.
 func (l *Float32ArrayList) String() string {
-	if l.size == 0 {
+	if len(l.items) == 0 {
 		return "[]"
 	}
 	var sb strings.Builder
 	sb.WriteString("[")
-	for i := 0; i < l.size; i++ {
+	for i, v := range l.items {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		fmt.Fprintf(&sb, "%v", l.items[i])
+		fmt.Fprintf(&sb, "%v", v)
 	}
 	sb.WriteString("]")
 	return sb.String()
@@ -383,11 +361,11 @@ func (l *Float32ArrayList) String() string {
 
 // Equals returns true if the other list has the same elements in the same order.
 func (l *Float32ArrayList) Equals(other *Float32ArrayList) bool {
-	if l.size != other.size {
+	if len(l.items) != len(other.items) {
 		return false
 	}
-	for i := 0; i < l.size; i++ {
-		if l.items[i] != other.items[i] {
+	for i, v := range l.items {
+		if !(math.Float32bits(v) == math.Float32bits(other.items[i])) {
 			return false
 		}
 	}
@@ -400,34 +378,38 @@ func (l *Float32ArrayList) WithAll(values ...float32) *Float32ArrayList {
 	return l
 }
 
-// WithoutAll removes all occurrences of the given values.
+// WithoutAll removes every occurrence of any of the given values.
+// Compacts in place — keeps the existing backing storage and avoids
+// the temporary-list allocation the previous implementation made.
 func (l *Float32ArrayList) WithoutAll(values ...float32) *Float32ArrayList {
-	remove := make(map[float32]struct{})
+	if len(values) == 0 || len(l.items) == 0 {
+		return l
+	}
+	remove := make(map[float32]struct{}, len(values))
 	for _, v := range values {
 		remove[v] = struct{}{}
 	}
-	result := NewFloat32ArrayList()
-	for i := 0; i < l.size; i++ {
-		if _, skip := remove[l.items[i]]; !skip {
-			result.Add(l.items[i])
+	// Two-index compaction: write is the cursor into the kept portion,
+	// read iterates every original element.
+	write := 0
+	for _, v := range l.items {
+		if _, skip := remove[v]; skip {
+			continue
 		}
+		l.items[write] = v
+		write++
 	}
-	l.items = result.items
-	l.size = result.size
+	// Zero out the tail so GC can reclaim any references the slots held
+	// (cheap no-op for plain numeric float32 but keeps the template honest
+	// for future value-carrying specialisations).
+	for i := write; i < len(l.items); i++ {
+		l.items[i] = 0.0
+	}
+	l.items = l.items[:write]
 	return l
 }
 
 // ToImmutable returns an immutable copy of this list.
 func (l *Float32ArrayList) ToImmutable() *ImmutableFloat32ArrayList {
 	return ImmutableFloat32ArrayListFrom(l)
-}
-
-func (l *Float32ArrayList) grow() {
-	newCap := cap(l.items) * 2
-	if newCap == 0 {
-		newCap = 16
-	}
-	newItems := make([]float32, l.size, newCap)
-	copy(newItems, l.items[:l.size])
-	l.items = newItems
 }

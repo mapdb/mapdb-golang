@@ -127,7 +127,11 @@ func (m *Float64Int8HashMap) Remove(key float64) (int8, bool) {
 			m.entries[idx].key = 0.0
 			m.entries[idx].value = 0
 			m.size--
-			// Robin Hood rehash: shift subsequent entries back
+			// Backward-shift deletion: the sibling of linear probing that
+			// closes the hole by pulling each subsequent probed-past entry
+			// one slot back until we reach an empty slot or an entry whose
+			// preferred index equals its current index. This is distinct
+			// from Robin Hood hashing (which is an insertion strategy).
 			m.rehashFrom(idx, mask)
 			return old, true
 		}
@@ -441,12 +445,19 @@ func (m *Float64Int8HashMap) SumOfValues() int8 {
 	return sum
 }
 
-// Entry returns a handle for atomic check-and-modify operations on the given key.
+// Entry returns a handle for in-place check-and-modify operations on the
+// given key. The handle is not thread-safe: external synchronisation (the
+// SynchronizedFloat64Int8HashMap wrapper's Lock / RLock, or your own mutex) is required
+// when multiple goroutines share the same underlying map. The name is
+// modelled on Rust's std::collections::hash_map::Entry, not on Java's
+// ConcurrentMap.compute; there is no internal locking, no CAS, and no
+// atomicity guarantee across callback invocation.
 func (m *Float64Int8HashMap) Entry(key float64) Float64Int8Entry {
 	return Float64Int8Entry{m: m, key: key}
 }
 
-// Float64Int8Entry provides atomic check-and-modify operations for a single key.
+// Float64Int8Entry provides in-place check-and-modify operations for a single
+// key. Not thread-safe — see Float64Int8HashMap.Entry.
 type Float64Int8Entry struct {
 	m   *Float64Int8HashMap
 	key float64
@@ -461,7 +472,8 @@ func (e Float64Int8Entry) OrInsert(defaultValue int8) int8 {
 	return defaultValue
 }
 
-// OrInsertWith inserts the value from the function if the key is absent, and returns the current value.
+// OrInsertWith inserts the value from the function if the key is absent,
+// and returns the current value.
 func (e Float64Int8Entry) OrInsertWith(f func() int8) int8 {
 	if v, ok := e.m.Get(e.key); ok {
 		return v
@@ -471,7 +483,15 @@ func (e Float64Int8Entry) OrInsertWith(f func() int8) int8 {
 	return val
 }
 
-// AndModify calls the function on the value if the key is present. Returns the entry for chaining.
+// AndModify calls f with a pointer to the value if the key is present,
+// and returns the entry for fluent chaining. If the key is absent, f is
+// not called and the entry is returned unchanged.
+//
+// CAUTION: f must not call Put / OrInsert / OrInsertWith on the same map.
+// Those calls may trigger a resize that reallocates the underlying
+// entries slice, leaving f's pointer dangling into the old slice. To
+// guard against silent data loss this path panics if it detects a
+// resize happened during f — see the post-call check below.
 func (e Float64Int8Entry) AndModify(f func(*int8)) Float64Int8Entry {
 	cap := len(e.m.entries)
 	if cap == 0 {
@@ -484,7 +504,16 @@ func (e Float64Int8Entry) AndModify(f func(*int8)) Float64Int8Entry {
 			return e
 		}
 		if math.Float64bits(e.m.entries[idx].key) == math.Float64bits(e.key) {
+			// Detect backing-slice identity before and after the callback.
+			// If the slice header changed (resize) or length changed (rehash),
+			// the pointer we passed to f aliased the pre-resize storage and
+			// the mutation is lost. Panic rather than silently dropping data.
+			prevPtr := &e.m.entries[0]
+			prevLen := len(e.m.entries)
 			f(&e.m.entries[idx].value)
+			if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
+				panic("Float64Int8Entry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
+			}
 			return e
 		}
 		idx = (idx + 1) & mask
@@ -492,7 +521,7 @@ func (e Float64Int8Entry) AndModify(f func(*int8)) Float64Int8Entry {
 }
 
 func (m *Float64Int8HashMap) hashKey(key float64) uint64 {
-	return uint64(*(*uint64)(unsafe.Pointer(&key))) * 0x9E3779B97F4A7C15
+	return func() uint64 { h := *(*uint64)(unsafe.Pointer(&key)) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
 }
 
 func (m *Float64Int8HashMap) needsResize() bool {

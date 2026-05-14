@@ -357,7 +357,7 @@ func (s *Int32HashSet) Equals(other *Int32HashSet) bool {
 }
 
 func (s *Int32HashSet) hash(value int32) uint64 {
-	return uint64(value) * 0x9E3779B9
+	return func() uint64 { h := uint64(uint32(value)) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
 }
 
 func (s *Int32HashSet) needsResize() bool {

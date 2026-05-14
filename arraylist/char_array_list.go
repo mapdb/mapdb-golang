@@ -10,58 +10,42 @@ import (
 )
 
 // CharArrayList is a resizable array-backed list of uint16 values.
+// Length is always len(l.items); there is no separate size counter.
 type CharArrayList struct {
 	items []uint16
-	size  int
 }
 
 // NewCharArrayList creates a new empty CharArrayList.
 func NewCharArrayList() *CharArrayList {
-	return &CharArrayList{
-		items: make([]uint16, 0, 16),
-		size:  0,
-	}
+	return &CharArrayList{items: make([]uint16, 0, 16)}
 }
 
 // NewCharArrayListWithCapacity creates a new empty CharArrayList with the given initial capacity.
 func NewCharArrayListWithCapacity(capacity int) *CharArrayList {
-	return &CharArrayList{
-		items: make([]uint16, 0, capacity),
-		size:  0,
-	}
+	return &CharArrayList{items: make([]uint16, 0, capacity)}
 }
 
 // CharArrayListOf creates a new CharArrayList from the given values.
 func CharArrayListOf(values ...uint16) *CharArrayList {
-	l := &CharArrayList{
-		items: make([]uint16, len(values)),
-		size:  len(values),
-	}
+	l := &CharArrayList{items: make([]uint16, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
 func (l *CharArrayList) Add(value uint16) {
-	if l.size == cap(l.items) {
-		l.grow()
-	}
-	l.items = l.items[:l.size+1]
-	l.items[l.size] = value
-	l.size++
+	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
 func (l *CharArrayList) AddAll(values ...uint16) {
-	for _, v := range values {
-		l.Add(v)
-	}
+	l.items = append(l.items, values...)
 }
 
 // Get returns the value at the given index, or an error if the index is out of bounds.
 func (l *CharArrayList) Get(index int) (uint16, error) {
-	if index < 0 || index >= l.size {
-		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, l.size)
+	if index < 0 || index >= len(l.items) {
+		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, len(l.items))
 	}
 	return l.items[index], nil
 }
@@ -69,8 +53,8 @@ func (l *CharArrayList) Get(index int) (uint16, error) {
 // Set sets the value at the given index, returning the previous value.
 // Returns an error if the index is out of bounds.
 func (l *CharArrayList) Set(index int, value uint16) (uint16, error) {
-	if index < 0 || index >= l.size {
-		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, l.size)
+	if index < 0 || index >= len(l.items) {
+		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, len(l.items))
 	}
 	old := l.items[index]
 	l.items[index] = value
@@ -80,20 +64,19 @@ func (l *CharArrayList) Set(index int, value uint16) (uint16, error) {
 // RemoveAtIndex removes the value at the given index and returns it.
 // Returns an error if the index is out of bounds.
 func (l *CharArrayList) RemoveAtIndex(index int) (uint16, error) {
-	if index < 0 || index >= l.size {
-		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, l.size)
+	if index < 0 || index >= len(l.items) {
+		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, len(l.items))
 	}
 	old := l.items[index]
-	copy(l.items[index:], l.items[index+1:l.size])
-	l.size--
-	l.items = l.items[:l.size]
+	copy(l.items[index:], l.items[index+1:])
+	l.items = l.items[:len(l.items)-1]
 	return old, nil
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
 func (l *CharArrayList) Remove(value uint16) bool {
-	for i := 0; i < l.size; i++ {
-		if l.items[i] == value {
+	for i, v := range l.items {
+		if v == value {
 			_, _ = l.RemoveAtIndex(i)
 			return true
 		}
@@ -103,8 +86,8 @@ func (l *CharArrayList) Remove(value uint16) bool {
 
 // Contains returns true if the list contains the given value.
 func (l *CharArrayList) Contains(value uint16) bool {
-	for i := 0; i < l.size; i++ {
-		if l.items[i] == value {
+	for _, v := range l.items {
+		if v == value {
 			return true
 		}
 	}
@@ -113,8 +96,8 @@ func (l *CharArrayList) Contains(value uint16) bool {
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
 func (l *CharArrayList) IndexOf(value uint16) int {
-	for i := 0; i < l.size; i++ {
-		if l.items[i] == value {
+	for i, v := range l.items {
+		if v == value {
 			return i
 		}
 	}
@@ -122,26 +105,19 @@ func (l *CharArrayList) IndexOf(value uint16) int {
 }
 
 // Size returns the number of elements in the list.
-func (l *CharArrayList) Size() int {
-	return l.size
-}
+func (l *CharArrayList) Size() int { return len(l.items) }
 
 // IsEmpty returns true if the list contains no elements.
-func (l *CharArrayList) IsEmpty() bool {
-	return l.size == 0
-}
+func (l *CharArrayList) IsEmpty() bool { return len(l.items) == 0 }
 
 // Clear removes all elements from the list.
-func (l *CharArrayList) Clear() {
-	l.items = l.items[:0]
-	l.size = 0
-}
+func (l *CharArrayList) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
 func (l *CharArrayList) All() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
-		for i := 0; i < l.size; i++ {
-			if !yield(l.items[i]) {
+		for _, v := range l.items {
+			if !yield(v) {
 				return
 			}
 		}
@@ -151,8 +127,8 @@ func (l *CharArrayList) All() iter.Seq[uint16] {
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
 func (l *CharArrayList) AllWithIndex() iter.Seq2[int, uint16] {
 	return func(yield func(int, uint16) bool) {
-		for i := 0; i < l.size; i++ {
-			if !yield(i, l.items[i]) {
+		for i, v := range l.items {
+			if !yield(i, v) {
 				return
 			}
 		}
@@ -161,24 +137,24 @@ func (l *CharArrayList) AllWithIndex() iter.Seq2[int, uint16] {
 
 // ForEach calls the given function for each element.
 func (l *CharArrayList) ForEach(f func(uint16)) {
-	for i := 0; i < l.size; i++ {
-		f(l.items[i])
+	for _, v := range l.items {
+		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
 func (l *CharArrayList) ForEachWithIndex(f func(uint16, int)) {
-	for i := 0; i < l.size; i++ {
-		f(l.items[i], i)
+	for i, v := range l.items {
+		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
 func (l *CharArrayList) Select(predicate func(uint16) bool) *CharArrayList {
 	result := NewCharArrayList()
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
-			result.Add(l.items[i])
+	for _, v := range l.items {
+		if predicate(v) {
+			result.Add(v)
 		}
 	}
 	return result
@@ -187,9 +163,9 @@ func (l *CharArrayList) Select(predicate func(uint16) bool) *CharArrayList {
 // Reject returns a new list containing only elements that do not satisfy the predicate.
 func (l *CharArrayList) Reject(predicate func(uint16) bool) *CharArrayList {
 	result := NewCharArrayList()
-	for i := 0; i < l.size; i++ {
-		if !predicate(l.items[i]) {
-			result.Add(l.items[i])
+	for _, v := range l.items {
+		if !predicate(v) {
+			result.Add(v)
 		}
 	}
 	return result
@@ -197,9 +173,9 @@ func (l *CharArrayList) Reject(predicate func(uint16) bool) *CharArrayList {
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
 func (l *CharArrayList) Detect(predicate func(uint16) bool) (uint16, bool) {
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
-			return l.items[i], true
+	for _, v := range l.items {
+		if predicate(v) {
+			return v, true
 		}
 	}
 	return 0, false
@@ -207,8 +183,8 @@ func (l *CharArrayList) Detect(predicate func(uint16) bool) (uint16, bool) {
 
 // AnySatisfy returns true if any element satisfies the predicate.
 func (l *CharArrayList) AnySatisfy(predicate func(uint16) bool) bool {
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
+	for _, v := range l.items {
+		if predicate(v) {
 			return true
 		}
 	}
@@ -217,8 +193,8 @@ func (l *CharArrayList) AnySatisfy(predicate func(uint16) bool) bool {
 
 // AllSatisfy returns true if all elements satisfy the predicate.
 func (l *CharArrayList) AllSatisfy(predicate func(uint16) bool) bool {
-	for i := 0; i < l.size; i++ {
-		if !predicate(l.items[i]) {
+	for _, v := range l.items {
+		if !predicate(v) {
 			return false
 		}
 	}
@@ -227,8 +203,8 @@ func (l *CharArrayList) AllSatisfy(predicate func(uint16) bool) bool {
 
 // NoneSatisfy returns true if no element satisfies the predicate.
 func (l *CharArrayList) NoneSatisfy(predicate func(uint16) bool) bool {
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
+	for _, v := range l.items {
+		if predicate(v) {
 			return false
 		}
 	}
@@ -238,8 +214,8 @@ func (l *CharArrayList) NoneSatisfy(predicate func(uint16) bool) bool {
 // Count returns the number of elements that satisfy the predicate.
 func (l *CharArrayList) Count(predicate func(uint16) bool) int {
 	count := 0
-	for i := 0; i < l.size; i++ {
-		if predicate(l.items[i]) {
+	for _, v := range l.items {
+		if predicate(v) {
 			count++
 		}
 	}
@@ -249,8 +225,8 @@ func (l *CharArrayList) Count(predicate func(uint16) bool) int {
 // InjectInto performs a left fold over the list.
 func (l *CharArrayList) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
 	result := initial
-	for i := 0; i < l.size; i++ {
-		result = f(result, l.items[i])
+	for _, v := range l.items {
+		result = f(result, v)
 	}
 	return result
 }
@@ -258,21 +234,21 @@ func (l *CharArrayList) InjectInto(initial uint16, f func(uint16, uint16) uint16
 // Sum returns the sum of all elements as int64 to avoid overflow.
 func (l *CharArrayList) Sum() int64 {
 	var sum int64
-	for i := 0; i < l.size; i++ {
-		sum += int64(l.items[i])
+	for _, v := range l.items {
+		sum += int64(v)
 	}
 	return sum
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
 func (l *CharArrayList) Min() (uint16, bool) {
-	if l.size == 0 {
+	if len(l.items) == 0 {
 		return 0, false
 	}
 	min := l.items[0]
-	for i := 1; i < l.size; i++ {
-		if l.items[i] < min {
-			min = l.items[i]
+	for _, v := range l.items[1:] {
+		if v < min {
+			min = v
 		}
 	}
 	return min, true
@@ -280,13 +256,13 @@ func (l *CharArrayList) Min() (uint16, bool) {
 
 // Max returns the maximum element, or the zero value and false if empty.
 func (l *CharArrayList) Max() (uint16, bool) {
-	if l.size == 0 {
+	if len(l.items) == 0 {
 		return 0, false
 	}
 	max := l.items[0]
-	for i := 1; i < l.size; i++ {
-		if l.items[i] > max {
-			max = l.items[i]
+	for _, v := range l.items[1:] {
+		if v > max {
+			max = v
 		}
 	}
 	return max, true
@@ -294,21 +270,21 @@ func (l *CharArrayList) Max() (uint16, bool) {
 
 // Sort sorts the list in ascending order.
 func (l *CharArrayList) Sort() {
-	sort.Slice(l.items[:l.size], func(i, j int) bool {
+	sort.Slice(l.items, func(i, j int) bool {
 		return l.items[i] < l.items[j]
 	})
 }
 
 // SortWithComparator sorts the list using the given comparison function.
 func (l *CharArrayList) SortWithComparator(less func(uint16, uint16) bool) {
-	sort.Slice(l.items[:l.size], func(i, j int) bool {
+	sort.Slice(l.items, func(i, j int) bool {
 		return less(l.items[i], l.items[j])
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
 func (l *CharArrayList) BinarySearch(value uint16) (int, bool) {
-	lo, hi := 0, l.size-1
+	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
 		if l.items[mid] == value {
@@ -325,8 +301,9 @@ func (l *CharArrayList) BinarySearch(value uint16) (int, bool) {
 
 // Reversed returns a new list with elements in reverse order.
 func (l *CharArrayList) Reversed() *CharArrayList {
-	result := NewCharArrayListWithCapacity(l.size)
-	for i := l.size - 1; i >= 0; i-- {
+	n := len(l.items)
+	result := NewCharArrayListWithCapacity(n)
+	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
 	return result
@@ -336,10 +313,10 @@ func (l *CharArrayList) Reversed() *CharArrayList {
 func (l *CharArrayList) Distinct() *CharArrayList {
 	seen := make(map[uint16]struct{})
 	result := NewCharArrayList()
-	for i := 0; i < l.size; i++ {
-		if _, ok := seen[l.items[i]]; !ok {
-			seen[l.items[i]] = struct{}{}
-			result.Add(l.items[i])
+	for _, v := range l.items {
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			result.Add(v)
 		}
 	}
 	return result
@@ -347,8 +324,8 @@ func (l *CharArrayList) Distinct() *CharArrayList {
 
 // ToSlice returns a copy of the list elements as a slice.
 func (l *CharArrayList) ToSlice() []uint16 {
-	result := make([]uint16, l.size)
-	copy(result, l.items[:l.size])
+	result := make([]uint16, len(l.items))
+	copy(result, l.items)
 	return result
 }
 
@@ -366,16 +343,16 @@ func (l *CharArrayList) Without(value uint16) *CharArrayList {
 
 // String returns a string representation of the list.
 func (l *CharArrayList) String() string {
-	if l.size == 0 {
+	if len(l.items) == 0 {
 		return "[]"
 	}
 	var sb strings.Builder
 	sb.WriteString("[")
-	for i := 0; i < l.size; i++ {
+	for i, v := range l.items {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		fmt.Fprintf(&sb, "%v", l.items[i])
+		fmt.Fprintf(&sb, "%v", v)
 	}
 	sb.WriteString("]")
 	return sb.String()
@@ -383,11 +360,11 @@ func (l *CharArrayList) String() string {
 
 // Equals returns true if the other list has the same elements in the same order.
 func (l *CharArrayList) Equals(other *CharArrayList) bool {
-	if l.size != other.size {
+	if len(l.items) != len(other.items) {
 		return false
 	}
-	for i := 0; i < l.size; i++ {
-		if l.items[i] != other.items[i] {
+	for i, v := range l.items {
+		if !(v == other.items[i]) {
 			return false
 		}
 	}
@@ -400,34 +377,38 @@ func (l *CharArrayList) WithAll(values ...uint16) *CharArrayList {
 	return l
 }
 
-// WithoutAll removes all occurrences of the given values.
+// WithoutAll removes every occurrence of any of the given values.
+// Compacts in place — keeps the existing backing storage and avoids
+// the temporary-list allocation the previous implementation made.
 func (l *CharArrayList) WithoutAll(values ...uint16) *CharArrayList {
-	remove := make(map[uint16]struct{})
+	if len(values) == 0 || len(l.items) == 0 {
+		return l
+	}
+	remove := make(map[uint16]struct{}, len(values))
 	for _, v := range values {
 		remove[v] = struct{}{}
 	}
-	result := NewCharArrayList()
-	for i := 0; i < l.size; i++ {
-		if _, skip := remove[l.items[i]]; !skip {
-			result.Add(l.items[i])
+	// Two-index compaction: write is the cursor into the kept portion,
+	// read iterates every original element.
+	write := 0
+	for _, v := range l.items {
+		if _, skip := remove[v]; skip {
+			continue
 		}
+		l.items[write] = v
+		write++
 	}
-	l.items = result.items
-	l.size = result.size
+	// Zero out the tail so GC can reclaim any references the slots held
+	// (cheap no-op for plain numeric uint16 but keeps the template honest
+	// for future value-carrying specialisations).
+	for i := write; i < len(l.items); i++ {
+		l.items[i] = 0
+	}
+	l.items = l.items[:write]
 	return l
 }
 
 // ToImmutable returns an immutable copy of this list.
 func (l *CharArrayList) ToImmutable() *ImmutableCharArrayList {
 	return ImmutableCharArrayListFrom(l)
-}
-
-func (l *CharArrayList) grow() {
-	newCap := cap(l.items) * 2
-	if newCap == 0 {
-		newCap = 16
-	}
-	newItems := make([]uint16, l.size, newCap)
-	copy(newItems, l.items[:l.size])
-	l.items = newItems
 }

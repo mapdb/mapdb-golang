@@ -359,7 +359,10 @@ func (s *Float32HashSet) Equals(other *Float32HashSet) bool {
 }
 
 func (s *Float32HashSet) hash(value float32) uint64 {
-	return uint64(*(*uint32)(unsafe.Pointer(&value))) * 0x9E3779B9
+	return func() uint64 {
+		h := uint64(*(*uint32)(unsafe.Pointer(&value))) * 0x9E3779B97F4A7C15
+		return h ^ (h >> 32)
+	}()
 }
 
 func (s *Float32HashSet) needsResize() bool {

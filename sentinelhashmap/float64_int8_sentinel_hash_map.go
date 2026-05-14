@@ -399,7 +399,7 @@ func (m *Float64Int8SentinelHashMap) String() string {
 }
 
 func (m *Float64Int8SentinelHashMap) hashKey(key float64) uint64 {
-	return uint64(*(*uint64)(unsafe.Pointer(&key))) * 0x9E3779B97F4A7C15
+	return func() uint64 { h := *(*uint64)(unsafe.Pointer(&key)) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
 }
 
 func (m *Float64Int8SentinelHashMap) needsResize() bool {

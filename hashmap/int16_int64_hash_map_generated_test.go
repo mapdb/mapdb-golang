@@ -238,13 +238,34 @@ func TestInt16Int64HashMap_Generated_Count(t *testing.T) {
 func TestInt16Int64HashMap_Generated_Entry(t *testing.T) {
 	m := NewInt16Int64HashMap()
 	v := m.Entry(1).OrInsert(1)
-	if v != 1 {
+	if !(v == 1) {
 		t.Errorf("OrInsert = %v, want 1", v)
 	}
 	v = m.Entry(1).OrInsert(2)
-	if v != 1 {
+	if !(v == 1) {
 		t.Errorf("OrInsert existing = %v, want 1 (original)", v)
 	}
+}
+
+// TestInt16Int64HashMap_Generated_AndModify_ResizeDetection forces a resize from
+// within the AndModify callback and verifies the template's
+// "do not mutate the map from within AndModify" guard fires, so that
+// silent data loss through a dangling pointer into the pre-resize
+// entries slice cannot happen.
+func TestInt16Int64HashMap_Generated_AndModify_ResizeDetection(t *testing.T) {
+	m := NewInt16Int64HashMap()
+	m.Put(1, 1)
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic when AndModify callback mutates the map")
+		}
+	}()
+	m.Entry(1).AndModify(func(_ *int64) {
+		// Flood the map to force a resize mid-callback.
+		for i := 0; i < 128; i++ {
+			m.Put(int16(i)+2, 2)
+		}
+	})
 }
 
 func TestInt16Int64HashMap_Generated_WithKeyValue(t *testing.T) {

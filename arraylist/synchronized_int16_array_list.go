@@ -5,9 +5,20 @@ package arraylist
 import (
 	"iter"
 	"sync"
+	"unsafe"
 )
 
 // SynchronizedInt16ArrayList is a thread-safe wrapper around Int16ArrayList.
+//
+// Read methods hold an RLock; writes hold a Lock. Methods that take
+// a caller-supplied function (Select, ForEach, InjectInto, …) snapshot
+// the backing slice under RLock and release it before invoking the
+// callback, so the callback is free to call back into the wrapper
+// without deadlocking.
+//
+// Methods that return a fresh collection (Select, Reject, Distinct,
+// Reversed) return an unwrapped *Int16ArrayList: the caller owns it and
+// is free to add their own synchronisation if they need it.
 type SynchronizedInt16ArrayList struct {
 	delegate *Int16ArrayList
 	mu       sync.RWMutex
@@ -18,10 +29,34 @@ func NewSynchronizedInt16ArrayList() *SynchronizedInt16ArrayList {
 	return &SynchronizedInt16ArrayList{delegate: NewInt16ArrayList()}
 }
 
-// NewSynchronizedInt16ArrayListFrom wraps an existing list.
+// NewSynchronizedInt16ArrayListWithCapacity creates a new thread-safe
+// empty list with the given initial capacity.
+func NewSynchronizedInt16ArrayListWithCapacity(capacity int) *SynchronizedInt16ArrayList {
+	return &SynchronizedInt16ArrayList{delegate: NewInt16ArrayListWithCapacity(capacity)}
+}
+
+// NewSynchronizedInt16ArrayListFrom wraps an existing list. The
+// wrapper takes ownership of the delegate — callers must not continue
+// to mutate it directly without locking.
 func NewSynchronizedInt16ArrayListFrom(l *Int16ArrayList) *SynchronizedInt16ArrayList {
 	return &SynchronizedInt16ArrayList{delegate: l}
 }
+
+// SynchronizedInt16ArrayListOf creates a new thread-safe list
+// containing the given values in order.
+func SynchronizedInt16ArrayListOf(values ...int16) *SynchronizedInt16ArrayList {
+	return &SynchronizedInt16ArrayList{delegate: Int16ArrayListOf(values...)}
+}
+
+// snapshot returns a defensive copy of the backing slice taken under
+// RLock. Callers iterate the snapshot without holding the lock.
+func (l *SynchronizedInt16ArrayList) snapshot() []int16 {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.ToSlice()
+}
+
+// ── simple writes ─────────────────────────────────────────────────────
 
 func (l *SynchronizedInt16ArrayList) Add(value int16) {
 	l.mu.Lock()
@@ -29,10 +64,10 @@ func (l *SynchronizedInt16ArrayList) Add(value int16) {
 	l.delegate.Add(value)
 }
 
-func (l *SynchronizedInt16ArrayList) Get(index int) (int16, error) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.delegate.Get(index)
+func (l *SynchronizedInt16ArrayList) AddAll(values ...int16) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.AddAll(values...)
 }
 
 func (l *SynchronizedInt16ArrayList) Set(index int, value int16) (int16, error) {
@@ -47,10 +82,52 @@ func (l *SynchronizedInt16ArrayList) RemoveAtIndex(index int) (int16, error) {
 	return l.delegate.RemoveAtIndex(index)
 }
 
+func (l *SynchronizedInt16ArrayList) Remove(value int16) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.delegate.Remove(value)
+}
+
+func (l *SynchronizedInt16ArrayList) Clear() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.Clear()
+}
+
+// Sort sorts the backing list in place. Holds the write lock for the
+// duration; do not call back into this wrapper from a custom comparator.
+func (l *SynchronizedInt16ArrayList) Sort() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.Sort()
+}
+
+// SortWithComparator sorts using the given less function, under the
+// write lock. The comparator must not call back into this wrapper.
+func (l *SynchronizedInt16ArrayList) SortWithComparator(less func(int16, int16) bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.SortWithComparator(less)
+}
+
+// ── simple reads ──────────────────────────────────────────────────────
+
+func (l *SynchronizedInt16ArrayList) Get(index int) (int16, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Get(index)
+}
+
 func (l *SynchronizedInt16ArrayList) Contains(value int16) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Contains(value)
+}
+
+func (l *SynchronizedInt16ArrayList) IndexOf(value int16) int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.IndexOf(value)
 }
 
 func (l *SynchronizedInt16ArrayList) Size() int {
@@ -65,26 +142,6 @@ func (l *SynchronizedInt16ArrayList) IsEmpty() bool {
 	return l.delegate.IsEmpty()
 }
 
-func (l *SynchronizedInt16ArrayList) Clear() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.delegate.Clear()
-}
-
-// All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (l *SynchronizedInt16ArrayList) All() iter.Seq[int16] {
-	l.mu.RLock()
-	snapshot := l.delegate.ToSlice()
-	l.mu.RUnlock()
-	return func(yield func(int16) bool) {
-		for _, v := range snapshot {
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}
-
 func (l *SynchronizedInt16ArrayList) ToSlice() []int16 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -95,4 +152,230 @@ func (l *SynchronizedInt16ArrayList) String() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.String()
+}
+
+func (l *SynchronizedInt16ArrayList) Sum() int64 {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Sum()
+}
+
+func (l *SynchronizedInt16ArrayList) Min() (int16, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Min()
+}
+
+func (l *SynchronizedInt16ArrayList) Max() (int16, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Max()
+}
+
+// BinarySearch requires the delegate to be sorted. Callers must
+// ensure that (e.g. by calling Sort() beforehand, both happening
+// before any concurrent Add).
+func (l *SynchronizedInt16ArrayList) BinarySearch(value int16) (int, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.BinarySearch(value)
+}
+
+// Equals returns true if the other list has the same elements in the
+// same order. Both wrappers are locked under RLock to prevent torn
+// reads; locks are acquired in pointer-address order so two goroutines
+// calling A.Equals(B) and B.Equals(A) concurrently cannot deadlock.
+func (l *SynchronizedInt16ArrayList) Equals(other *SynchronizedInt16ArrayList) bool {
+	if l == other {
+		l.mu.RLock()
+		defer l.mu.RUnlock()
+		return l.delegate.Equals(other.delegate)
+	}
+	first, second := l, other
+	if uintptr(unsafe.Pointer(l)) > uintptr(unsafe.Pointer(other)) {
+		first, second = other, l
+	}
+	first.mu.RLock()
+	defer first.mu.RUnlock()
+	second.mu.RLock()
+	defer second.mu.RUnlock()
+	return l.delegate.Equals(other.delegate)
+}
+
+// ── iteration (snapshot-based) ────────────────────────────────────────
+
+// All returns an iter.Seq over a snapshot. Iteration is lock-free.
+func (l *SynchronizedInt16ArrayList) All() iter.Seq[int16] {
+	snapshot := l.snapshot()
+	return func(yield func(int16) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// AllWithIndex returns an iter.Seq2 over a snapshot. Iteration is lock-free.
+func (l *SynchronizedInt16ArrayList) AllWithIndex() iter.Seq2[int, int16] {
+	snapshot := l.snapshot()
+	return func(yield func(int, int16) bool) {
+		for i, v := range snapshot {
+			if !yield(i, v) {
+				return
+			}
+		}
+	}
+}
+
+// ── functional over snapshot ──────────────────────────────────────────
+
+func (l *SynchronizedInt16ArrayList) ForEach(f func(int16)) {
+	for _, v := range l.snapshot() {
+		f(v)
+	}
+}
+
+func (l *SynchronizedInt16ArrayList) ForEachWithIndex(f func(int16, int)) {
+	for i, v := range l.snapshot() {
+		f(v, i)
+	}
+}
+
+func (l *SynchronizedInt16ArrayList) AnySatisfy(predicate func(int16) bool) bool {
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *SynchronizedInt16ArrayList) AllSatisfy(predicate func(int16) bool) bool {
+	for _, v := range l.snapshot() {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *SynchronizedInt16ArrayList) NoneSatisfy(predicate func(int16) bool) bool {
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *SynchronizedInt16ArrayList) Count(predicate func(int16) bool) int {
+	n := 0
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			n++
+		}
+	}
+	return n
+}
+
+func (l *SynchronizedInt16ArrayList) Detect(predicate func(int16) bool) (int16, bool) {
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			return v, true
+		}
+	}
+	var zero int16
+	return zero, false
+}
+
+func (l *SynchronizedInt16ArrayList) InjectInto(initial int16, f func(int16, int16) int16) int16 {
+	acc := initial
+	for _, v := range l.snapshot() {
+		acc = f(acc, v)
+	}
+	return acc
+}
+
+// ── functional that return a new list ─────────────────────────────────
+
+// Select returns a new (unsynchronized) list of elements satisfying the predicate.
+func (l *SynchronizedInt16ArrayList) Select(predicate func(int16) bool) *Int16ArrayList {
+	snapshot := l.snapshot()
+	result := NewInt16ArrayList()
+	for _, v := range snapshot {
+		if predicate(v) {
+			result.Add(v)
+		}
+	}
+	return result
+}
+
+// Reject returns a new (unsynchronized) list of elements not satisfying the predicate.
+func (l *SynchronizedInt16ArrayList) Reject(predicate func(int16) bool) *Int16ArrayList {
+	snapshot := l.snapshot()
+	result := NewInt16ArrayList()
+	for _, v := range snapshot {
+		if !predicate(v) {
+			result.Add(v)
+		}
+	}
+	return result
+}
+
+// Distinct returns a new (unsynchronized) list with duplicates removed,
+// order preserved.
+func (l *SynchronizedInt16ArrayList) Distinct() *Int16ArrayList {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Distinct()
+}
+
+// Reversed returns a new (unsynchronized) list in reverse order.
+func (l *SynchronizedInt16ArrayList) Reversed() *Int16ArrayList {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Reversed()
+}
+
+// ── fluent mutators ───────────────────────────────────────────────────
+// All return the wrapper so chained calls stay thread-safe.
+
+func (l *SynchronizedInt16ArrayList) With(value int16) *SynchronizedInt16ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.With(value)
+	return l
+}
+
+func (l *SynchronizedInt16ArrayList) WithAll(values ...int16) *SynchronizedInt16ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.WithAll(values...)
+	return l
+}
+
+func (l *SynchronizedInt16ArrayList) Without(value int16) *SynchronizedInt16ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.Without(value)
+	return l
+}
+
+func (l *SynchronizedInt16ArrayList) WithoutAll(values ...int16) *SynchronizedInt16ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.WithoutAll(values...)
+	return l
+}
+
+// ── conversions ───────────────────────────────────────────────────────
+
+// ToImmutable returns an immutable copy of the underlying list taken
+// while holding the read lock. The returned value is independent of
+// this wrapper.
+func (l *SynchronizedInt16ArrayList) ToImmutable() *ImmutableInt16ArrayList {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.ToImmutable()
 }

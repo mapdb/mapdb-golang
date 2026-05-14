@@ -5,9 +5,14 @@ package stack
 import (
 	"iter"
 	"sync"
+	"unsafe"
 )
 
 // SynchronizedFloat64ArrayStack is a thread-safe wrapper around Float64ArrayStack.
+//
+// Read methods hold an RLock; writes hold a Lock. Callback methods
+// (ForEach/Select/…) snapshot under RLock and run the callback
+// unlocked so it can safely re-enter the wrapper.
 type SynchronizedFloat64ArrayStack struct {
 	delegate *Float64ArrayStack
 	mu       sync.RWMutex
@@ -17,6 +22,22 @@ type SynchronizedFloat64ArrayStack struct {
 func NewSynchronizedFloat64ArrayStack() *SynchronizedFloat64ArrayStack {
 	return &SynchronizedFloat64ArrayStack{delegate: NewFloat64ArrayStack()}
 }
+
+// NewSynchronizedFloat64ArrayStackFrom wraps an existing stack. The
+// wrapper takes ownership — do not mutate the delegate directly.
+func NewSynchronizedFloat64ArrayStackFrom(s *Float64ArrayStack) *SynchronizedFloat64ArrayStack {
+	return &SynchronizedFloat64ArrayStack{delegate: s}
+}
+
+// snapshot copies the stack contents under RLock. The returned slice
+// is ordered the same way the delegate's ToSlice would order it.
+func (s *SynchronizedFloat64ArrayStack) snapshot() []float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToSlice()
+}
+
+// ── writes ────────────────────────────────────────────────────────────
 
 func (s *SynchronizedFloat64ArrayStack) Push(value float64) {
 	s.mu.Lock()
@@ -30,10 +51,24 @@ func (s *SynchronizedFloat64ArrayStack) Pop() (float64, error) {
 	return s.delegate.Pop()
 }
 
+func (s *SynchronizedFloat64ArrayStack) Clear() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.Clear()
+}
+
+// ── simple reads ──────────────────────────────────────────────────────
+
 func (s *SynchronizedFloat64ArrayStack) Peek() (float64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
+}
+
+func (s *SynchronizedFloat64ArrayStack) PeekAt(index int) (float64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.PeekAt(index)
 }
 
 func (s *SynchronizedFloat64ArrayStack) Size() int {
@@ -48,22 +83,28 @@ func (s *SynchronizedFloat64ArrayStack) IsEmpty() bool {
 	return s.delegate.IsEmpty()
 }
 
-func (s *SynchronizedFloat64ArrayStack) Clear() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.delegate.Clear()
-}
-
 func (s *SynchronizedFloat64ArrayStack) Contains(value float64) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedFloat64ArrayStack) All() iter.Seq[float64] {
+func (s *SynchronizedFloat64ArrayStack) ToSlice() []float64 {
 	s.mu.RLock()
-	snapshot := s.delegate.ToSlice()
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToSlice()
+}
+
+func (s *SynchronizedFloat64ArrayStack) String() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.String()
+}
+
+// ── iteration ────────────────────────────────────────────────────────
+
+func (s *SynchronizedFloat64ArrayStack) All() iter.Seq[float64] {
+	snapshot := s.snapshot()
 	return func(yield func(float64) bool) {
 		for _, v := range snapshot {
 			if !yield(v) {
@@ -73,8 +114,122 @@ func (s *SynchronizedFloat64ArrayStack) All() iter.Seq[float64] {
 	}
 }
 
-func (s *SynchronizedFloat64ArrayStack) String() string {
+// ── functional over snapshot ──────────────────────────────────────────
+
+func (s *SynchronizedFloat64ArrayStack) ForEach(f func(float64)) {
+	for _, v := range s.snapshot() {
+		f(v)
+	}
+}
+
+func (s *SynchronizedFloat64ArrayStack) AnySatisfy(predicate func(float64) bool) bool {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SynchronizedFloat64ArrayStack) AllSatisfy(predicate func(float64) bool) bool {
+	for _, v := range s.snapshot() {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SynchronizedFloat64ArrayStack) NoneSatisfy(predicate func(float64) bool) bool {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SynchronizedFloat64ArrayStack) Count(predicate func(float64) bool) int {
+	n := 0
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *SynchronizedFloat64ArrayStack) Detect(predicate func(float64) bool) (float64, bool) {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return v, true
+		}
+	}
+	var zero float64
+	return zero, false
+}
+
+func (s *SynchronizedFloat64ArrayStack) InjectInto(initial float64, f func(float64, float64) float64) float64 {
+	acc := initial
+	for _, v := range s.snapshot() {
+		acc = f(acc, v)
+	}
+	return acc
+}
+
+// ── functional that return a new stack ───────────────────────────────
+
+func (s *SynchronizedFloat64ArrayStack) Select(predicate func(float64) bool) *Float64ArrayStack {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.String()
+	return s.delegate.Select(predicate)
+}
+
+func (s *SynchronizedFloat64ArrayStack) Reject(predicate func(float64) bool) *Float64ArrayStack {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.Reject(predicate)
+}
+
+// ── fluent mutators ───────────────────────────────────────────────────
+
+func (s *SynchronizedFloat64ArrayStack) With(value float64) *SynchronizedFloat64ArrayStack {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.With(value)
+	return s
+}
+
+func (s *SynchronizedFloat64ArrayStack) WithAll(values ...float64) *SynchronizedFloat64ArrayStack {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.WithAll(values...)
+	return s
+}
+
+// ── conversions & equals ──────────────────────────────────────────────
+
+func (s *SynchronizedFloat64ArrayStack) ToImmutable() *ImmutableFloat64ArrayStack {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToImmutable()
+}
+
+// Equals compares by contents. Locks are acquired in pointer-address
+// order to prevent A.Equals(B) / B.Equals(A) deadlocks.
+func (s *SynchronizedFloat64ArrayStack) Equals(other *SynchronizedFloat64ArrayStack) bool {
+	if s == other {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		return s.delegate.Equals(other.delegate)
+	}
+	first, second := s, other
+	if uintptr(unsafe.Pointer(s)) > uintptr(unsafe.Pointer(other)) {
+		first, second = other, s
+	}
+	first.mu.RLock()
+	defer first.mu.RUnlock()
+	second.mu.RLock()
+	defer second.mu.RUnlock()
+	return s.delegate.Equals(other.delegate)
 }

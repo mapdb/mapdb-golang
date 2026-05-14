@@ -5,9 +5,15 @@ package bag
 import (
 	"iter"
 	"sync"
+	"unsafe"
 )
 
 // SynchronizedInt16HashBag is a thread-safe wrapper around Int16HashBag.
+//
+// Read methods hold an RLock; writes hold a Lock. Functional methods
+// (ForEach/Select/Reject/AnySatisfy/…) snapshot (value, count) pairs
+// under RLock, release, and run the callback against the snapshot so
+// the callback may safely re-enter the wrapper.
 type SynchronizedInt16HashBag struct {
 	delegate *Int16HashBag
 	mu       sync.RWMutex
@@ -17,6 +23,26 @@ type SynchronizedInt16HashBag struct {
 func NewSynchronizedInt16HashBag() *SynchronizedInt16HashBag {
 	return &SynchronizedInt16HashBag{delegate: NewInt16HashBag()}
 }
+
+// NewSynchronizedInt16HashBagFrom wraps an existing bag. The
+// wrapper takes ownership — do not mutate the delegate directly.
+func NewSynchronizedInt16HashBagFrom(b *Int16HashBag) *SynchronizedInt16HashBag {
+	return &SynchronizedInt16HashBag{delegate: b}
+}
+
+// snapshotDistinct returns (values, counts) for every distinct element,
+// held only briefly under RLock.
+func (b *SynchronizedInt16HashBag) snapshotDistinct() (values []int16, counts []int) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	for v, c := range b.delegate.AllWithOccurrences() {
+		values = append(values, v)
+		counts = append(counts, c)
+	}
+	return
+}
+
+// ── writes ────────────────────────────────────────────────────────────
 
 func (b *SynchronizedInt16HashBag) Add(value int16) {
 	b.mu.Lock()
@@ -35,6 +61,26 @@ func (b *SynchronizedInt16HashBag) Remove(value int16) bool {
 	defer b.mu.Unlock()
 	return b.delegate.Remove(value)
 }
+
+func (b *SynchronizedInt16HashBag) RemoveOccurrences(value int16, occurrences int) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.delegate.RemoveOccurrences(value, occurrences)
+}
+
+func (b *SynchronizedInt16HashBag) RemoveAll(value int16) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.delegate.RemoveAll(value)
+}
+
+func (b *SynchronizedInt16HashBag) Clear() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.delegate.Clear()
+}
+
+// ── simple reads ──────────────────────────────────────────────────────
 
 func (b *SynchronizedInt16HashBag) OccurrencesOf(value int16) int {
 	b.mu.RLock()
@@ -66,18 +112,39 @@ func (b *SynchronizedInt16HashBag) IsEmpty() bool {
 	return b.delegate.IsEmpty()
 }
 
-func (b *SynchronizedInt16HashBag) Clear() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.delegate.Clear()
+func (b *SynchronizedInt16HashBag) ToSlice() []int16 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.delegate.ToSlice()
 }
 
-func (b *SynchronizedInt16HashBag) All() iter.Seq[int16] {
+func (b *SynchronizedInt16HashBag) String() string {
 	b.mu.RLock()
-	snapshot := b.delegate.ToSlice()
-	b.mu.RUnlock()
+	defer b.mu.RUnlock()
+	return b.delegate.String()
+}
+
+// ── iteration (snapshot-based) ────────────────────────────────────────
+
+// All yields every occurrence (multiplicity preserved).
+func (b *SynchronizedInt16HashBag) All() iter.Seq[int16] {
+	values, counts := b.snapshotDistinct()
 	return func(yield func(int16) bool) {
-		for _, v := range snapshot {
+		for i, v := range values {
+			for j := 0; j < counts[i]; j++ {
+				if !yield(v) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// AllDistinct yields each distinct value exactly once.
+func (b *SynchronizedInt16HashBag) AllDistinct() iter.Seq[int16] {
+	values, _ := b.snapshotDistinct()
+	return func(yield func(int16) bool) {
+		for _, v := range values {
 			if !yield(v) {
 				return
 			}
@@ -85,8 +152,165 @@ func (b *SynchronizedInt16HashBag) All() iter.Seq[int16] {
 	}
 }
 
-func (b *SynchronizedInt16HashBag) String() string {
+// AllWithOccurrences yields (value, count) pairs for each distinct value.
+func (b *SynchronizedInt16HashBag) AllWithOccurrences() iter.Seq2[int16, int] {
+	values, counts := b.snapshotDistinct()
+	return func(yield func(int16, int) bool) {
+		for i, v := range values {
+			if !yield(v, counts[i]) {
+				return
+			}
+		}
+	}
+}
+
+// ── functional over snapshot ──────────────────────────────────────────
+
+func (b *SynchronizedInt16HashBag) ForEach(f func(int16)) {
+	values, counts := b.snapshotDistinct()
+	for i, v := range values {
+		for j := 0; j < counts[i]; j++ {
+			f(v)
+		}
+	}
+}
+
+func (b *SynchronizedInt16HashBag) ForEachWithOccurrences(f func(int16, int)) {
+	values, counts := b.snapshotDistinct()
+	for i, v := range values {
+		f(v, counts[i])
+	}
+}
+
+func (b *SynchronizedInt16HashBag) AnySatisfy(predicate func(int16) bool) bool {
+	values, _ := b.snapshotDistinct()
+	for _, v := range values {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *SynchronizedInt16HashBag) AllSatisfy(predicate func(int16) bool) bool {
+	values, _ := b.snapshotDistinct()
+	for _, v := range values {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (b *SynchronizedInt16HashBag) NoneSatisfy(predicate func(int16) bool) bool {
+	values, _ := b.snapshotDistinct()
+	for _, v := range values {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (b *SynchronizedInt16HashBag) Detect(predicate func(int16) bool) (int16, bool) {
+	values, _ := b.snapshotDistinct()
+	for _, v := range values {
+		if predicate(v) {
+			return v, true
+		}
+	}
+	var zero int16
+	return zero, false
+}
+
+// ── functional that return new bags ──────────────────────────────────
+
+func (b *SynchronizedInt16HashBag) Select(predicate func(int16) bool) *Int16HashBag {
+	values, counts := b.snapshotDistinct()
+	result := NewInt16HashBag()
+	for i, v := range values {
+		if predicate(v) {
+			result.AddOccurrences(v, counts[i])
+		}
+	}
+	return result
+}
+
+func (b *SynchronizedInt16HashBag) Reject(predicate func(int16) bool) *Int16HashBag {
+	values, counts := b.snapshotDistinct()
+	result := NewInt16HashBag()
+	for i, v := range values {
+		if !predicate(v) {
+			result.AddOccurrences(v, counts[i])
+		}
+	}
+	return result
+}
+
+// TopOccurrences returns the n most frequent elements. Returns the
+// exact same shape as the underlying bag.
+func (b *SynchronizedInt16HashBag) TopOccurrences(n int) []struct {
+	Value int16
+	Count int
+} {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.delegate.String()
+	return b.delegate.TopOccurrences(n)
+}
+
+// ── fluent mutators ───────────────────────────────────────────────────
+
+func (b *SynchronizedInt16HashBag) With(value int16) *SynchronizedInt16HashBag {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.delegate.With(value)
+	return b
+}
+
+func (b *SynchronizedInt16HashBag) WithAll(values ...int16) *SynchronizedInt16HashBag {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.delegate.WithAll(values...)
+	return b
+}
+
+func (b *SynchronizedInt16HashBag) Without(value int16) *SynchronizedInt16HashBag {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.delegate.Without(value)
+	return b
+}
+
+func (b *SynchronizedInt16HashBag) WithoutAll(values ...int16) *SynchronizedInt16HashBag {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.delegate.WithoutAll(values...)
+	return b
+}
+
+// ── conversions & equals ──────────────────────────────────────────────
+
+func (b *SynchronizedInt16HashBag) ToImmutable() *ImmutableInt16HashBag {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.delegate.ToImmutable()
+}
+
+// Equals compares by contents. Locks acquired in pointer-address
+// order to prevent A.Equals(B) / B.Equals(A) deadlocks.
+func (b *SynchronizedInt16HashBag) Equals(other *SynchronizedInt16HashBag) bool {
+	if b == other {
+		b.mu.RLock()
+		defer b.mu.RUnlock()
+		return b.delegate.Equals(other.delegate)
+	}
+	first, second := b, other
+	if uintptr(unsafe.Pointer(b)) > uintptr(unsafe.Pointer(other)) {
+		first, second = other, b
+	}
+	first.mu.RLock()
+	defer first.mu.RUnlock()
+	second.mu.RLock()
+	defer second.mu.RUnlock()
+	return b.delegate.Equals(other.delegate)
 }

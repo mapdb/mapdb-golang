@@ -5,9 +5,20 @@ package arraylist
 import (
 	"iter"
 	"sync"
+	"unsafe"
 )
 
 // SynchronizedFloat32ArrayList is a thread-safe wrapper around Float32ArrayList.
+//
+// Read methods hold an RLock; writes hold a Lock. Methods that take
+// a caller-supplied function (Select, ForEach, InjectInto, …) snapshot
+// the backing slice under RLock and release it before invoking the
+// callback, so the callback is free to call back into the wrapper
+// without deadlocking.
+//
+// Methods that return a fresh collection (Select, Reject, Distinct,
+// Reversed) return an unwrapped *Float32ArrayList: the caller owns it and
+// is free to add their own synchronisation if they need it.
 type SynchronizedFloat32ArrayList struct {
 	delegate *Float32ArrayList
 	mu       sync.RWMutex
@@ -18,10 +29,34 @@ func NewSynchronizedFloat32ArrayList() *SynchronizedFloat32ArrayList {
 	return &SynchronizedFloat32ArrayList{delegate: NewFloat32ArrayList()}
 }
 
-// NewSynchronizedFloat32ArrayListFrom wraps an existing list.
+// NewSynchronizedFloat32ArrayListWithCapacity creates a new thread-safe
+// empty list with the given initial capacity.
+func NewSynchronizedFloat32ArrayListWithCapacity(capacity int) *SynchronizedFloat32ArrayList {
+	return &SynchronizedFloat32ArrayList{delegate: NewFloat32ArrayListWithCapacity(capacity)}
+}
+
+// NewSynchronizedFloat32ArrayListFrom wraps an existing list. The
+// wrapper takes ownership of the delegate — callers must not continue
+// to mutate it directly without locking.
 func NewSynchronizedFloat32ArrayListFrom(l *Float32ArrayList) *SynchronizedFloat32ArrayList {
 	return &SynchronizedFloat32ArrayList{delegate: l}
 }
+
+// SynchronizedFloat32ArrayListOf creates a new thread-safe list
+// containing the given values in order.
+func SynchronizedFloat32ArrayListOf(values ...float32) *SynchronizedFloat32ArrayList {
+	return &SynchronizedFloat32ArrayList{delegate: Float32ArrayListOf(values...)}
+}
+
+// snapshot returns a defensive copy of the backing slice taken under
+// RLock. Callers iterate the snapshot without holding the lock.
+func (l *SynchronizedFloat32ArrayList) snapshot() []float32 {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.ToSlice()
+}
+
+// ── simple writes ─────────────────────────────────────────────────────
 
 func (l *SynchronizedFloat32ArrayList) Add(value float32) {
 	l.mu.Lock()
@@ -29,10 +64,10 @@ func (l *SynchronizedFloat32ArrayList) Add(value float32) {
 	l.delegate.Add(value)
 }
 
-func (l *SynchronizedFloat32ArrayList) Get(index int) (float32, error) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.delegate.Get(index)
+func (l *SynchronizedFloat32ArrayList) AddAll(values ...float32) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.AddAll(values...)
 }
 
 func (l *SynchronizedFloat32ArrayList) Set(index int, value float32) (float32, error) {
@@ -47,10 +82,52 @@ func (l *SynchronizedFloat32ArrayList) RemoveAtIndex(index int) (float32, error)
 	return l.delegate.RemoveAtIndex(index)
 }
 
+func (l *SynchronizedFloat32ArrayList) Remove(value float32) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.delegate.Remove(value)
+}
+
+func (l *SynchronizedFloat32ArrayList) Clear() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.Clear()
+}
+
+// Sort sorts the backing list in place. Holds the write lock for the
+// duration; do not call back into this wrapper from a custom comparator.
+func (l *SynchronizedFloat32ArrayList) Sort() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.Sort()
+}
+
+// SortWithComparator sorts using the given less function, under the
+// write lock. The comparator must not call back into this wrapper.
+func (l *SynchronizedFloat32ArrayList) SortWithComparator(less func(float32, float32) bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.SortWithComparator(less)
+}
+
+// ── simple reads ──────────────────────────────────────────────────────
+
+func (l *SynchronizedFloat32ArrayList) Get(index int) (float32, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Get(index)
+}
+
 func (l *SynchronizedFloat32ArrayList) Contains(value float32) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Contains(value)
+}
+
+func (l *SynchronizedFloat32ArrayList) IndexOf(value float32) int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.IndexOf(value)
 }
 
 func (l *SynchronizedFloat32ArrayList) Size() int {
@@ -65,26 +142,6 @@ func (l *SynchronizedFloat32ArrayList) IsEmpty() bool {
 	return l.delegate.IsEmpty()
 }
 
-func (l *SynchronizedFloat32ArrayList) Clear() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.delegate.Clear()
-}
-
-// All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (l *SynchronizedFloat32ArrayList) All() iter.Seq[float32] {
-	l.mu.RLock()
-	snapshot := l.delegate.ToSlice()
-	l.mu.RUnlock()
-	return func(yield func(float32) bool) {
-		for _, v := range snapshot {
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}
-
 func (l *SynchronizedFloat32ArrayList) ToSlice() []float32 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -95,4 +152,230 @@ func (l *SynchronizedFloat32ArrayList) String() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.String()
+}
+
+func (l *SynchronizedFloat32ArrayList) Sum() float32 {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Sum()
+}
+
+func (l *SynchronizedFloat32ArrayList) Min() (float32, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Min()
+}
+
+func (l *SynchronizedFloat32ArrayList) Max() (float32, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Max()
+}
+
+// BinarySearch requires the delegate to be sorted. Callers must
+// ensure that (e.g. by calling Sort() beforehand, both happening
+// before any concurrent Add).
+func (l *SynchronizedFloat32ArrayList) BinarySearch(value float32) (int, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.BinarySearch(value)
+}
+
+// Equals returns true if the other list has the same elements in the
+// same order. Both wrappers are locked under RLock to prevent torn
+// reads; locks are acquired in pointer-address order so two goroutines
+// calling A.Equals(B) and B.Equals(A) concurrently cannot deadlock.
+func (l *SynchronizedFloat32ArrayList) Equals(other *SynchronizedFloat32ArrayList) bool {
+	if l == other {
+		l.mu.RLock()
+		defer l.mu.RUnlock()
+		return l.delegate.Equals(other.delegate)
+	}
+	first, second := l, other
+	if uintptr(unsafe.Pointer(l)) > uintptr(unsafe.Pointer(other)) {
+		first, second = other, l
+	}
+	first.mu.RLock()
+	defer first.mu.RUnlock()
+	second.mu.RLock()
+	defer second.mu.RUnlock()
+	return l.delegate.Equals(other.delegate)
+}
+
+// ── iteration (snapshot-based) ────────────────────────────────────────
+
+// All returns an iter.Seq over a snapshot. Iteration is lock-free.
+func (l *SynchronizedFloat32ArrayList) All() iter.Seq[float32] {
+	snapshot := l.snapshot()
+	return func(yield func(float32) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// AllWithIndex returns an iter.Seq2 over a snapshot. Iteration is lock-free.
+func (l *SynchronizedFloat32ArrayList) AllWithIndex() iter.Seq2[int, float32] {
+	snapshot := l.snapshot()
+	return func(yield func(int, float32) bool) {
+		for i, v := range snapshot {
+			if !yield(i, v) {
+				return
+			}
+		}
+	}
+}
+
+// ── functional over snapshot ──────────────────────────────────────────
+
+func (l *SynchronizedFloat32ArrayList) ForEach(f func(float32)) {
+	for _, v := range l.snapshot() {
+		f(v)
+	}
+}
+
+func (l *SynchronizedFloat32ArrayList) ForEachWithIndex(f func(float32, int)) {
+	for i, v := range l.snapshot() {
+		f(v, i)
+	}
+}
+
+func (l *SynchronizedFloat32ArrayList) AnySatisfy(predicate func(float32) bool) bool {
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *SynchronizedFloat32ArrayList) AllSatisfy(predicate func(float32) bool) bool {
+	for _, v := range l.snapshot() {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *SynchronizedFloat32ArrayList) NoneSatisfy(predicate func(float32) bool) bool {
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *SynchronizedFloat32ArrayList) Count(predicate func(float32) bool) int {
+	n := 0
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			n++
+		}
+	}
+	return n
+}
+
+func (l *SynchronizedFloat32ArrayList) Detect(predicate func(float32) bool) (float32, bool) {
+	for _, v := range l.snapshot() {
+		if predicate(v) {
+			return v, true
+		}
+	}
+	var zero float32
+	return zero, false
+}
+
+func (l *SynchronizedFloat32ArrayList) InjectInto(initial float32, f func(float32, float32) float32) float32 {
+	acc := initial
+	for _, v := range l.snapshot() {
+		acc = f(acc, v)
+	}
+	return acc
+}
+
+// ── functional that return a new list ─────────────────────────────────
+
+// Select returns a new (unsynchronized) list of elements satisfying the predicate.
+func (l *SynchronizedFloat32ArrayList) Select(predicate func(float32) bool) *Float32ArrayList {
+	snapshot := l.snapshot()
+	result := NewFloat32ArrayList()
+	for _, v := range snapshot {
+		if predicate(v) {
+			result.Add(v)
+		}
+	}
+	return result
+}
+
+// Reject returns a new (unsynchronized) list of elements not satisfying the predicate.
+func (l *SynchronizedFloat32ArrayList) Reject(predicate func(float32) bool) *Float32ArrayList {
+	snapshot := l.snapshot()
+	result := NewFloat32ArrayList()
+	for _, v := range snapshot {
+		if !predicate(v) {
+			result.Add(v)
+		}
+	}
+	return result
+}
+
+// Distinct returns a new (unsynchronized) list with duplicates removed,
+// order preserved.
+func (l *SynchronizedFloat32ArrayList) Distinct() *Float32ArrayList {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Distinct()
+}
+
+// Reversed returns a new (unsynchronized) list in reverse order.
+func (l *SynchronizedFloat32ArrayList) Reversed() *Float32ArrayList {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.Reversed()
+}
+
+// ── fluent mutators ───────────────────────────────────────────────────
+// All return the wrapper so chained calls stay thread-safe.
+
+func (l *SynchronizedFloat32ArrayList) With(value float32) *SynchronizedFloat32ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.With(value)
+	return l
+}
+
+func (l *SynchronizedFloat32ArrayList) WithAll(values ...float32) *SynchronizedFloat32ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.WithAll(values...)
+	return l
+}
+
+func (l *SynchronizedFloat32ArrayList) Without(value float32) *SynchronizedFloat32ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.Without(value)
+	return l
+}
+
+func (l *SynchronizedFloat32ArrayList) WithoutAll(values ...float32) *SynchronizedFloat32ArrayList {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.WithoutAll(values...)
+	return l
+}
+
+// ── conversions ───────────────────────────────────────────────────────
+
+// ToImmutable returns an immutable copy of the underlying list taken
+// while holding the read lock. The returned value is independent of
+// this wrapper.
+func (l *SynchronizedFloat32ArrayList) ToImmutable() *ImmutableFloat32ArrayList {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.delegate.ToImmutable()
 }

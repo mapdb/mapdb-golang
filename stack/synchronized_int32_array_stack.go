@@ -5,9 +5,14 @@ package stack
 import (
 	"iter"
 	"sync"
+	"unsafe"
 )
 
 // SynchronizedInt32ArrayStack is a thread-safe wrapper around Int32ArrayStack.
+//
+// Read methods hold an RLock; writes hold a Lock. Callback methods
+// (ForEach/Select/…) snapshot under RLock and run the callback
+// unlocked so it can safely re-enter the wrapper.
 type SynchronizedInt32ArrayStack struct {
 	delegate *Int32ArrayStack
 	mu       sync.RWMutex
@@ -17,6 +22,22 @@ type SynchronizedInt32ArrayStack struct {
 func NewSynchronizedInt32ArrayStack() *SynchronizedInt32ArrayStack {
 	return &SynchronizedInt32ArrayStack{delegate: NewInt32ArrayStack()}
 }
+
+// NewSynchronizedInt32ArrayStackFrom wraps an existing stack. The
+// wrapper takes ownership — do not mutate the delegate directly.
+func NewSynchronizedInt32ArrayStackFrom(s *Int32ArrayStack) *SynchronizedInt32ArrayStack {
+	return &SynchronizedInt32ArrayStack{delegate: s}
+}
+
+// snapshot copies the stack contents under RLock. The returned slice
+// is ordered the same way the delegate's ToSlice would order it.
+func (s *SynchronizedInt32ArrayStack) snapshot() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToSlice()
+}
+
+// ── writes ────────────────────────────────────────────────────────────
 
 func (s *SynchronizedInt32ArrayStack) Push(value int32) {
 	s.mu.Lock()
@@ -30,10 +51,24 @@ func (s *SynchronizedInt32ArrayStack) Pop() (int32, error) {
 	return s.delegate.Pop()
 }
 
+func (s *SynchronizedInt32ArrayStack) Clear() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.Clear()
+}
+
+// ── simple reads ──────────────────────────────────────────────────────
+
 func (s *SynchronizedInt32ArrayStack) Peek() (int32, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
+}
+
+func (s *SynchronizedInt32ArrayStack) PeekAt(index int) (int32, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.PeekAt(index)
 }
 
 func (s *SynchronizedInt32ArrayStack) Size() int {
@@ -48,22 +83,28 @@ func (s *SynchronizedInt32ArrayStack) IsEmpty() bool {
 	return s.delegate.IsEmpty()
 }
 
-func (s *SynchronizedInt32ArrayStack) Clear() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.delegate.Clear()
-}
-
 func (s *SynchronizedInt32ArrayStack) Contains(value int32) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedInt32ArrayStack) All() iter.Seq[int32] {
+func (s *SynchronizedInt32ArrayStack) ToSlice() []int32 {
 	s.mu.RLock()
-	snapshot := s.delegate.ToSlice()
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToSlice()
+}
+
+func (s *SynchronizedInt32ArrayStack) String() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.String()
+}
+
+// ── iteration ────────────────────────────────────────────────────────
+
+func (s *SynchronizedInt32ArrayStack) All() iter.Seq[int32] {
+	snapshot := s.snapshot()
 	return func(yield func(int32) bool) {
 		for _, v := range snapshot {
 			if !yield(v) {
@@ -73,8 +114,122 @@ func (s *SynchronizedInt32ArrayStack) All() iter.Seq[int32] {
 	}
 }
 
-func (s *SynchronizedInt32ArrayStack) String() string {
+// ── functional over snapshot ──────────────────────────────────────────
+
+func (s *SynchronizedInt32ArrayStack) ForEach(f func(int32)) {
+	for _, v := range s.snapshot() {
+		f(v)
+	}
+}
+
+func (s *SynchronizedInt32ArrayStack) AnySatisfy(predicate func(int32) bool) bool {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SynchronizedInt32ArrayStack) AllSatisfy(predicate func(int32) bool) bool {
+	for _, v := range s.snapshot() {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SynchronizedInt32ArrayStack) NoneSatisfy(predicate func(int32) bool) bool {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SynchronizedInt32ArrayStack) Count(predicate func(int32) bool) int {
+	n := 0
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *SynchronizedInt32ArrayStack) Detect(predicate func(int32) bool) (int32, bool) {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return v, true
+		}
+	}
+	var zero int32
+	return zero, false
+}
+
+func (s *SynchronizedInt32ArrayStack) InjectInto(initial int32, f func(int32, int32) int32) int32 {
+	acc := initial
+	for _, v := range s.snapshot() {
+		acc = f(acc, v)
+	}
+	return acc
+}
+
+// ── functional that return a new stack ───────────────────────────────
+
+func (s *SynchronizedInt32ArrayStack) Select(predicate func(int32) bool) *Int32ArrayStack {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.String()
+	return s.delegate.Select(predicate)
+}
+
+func (s *SynchronizedInt32ArrayStack) Reject(predicate func(int32) bool) *Int32ArrayStack {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.Reject(predicate)
+}
+
+// ── fluent mutators ───────────────────────────────────────────────────
+
+func (s *SynchronizedInt32ArrayStack) With(value int32) *SynchronizedInt32ArrayStack {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.With(value)
+	return s
+}
+
+func (s *SynchronizedInt32ArrayStack) WithAll(values ...int32) *SynchronizedInt32ArrayStack {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.WithAll(values...)
+	return s
+}
+
+// ── conversions & equals ──────────────────────────────────────────────
+
+func (s *SynchronizedInt32ArrayStack) ToImmutable() *ImmutableInt32ArrayStack {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToImmutable()
+}
+
+// Equals compares by contents. Locks are acquired in pointer-address
+// order to prevent A.Equals(B) / B.Equals(A) deadlocks.
+func (s *SynchronizedInt32ArrayStack) Equals(other *SynchronizedInt32ArrayStack) bool {
+	if s == other {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		return s.delegate.Equals(other.delegate)
+	}
+	first, second := s, other
+	if uintptr(unsafe.Pointer(s)) > uintptr(unsafe.Pointer(other)) {
+		first, second = other, s
+	}
+	first.mu.RLock()
+	defer first.mu.RUnlock()
+	second.mu.RLock()
+	defer second.mu.RUnlock()
+	return s.delegate.Equals(other.delegate)
 }

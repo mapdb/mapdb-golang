@@ -5,9 +5,20 @@ package hashset
 import (
 	"iter"
 	"sync"
+	"unsafe"
 )
 
 // SynchronizedInt8HashSet is a thread-safe wrapper around Int8HashSet.
+//
+// Read methods hold an RLock; writes hold a Lock. Methods that take a
+// caller-supplied function (Select, ForEach, AnySatisfy, …) snapshot
+// the backing set under RLock and release it before invoking the
+// callback, so the callback is free to call back into the wrapper
+// without deadlocking.
+//
+// Methods that return a new set (Select, Reject, Union, Intersect,
+// Difference, SymmetricDifference) return an unwrapped *Int8HashSet;
+// the caller owns it.
 type SynchronizedInt8HashSet struct {
 	delegate *Int8HashSet
 	mu       sync.RWMutex
@@ -18,10 +29,41 @@ func NewSynchronizedInt8HashSet() *SynchronizedInt8HashSet {
 	return &SynchronizedInt8HashSet{delegate: NewInt8HashSet()}
 }
 
+// NewSynchronizedInt8HashSetFrom wraps an existing set. The
+// wrapper takes ownership — callers must not mutate the delegate
+// directly without locking.
+func NewSynchronizedInt8HashSetFrom(s *Int8HashSet) *SynchronizedInt8HashSet {
+	return &SynchronizedInt8HashSet{delegate: s}
+}
+
+// SynchronizedInt8HashSetOf constructs a synchronized set from values.
+func SynchronizedInt8HashSetOf(values ...int8) *SynchronizedInt8HashSet {
+	s := NewInt8HashSet()
+	for _, v := range values {
+		s.Add(v)
+	}
+	return &SynchronizedInt8HashSet{delegate: s}
+}
+
+// snapshot returns a defensive copy of the set's elements under RLock.
+func (s *SynchronizedInt8HashSet) snapshot() []int8 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToSlice()
+}
+
+// ── writes ────────────────────────────────────────────────────────────
+
 func (s *SynchronizedInt8HashSet) Add(value int8) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Add(value)
+}
+
+func (s *SynchronizedInt8HashSet) AddAll(values ...int8) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.AddAll(values...)
 }
 
 func (s *SynchronizedInt8HashSet) Remove(value int8) bool {
@@ -29,6 +71,14 @@ func (s *SynchronizedInt8HashSet) Remove(value int8) bool {
 	defer s.mu.Unlock()
 	return s.delegate.Remove(value)
 }
+
+func (s *SynchronizedInt8HashSet) Clear() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.Clear()
+}
+
+// ── simple reads ──────────────────────────────────────────────────────
 
 func (s *SynchronizedInt8HashSet) Contains(value int8) bool {
 	s.mu.RLock()
@@ -48,25 +98,6 @@ func (s *SynchronizedInt8HashSet) IsEmpty() bool {
 	return s.delegate.IsEmpty()
 }
 
-func (s *SynchronizedInt8HashSet) Clear() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.delegate.Clear()
-}
-
-func (s *SynchronizedInt8HashSet) All() iter.Seq[int8] {
-	s.mu.RLock()
-	snapshot := s.delegate.ToSlice()
-	s.mu.RUnlock()
-	return func(yield func(int8) bool) {
-		for _, v := range snapshot {
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}
-
 func (s *SynchronizedInt8HashSet) ToSlice() []int8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -77,4 +108,175 @@ func (s *SynchronizedInt8HashSet) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
+}
+
+// ── iteration ────────────────────────────────────────────────────────
+
+// All returns an iter.Seq over a snapshot. Iteration is lock-free.
+func (s *SynchronizedInt8HashSet) All() iter.Seq[int8] {
+	snapshot := s.snapshot()
+	return func(yield func(int8) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// ── functional over snapshot ──────────────────────────────────────────
+
+func (s *SynchronizedInt8HashSet) ForEach(f func(int8)) {
+	for _, v := range s.snapshot() {
+		f(v)
+	}
+}
+
+func (s *SynchronizedInt8HashSet) AnySatisfy(predicate func(int8) bool) bool {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SynchronizedInt8HashSet) AllSatisfy(predicate func(int8) bool) bool {
+	for _, v := range s.snapshot() {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SynchronizedInt8HashSet) NoneSatisfy(predicate func(int8) bool) bool {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SynchronizedInt8HashSet) Detect(predicate func(int8) bool) (int8, bool) {
+	for _, v := range s.snapshot() {
+		if predicate(v) {
+			return v, true
+		}
+	}
+	var zero int8
+	return zero, false
+}
+
+// ── functional that return a new set ─────────────────────────────────
+
+func (s *SynchronizedInt8HashSet) Select(predicate func(int8) bool) *Int8HashSet {
+	snapshot := s.snapshot()
+	result := NewInt8HashSet()
+	for _, v := range snapshot {
+		if predicate(v) {
+			result.Add(v)
+		}
+	}
+	return result
+}
+
+func (s *SynchronizedInt8HashSet) Reject(predicate func(int8) bool) *Int8HashSet {
+	snapshot := s.snapshot()
+	result := NewInt8HashSet()
+	for _, v := range snapshot {
+		if !predicate(v) {
+			result.Add(v)
+		}
+	}
+	return result
+}
+
+// ── set operations (two-lock, deadlock-safe) ──────────────────────────
+
+// lockPair acquires two RLocks in pointer-address order and returns
+// a release function. Guarantees no A.op(B) ⟷ B.op(A) deadlock.
+func (s *SynchronizedInt8HashSet) lockPair(other *SynchronizedInt8HashSet) func() {
+	if s == other {
+		s.mu.RLock()
+		return func() { s.mu.RUnlock() }
+	}
+	first, second := s, other
+	if uintptr(unsafe.Pointer(s)) > uintptr(unsafe.Pointer(other)) {
+		first, second = other, s
+	}
+	first.mu.RLock()
+	second.mu.RLock()
+	return func() { second.mu.RUnlock(); first.mu.RUnlock() }
+}
+
+func (s *SynchronizedInt8HashSet) Union(other *SynchronizedInt8HashSet) *Int8HashSet {
+	release := s.lockPair(other)
+	defer release()
+	return s.delegate.Union(other.delegate)
+}
+
+func (s *SynchronizedInt8HashSet) Intersect(other *SynchronizedInt8HashSet) *Int8HashSet {
+	release := s.lockPair(other)
+	defer release()
+	return s.delegate.Intersect(other.delegate)
+}
+
+func (s *SynchronizedInt8HashSet) Difference(other *SynchronizedInt8HashSet) *Int8HashSet {
+	release := s.lockPair(other)
+	defer release()
+	return s.delegate.Difference(other.delegate)
+}
+
+func (s *SynchronizedInt8HashSet) SymmetricDifference(other *SynchronizedInt8HashSet) *Int8HashSet {
+	release := s.lockPair(other)
+	defer release()
+	return s.delegate.SymmetricDifference(other.delegate)
+}
+
+// ── fluent mutators ───────────────────────────────────────────────────
+
+func (s *SynchronizedInt8HashSet) With(value int8) *SynchronizedInt8HashSet {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.With(value)
+	return s
+}
+
+func (s *SynchronizedInt8HashSet) WithAll(values ...int8) *SynchronizedInt8HashSet {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.WithAll(values...)
+	return s
+}
+
+func (s *SynchronizedInt8HashSet) Without(value int8) *SynchronizedInt8HashSet {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.Without(value)
+	return s
+}
+
+func (s *SynchronizedInt8HashSet) WithoutAll(values ...int8) *SynchronizedInt8HashSet {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delegate.WithoutAll(values...)
+	return s
+}
+
+// ── conversions ───────────────────────────────────────────────────────
+
+func (s *SynchronizedInt8HashSet) ToImmutable() *ImmutableInt8HashSet {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.delegate.ToImmutable()
+}
+
+// Equals compares by contents. Locks are acquired in pointer-address
+// order to prevent deadlocks under concurrent A.Equals(B) / B.Equals(A).
+func (s *SynchronizedInt8HashSet) Equals(other *SynchronizedInt8HashSet) bool {
+	release := s.lockPair(other)
+	defer release()
+	return s.delegate.Equals(other.delegate)
 }

@@ -116,3 +116,108 @@ func TestInt8Int16TreeMap_Generated_String(t *testing.T) {
 		t.Error("empty")
 	}
 }
+func TestInt8Int16TreeMap_Generated_HigherLower(t *testing.T) {
+	m := NewInt8Int16TreeMap()
+	m.Put(1, 1)
+	m.Put(3, 3)
+	m.Put(5, 5)
+	// Higher(kv[0]) must skip kv[0] and return the next up.
+	if k, _, ok := m.Higher(1); !ok || k != 3 {
+		t.Errorf("Higher(1) = (%v, %v), want (3, true)", k, ok)
+	}
+	// Lower(kv[4]) must skip kv[4] itself.
+	if k, _, ok := m.Lower(5); !ok || k != 3 {
+		t.Errorf("Lower(5) = (%v, %v), want (3, true)", k, ok)
+	}
+	// At the extremes, there is no higher/lower.
+	if _, _, ok := m.Higher(5); ok {
+		t.Error("Higher of max should be false")
+	}
+	if _, _, ok := m.Lower(1); ok {
+		t.Error("Lower of min should be false")
+	}
+}
+func TestInt8Int16TreeMap_Generated_HeadTailSubMap(t *testing.T) {
+	m := NewInt8Int16TreeMap()
+	for i, k := range []int8{1, 2, 3, 4, 5} {
+		v := []int16{1, 2, 3, 4, 5}[i]
+		m.Put(k, v)
+	}
+	// HeadMap: keys < kv[2] → kv[0], kv[1]
+	headCount := 0
+	for range m.HeadMap(3) {
+		headCount++
+	}
+	if headCount != 2 {
+		t.Errorf("HeadMap count = %d, want 2", headCount)
+	}
+	// TailMap: keys >= kv[2] → kv[2], kv[3], kv[4]
+	tailCount := 0
+	for range m.TailMap(3) {
+		tailCount++
+	}
+	if tailCount != 3 {
+		t.Errorf("TailMap count = %d, want 3", tailCount)
+	}
+	// SubMap: [kv[1], kv[3]) → kv[1], kv[2]
+	subCount := 0
+	for range m.SubMap(2, 4) {
+		subCount++
+	}
+	if subCount != 2 {
+		t.Errorf("SubMap count = %d, want 2", subCount)
+	}
+}
+func TestInt8Int16TreeMap_Generated_FirstLastEntry(t *testing.T) {
+	m := NewInt8Int16TreeMap()
+	m.Put(2, 2)
+	m.Put(1, 1)
+	m.Put(3, 3)
+	if k, _, ok := m.FirstEntry(); !ok || k != 1 {
+		t.Errorf("FirstEntry key = %v, want 1", k)
+	}
+	if k, _, ok := m.LastEntry(); !ok || k != 3 {
+		t.Errorf("LastEntry key = %v, want 3", k)
+	}
+}
+func TestInt8Int16TreeMap_Generated_PollFirstLastEntry(t *testing.T) {
+	m := NewInt8Int16TreeMap()
+	m.Put(1, 1)
+	m.Put(2, 2)
+	m.Put(3, 3)
+	if k, _, ok := m.PollFirstEntry(); !ok || k != 1 {
+		t.Errorf("PollFirstEntry key = %v", k)
+	}
+	if m.Size() != 2 {
+		t.Errorf("Size after PollFirst = %d", m.Size())
+	}
+	if k, _, ok := m.PollLastEntry(); !ok || k != 3 {
+		t.Errorf("PollLastEntry key = %v", k)
+	}
+	if m.Size() != 1 {
+		t.Errorf("Size after PollLast = %d", m.Size())
+	}
+}
+func TestInt8Int16TreeMap_Generated_DescendingOrder(t *testing.T) {
+	m := NewInt8Int16TreeMap()
+	m.Put(1, 1)
+	m.Put(2, 2)
+	m.Put(3, 3)
+	var keys []int8
+	for k := range m.DescendingKeys() {
+		keys = append(keys, k)
+	}
+	for i := 1; i < len(keys); i++ {
+		if keys[i] > keys[i-1] {
+			t.Errorf("Descending not ordered at %d: %v", i, keys)
+		}
+	}
+	// DescendingMap walks entries in the same order.
+	mapCount := 0
+	for range m.DescendingMap() {
+		mapCount++
+	}
+	if mapCount != 3 {
+		t.Errorf("DescendingMap count = %d", mapCount)
+	}
+}

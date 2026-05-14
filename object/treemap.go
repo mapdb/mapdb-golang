@@ -183,6 +183,201 @@ func (m *TreeMap[K, V]) String() string {
 	return b.String()
 }
 
+// ── navigable surface ────────────────────────────────────────────────
+//
+// Mirrors Java's NavigableMap: Floor/Ceiling (inclusive bounds),
+// Higher/Lower (strict bounds), Head/Tail/SubMap as lazy range
+// iterators, First/LastEntry and PollFirst/PollLast, Descending views.
+//
+// The Head/Tail/SubMap "views" are iter.Seq2 rather than true live
+// views. This matches Java's read-only use case (iteration, counting,
+// search) without paying for the view-bookkeeping Java's TreeSubMap
+// wrapper requires. For mutable range operations, snapshot via
+// SelectInRange below.
+
+// Floor returns the largest key <= given, with its value, or zero/false.
+func (m *TreeMap[K, V]) Floor(key K) (K, V, bool) {
+	var result *tmNode[K, V]
+	for n := m.root; n != nil; {
+		c := m.cmp(key, n.key)
+		switch {
+		case c == 0:
+			return n.key, n.value, true
+		case c > 0:
+			result = n
+			n = n.right
+		default:
+			n = n.left
+		}
+	}
+	if result == nil {
+		var zk K
+		var zv V
+		return zk, zv, false
+	}
+	return result.key, result.value, true
+}
+
+// Ceiling returns the smallest key >= given, with its value, or zero/false.
+func (m *TreeMap[K, V]) Ceiling(key K) (K, V, bool) {
+	var result *tmNode[K, V]
+	for n := m.root; n != nil; {
+		c := m.cmp(key, n.key)
+		switch {
+		case c == 0:
+			return n.key, n.value, true
+		case c < 0:
+			result = n
+			n = n.left
+		default:
+			n = n.right
+		}
+	}
+	if result == nil {
+		var zk K
+		var zv V
+		return zk, zv, false
+	}
+	return result.key, result.value, true
+}
+
+// Higher returns the smallest key strictly > given, with its value, or zero/false.
+func (m *TreeMap[K, V]) Higher(key K) (K, V, bool) {
+	var result *tmNode[K, V]
+	for n := m.root; n != nil; {
+		if m.cmp(key, n.key) < 0 {
+			result = n
+			n = n.left
+		} else {
+			n = n.right
+		}
+	}
+	if result == nil {
+		var zk K
+		var zv V
+		return zk, zv, false
+	}
+	return result.key, result.value, true
+}
+
+// Lower returns the largest key strictly < given, with its value, or zero/false.
+func (m *TreeMap[K, V]) Lower(key K) (K, V, bool) {
+	var result *tmNode[K, V]
+	for n := m.root; n != nil; {
+		if m.cmp(key, n.key) > 0 {
+			result = n
+			n = n.right
+		} else {
+			n = n.left
+		}
+	}
+	if result == nil {
+		var zk K
+		var zv V
+		return zk, zv, false
+	}
+	return result.key, result.value, true
+}
+
+// HeadMap yields entries with keys strictly less than toKey.
+func (m *TreeMap[K, V]) HeadMap(toKey K) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		for k, v := range m.All() {
+			if m.cmp(k, toKey) >= 0 {
+				return
+			}
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// TailMap yields entries with keys >= fromKey.
+func (m *TreeMap[K, V]) TailMap(fromKey K) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		for k, v := range m.All() {
+			if m.cmp(k, fromKey) < 0 {
+				continue
+			}
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// SubMap yields entries with keys in [fromKey, toKey).
+func (m *TreeMap[K, V]) SubMap(fromKey, toKey K) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		for k, v := range m.All() {
+			if m.cmp(k, fromKey) < 0 {
+				continue
+			}
+			if m.cmp(k, toKey) >= 0 {
+				return
+			}
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// FirstEntry is an alias of Min.
+func (m *TreeMap[K, V]) FirstEntry() (K, V, bool) { return m.Min() }
+
+// LastEntry is an alias of Max.
+func (m *TreeMap[K, V]) LastEntry() (K, V, bool) { return m.Max() }
+
+// PollFirstEntry removes and returns the smallest entry.
+func (m *TreeMap[K, V]) PollFirstEntry() (K, V, bool) {
+	k, v, ok := m.Min()
+	if !ok {
+		return k, v, false
+	}
+	m.Remove(k)
+	return k, v, true
+}
+
+// PollLastEntry removes and returns the largest entry.
+func (m *TreeMap[K, V]) PollLastEntry() (K, V, bool) {
+	k, v, ok := m.Max()
+	if !ok {
+		return k, v, false
+	}
+	m.Remove(k)
+	return k, v, true
+}
+
+// DescendingMap yields entries in descending key order.
+func (m *TreeMap[K, V]) DescendingMap() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		m.reverseInOrder(m.root, yield)
+	}
+}
+
+// DescendingKeys yields keys in descending order.
+func (m *TreeMap[K, V]) DescendingKeys() iter.Seq[K] {
+	return func(yield func(K) bool) {
+		m.reverseInOrder(m.root, func(k K, _ V) bool { return yield(k) })
+	}
+}
+
+// reverseInOrder is the mirror of inOrder — right subtree first.
+func (m *TreeMap[K, V]) reverseInOrder(n *tmNode[K, V], yield func(K, V) bool) bool {
+	if n == nil {
+		return true
+	}
+	if !m.reverseInOrder(n.right, yield) {
+		return false
+	}
+	if !yield(n.key, n.value) {
+		return false
+	}
+	return m.reverseInOrder(n.left, yield)
+}
+
 // ── internal: lookup ──────────────────────────────────────────────────
 
 func (m *TreeMap[K, V]) findNode(key K) *tmNode[K, V] {

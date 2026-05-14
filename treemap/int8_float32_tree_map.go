@@ -236,6 +236,137 @@ func (m *Int8Float32TreeMap) RangeKeys(fromKey, toKey int8) iter.Seq2[int8, floa
 	}
 }
 
+// Higher returns the smallest key strictly greater than `key` (and its value),
+// or zero values and false. Unlike Ceiling, never returns `key` itself.
+func (m *Int8Float32TreeMap) Higher(key int8) (int8, float32, bool) {
+	var result *int8Float32TreeNode
+	node := m.root
+	for node != nil {
+		if key < node.key {
+			result = node
+			node = node.left
+		} else {
+			node = node.right
+		}
+	}
+	if result == nil {
+		return 0, 0.0, false
+	}
+	return result.key, result.value, true
+}
+
+// Lower returns the largest key strictly less than `key` (and its value),
+// or zero values and false. Unlike Floor, never returns `key` itself.
+func (m *Int8Float32TreeMap) Lower(key int8) (int8, float32, bool) {
+	var result *int8Float32TreeNode
+	node := m.root
+	for node != nil {
+		if key > node.key {
+			result = node
+			node = node.right
+		} else {
+			node = node.left
+		}
+	}
+	if result == nil {
+		return 0, 0.0, false
+	}
+	return result.key, result.value, true
+}
+
+// HeadMap returns an iter.Seq2 over entries with keys strictly less than toKey.
+// Matches Java NavigableMap.headMap(toKey) (exclusive by default).
+func (m *Int8Float32TreeMap) HeadMap(toKey int8) iter.Seq2[int8, float32] {
+	return func(yield func(int8, float32) bool) {
+		for k, v := range m.All() {
+			if k >= toKey {
+				return
+			}
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// TailMap returns an iter.Seq2 over entries with keys >= fromKey.
+// Matches Java NavigableMap.tailMap(fromKey) (inclusive by default).
+func (m *Int8Float32TreeMap) TailMap(fromKey int8) iter.Seq2[int8, float32] {
+	return func(yield func(int8, float32) bool) {
+		for k, v := range m.All() {
+			if k < fromKey {
+				continue
+			}
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// SubMap returns an iter.Seq2 over entries with keys in [fromKey, toKey).
+// Alias for RangeKeys; exists for Java-NavigableMap API parity.
+func (m *Int8Float32TreeMap) SubMap(fromKey, toKey int8) iter.Seq2[int8, float32] {
+	return m.RangeKeys(fromKey, toKey)
+}
+
+// FirstEntry is an alias of Min — the smallest key and its value, or zero/false.
+func (m *Int8Float32TreeMap) FirstEntry() (int8, float32, bool) { return m.Min() }
+
+// LastEntry is an alias of Max — the largest key and its value, or zero/false.
+func (m *Int8Float32TreeMap) LastEntry() (int8, float32, bool) { return m.Max() }
+
+// PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
+func (m *Int8Float32TreeMap) PollFirstEntry() (int8, float32, bool) {
+	k, v, ok := m.Min()
+	if !ok {
+		return 0, 0.0, false
+	}
+	m.Remove(k)
+	return k, v, true
+}
+
+// PollLastEntry removes and returns the largest entry, or zero/false if empty.
+func (m *Int8Float32TreeMap) PollLastEntry() (int8, float32, bool) {
+	k, v, ok := m.Max()
+	if !ok {
+		return 0, 0.0, false
+	}
+	m.Remove(k)
+	return k, v, true
+}
+
+// DescendingMap returns an iter.Seq2 over entries in descending key order.
+func (m *Int8Float32TreeMap) DescendingMap() iter.Seq2[int8, float32] {
+	return func(yield func(int8, float32) bool) {
+		var reverse func(node *int8Float32TreeNode) bool
+		reverse = func(node *int8Float32TreeNode) bool {
+			if node == nil {
+				return true
+			}
+			if !reverse(node.right) {
+				return false
+			}
+			if !yield(node.key, node.value) {
+				return false
+			}
+			return reverse(node.left)
+		}
+		reverse(m.root)
+	}
+}
+
+// DescendingKeys returns an iter.Seq over keys in descending order.
+func (m *Int8Float32TreeMap) DescendingKeys() iter.Seq[int8] {
+	return func(yield func(int8) bool) {
+		for k := range m.DescendingMap() {
+			if !yield(k) {
+				return
+			}
+		}
+	}
+}
+
 // ForEach calls the function for each key-value pair in ascending order.
 func (m *Int8Float32TreeMap) ForEach(f func(int8, float32)) {
 	for k, v := range m.All() {

@@ -116,3 +116,108 @@ func TestFloat64Float64TreeMap_Generated_String(t *testing.T) {
 		t.Error("empty")
 	}
 }
+func TestFloat64Float64TreeMap_Generated_HigherLower(t *testing.T) {
+	m := NewFloat64Float64TreeMap()
+	m.Put(1.0, 1.0)
+	m.Put(3.0, 3.0)
+	m.Put(5.0, 5.0)
+	// Higher(kv[0]) must skip kv[0] and return the next up.
+	if k, _, ok := m.Higher(1.0); !ok || k != 3.0 {
+		t.Errorf("Higher(1.0) = (%v, %v), want (3.0, true)", k, ok)
+	}
+	// Lower(kv[4]) must skip kv[4] itself.
+	if k, _, ok := m.Lower(5.0); !ok || k != 3.0 {
+		t.Errorf("Lower(5.0) = (%v, %v), want (3.0, true)", k, ok)
+	}
+	// At the extremes, there is no higher/lower.
+	if _, _, ok := m.Higher(5.0); ok {
+		t.Error("Higher of max should be false")
+	}
+	if _, _, ok := m.Lower(1.0); ok {
+		t.Error("Lower of min should be false")
+	}
+}
+func TestFloat64Float64TreeMap_Generated_HeadTailSubMap(t *testing.T) {
+	m := NewFloat64Float64TreeMap()
+	for i, k := range []float64{1.0, 2.0, 3.0, 4.0, 5.0} {
+		v := []float64{1.0, 2.0, 3.0, 4.0, 5.0}[i]
+		m.Put(k, v)
+	}
+	// HeadMap: keys < kv[2] → kv[0], kv[1]
+	headCount := 0
+	for range m.HeadMap(3.0) {
+		headCount++
+	}
+	if headCount != 2 {
+		t.Errorf("HeadMap count = %d, want 2", headCount)
+	}
+	// TailMap: keys >= kv[2] → kv[2], kv[3], kv[4]
+	tailCount := 0
+	for range m.TailMap(3.0) {
+		tailCount++
+	}
+	if tailCount != 3 {
+		t.Errorf("TailMap count = %d, want 3", tailCount)
+	}
+	// SubMap: [kv[1], kv[3]) → kv[1], kv[2]
+	subCount := 0
+	for range m.SubMap(2.0, 4.0) {
+		subCount++
+	}
+	if subCount != 2 {
+		t.Errorf("SubMap count = %d, want 2", subCount)
+	}
+}
+func TestFloat64Float64TreeMap_Generated_FirstLastEntry(t *testing.T) {
+	m := NewFloat64Float64TreeMap()
+	m.Put(2.0, 2.0)
+	m.Put(1.0, 1.0)
+	m.Put(3.0, 3.0)
+	if k, _, ok := m.FirstEntry(); !ok || k != 1.0 {
+		t.Errorf("FirstEntry key = %v, want 1.0", k)
+	}
+	if k, _, ok := m.LastEntry(); !ok || k != 3.0 {
+		t.Errorf("LastEntry key = %v, want 3.0", k)
+	}
+}
+func TestFloat64Float64TreeMap_Generated_PollFirstLastEntry(t *testing.T) {
+	m := NewFloat64Float64TreeMap()
+	m.Put(1.0, 1.0)
+	m.Put(2.0, 2.0)
+	m.Put(3.0, 3.0)
+	if k, _, ok := m.PollFirstEntry(); !ok || k != 1.0 {
+		t.Errorf("PollFirstEntry key = %v", k)
+	}
+	if m.Size() != 2 {
+		t.Errorf("Size after PollFirst = %d", m.Size())
+	}
+	if k, _, ok := m.PollLastEntry(); !ok || k != 3.0 {
+		t.Errorf("PollLastEntry key = %v", k)
+	}
+	if m.Size() != 1 {
+		t.Errorf("Size after PollLast = %d", m.Size())
+	}
+}
+func TestFloat64Float64TreeMap_Generated_DescendingOrder(t *testing.T) {
+	m := NewFloat64Float64TreeMap()
+	m.Put(1.0, 1.0)
+	m.Put(2.0, 2.0)
+	m.Put(3.0, 3.0)
+	var keys []float64
+	for k := range m.DescendingKeys() {
+		keys = append(keys, k)
+	}
+	for i := 1; i < len(keys); i++ {
+		if keys[i] > keys[i-1] {
+			t.Errorf("Descending not ordered at %d: %v", i, keys)
+		}
+	}
+	// DescendingMap walks entries in the same order.
+	mapCount := 0
+	for range m.DescendingMap() {
+		mapCount++
+	}
+	if mapCount != 3 {
+		t.Errorf("DescendingMap count = %d", mapCount)
+	}
+}

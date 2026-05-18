@@ -1,0 +1,1007 @@
+// Copyright (c) 2026 Jan Kotek.
+// Derived from Eclipse Collections (Copyright (c) Goldman Sachs and others).
+// Licensed under the Eclipse Public License v1.0 and Eclipse Distribution License v1.0.
+// See LICENSE-EPL-1.0.txt and LICENSE-EDL-1.0.txt.
+// USE AT YOUR OWN RISK -- THIS SOFTWARE IS PROVIDED WITHOUT WARRANTY OF ANY KIND.
+
+// Cross-language validation runner for mapdb-golang.
+//
+// Reads a JSON scenario file from the shared mapdb-collection-spec
+// suite, runs the described operations through the Go collections, and
+// prints the assertion outputs in the canonical per-line
+// `<key>: <value>` format consumed by validate.sh.
+//
+// Sibling implementations: mapdb-rust/src/bin/validate.rs,
+// mapdb-zig/src/validate.zig, mapdb-typescript/src/validate.ts.
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/mapdb/mapdb-golang/arraylist"
+	"github.com/mapdb/mapdb-golang/bag"
+	"github.com/mapdb/mapdb-golang/hashmap"
+	"github.com/mapdb/mapdb-golang/hashset"
+	"github.com/mapdb/mapdb-golang/treemap"
+	"github.com/mapdb/mapdb-golang/treeset"
+)
+
+type scenario struct {
+	Name       string                     `json:"name"`
+	Collection string                     `json:"collection"`
+	Operations []map[string]any           `json:"operations"`
+	Assertions map[string]json.RawMessage `json:"assertions"`
+	Other      *otherSpec                 `json:"other,omitempty"`
+}
+
+type otherSpec struct {
+	Operations []map[string]any `json:"operations"`
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "Usage: validate <scenario.json>")
+		os.Exit(1)
+	}
+	data, err := os.ReadFile(os.Args[1])
+	if err != nil {
+		fatalf("failed to read scenario file: %v", err)
+	}
+	var s scenario
+	if err := json.Unmarshal(data, &s); err != nil {
+		fatalf("failed to parse JSON: %v", err)
+	}
+
+	fmt.Printf("=== scenario: %s ===\n", s.Name)
+
+	switch s.Collection {
+	case "HashMap<i32, i32>":
+		runHashMap(s)
+	case "ArrayList<i32>":
+		runArrayList(s)
+	case "HashSet<i32>":
+		runHashSet(s)
+	case "HashBag<i32>":
+		runHashBag(s)
+	case "TreeSet<i32>":
+		runTreeSet(s)
+	case "TreeMap<i32, i32>":
+		runTreeMap(s)
+	case "HashMap<f32, i32>":
+		runF32HashMap(s)
+	case "HashSet<f32>":
+		runF32HashSet(s)
+	case "ArrayList<f32>":
+		runF32ArrayList(s)
+	default:
+		fatalf("unsupported collection type: %s", s.Collection)
+	}
+}
+
+// ---- shared helpers -------------------------------------------------------
+
+func fatalf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	os.Exit(1)
+}
+
+// sortedAssertionKeys returns assertion keys in stable order, skipping
+// the "comment" field that scenario authors use for docs.
+func sortedAssertionKeys(a map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(a))
+	for k := range a {
+		if k == "comment" {
+			continue
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func formatArray(v []int32) string {
+	parts := make([]string, len(v))
+	for i, x := range v {
+		parts[i] = strconv.FormatInt(int64(x), 10)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func asInt32(v any) int32 {
+	switch n := v.(type) {
+	case float64:
+		return int32(int64(n))
+	case json.Number:
+		i, _ := n.Int64()
+		return int32(i)
+	}
+	fatalf("expected integer, got %T (%v)", v, v)
+	return 0
+}
+
+func asInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case json.Number:
+		i, _ := n.Int64()
+		return int(i)
+	}
+	fatalf("expected integer, got %T (%v)", v, v)
+	return 0
+}
+
+func parseF32(v any) float32 {
+	switch x := v.(type) {
+	case string:
+		return parseF32Label(x)
+	case float64:
+		return float32(x)
+	}
+	fatalf("expected f32 value, got %T (%v)", v, v)
+	return 0
+}
+
+func parseF32Label(s string) float32 {
+	switch s {
+	case "NaN":
+		return float32(math.NaN())
+	case "Infinity", "+Infinity":
+		return float32(math.Inf(1))
+	case "-Infinity":
+		return float32(math.Inf(-1))
+	case "pos_zero":
+		return 0.0
+	case "neg_zero":
+		return float32(math.Copysign(0, -1))
+	}
+	f, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		fatalf("invalid f32 literal in key: %q", s)
+	}
+	return float32(f)
+}
+
+func formatF32(v float32) string {
+	if math.IsNaN(float64(v)) {
+		return "NaN"
+	}
+	if math.IsInf(float64(v), 1) {
+		return "Infinity"
+	}
+	if math.IsInf(float64(v), -1) {
+		return "-Infinity"
+	}
+	if v == 0 && math.Signbit(float64(v)) {
+		// +0/-0 are bit-pattern distinct; preserve the sign on print.
+		return "-0.0"
+	}
+	if v == float32(math.Trunc(float64(v))) && math.Abs(float64(v)) < 1e16 {
+		// Match Java/Rust "3.0" rendering for integer-valued floats.
+		return fmt.Sprintf("%d.0", int64(v))
+	}
+	return strconv.FormatFloat(float64(v), 'g', -1, 32)
+}
+
+func unknown(key string) string {
+	return "UNKNOWN_ASSERTION:" + key
+}
+
+// ---- HashMap<i32, i32> ---------------------------------------------------
+
+func runHashMap(s scenario) {
+	m := hashmap.NewInt32Int32HashMap()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			m.Put(asInt32(op["key"]), asInt32(op["value"]))
+		case "remove":
+			m.Remove(asInt32(op["key"]))
+		case "addToValue":
+			m.AddToValue(asInt32(op["key"]), asInt32(op["delta"]))
+		case "clear":
+			m.Clear()
+		default:
+			fatalf("unknown hashmap op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		fmt.Printf("%s: %s\n", key, evalMapAssertion(key, m))
+	}
+}
+
+func evalMapAssertion(key string, m *hashmap.Int32Int32HashMap) string {
+	switch key {
+	case "size":
+		return strconv.Itoa(m.Size())
+	case "is_empty":
+		return strconv.FormatBool(m.IsEmpty())
+	case "sorted_keys":
+		keys := m.KeysToSlice()
+		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		return formatArray(keys)
+	case "sorted_values":
+		vals := m.ValuesToSlice()
+		sort.Slice(vals, func(i, j int) bool { return vals[i] < vals[j] })
+		return formatArray(vals)
+	case "min":
+		keys := m.KeysToSlice()
+		if len(keys) == 0 {
+			return "null"
+		}
+		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		return strconv.FormatInt(int64(keys[0]), 10)
+	case "max":
+		keys := m.KeysToSlice()
+		if len(keys) == 0 {
+			return "null"
+		}
+		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		return strconv.FormatInt(int64(keys[len(keys)-1]), 10)
+	}
+	if rest, ok := strings.CutPrefix(key, "get_"); ok {
+		k, _ := strconv.ParseInt(rest, 10, 32)
+		if v, found := m.Get(int32(k)); found {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return "null"
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		k, _ := strconv.ParseInt(rest, 10, 32)
+		return strconv.FormatBool(m.ContainsKey(int32(k)))
+	}
+	return unknown(key)
+}
+
+// ---- ArrayList<i32> ------------------------------------------------------
+
+func runArrayList(s scenario) {
+	l := arraylist.NewInt32ArrayList()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			l.Add(asInt32(op["value"]))
+		case "add_at":
+			idx := asInt(op["index"])
+			v := asInt32(op["value"])
+			// Int32ArrayList has no insert-at; rebuild as a slice and reload.
+			cur := snapshotList(l)
+			next := make([]int32, 0, len(cur)+1)
+			next = append(next, cur[:idx]...)
+			next = append(next, v)
+			next = append(next, cur[idx:]...)
+			l.Clear()
+			l.AddAll(next...)
+		case "remove":
+			l.Remove(asInt32(op["value"]))
+		case "clear":
+			l.Clear()
+		default:
+			fatalf("unknown arraylist op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		fmt.Printf("%s: %s\n", key, evalListAssertion(key, l))
+	}
+}
+
+func snapshotList(l *arraylist.Int32ArrayList) []int32 {
+	out := make([]int32, 0, l.Size())
+	l.ForEach(func(v int32) { out = append(out, v) })
+	return out
+}
+
+func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
+	values := snapshotList(l)
+	switch key {
+	case "size":
+		return strconv.Itoa(len(values))
+	case "is_empty":
+		return strconv.FormatBool(len(values) == 0)
+	case "sum":
+		// Wrapping i32 sum -- matches the Rust/Java behaviour exercised by
+		// scenarios/06-overflow/i32_sum_overflow.json.
+		var acc int32
+		for _, v := range values {
+			acc += v
+		}
+		return strconv.FormatInt(int64(acc), 10)
+	case "inject_into_wrapping_product", "product":
+		var acc int32 = 1
+		for _, v := range values {
+			acc *= v
+		}
+		return strconv.FormatInt(int64(acc), 10)
+	case "max_minus_min":
+		if len(values) == 0 {
+			return "null"
+		}
+		mn, mx := values[0], values[0]
+		for _, v := range values[1:] {
+			if v < mn {
+				mn = v
+			}
+			if v > mx {
+				mx = v
+			}
+		}
+		return strconv.FormatInt(int64(mx-mn), 10)
+	case "min":
+		if len(values) == 0 {
+			return "null"
+		}
+		mn := values[0]
+		for _, v := range values[1:] {
+			if v < mn {
+				mn = v
+			}
+		}
+		return strconv.FormatInt(int64(mn), 10)
+	case "max":
+		if len(values) == 0 {
+			return "null"
+		}
+		mx := values[0]
+		for _, v := range values[1:] {
+			if v > mx {
+				mx = v
+			}
+		}
+		return strconv.FormatInt(int64(mx), 10)
+	case "to_sorted_array":
+		sorted := append([]int32(nil), values...)
+		sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+		return formatArray(sorted)
+	case "inject_into_sum":
+		var acc int64
+		for _, v := range values {
+			acc += int64(v)
+		}
+		return strconv.FormatInt(acc, 10)
+	case "inject_into_product":
+		var acc int64 = 1
+		for _, v := range values {
+			acc *= int64(v)
+		}
+		return strconv.FormatInt(acc, 10)
+	case "any_satisfy_even":
+		for _, v := range values {
+			if v%2 == 0 {
+				return "true"
+			}
+		}
+		return "false"
+	case "all_satisfy_even":
+		for _, v := range values {
+			if v%2 != 0 {
+				return "false"
+			}
+		}
+		return "true"
+	case "none_satisfy_odd":
+		for _, v := range values {
+			if v%2 != 0 {
+				return "false"
+			}
+		}
+		return "true"
+	case "count_even":
+		c := 0
+		for _, v := range values {
+			if v%2 == 0 {
+				c++
+			}
+		}
+		return strconv.Itoa(c)
+	case "count_odd":
+		c := 0
+		for _, v := range values {
+			if v%2 != 0 {
+				c++
+			}
+		}
+		return strconv.Itoa(c)
+	}
+	if rest, ok := strings.CutPrefix(key, "get_at_"); ok {
+		idx, _ := strconv.Atoi(rest)
+		if idx < 0 || idx >= len(values) {
+			return "null"
+		}
+		return strconv.FormatInt(int64(values[idx]), 10)
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		v, _ := strconv.ParseInt(rest, 10, 32)
+		for _, x := range values {
+			if x == int32(v) {
+				return "true"
+			}
+		}
+		return "false"
+	}
+	if rest, ok := strings.CutPrefix(key, "select_gt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		var v []int32
+		for _, x := range values {
+			if x > int32(t) {
+				v = append(v, x)
+			}
+		}
+		sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+		return formatArray(v)
+	}
+	if rest, ok := strings.CutPrefix(key, "reject_gt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		var v []int32
+		for _, x := range values {
+			if x <= int32(t) {
+				v = append(v, x)
+			}
+		}
+		sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+		return formatArray(v)
+	}
+	if rest, ok := strings.CutPrefix(key, "detect_gt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		for _, x := range values {
+			if x > int32(t) {
+				return strconv.FormatInt(int64(x), 10)
+			}
+		}
+		return "null"
+	}
+	if rest, ok := strings.CutPrefix(key, "count_gt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		c := 0
+		for _, x := range values {
+			if x > int32(t) {
+				c++
+			}
+		}
+		return strconv.Itoa(c)
+	}
+	if rest, ok := strings.CutPrefix(key, "count_lt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		c := 0
+		for _, x := range values {
+			if x < int32(t) {
+				c++
+			}
+		}
+		return strconv.Itoa(c)
+	}
+	if rest, ok := strings.CutPrefix(key, "any_satisfy_gt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		for _, x := range values {
+			if x > int32(t) {
+				return "true"
+			}
+		}
+		return "false"
+	}
+	if rest, ok := strings.CutPrefix(key, "all_satisfy_gt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		for _, x := range values {
+			if x <= int32(t) {
+				return "false"
+			}
+		}
+		return "true"
+	}
+	if rest, ok := strings.CutPrefix(key, "none_satisfy_gt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		for _, x := range values {
+			if x > int32(t) {
+				return "false"
+			}
+		}
+		return "true"
+	}
+	if rest, ok := strings.CutPrefix(key, "none_satisfy_lt_"); ok {
+		t, _ := strconv.ParseInt(rest, 10, 32)
+		for _, x := range values {
+			if x < int32(t) {
+				return "false"
+			}
+		}
+		return "true"
+	}
+	return unknown(key)
+}
+
+// ---- HashSet<i32> --------------------------------------------------------
+
+func runHashSet(s scenario) {
+	set := hashset.NewInt32HashSet()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			set.Add(asInt32(op["value"]))
+		case "remove":
+			set.Remove(asInt32(op["value"]))
+		case "clear":
+			set.Clear()
+		default:
+			fatalf("unknown hashset op: %v", op["op"])
+		}
+	}
+	var other *hashset.Int32HashSet
+	if s.Other != nil {
+		other = hashset.NewInt32HashSet()
+		for _, op := range s.Other.Operations {
+			if op["op"] == "add" {
+				other.Add(asInt32(op["value"]))
+			}
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		fmt.Printf("%s: %s\n", key, evalSetAssertion(key, set, other))
+	}
+}
+
+func setToSorted(set *hashset.Int32HashSet) []int32 {
+	out := make([]int32, 0, set.Size())
+	set.ForEach(func(v int32) { out = append(out, v) })
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func evalSetAssertion(key string, set, other *hashset.Int32HashSet) string {
+	switch key {
+	case "size":
+		return strconv.Itoa(set.Size())
+	case "is_empty":
+		return strconv.FormatBool(set.IsEmpty())
+	case "to_sorted_array":
+		return formatArray(setToSorted(set))
+	}
+	if other != nil {
+		switch key {
+		case "union_sorted":
+			seen := map[int32]struct{}{}
+			set.ForEach(func(v int32) { seen[v] = struct{}{} })
+			other.ForEach(func(v int32) { seen[v] = struct{}{} })
+			v := make([]int32, 0, len(seen))
+			for k := range seen {
+				v = append(v, k)
+			}
+			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+			return formatArray(v)
+		case "intersect_sorted":
+			var v []int32
+			set.ForEach(func(x int32) {
+				if other.Contains(x) {
+					v = append(v, x)
+				}
+			})
+			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+			return formatArray(v)
+		case "difference_sorted":
+			var v []int32
+			set.ForEach(func(x int32) {
+				if !other.Contains(x) {
+					v = append(v, x)
+				}
+			})
+			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+			return formatArray(v)
+		case "symmetric_difference_sorted":
+			var v []int32
+			set.ForEach(func(x int32) {
+				if !other.Contains(x) {
+					v = append(v, x)
+				}
+			})
+			other.ForEach(func(x int32) {
+				if !set.Contains(x) {
+					v = append(v, x)
+				}
+			})
+			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+			return formatArray(v)
+		case "union_size":
+			seen := map[int32]struct{}{}
+			set.ForEach(func(v int32) { seen[v] = struct{}{} })
+			other.ForEach(func(v int32) { seen[v] = struct{}{} })
+			return strconv.Itoa(len(seen))
+		case "intersect_size":
+			c := 0
+			set.ForEach(func(x int32) {
+				if other.Contains(x) {
+					c++
+				}
+			})
+			return strconv.Itoa(c)
+		case "difference_size":
+			c := 0
+			set.ForEach(func(x int32) {
+				if !other.Contains(x) {
+					c++
+				}
+			})
+			return strconv.Itoa(c)
+		case "symmetric_difference_size":
+			seen := map[int32]struct{}{}
+			set.ForEach(func(x int32) {
+				if !other.Contains(x) {
+					seen[x] = struct{}{}
+				}
+			})
+			other.ForEach(func(x int32) {
+				if !set.Contains(x) {
+					seen[x] = struct{}{}
+				}
+			})
+			return strconv.Itoa(len(seen))
+		case "other_size":
+			return strconv.Itoa(other.Size())
+		}
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		v, _ := strconv.ParseInt(rest, 10, 32)
+		return strconv.FormatBool(set.Contains(int32(v)))
+	}
+	return unknown(key)
+}
+
+// ---- HashBag<i32> --------------------------------------------------------
+
+func runHashBag(s scenario) {
+	b := bag.NewInt32HashBag()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			b.Add(asInt32(op["value"]))
+		case "remove":
+			b.Remove(asInt32(op["value"]))
+		case "clear":
+			b.Clear()
+		default:
+			fatalf("unknown hashbag op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		fmt.Printf("%s: %s\n", key, evalBagAssertion(key, b))
+	}
+}
+
+func evalBagAssertion(key string, b *bag.Int32HashBag) string {
+	switch key {
+	case "size":
+		return strconv.Itoa(b.Size())
+	case "size_distinct":
+		return strconv.Itoa(b.SizeDistinct())
+	case "is_empty":
+		return strconv.FormatBool(b.IsEmpty())
+	case "sorted_distinct":
+		seen := map[int32]struct{}{}
+		b.ForEach(func(v int32) { seen[v] = struct{}{} })
+		v := make([]int32, 0, len(seen))
+		for k := range seen {
+			v = append(v, k)
+		}
+		sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+		return formatArray(v)
+	case "to_sorted_array":
+		flat := make([]int32, 0, b.Size())
+		b.ForEachWithOccurrences(func(value int32, count int) {
+			for i := 0; i < count; i++ {
+				flat = append(flat, value)
+			}
+		})
+		sort.Slice(flat, func(i, j int) bool { return flat[i] < flat[j] })
+		return formatArray(flat)
+	}
+	if rest, ok := strings.CutPrefix(key, "occurrences_"); ok {
+		v, _ := strconv.ParseInt(rest, 10, 32)
+		return strconv.Itoa(b.OccurrencesOf(int32(v)))
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		v, _ := strconv.ParseInt(rest, 10, 32)
+		return strconv.FormatBool(b.Contains(int32(v)))
+	}
+	return unknown(key)
+}
+
+// ---- TreeSet<i32> --------------------------------------------------------
+
+func runTreeSet(s scenario) {
+	set := treeset.NewInt32TreeSet()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			set.Add(asInt32(op["value"]))
+		case "remove":
+			set.Remove(asInt32(op["value"]))
+		case "clear":
+			set.Clear()
+		default:
+			fatalf("unknown treeset op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(set.Size())
+			case "is_empty":
+				return strconv.FormatBool(set.IsEmpty())
+			case "min":
+				if v, ok := set.Min(); ok {
+					return strconv.FormatInt(int64(v), 10)
+				}
+				return "null"
+			case "max":
+				if v, ok := set.Max(); ok {
+					return strconv.FormatInt(int64(v), 10)
+				}
+				return "null"
+			case "to_sorted_array":
+				out := make([]int32, 0, set.Size())
+				set.ForEach(func(v int32) { out = append(out, v) })
+				// Int32TreeSet already iterates in order.
+				return formatArray(out)
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				v, _ := strconv.ParseInt(rest, 10, 32)
+				return strconv.FormatBool(set.Contains(int32(v)))
+			}
+			return unknown(key)
+		}()
+		fmt.Printf("%s: %s\n", key, val)
+	}
+}
+
+// ---- TreeMap<i32, i32> ---------------------------------------------------
+
+func runTreeMap(s scenario) {
+	m := treemap.NewInt32Int32TreeMap()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			m.Put(asInt32(op["key"]), asInt32(op["value"]))
+		case "remove":
+			m.Remove(asInt32(op["key"]))
+		case "clear":
+			m.Clear()
+		default:
+			fatalf("unknown treemap op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(m.Size())
+			case "is_empty":
+				return strconv.FormatBool(m.IsEmpty())
+			case "min":
+				if k, _, ok := m.Min(); ok {
+					return strconv.FormatInt(int64(k), 10)
+				}
+				return "null"
+			case "max":
+				if k, _, ok := m.Max(); ok {
+					return strconv.FormatInt(int64(k), 10)
+				}
+				return "null"
+			case "sorted_keys":
+				var keys []int32
+				for k := range m.Keys() {
+					keys = append(keys, k)
+				}
+				return formatArray(keys)
+			case "sorted_values":
+				var vals []int32
+				for _, v := range m.All() {
+					vals = append(vals, v)
+				}
+				// Int32Int32TreeMap iterates in key order; values
+				// follow keys, which is what "sorted_values" asks for
+				// in the cross-language contract.
+				return formatArray(vals)
+			}
+			if rest, ok := strings.CutPrefix(key, "get_"); ok {
+				k, _ := strconv.ParseInt(rest, 10, 32)
+				if v, ok := m.Get(int32(k)); ok {
+					return strconv.FormatInt(int64(v), 10)
+				}
+				return "null"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				k, _ := strconv.ParseInt(rest, 10, 32)
+				return strconv.FormatBool(m.ContainsKey(int32(k)))
+			}
+			return unknown(key)
+		}()
+		fmt.Printf("%s: %s\n", key, val)
+	}
+}
+
+// ---- HashMap<f32, i32> ---------------------------------------------------
+
+func runF32HashMap(s scenario) {
+	m := hashmap.NewFloat32Int32HashMap()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			m.Put(parseF32(op["key"]), asInt32(op["value"]))
+		case "remove":
+			m.Remove(parseF32(op["key"]))
+		case "clear":
+			m.Clear()
+		default:
+			fatalf("unknown f32-hashmap op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(m.Size())
+			case "is_empty":
+				return strconv.FormatBool(m.IsEmpty())
+			case "sorted_keys":
+				var keys []float32
+				for k := range m.Keys() {
+					keys = append(keys, k)
+				}
+				sortFloat32Total(keys)
+				parts := make([]string, len(keys))
+				for i, x := range keys {
+					parts[i] = "\"" + formatF32(x) + "\""
+				}
+				return "[" + strings.Join(parts, ",") + "]"
+			}
+			if rest, ok := strings.CutPrefix(key, "get_"); ok {
+				probe := parseF32Label(rest)
+				if v, ok := m.Get(probe); ok {
+					return strconv.FormatInt(int64(v), 10)
+				}
+				return "null"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				return strconv.FormatBool(m.ContainsKey(parseF32Label(rest)))
+			}
+			return unknown(key)
+		}()
+		fmt.Printf("%s: %s\n", key, val)
+	}
+}
+
+// ---- HashSet<f32> --------------------------------------------------------
+
+func runF32HashSet(s scenario) {
+	set := hashset.NewFloat32HashSet()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			set.Add(parseF32(op["value"]))
+		case "remove":
+			set.Remove(parseF32(op["value"]))
+		case "clear":
+			set.Clear()
+		default:
+			fatalf("unknown f32-hashset op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(set.Size())
+			case "is_empty":
+				return strconv.FormatBool(set.IsEmpty())
+			case "sorted_values", "to_sorted_array":
+				vals := make([]float32, 0, set.Size())
+				set.ForEach(func(v float32) { vals = append(vals, v) })
+				sortFloat32Total(vals)
+				parts := make([]string, len(vals))
+				for i, x := range vals {
+					parts[i] = "\"" + formatF32(x) + "\""
+				}
+				return "[" + strings.Join(parts, ",") + "]"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				return strconv.FormatBool(set.Contains(parseF32Label(rest)))
+			}
+			return unknown(key)
+		}()
+		fmt.Printf("%s: %s\n", key, val)
+	}
+}
+
+// ---- ArrayList<f32> ------------------------------------------------------
+
+func runF32ArrayList(s scenario) {
+	l := arraylist.NewFloat32ArrayList()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			l.Add(parseF32(op["value"]))
+		case "clear":
+			l.Clear()
+		default:
+			fatalf("unknown f32-arraylist op: %v", op["op"])
+		}
+	}
+	values := make([]float32, 0, l.Size())
+	l.ForEach(func(v float32) { values = append(values, v) })
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(len(values))
+			case "is_empty":
+				return strconv.FormatBool(len(values) == 0)
+			case "sum":
+				var acc float32
+				for _, v := range values {
+					acc += v
+				}
+				return formatF32(acc)
+			case "min":
+				if len(values) == 0 {
+					return "null"
+				}
+				mn := values[0]
+				for _, v := range values[1:] {
+					if totalCmpF32(v, mn) < 0 {
+						mn = v
+					}
+				}
+				return formatF32(mn)
+			case "max":
+				if len(values) == 0 {
+					return "null"
+				}
+				mx := values[0]
+				for _, v := range values[1:] {
+					if totalCmpF32(v, mx) > 0 {
+						mx = v
+					}
+				}
+				return formatF32(mx)
+			case "sorted", "to_sorted_array":
+				sorted := append([]float32(nil), values...)
+				sortFloat32Total(sorted)
+				parts := make([]string, len(sorted))
+				for i, x := range sorted {
+					parts[i] = formatF32(x)
+				}
+				return "[" + strings.Join(parts, ",") + "]"
+			}
+			return unknown(key)
+		}()
+		fmt.Printf("%s: %s\n", key, val)
+	}
+}
+
+// sortFloat32Total sorts in IEEE total order (matches Rust's
+// `f32::total_cmp` and the bit-pattern ordering used in
+// algorithms.md §"Float ordering for tree collections"). Required so
+// NaN and +0/-0 sort deterministically across ports.
+func sortFloat32Total(v []float32) {
+	sort.Slice(v, func(i, j int) bool { return totalCmpF32(v[i], v[j]) < 0 })
+}
+
+func totalCmpF32(a, b float32) int {
+	ai := int32(math.Float32bits(a))
+	bi := int32(math.Float32bits(b))
+	// Flip the sign bit so a lexicographic int32 compare matches the
+	// IEEE total order. Same trick Rust's total_cmp uses internally.
+	ai ^= int32(uint32(ai>>31) >> 1)
+	bi ^= int32(uint32(bi>>31) >> 1)
+	switch {
+	case ai < bi:
+		return -1
+	case ai > bi:
+		return 1
+	}
+	return 0
+}

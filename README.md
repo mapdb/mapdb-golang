@@ -130,4 +130,4 @@ Each mutable primitive type has a `Synchronized*` wrapper that exposes the full 
 
 ## Status
 
-Early development. Licensed EPL-1.0 / EDL-1.0 to match Eclipse Collections. See `LICENSE-EPL-1.0.txt` and `LICENSE-EDL-1.0.txt`. Every generated file carries a `USE AT YOUR OWN RISK — THIS SOFTWARE IS PROVIDED WITHOUT WARRANTY OF ANY KIND` notice; please validate against your workload before relying on it in production.
+Early development. Licensed EPL-1.0 / EDL-1.0 to match Eclipse Collections. See `LICENSE-EPL-1.0.txt` and `LICENSE-EDL-1.0.txt`. Every file carries a `USE AT YOUR OWN RISK — THIS SOFTWARE IS PROVIDED WITHOUT WARRANTY OF ANY KIND` notice; please validate against your workload before relying on it in production.

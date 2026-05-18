@@ -42,7 +42,7 @@ func (m *Float32Int64TreeMap) Put(key float32, value int64) (int64, bool) {
 	}
 	node := m.root
 	for {
-		if key < node.key {
+		if cmpFloat32(key, node.key) < 0 {
 			if node.left == nil {
 				node.left = &float32Int64TreeNode{key: key, value: value, parent: node, color: float32Int64TreeNodeRed}
 				m.fixAfterInsert(node.left)
@@ -50,7 +50,7 @@ func (m *Float32Int64TreeMap) Put(key float32, value int64) (int64, bool) {
 				return 0, false
 			}
 			node = node.left
-		} else if key > node.key {
+		} else if cmpFloat32(key, node.key) > 0 {
 			if node.right == nil {
 				node.right = &float32Int64TreeNode{key: key, value: value, parent: node, color: float32Int64TreeNodeRed}
 				m.fixAfterInsert(node.right)
@@ -142,7 +142,7 @@ func (m *Float32Int64TreeMap) Floor(key float32) (float32, int64, bool) {
 		if key == node.key {
 			return node.key, node.value, true
 		}
-		if key > node.key {
+		if cmpFloat32(key, node.key) > 0 {
 			result = node
 			node = node.right
 		} else {
@@ -163,7 +163,7 @@ func (m *Float32Int64TreeMap) Ceiling(key float32) (float32, int64, bool) {
 		if key == node.key {
 			return node.key, node.value, true
 		}
-		if key < node.key {
+		if cmpFloat32(key, node.key) < 0 {
 			result = node
 			node = node.left
 		} else {
@@ -241,7 +241,7 @@ func (m *Float32Int64TreeMap) Higher(key float32) (float32, int64, bool) {
 	var result *float32Int64TreeNode
 	node := m.root
 	for node != nil {
-		if key < node.key {
+		if cmpFloat32(key, node.key) < 0 {
 			result = node
 			node = node.left
 		} else {
@@ -260,7 +260,7 @@ func (m *Float32Int64TreeMap) Lower(key float32) (float32, int64, bool) {
 	var result *float32Int64TreeNode
 	node := m.root
 	for node != nil {
-		if key > node.key {
+		if cmpFloat32(key, node.key) > 0 {
 			result = node
 			node = node.right
 		} else {
@@ -472,9 +472,9 @@ func (m *Float32Int64TreeMap) String() string {
 func (m *Float32Int64TreeMap) findNode(key float32) *float32Int64TreeNode {
 	node := m.root
 	for node != nil {
-		if key < node.key {
+		if cmpFloat32(key, node.key) < 0 {
 			node = node.left
-		} else if key > node.key {
+		} else if cmpFloat32(key, node.key) > 0 {
 			node = node.right
 		} else {
 			return node

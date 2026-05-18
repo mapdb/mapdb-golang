@@ -44,9 +44,9 @@ func (b *Float64TreeBag) search(value float64) (int, bool) {
 	lo, hi := 0, len(b.entries)
 	for lo < hi {
 		mid := lo + (hi-lo)/2
-		if b.entries[mid].value < value {
+		if cmpFloat64(b.entries[mid].value, value) < 0 {
 			lo = mid + 1
-		} else if b.entries[mid].value > value {
+		} else if cmpFloat64(b.entries[mid].value, value) > 0 {
 			hi = mid
 		} else {
 			return mid, true

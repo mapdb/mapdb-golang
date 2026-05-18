@@ -49,7 +49,7 @@ func (s *Float32TreeSet) Add(value float32) bool {
 	}
 	node := s.root
 	for {
-		if value < node.key {
+		if cmpFloat32(value, node.key) < 0 {
 			if node.left == nil {
 				node.left = &float32TreeSetNode{key: value, parent: node, color: float32TreeSetNodeRed}
 				s.fixAfterInsert(node.left)
@@ -57,7 +57,7 @@ func (s *Float32TreeSet) Add(value float32) bool {
 				return true
 			}
 			node = node.left
-		} else if value > node.key {
+		} else if cmpFloat32(value, node.key) > 0 {
 			if node.right == nil {
 				node.right = &float32TreeSetNode{key: value, parent: node, color: float32TreeSetNodeRed}
 				s.fixAfterInsert(node.right)
@@ -120,7 +120,7 @@ func (s *Float32TreeSet) Floor(value float32) (float32, bool) {
 		if value == node.key {
 			return node.key, true
 		}
-		if value > node.key {
+		if cmpFloat32(value, node.key) > 0 {
 			result = node
 			node = node.right
 		} else {
@@ -141,7 +141,7 @@ func (s *Float32TreeSet) Ceiling(value float32) (float32, bool) {
 		if value == node.key {
 			return node.key, true
 		}
-		if value < node.key {
+		if cmpFloat32(value, node.key) < 0 {
 			result = node
 			node = node.left
 		} else {
@@ -345,9 +345,9 @@ func (s *Float32TreeSet) String() string {
 func (s *Float32TreeSet) findNode(key float32) *float32TreeSetNode {
 	node := s.root
 	for node != nil {
-		if key < node.key {
+		if cmpFloat32(key, node.key) < 0 {
 			node = node.left
-		} else if key > node.key {
+		} else if cmpFloat32(key, node.key) > 0 {
 			node = node.right
 		} else {
 			return node

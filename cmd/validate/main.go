@@ -44,6 +44,87 @@ type otherSpec struct {
 	Operations []map[string]any `json:"operations"`
 }
 
+// anyFail is set whenever any assertion mismatches; the process exits
+// non-zero at the end so the harness treats assertion failures as the
+// primary pass/fail signal.
+var anyFail bool
+
+// floatMode controls how an expected JSON value is rendered into the
+// canonical string emitted by the runner, so the comparison is by bit
+// pattern for floats (NaN == NaN, +0.0 != -0.0).
+type floatMode int
+
+const (
+	modeNone     floatMode = iota // i32 collections
+	modeF32Keyed                  // f32 map/set: only arrays are float-labelled
+	modeF32List                   // f32 list: sum/min/max scalars + arrays are floats
+)
+
+// emit prints a computed assertion and compares it against the expected
+// JSON value. Unrecognised keys (UNKNOWN_ASSERTION:*) are skipped silently
+// per the README unknown-assertion-skip rule: no line, no failure.
+func emit(name, key, computed string, expected json.RawMessage, mode floatMode) {
+	if strings.HasPrefix(computed, "UNKNOWN_ASSERTION:") {
+		return
+	}
+	fmt.Printf("%s: %s\n", key, computed)
+	want := renderExpected(expected, key, mode)
+	if computed != want {
+		fmt.Printf("FAIL %s %s: expected=%s got=%s\n", name, key, want, computed)
+		anyFail = true
+	}
+}
+
+// renderExpected renders an expected JSON assertion value into the same
+// canonical string the runner emits for its computed value.
+func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return string(raw)
+	}
+	switch t := v.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return strconv.FormatBool(t)
+	case float64:
+		// JSON number. f32 list scalars (sum/min/max) render as floats;
+		// the structural `size` count stays an integer.
+		if mode == modeF32List && key != "size" {
+			return formatF32(float32(t))
+		}
+		return strconv.FormatInt(int64(t), 10)
+	case string:
+		// Float label scalar (e.g. sum: "NaN").
+		return formatF32(parseF32Label(t))
+	case []any:
+		parts := make([]string, len(t))
+		for i, e := range t {
+			switch mode {
+			case modeF32Keyed:
+				parts[i] = "\"" + formatF32(elementToF32(e)) + "\""
+			case modeF32List:
+				parts[i] = formatF32(elementToF32(e))
+			default:
+				parts[i] = strconv.FormatInt(int64(e.(float64)), 10)
+			}
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	return string(raw)
+}
+
+func elementToF32(e any) float32 {
+	switch x := e.(type) {
+	case string:
+		return parseF32Label(x)
+	case float64:
+		return float32(x)
+	}
+	fatalf("unexpected float array element: %T", e)
+	return 0
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: validate <scenario.json>")
@@ -81,6 +162,10 @@ func main() {
 		runF32ArrayList(s)
 	default:
 		fatalf("unsupported collection type: %s", s.Collection)
+	}
+
+	if anyFail {
+		os.Exit(1)
 	}
 }
 
@@ -212,7 +297,7 @@ func runHashMap(s scenario) {
 		}
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
-		fmt.Printf("%s: %s\n", key, evalMapAssertion(key, m))
+		emit(s.Name, key, evalMapAssertion(key, m), s.Assertions[key], modeNone)
 	}
 }
 
@@ -287,7 +372,7 @@ func runArrayList(s scenario) {
 		}
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
-		fmt.Printf("%s: %s\n", key, evalListAssertion(key, l))
+		emit(s.Name, key, evalListAssertion(key, l), s.Assertions[key], modeNone)
 	}
 }
 
@@ -540,7 +625,7 @@ func runHashSet(s scenario) {
 		}
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
-		fmt.Printf("%s: %s\n", key, evalSetAssertion(key, set, other))
+		emit(s.Name, key, evalSetAssertion(key, set, other), s.Assertions[key], modeNone)
 	}
 }
 
@@ -666,7 +751,7 @@ func runHashBag(s scenario) {
 		}
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
-		fmt.Printf("%s: %s\n", key, evalBagAssertion(key, b))
+		emit(s.Name, key, evalBagAssertion(key, b), s.Assertions[key], modeNone)
 	}
 }
 
@@ -753,7 +838,7 @@ func runTreeSet(s scenario) {
 			}
 			return unknown(key)
 		}()
-		fmt.Printf("%s: %s\n", key, val)
+		emit(s.Name, key, val, s.Assertions[key], modeNone)
 	}
 }
 
@@ -819,7 +904,7 @@ func runTreeMap(s scenario) {
 			}
 			return unknown(key)
 		}()
-		fmt.Printf("%s: %s\n", key, val)
+		emit(s.Name, key, val, s.Assertions[key], modeNone)
 	}
 }
 
@@ -870,7 +955,7 @@ func runF32HashMap(s scenario) {
 			}
 			return unknown(key)
 		}()
-		fmt.Printf("%s: %s\n", key, val)
+		emit(s.Name, key, val, s.Assertions[key], modeF32Keyed)
 	}
 }
 
@@ -912,7 +997,7 @@ func runF32HashSet(s scenario) {
 			}
 			return unknown(key)
 		}()
-		fmt.Printf("%s: %s\n", key, val)
+		emit(s.Name, key, val, s.Assertions[key], modeF32Keyed)
 	}
 }
 
@@ -978,7 +1063,7 @@ func runF32ArrayList(s scenario) {
 			}
 			return unknown(key)
 		}()
-		fmt.Printf("%s: %s\n", key, val)
+		emit(s.Name, key, val, s.Assertions[key], modeF32List)
 	}
 }
 

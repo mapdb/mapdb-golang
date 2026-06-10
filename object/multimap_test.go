@@ -145,6 +145,54 @@ func TestHashMultimap_ToMap_IsDefensive(t *testing.T) {
 	}
 }
 
+func TestHashMultimap_GetAndForEachAreDefensive(t *testing.T) {
+	m := NewHashMultimap[string, int]()
+	m.PutAll("a", 1, 2)
+	m.PutAll("b", 3, 4)
+
+	got := m.Get("a")
+	got[0] = 99
+	got = append(got, 100)
+	if !slices.Equal(m.Get("a"), []int{1, 2}) {
+		t.Errorf("Get returned internal storage: %v", m.Get("a"))
+	}
+
+	first := m.Get("a")
+	second := m.Get("a")
+	first[0] = 88
+	if !slices.Equal(second, []int{1, 2}) {
+		t.Errorf("Get calls should return independent slices: %v", second)
+	}
+
+	copyGot := m.GetCopy("a")
+	copyGot[0] = 66
+	copyGot = append(copyGot, 67)
+	if !slices.Equal(m.Get("a"), []int{1, 2}) {
+		t.Errorf("GetCopy returned internal storage: %v", m.Get("a"))
+	}
+
+	missing := m.Get("missing")
+	if missing != nil {
+		t.Errorf("missing Get = %v, want nil", missing)
+	}
+
+	seen := 0
+	m.ForEachKeyMultiValues(func(_ string, vals []int) {
+		seen++
+		vals[0] = 77
+		vals = append(vals, 78)
+	})
+	if seen != 2 {
+		t.Errorf("ForEachKeyMultiValues visited %d keys, want 2", seen)
+	}
+	if !slices.Equal(m.Get("a"), []int{1, 2}) {
+		t.Errorf("ForEachKeyMultiValues passed internal storage: %v", m.Get("a"))
+	}
+	if !slices.Equal(m.Get("b"), []int{3, 4}) {
+		t.Errorf("ForEachKeyMultiValues passed internal storage for b: %v", m.Get("b"))
+	}
+}
+
 // ── TreeMultimap ──────────────────────────────────────────────────────
 
 func TestTreeMultimap_KeysSorted(t *testing.T) {
@@ -242,5 +290,53 @@ func TestTreeMultimap_ReverseComparator(t *testing.T) {
 	}
 	if !slices.Equal(keys, []int{3, 2, 1}) {
 		t.Errorf("descending keys = %v", keys)
+	}
+}
+
+func TestTreeMultimap_GetAndForEachAreDefensive(t *testing.T) {
+	m := NewTreeMultimap[string, int](NaturalComparator[string]())
+	m.PutAll("a", 1, 2)
+	m.PutAll("b", 3, 4)
+
+	got := m.Get("a")
+	got[0] = 99
+	got = append(got, 100)
+	if !slices.Equal(m.Get("a"), []int{1, 2}) {
+		t.Errorf("Get returned internal storage: %v", m.Get("a"))
+	}
+
+	first := m.Get("a")
+	second := m.Get("a")
+	first[0] = 88
+	if !slices.Equal(second, []int{1, 2}) {
+		t.Errorf("Get calls should return independent slices: %v", second)
+	}
+
+	copyGot := m.GetCopy("a")
+	copyGot[0] = 66
+	copyGot = append(copyGot, 67)
+	if !slices.Equal(m.Get("a"), []int{1, 2}) {
+		t.Errorf("GetCopy returned internal storage: %v", m.Get("a"))
+	}
+
+	missing := m.Get("missing")
+	if missing != nil {
+		t.Errorf("missing Get = %v, want nil", missing)
+	}
+
+	seen := 0
+	m.ForEachKeyMultiValues(func(_ string, vals []int) {
+		seen++
+		vals[0] = 77
+		vals = append(vals, 78)
+	})
+	if seen != 2 {
+		t.Errorf("ForEachKeyMultiValues visited %d keys, want 2", seen)
+	}
+	if !slices.Equal(m.Get("a"), []int{1, 2}) {
+		t.Errorf("ForEachKeyMultiValues passed internal storage: %v", m.Get("a"))
+	}
+	if !slices.Equal(m.Get("b"), []int{3, 4}) {
+		t.Errorf("ForEachKeyMultiValues passed internal storage for b: %v", m.Get("b"))
 	}
 }

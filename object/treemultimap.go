@@ -56,10 +56,9 @@ func (t *TreeMultimap[K, V]) PutAll(k K, values ...V) {
 	t.totalSize += len(values)
 }
 
-// Get returns the values associated with k (internal reference; do not mutate).
+// Get returns a defensive copy of the values associated with k.
 func (t *TreeMultimap[K, V]) Get(k K) []V {
-	v, _ := t.tm.Get(k)
-	return v
+	return t.GetCopy(k)
 }
 
 // GetCopy returns a defensive copy of the values for k.
@@ -169,9 +168,14 @@ func (t *TreeMultimap[K, V]) Values() iter.Seq[V] {
 	}
 }
 
-// ForEachKeyMultiValues iterates keys in sorted order; do not mutate the passed slice.
+// ForEachKeyMultiValues iterates keys in sorted order, passing a defensive
+// copy of each key's values.
 func (t *TreeMultimap[K, V]) ForEachKeyMultiValues(f func(K, []V)) {
-	t.tm.ForEach(func(k K, vs []V) { f(k, vs) })
+	t.tm.ForEach(func(k K, vs []V) {
+		cp := make([]V, len(vs))
+		copy(cp, vs)
+		f(k, cp)
+	})
 }
 
 // ForEachKey iterates keys in sorted order.

@@ -51,11 +51,10 @@ func (h *HashMultimap[K, V]) PutAll(k K, values ...V) {
 	h.totalSize += len(values)
 }
 
-// Get returns the values associated with k in insertion order, or nil if
-// k has no values. The returned slice is a direct reference to the
-// multimap's internal storage — do not mutate it from outside.
+// Get returns a defensive copy of the values associated with k in insertion
+// order, or nil if k has no values.
 func (h *HashMultimap[K, V]) Get(k K) []V {
-	return h.m[k]
+	return h.GetCopy(k)
 }
 
 // GetCopy returns a defensive copy of the values for k.
@@ -170,12 +169,13 @@ func (h *HashMultimap[K, V]) Values() iter.Seq[V] {
 	}
 }
 
-// ForEachKeyMultiValues invokes f once per key with the slice of values
-// at that key. The slice is the multimap's internal storage — do not
-// mutate it from within f.
+// ForEachKeyMultiValues invokes f once per key with a defensive copy of the
+// values at that key.
 func (h *HashMultimap[K, V]) ForEachKeyMultiValues(f func(K, []V)) {
 	for k, vs := range h.m {
-		f(k, vs)
+		cp := make([]V, len(vs))
+		copy(cp, vs)
+		f(k, cp)
 	}
 }
 

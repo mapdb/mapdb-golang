@@ -408,7 +408,7 @@ func (m *Int16Int64SentinelHashMap) needsResize() bool {
 	if m.oneKeyPresent {
 		regularEntries--
 	}
-	return (regularEntries+1)*4 > len(m.keys)*3 // 0.75 load factor, integer math
+	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
 func (m *Int16Int64SentinelHashMap) resize() {
@@ -461,6 +461,7 @@ func nextPowerOfTwoInt16Int64SentinelHashMap(n int) int {
 	n |= n >> 4
 	n |= n >> 8
 	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
 	n++
 	return n
 }

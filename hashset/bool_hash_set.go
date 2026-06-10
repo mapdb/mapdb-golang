@@ -366,7 +366,7 @@ func (s *BoolHashSet) hash(value bool) uint64 {
 }
 
 func (s *BoolHashSet) needsResize() bool {
-	return (s.size+1)*4 > len(s.entries)*3 // 0.75 load factor, integer math
+	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
 
 func (s *BoolHashSet) resize() {
@@ -414,6 +414,7 @@ func nextPowerOfTwoBoolHashSet(n int) int {
 	n |= n >> 4
 	n |= n >> 8
 	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
 	n++
 	return n
 }

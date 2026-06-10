@@ -247,7 +247,7 @@ func (l *Float64ArrayList) Min() (float64, bool) {
 	}
 	min := l.items[0]
 	for _, v := range l.items[1:] {
-		if v < min {
+		if cmpFloat64(v, min) < 0 {
 			min = v
 		}
 	}
@@ -261,7 +261,7 @@ func (l *Float64ArrayList) Max() (float64, bool) {
 	}
 	max := l.items[0]
 	for _, v := range l.items[1:] {
-		if v > max {
+		if cmpFloat64(v, max) > 0 {
 			max = v
 		}
 	}
@@ -271,7 +271,7 @@ func (l *Float64ArrayList) Max() (float64, bool) {
 // Sort sorts the list in ascending order.
 func (l *Float64ArrayList) Sort() {
 	sort.Slice(l.items, func(i, j int) bool {
-		return l.items[i] < l.items[j]
+		return cmpFloat64(l.items[i], l.items[j]) < 0
 	})
 }
 
@@ -311,11 +311,15 @@ func (l *Float64ArrayList) Reversed() *Float64ArrayList {
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
 func (l *Float64ArrayList) Distinct() *Float64ArrayList {
-	seen := make(map[float64]struct{})
+	// Key by bit pattern so NaN dedupes against itself and -0 stays distinct
+	// from +0 (a plain map[float64] would never match NaN and would collapse
+	// the two zeroes together).
+	seen := make(map[uint64]struct{})
 	result := NewFloat64ArrayList()
 	for _, v := range l.items {
-		if _, ok := seen[v]; !ok {
-			seen[v] = struct{}{}
+		bits := math.Float64bits(v)
+		if _, ok := seen[bits]; !ok {
+			seen[bits] = struct{}{}
 			result.Add(v)
 		}
 	}
@@ -384,15 +388,18 @@ func (l *Float64ArrayList) WithoutAll(values ...float64) *Float64ArrayList {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
-	remove := make(map[float64]struct{}, len(values))
+	// Key by bit pattern so NaN values are actually removed and -0 is not
+	// conflated with +0 (a plain map[float64] never matches NaN and treats
+	// the two zeroes as equal).
+	remove := make(map[uint64]struct{}, len(values))
 	for _, v := range values {
-		remove[v] = struct{}{}
+		remove[math.Float64bits(v)] = struct{}{}
 	}
 	// Two-index compaction: write is the cursor into the kept portion,
 	// read iterates every original element.
 	write := 0
 	for _, v := range l.items {
-		if _, skip := remove[v]; skip {
+		if _, skip := remove[math.Float64bits(v)]; skip {
 			continue
 		}
 		l.items[write] = v

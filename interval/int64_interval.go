@@ -84,11 +84,20 @@ func (iv *Int64Interval) Contains(value int64) bool {
 }
 
 // Get returns the element at the given index, or an error if out of bounds.
+//
+// Narrower intervals (int8/16/32) widen into int64 before computing
+// from + step*index so the product never overflows the value width. int64 has
+// no wider native type, so this computes directly at int64 width. Per the spec
+// integer-overflow contract (algorithms.md "Integer overflow contract"), the
+// arithmetic is wrapping two's-complement at the value width — Go's native
+// int64 arithmetic wraps, which is exactly the required semantics. The product
+// is built in uint64 and reinterpreted so the wrap is explicit and free of
+// implementation-defined signed-overflow assumptions.
 func (iv *Int64Interval) Get(index int) (int64, error) {
 	if index < 0 || index >= iv.Size() {
 		return 0, fmt.Errorf("Int64Interval: index out of bounds: %d (size %d)", index, iv.Size())
 	}
-	return int64(int64(iv.from) + int64(iv.step)*int64(index)), nil
+	return int64(uint64(iv.from) + uint64(iv.step)*uint64(int64(index))), nil
 }
 
 func (iv *Int64Interval) absStep() uint64 {

@@ -113,7 +113,10 @@ func (q *Float32PriorityQueue) String() string {
 }
 
 func (q *Float32PriorityQueue) less(a, b int) bool {
-	return q.items[a] < q.items[b]
+	// Bit-tiebreak comparator: NaN compares as greatest, so it sinks to the
+	// bottom of the min-heap and drains last instead of first (raw `<` returns
+	// false for any NaN comparison, corrupting heap order).
+	return cmpFloat32(q.items[a], q.items[b]) < 0
 }
 
 func (q *Float32PriorityQueue) siftUp(start int) {

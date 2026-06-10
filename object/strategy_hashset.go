@@ -216,7 +216,7 @@ func (s *HashSetWithStrategy[T]) String() string {
 // ── internal ──────────────────────────────────────────────────────────
 
 func (s *HashSetWithStrategy[T]) needsResize() bool {
-	return (s.size+1)*4 > len(s.entries)*3
+	return (s.size+1)*4 >= len(s.entries)*3
 }
 
 func (s *HashSetWithStrategy[T]) resize() {
@@ -263,6 +263,7 @@ func strategyNextPow2(n int) int {
 	n |= n >> 4
 	n |= n >> 8
 	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
 	n++
 	return n
 }

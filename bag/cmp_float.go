@@ -2,31 +2,26 @@ package bag
 
 import "math"
 
-// cmpFloat32 / cmpFloat64 return -1/0/1 with NaN handled via bit-pattern
-// tiebreak. Used by the sorted entry list in TreeBag.
+// cmpFloat32 / cmpFloat64 implement the IEEE 754 totalOrder construction
+// (bit-identical to Rust's f32::total_cmp / f64::total_cmp), as mandated by
+// the collection spec (algorithms.md "Float ordering"). Used by the sorted
+// entry list in TreeBag:
+//
+//	-NaN < -Inf < negative finite < -0.0 < +0.0 < positive finite < +Inf < +NaN
+//
+// A raw unsigned bit compare for the NaN case is intransitive (a negative
+// float's sign bit makes its bit pattern sort above a positive NaN), which
+// silently loses entries in the sorted search. The sign-flip-then-signed
+// compare below is a true total order.
 func cmpFloat32(a, b float32) int {
-	if math.IsNaN(float64(a)) || math.IsNaN(float64(b)) {
-		ab, bb := math.Float32bits(a), math.Float32bits(b)
-		switch {
-		case ab < bb:
-			return -1
-		case ab > bb:
-			return 1
-		default:
-			return 0
-		}
-	}
+	ai := int32(math.Float32bits(a))
+	bi := int32(math.Float32bits(b))
+	ai ^= int32(uint32(ai>>31) >> 1)
+	bi ^= int32(uint32(bi>>31) >> 1)
 	switch {
-	case a < b:
+	case ai < bi:
 		return -1
-	case a > b:
-		return 1
-	}
-	ab, bb := math.Float32bits(a), math.Float32bits(b)
-	switch {
-	case ab < bb:
-		return -1
-	case ab > bb:
+	case ai > bi:
 		return 1
 	default:
 		return 0
@@ -34,28 +29,14 @@ func cmpFloat32(a, b float32) int {
 }
 
 func cmpFloat64(a, b float64) int {
-	if math.IsNaN(a) || math.IsNaN(b) {
-		ab, bb := math.Float64bits(a), math.Float64bits(b)
-		switch {
-		case ab < bb:
-			return -1
-		case ab > bb:
-			return 1
-		default:
-			return 0
-		}
-	}
+	ai := int64(math.Float64bits(a))
+	bi := int64(math.Float64bits(b))
+	ai ^= int64(uint64(ai>>63) >> 1)
+	bi ^= int64(uint64(bi>>63) >> 1)
 	switch {
-	case a < b:
+	case ai < bi:
 		return -1
-	case a > b:
-		return 1
-	}
-	ab, bb := math.Float64bits(a), math.Float64bits(b)
-	switch {
-	case ab < bb:
-		return -1
-	case ab > bb:
+	case ai > bi:
 		return 1
 	default:
 		return 0

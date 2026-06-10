@@ -523,7 +523,7 @@ func (m *CharFloat64HashMap) hashKey(key uint16) uint64 {
 }
 
 func (m *CharFloat64HashMap) needsResize() bool {
-	return (m.size+1)*4 > len(m.entries)*3 // 0.75 load factor, integer math
+	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
 }
 
 func (m *CharFloat64HashMap) resize() {
@@ -572,6 +572,7 @@ func nextPowerOfTwoCharFloat64HashMap(n int) int {
 	n |= n >> 4
 	n |= n >> 8
 	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
 	n++
 	return n
 }

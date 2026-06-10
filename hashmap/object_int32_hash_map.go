@@ -237,7 +237,7 @@ func (m *ObjectInt32HashMap[K]) String() string {
 }
 
 func (m *ObjectInt32HashMap[K]) needsResize() bool {
-	return (m.size+1)*4 > len(m.keys)*3 // 0.75 load factor, integer math
+	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
 func (m *ObjectInt32HashMap[K]) resize() {
@@ -289,6 +289,7 @@ func nextPowerOfTwoObjectInt32HashMap(n int) int {
 	n |= n >> 4
 	n |= n >> 8
 	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
 	n++
 	return n
 }

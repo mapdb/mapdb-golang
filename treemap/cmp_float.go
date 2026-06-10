@@ -2,35 +2,27 @@ package treemap
 
 import "math"
 
-// cmpFloat32 returns -1/0/1 for a vs b. NaN is handled via bit-pattern
-// tiebreak so the ordering is consistent with the hashmap's bit-identity
-// equality. Without this, `a < b` and `a > b` are both false for NaN,
-// which silently collapses every NaN key onto the existing root in a
-// red-black tree.
+// cmpFloat32 / cmpFloat64 implement the IEEE 754 totalOrder construction
+// (bit-identical to Rust's f32::total_cmp / f64::total_cmp), as mandated by
+// the collection spec (algorithms.md "Float ordering"):
+//
+//	-NaN < -Inf < negative finite < -0.0 < +0.0 < positive finite < +Inf < +NaN
+//
+// A naive `<` returns false for any NaN comparison (collapsing every NaN key
+// onto the existing root in a red-black tree). A raw unsigned bit compare is
+// also wrong: it is intransitive because a negative float's sign bit makes its
+// bit pattern sort above a positive NaN, which silently loses keys in the
+// tree's binary search. The sign-flip-then-signed-compare trick below is a
+// true total order, and keeps +0/-0 and distinct NaN payloads distinct.
 func cmpFloat32(a, b float32) int {
-	if math.IsNaN(float64(a)) || math.IsNaN(float64(b)) {
-		ab, bb := math.Float32bits(a), math.Float32bits(b)
-		switch {
-		case ab < bb:
-			return -1
-		case ab > bb:
-			return 1
-		default:
-			return 0
-		}
-	}
+	ai := int32(math.Float32bits(a))
+	bi := int32(math.Float32bits(b))
+	ai ^= int32(uint32(ai>>31) >> 1)
+	bi ^= int32(uint32(bi>>31) >> 1)
 	switch {
-	case a < b:
+	case ai < bi:
 		return -1
-	case a > b:
-		return 1
-	}
-	// Numerically equal: tiebreak by bit pattern (keeps +0/-0 distinct).
-	ab, bb := math.Float32bits(a), math.Float32bits(b)
-	switch {
-	case ab < bb:
-		return -1
-	case ab > bb:
+	case ai > bi:
 		return 1
 	default:
 		return 0
@@ -38,28 +30,14 @@ func cmpFloat32(a, b float32) int {
 }
 
 func cmpFloat64(a, b float64) int {
-	if math.IsNaN(a) || math.IsNaN(b) {
-		ab, bb := math.Float64bits(a), math.Float64bits(b)
-		switch {
-		case ab < bb:
-			return -1
-		case ab > bb:
-			return 1
-		default:
-			return 0
-		}
-	}
+	ai := int64(math.Float64bits(a))
+	bi := int64(math.Float64bits(b))
+	ai ^= int64(uint64(ai>>63) >> 1)
+	bi ^= int64(uint64(bi>>63) >> 1)
 	switch {
-	case a < b:
+	case ai < bi:
 		return -1
-	case a > b:
-		return 1
-	}
-	ab, bb := math.Float64bits(a), math.Float64bits(b)
-	switch {
-	case ab < bb:
-		return -1
-	case ab > bb:
+	case ai > bi:
 		return 1
 	default:
 		return 0

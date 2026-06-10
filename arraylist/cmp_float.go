@@ -1,4 +1,4 @@
-package treeset
+package arraylist
 
 import "math"
 
@@ -8,11 +8,12 @@ import "math"
 //
 //	-NaN < -Inf < negative finite < -0.0 < +0.0 < positive finite < +Inf < +NaN
 //
-// A naive `<` returns false for any NaN comparison (collapsing every NaN onto
-// the tree root). A raw unsigned bit compare is also wrong: it is intransitive
+// A naive `<` returns false for any NaN comparison (so NaN never moves during a
+// sort and min/max ignore it), and a raw unsigned bit compare is intransitive
 // because a negative float's sign bit makes its bit pattern sort above a
-// positive NaN, which silently loses keys in the tree's binary search. The
-// sign-flip-then-signed-compare trick below is a true total order.
+// positive NaN. The sign-flip-then-signed-compare trick below is a true total
+// order: it keeps NaN sortable, places NaN above +Inf, and distinguishes -0
+// from +0. This mirrors priority_queue/cmp_float.go.
 func cmpFloat32(a, b float32) int {
 	ai := int32(math.Float32bits(a))
 	bi := int32(math.Float32bits(b))

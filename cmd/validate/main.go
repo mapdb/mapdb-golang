@@ -376,6 +376,12 @@ func runArrayList(s scenario) {
 	}
 }
 
+// addInt32Wrapping / mulInt32Wrapping route the wrapping reductions through the
+// production InjectInto accumulator (int32, wraps two's-complement) so the
+// harness proves the production overflow contract rather than a local copy.
+func addInt32Wrapping(acc, v int32) int32 { return acc + v }
+func mulInt32Wrapping(acc, v int32) int32 { return acc * v }
+
 func snapshotList(l *arraylist.Int32ArrayList) []int32 {
 	out := make([]int32, 0, l.Size())
 	l.ForEach(func(v int32) { out = append(out, v) })
@@ -390,65 +396,40 @@ func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
 	case "is_empty":
 		return strconv.FormatBool(len(values) == 0)
 	case "sum":
-		// Wrapping i32 sum -- matches the Rust/Java behaviour exercised by
+		// Wrapping i32 sum via the production InjectInto accumulator (int32,
+		// wraps two's-complement) -- exercised by
 		// scenarios/06-overflow/i32_sum_overflow.json.
-		var acc int32
-		for _, v := range values {
-			acc += v
-		}
-		return strconv.FormatInt(int64(acc), 10)
+		return strconv.FormatInt(int64(l.InjectInto(0, addInt32Wrapping)), 10)
 	case "inject_into_wrapping_product", "product":
-		var acc int32 = 1
-		for _, v := range values {
-			acc *= v
-		}
-		return strconv.FormatInt(int64(acc), 10)
+		return strconv.FormatInt(int64(l.InjectInto(1, mulInt32Wrapping)), 10)
 	case "max_minus_min":
-		if len(values) == 0 {
+		if l.IsEmpty() {
 			return "null"
 		}
-		mn, mx := values[0], values[0]
-		for _, v := range values[1:] {
-			if v < mn {
-				mn = v
-			}
-			if v > mx {
-				mx = v
-			}
-		}
+		mn, _ := l.Min()
+		mx, _ := l.Max()
 		return strconv.FormatInt(int64(mx-mn), 10)
 	case "min":
-		if len(values) == 0 {
-			return "null"
+		if mn, ok := l.Min(); ok {
+			return strconv.FormatInt(int64(mn), 10)
 		}
-		mn := values[0]
-		for _, v := range values[1:] {
-			if v < mn {
-				mn = v
-			}
-		}
-		return strconv.FormatInt(int64(mn), 10)
+		return "null"
 	case "max":
-		if len(values) == 0 {
-			return "null"
+		if mx, ok := l.Max(); ok {
+			return strconv.FormatInt(int64(mx), 10)
 		}
-		mx := values[0]
-		for _, v := range values[1:] {
-			if v > mx {
-				mx = v
-			}
-		}
-		return strconv.FormatInt(int64(mx), 10)
+		return "null"
 	case "to_sorted_array":
-		sorted := append([]int32(nil), values...)
-		sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-		return formatArray(sorted)
+		// Sort a COPY so this assertion never mutates the production list --
+		// otherwise a later order-sensitive assertion on the same list would
+		// see the reordered elements. We still exercise the production Sort().
+		sorted := arraylist.NewInt32ArrayList()
+		sorted.AddAll(values...)
+		sorted.Sort()
+		return formatArray(snapshotList(sorted))
 	case "inject_into_sum":
-		var acc int64
-		for _, v := range values {
-			acc += int64(v)
-		}
-		return strconv.FormatInt(acc, 10)
+		// Production Sum() widens into an int64 accumulator per the spec.
+		return strconv.FormatInt(l.Sum(), 10)
 	case "inject_into_product":
 		var acc int64 = 1
 		for _, v := range values {
@@ -1025,40 +1006,29 @@ func runF32ArrayList(s scenario) {
 			case "is_empty":
 				return strconv.FormatBool(len(values) == 0)
 			case "sum":
-				var acc float32
-				for _, v := range values {
-					acc += v
-				}
-				return formatF32(acc)
+				// Production float sum (left-fold, IEEE arithmetic).
+				return formatF32(l.Sum())
 			case "min":
-				if len(values) == 0 {
-					return "null"
+				// Production Float32ArrayList.Min now uses the total-order
+				// comparator (cmpFloat32), so the NaN/±0 min scenarios are
+				// proved against the real collection code.
+				if mn, ok := l.Min(); ok {
+					return formatF32(mn)
 				}
-				mn := values[0]
-				for _, v := range values[1:] {
-					if totalCmpF32(v, mn) < 0 {
-						mn = v
-					}
-				}
-				return formatF32(mn)
+				return "null"
 			case "max":
-				if len(values) == 0 {
-					return "null"
+				if mx, ok := l.Max(); ok {
+					return formatF32(mx)
 				}
-				mx := values[0]
-				for _, v := range values[1:] {
-					if totalCmpF32(v, mx) > 0 {
-						mx = v
-					}
-				}
-				return formatF32(mx)
+				return "null"
 			case "sorted", "to_sorted_array":
-				sorted := append([]float32(nil), values...)
-				sortFloat32Total(sorted)
-				parts := make([]string, len(sorted))
-				for i, x := range sorted {
-					parts[i] = formatF32(x)
-				}
+				// Sort a COPY through the production total-order Sort() so the
+				// assertion proves conformance without mutating the live list.
+				sorted := arraylist.NewFloat32ArrayList()
+				sorted.AddAll(values...)
+				sorted.Sort()
+				parts := make([]string, 0, sorted.Size())
+				sorted.ForEach(func(x float32) { parts = append(parts, formatF32(x)) })
 				return "[" + strings.Join(parts, ",") + "]"
 			}
 			return unknown(key)

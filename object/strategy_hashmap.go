@@ -237,7 +237,7 @@ func (m *HashMapWithStrategy[K, V]) String() string {
 // ── internal ──────────────────────────────────────────────────────────
 
 func (m *HashMapWithStrategy[K, V]) needsResize() bool {
-	return (m.size+1)*4 > len(m.entries)*3
+	return (m.size+1)*4 >= len(m.entries)*3
 }
 
 func (m *HashMapWithStrategy[K, V]) resize() {

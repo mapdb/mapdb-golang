@@ -10,14 +10,16 @@ import (
 // Float64Float64SetMultimap is a set multimap from float64 keys to float64 values.
 // Each key maps to a set of unique values (duplicates on Put are silently dropped).
 type Float64Float64SetMultimap struct {
-	data map[float64][]float64
+	data map[uint64][]float64
+	keys map[uint64]float64
 	size int
 }
 
 // NewFloat64Float64SetMultimap creates a new empty Float64Float64SetMultimap.
 func NewFloat64Float64SetMultimap() *Float64Float64SetMultimap {
 	return &Float64Float64SetMultimap{
-		data: make(map[float64][]float64),
+		data: make(map[uint64][]float64),
+		keys: make(map[uint64]float64),
 		size: 0,
 	}
 }
@@ -25,12 +27,14 @@ func NewFloat64Float64SetMultimap() *Float64Float64SetMultimap {
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
 func (m *Float64Float64SetMultimap) Put(key float64, value float64) {
-	for _, existing := range m.data[key] {
+	kb := math.Float64bits(key)
+	for _, existing := range m.data[kb] {
 		if math.Float64bits(existing) == math.Float64bits(value) {
 			return
 		}
 	}
-	m.data[key] = append(m.data[key], value)
+	m.data[kb] = append(m.data[kb], value)
+	m.keys[kb] = key
 	m.size++
 }
 
@@ -41,7 +45,7 @@ func (m *Float64Float64SetMultimap) Get(key float64) []float64 {
 
 // GetAll returns a copy of the values for the given key.
 func (m *Float64Float64SetMultimap) GetAll(key float64) []float64 {
-	vals := m.data[key]
+	vals := m.data[math.Float64bits(key)]
 	if vals == nil {
 		return nil
 	}
@@ -52,24 +56,26 @@ func (m *Float64Float64SetMultimap) GetAll(key float64) []float64 {
 
 // RemoveAll removes all values for the given key and returns them.
 func (m *Float64Float64SetMultimap) RemoveAll(key float64) []float64 {
-	vals, ok := m.data[key]
+	kb := math.Float64bits(key)
+	vals, ok := m.data[kb]
 	if !ok {
 		return nil
 	}
-	delete(m.data, key)
+	delete(m.data, kb)
+	delete(m.keys, kb)
 	m.size -= len(vals)
 	return vals
 }
 
 // ContainsKey returns true if the multimap contains the given key.
 func (m *Float64Float64SetMultimap) ContainsKey(key float64) bool {
-	_, ok := m.data[key]
+	_, ok := m.data[math.Float64bits(key)]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
 func (m *Float64Float64SetMultimap) ContainsKeyValue(key float64, value float64) bool {
-	vals, ok := m.data[key]
+	vals, ok := m.data[math.Float64bits(key)]
 	if !ok {
 		return false
 	}
@@ -98,13 +104,15 @@ func (m *Float64Float64SetMultimap) IsEmpty() bool {
 
 // Clear removes all entries from the multimap.
 func (m *Float64Float64SetMultimap) Clear() {
-	m.data = make(map[float64][]float64)
+	m.data = make(map[uint64][]float64)
+	m.keys = make(map[uint64]float64)
 	m.size = 0
 }
 
 // ForEach calls the given function for each key-value pair.
 func (m *Float64Float64SetMultimap) ForEach(f func(float64, float64)) {
-	for key, vals := range m.data {
+	for kb, vals := range m.data {
+		key := m.keys[kb]
 		for _, val := range vals {
 			f(key, val)
 		}
@@ -113,7 +121,8 @@ func (m *Float64Float64SetMultimap) ForEach(f func(float64, float64)) {
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
 func (m *Float64Float64SetMultimap) ForEachKeyValues(f func(float64, []float64)) {
-	for key, vals := range m.data {
+	for kb, vals := range m.data {
+		key := m.keys[kb]
 		copied := make([]float64, len(vals))
 		copy(copied, vals)
 		f(key, copied)
@@ -123,7 +132,7 @@ func (m *Float64Float64SetMultimap) ForEachKeyValues(f func(float64, []float64))
 // Keys returns a slice of all distinct keys.
 func (m *Float64Float64SetMultimap) Keys() []float64 {
 	result := make([]float64, 0, len(m.data))
-	for key := range m.data {
+	for _, key := range m.keys {
 		result = append(result, key)
 	}
 	return result
@@ -141,7 +150,8 @@ func (m *Float64Float64SetMultimap) Values() []float64 {
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
 func (m *Float64Float64SetMultimap) Select(predicate func(float64, float64) bool) *Float64Float64SetMultimap {
 	result := NewFloat64Float64SetMultimap()
-	for key, vals := range m.data {
+	for kb, vals := range m.data {
+		key := m.keys[kb]
 		for _, val := range vals {
 			if predicate(key, val) {
 				result.Put(key, val)
@@ -154,7 +164,8 @@ func (m *Float64Float64SetMultimap) Select(predicate func(float64, float64) bool
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
 func (m *Float64Float64SetMultimap) Reject(predicate func(float64, float64) bool) *Float64Float64SetMultimap {
 	result := NewFloat64Float64SetMultimap()
-	for key, vals := range m.data {
+	for kb, vals := range m.data {
+		key := m.keys[kb]
 		for _, val := range vals {
 			if !predicate(key, val) {
 				result.Put(key, val)
@@ -172,7 +183,8 @@ func (m *Float64Float64SetMultimap) String() string {
 	var sb strings.Builder
 	sb.WriteString("{")
 	first := true
-	for key, vals := range m.data {
+	for kb, vals := range m.data {
+		key := m.keys[kb]
 		if !first {
 			sb.WriteString(", ")
 		}
@@ -198,8 +210,8 @@ func (m *Float64Float64SetMultimap) Equals(other *Float64Float64SetMultimap) boo
 	if len(m.data) != len(other.data) {
 		return false
 	}
-	for key, vals := range m.data {
-		otherVals, ok := other.data[key]
+	for kb, vals := range m.data {
+		otherVals, ok := other.data[kb]
 		if !ok || len(vals) != len(otherVals) {
 			return false
 		}

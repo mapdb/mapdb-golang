@@ -4,20 +4,31 @@ package bag
 import (
 	"fmt"
 	"iter"
+	"math"
 	"strings"
 )
 
+// float64BagEntry stores the original float64 value alongside its count.
+// The backing map is keyed by the IEEE-754 bit pattern (math.Float64bits) so
+// that NaN keys are findable and +0.0 / -0.0 remain distinct; Go map equality
+// on raw float64 would make every NaN a fresh unreachable entry and collapse
+// signed zero.
+type float64BagEntry struct {
+	value float64
+	count int
+}
+
 // Float64HashBag is a bag (multiset) that counts occurrences of float64 values.
-// Backed by a map from value to count.
+// Backed by a map from value bit pattern to (value, count).
 type Float64HashBag struct {
-	counts map[float64]int
+	counts map[uint64]float64BagEntry
 	size   int // total count including duplicates
 }
 
 // NewFloat64HashBag creates a new empty Float64HashBag.
 func NewFloat64HashBag() *Float64HashBag {
 	return &Float64HashBag{
-		counts: make(map[float64]int),
+		counts: make(map[uint64]float64BagEntry),
 		size:   0,
 	}
 }
@@ -33,7 +44,11 @@ func Float64HashBagOf(values ...float64) *Float64HashBag {
 
 // Add adds one occurrence of the value.
 func (b *Float64HashBag) Add(value float64) {
-	b.counts[value]++
+	k := math.Float64bits(value)
+	e := b.counts[k]
+	e.value = value
+	e.count++
+	b.counts[k] = e
 	b.size++
 }
 
@@ -43,24 +58,30 @@ func (b *Float64HashBag) AddOccurrences(value float64, occurrences int) int {
 	if occurrences < 0 {
 		panic(fmt.Sprintf("Float64HashBag: cannot add negative occurrences: %d", occurrences))
 	}
+	k := math.Float64bits(value)
 	if occurrences == 0 {
-		return b.counts[value]
+		return b.counts[k].count
 	}
-	b.counts[value] += occurrences
+	e := b.counts[k]
+	e.value = value
+	e.count += occurrences
+	b.counts[k] = e
 	b.size += occurrences
-	return b.counts[value]
+	return e.count
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
 func (b *Float64HashBag) Remove(value float64) bool {
-	count, ok := b.counts[value]
-	if !ok || count <= 0 {
+	k := math.Float64bits(value)
+	e, ok := b.counts[k]
+	if !ok || e.count <= 0 {
 		return false
 	}
-	if count == 1 {
-		delete(b.counts, value)
+	if e.count == 1 {
+		delete(b.counts, k)
 	} else {
-		b.counts[value] = count - 1
+		e.count--
+		b.counts[k] = e
 	}
 	b.size--
 	return true
@@ -71,15 +92,17 @@ func (b *Float64HashBag) RemoveOccurrences(value float64, occurrences int) bool 
 	if occurrences <= 0 {
 		return false
 	}
-	count, ok := b.counts[value]
-	if !ok || count <= 0 {
+	k := math.Float64bits(value)
+	e, ok := b.counts[k]
+	if !ok || e.count <= 0 {
 		return false
 	}
-	if occurrences >= count {
-		delete(b.counts, value)
-		b.size -= count
+	if occurrences >= e.count {
+		delete(b.counts, k)
+		b.size -= e.count
 	} else {
-		b.counts[value] = count - occurrences
+		e.count -= occurrences
+		b.counts[k] = e
 		b.size -= occurrences
 	}
 	return true
@@ -87,23 +110,24 @@ func (b *Float64HashBag) RemoveOccurrences(value float64, occurrences int) bool 
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
 func (b *Float64HashBag) RemoveAll(value float64) int {
-	count, ok := b.counts[value]
+	k := math.Float64bits(value)
+	e, ok := b.counts[k]
 	if !ok {
 		return 0
 	}
-	delete(b.counts, value)
-	b.size -= count
-	return count
+	delete(b.counts, k)
+	b.size -= e.count
+	return e.count
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
 func (b *Float64HashBag) OccurrencesOf(value float64) int {
-	return b.counts[value]
+	return b.counts[math.Float64bits(value)].count
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
 func (b *Float64HashBag) Contains(value float64) bool {
-	return b.counts[value] > 0
+	return b.counts[math.Float64bits(value)].count > 0
 }
 
 // Size returns the total number of elements including duplicates.
@@ -123,16 +147,16 @@ func (b *Float64HashBag) IsEmpty() bool {
 
 // Clear removes all elements from the bag.
 func (b *Float64HashBag) Clear() {
-	b.counts = make(map[float64]int)
+	b.counts = make(map[uint64]float64BagEntry)
 	b.size = 0
 }
 
 // All returns an iter.Seq that yields each element once per occurrence.
 func (b *Float64HashBag) All() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
-		for value, count := range b.counts {
-			for i := 0; i < count; i++ {
-				if !yield(value) {
+		for _, e := range b.counts {
+			for i := 0; i < e.count; i++ {
+				if !yield(e.value) {
 					return
 				}
 			}
@@ -143,8 +167,8 @@ func (b *Float64HashBag) All() iter.Seq[float64] {
 // AllDistinct returns an iter.Seq that yields each distinct element once.
 func (b *Float64HashBag) AllDistinct() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
-		for value := range b.counts {
-			if !yield(value) {
+		for _, e := range b.counts {
+			if !yield(e.value) {
 				return
 			}
 		}
@@ -154,8 +178,8 @@ func (b *Float64HashBag) AllDistinct() iter.Seq[float64] {
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs.
 func (b *Float64HashBag) AllWithOccurrences() iter.Seq2[float64, int] {
 	return func(yield func(float64, int) bool) {
-		for value, count := range b.counts {
-			if !yield(value, count) {
+		for _, e := range b.counts {
+			if !yield(e.value, e.count) {
 				return
 			}
 		}
@@ -164,26 +188,26 @@ func (b *Float64HashBag) AllWithOccurrences() iter.Seq2[float64, int] {
 
 // ForEach calls the given function for each element (once per occurrence).
 func (b *Float64HashBag) ForEach(f func(float64)) {
-	for value, count := range b.counts {
-		for i := 0; i < count; i++ {
-			f(value)
+	for _, e := range b.counts {
+		for i := 0; i < e.count; i++ {
+			f(e.value)
 		}
 	}
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count.
 func (b *Float64HashBag) ForEachWithOccurrences(f func(float64, int)) {
-	for value, count := range b.counts {
-		f(value, count)
+	for _, e := range b.counts {
+		f(e.value, e.count)
 	}
 }
 
 // Select returns a new bag containing only elements that satisfy the predicate.
 func (b *Float64HashBag) Select(predicate func(float64) bool) *Float64HashBag {
 	result := NewFloat64HashBag()
-	for value, count := range b.counts {
-		if predicate(value) {
-			result.AddOccurrences(value, count)
+	for _, e := range b.counts {
+		if predicate(e.value) {
+			result.AddOccurrences(e.value, e.count)
 		}
 	}
 	return result
@@ -192,9 +216,9 @@ func (b *Float64HashBag) Select(predicate func(float64) bool) *Float64HashBag {
 // Reject returns a new bag containing only elements that do not satisfy the predicate.
 func (b *Float64HashBag) Reject(predicate func(float64) bool) *Float64HashBag {
 	result := NewFloat64HashBag()
-	for value, count := range b.counts {
-		if !predicate(value) {
-			result.AddOccurrences(value, count)
+	for _, e := range b.counts {
+		if !predicate(e.value) {
+			result.AddOccurrences(e.value, e.count)
 		}
 	}
 	return result
@@ -202,9 +226,9 @@ func (b *Float64HashBag) Reject(predicate func(float64) bool) *Float64HashBag {
 
 // Detect returns the first distinct element that satisfies the predicate, or zero value and false.
 func (b *Float64HashBag) Detect(predicate func(float64) bool) (float64, bool) {
-	for value := range b.counts {
-		if predicate(value) {
-			return value, true
+	for _, e := range b.counts {
+		if predicate(e.value) {
+			return e.value, true
 		}
 	}
 	return 0.0, false
@@ -212,8 +236,8 @@ func (b *Float64HashBag) Detect(predicate func(float64) bool) (float64, bool) {
 
 // AnySatisfy returns true if any element satisfies the predicate.
 func (b *Float64HashBag) AnySatisfy(predicate func(float64) bool) bool {
-	for value := range b.counts {
-		if predicate(value) {
+	for _, e := range b.counts {
+		if predicate(e.value) {
 			return true
 		}
 	}
@@ -222,8 +246,8 @@ func (b *Float64HashBag) AnySatisfy(predicate func(float64) bool) bool {
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
 func (b *Float64HashBag) AllSatisfy(predicate func(float64) bool) bool {
-	for value := range b.counts {
-		if !predicate(value) {
+	for _, e := range b.counts {
+		if !predicate(e.value) {
 			return false
 		}
 	}
@@ -232,8 +256,8 @@ func (b *Float64HashBag) AllSatisfy(predicate func(float64) bool) bool {
 
 // NoneSatisfy returns true if no element satisfies the predicate.
 func (b *Float64HashBag) NoneSatisfy(predicate func(float64) bool) bool {
-	for value := range b.counts {
-		if predicate(value) {
+	for _, e := range b.counts {
+		if predicate(e.value) {
 			return false
 		}
 	}
@@ -250,8 +274,8 @@ func (b *Float64HashBag) TopOccurrences(n int) []struct {
 		Count int
 	}
 	pairs := make([]pair, 0, len(b.counts))
-	for value, count := range b.counts {
-		pairs = append(pairs, pair{value, count})
+	for _, e := range b.counts {
+		pairs = append(pairs, pair{e.value, e.count})
 	}
 	// Simple selection sort for top-n (good enough for typical use)
 	for i := 0; i < n && i < len(pairs); i++ {
@@ -280,9 +304,9 @@ func (b *Float64HashBag) TopOccurrences(n int) []struct {
 // ToSlice returns all elements as a slice (elements repeated per occurrence count).
 func (b *Float64HashBag) ToSlice() []float64 {
 	result := make([]float64, 0, b.size)
-	for value, count := range b.counts {
-		for i := 0; i < count; i++ {
-			result = append(result, value)
+	for _, e := range b.counts {
+		for i := 0; i < e.count; i++ {
+			result = append(result, e.value)
 		}
 	}
 	return result
@@ -308,11 +332,11 @@ func (b *Float64HashBag) String() string {
 	var sb strings.Builder
 	sb.WriteString("{")
 	first := true
-	for value, count := range b.counts {
+	for _, e := range b.counts {
 		if !first {
 			sb.WriteString(", ")
 		}
-		fmt.Fprintf(&sb, "%v×%d", value, count)
+		fmt.Fprintf(&sb, "%v×%d", e.value, e.count)
 		first = false
 	}
 	sb.WriteString("}")
@@ -345,8 +369,8 @@ func (b *Float64HashBag) Equals(other *Float64HashBag) bool {
 	if b.size != other.size || len(b.counts) != len(other.counts) {
 		return false
 	}
-	for value, count := range b.counts {
-		if other.counts[value] != count {
+	for k, e := range b.counts {
+		if other.counts[k].count != e.count {
 			return false
 		}
 	}

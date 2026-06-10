@@ -14,6 +14,10 @@ const (
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 	float32Float64SentinelHashMapEmptyKey   = float32(0)
 	float32Float64SentinelHashMapRemovedKey = float32(1)
+	// float32Float64SentinelHashMapNegZeroBits is the IEEE-754 bit pattern of -0.0, routed to a
+	// dedicated field so -0.0 stays distinct from +0.0 (which collides with
+	// the empty sentinel) and from the table.
+	float32Float64SentinelHashMapNegZeroBits = uint32(0x80000000)
 )
 
 // Float32Float64SentinelHashMap is a sentinel-based open-addressing hash map with float32 keys and float64 values.
@@ -28,6 +32,8 @@ type Float32Float64SentinelHashMap struct {
 	// serve as empty/removed markers in the table, so we store them separately.
 	zeroKeyPresent bool
 	zeroKeyValue   float64
+	negZeroKeyPresent bool
+	negZeroKeyValue   float64
 	oneKeyPresent  bool
 	oneKeyValue    float64
 }
@@ -49,12 +55,22 @@ func NewFloat32Float64SentinelHashMapWithCapacity(capacity int) *Float32Float64S
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *Float32Float64SentinelHashMap) Put(key float32, value float64) (float64, bool) {
-	if key == float32Float64SentinelHashMapEmptyKey {
+	if math.Float32bits(key) == math.Float32bits(float32Float64SentinelHashMapEmptyKey) {
 		old := m.zeroKeyValue
 		existed := m.zeroKeyPresent
 		m.zeroKeyValue = value
 		if !m.zeroKeyPresent {
 			m.zeroKeyPresent = true
+			m.size++
+		}
+		return old, existed
+	}
+	if math.Float32bits(key) == float32Float64SentinelHashMapNegZeroBits {
+		old := m.negZeroKeyValue
+		existed := m.negZeroKeyPresent
+		m.negZeroKeyValue = value
+		if !m.negZeroKeyPresent {
+			m.negZeroKeyPresent = true
 			m.size++
 		}
 		return old, existed
@@ -112,9 +128,15 @@ func (m *Float32Float64SentinelHashMap) putRegular(key float32, value float64) (
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *Float32Float64SentinelHashMap) Get(key float32) (float64, bool) {
-	if key == float32Float64SentinelHashMapEmptyKey {
+	if math.Float32bits(key) == math.Float32bits(float32Float64SentinelHashMapEmptyKey) {
 		if m.zeroKeyPresent {
 			return m.zeroKeyValue, true
+		}
+		return 0.0, false
+	}
+	if math.Float32bits(key) == float32Float64SentinelHashMapNegZeroBits {
+		if m.negZeroKeyPresent {
+			return m.negZeroKeyValue, true
 		}
 		return 0.0, false
 	}
@@ -154,11 +176,21 @@ func (m *Float32Float64SentinelHashMap) GetOrDefault(key float32, defaultValue f
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *Float32Float64SentinelHashMap) Remove(key float32) (float64, bool) {
-	if key == float32Float64SentinelHashMapEmptyKey {
+	if math.Float32bits(key) == math.Float32bits(float32Float64SentinelHashMapEmptyKey) {
 		if m.zeroKeyPresent {
 			old := m.zeroKeyValue
 			m.zeroKeyPresent = false
 			m.zeroKeyValue = 0.0
+			m.size--
+			return old, true
+		}
+		return 0.0, false
+	}
+	if math.Float32bits(key) == float32Float64SentinelHashMapNegZeroBits {
+		if m.negZeroKeyPresent {
+			old := m.negZeroKeyValue
+			m.negZeroKeyPresent = false
+			m.negZeroKeyValue = 0.0
 			m.size--
 			return old, true
 		}
@@ -215,6 +247,9 @@ func (m *Float32Float64SentinelHashMap) ContainsValue(value float64) bool {
 	if m.zeroKeyPresent && math.Float64bits(m.zeroKeyValue) == math.Float64bits(value) {
 		return true
 	}
+	if m.negZeroKeyPresent && math.Float64bits(m.negZeroKeyValue) == math.Float64bits(value) {
+		return true
+	}
 	if m.oneKeyPresent && math.Float64bits(m.oneKeyValue) == math.Float64bits(value) {
 		return true
 	}
@@ -244,6 +279,8 @@ func (m *Float32Float64SentinelHashMap) Clear() {
 	}
 	m.zeroKeyPresent = false
 	m.zeroKeyValue = 0.0
+	m.negZeroKeyPresent = false
+	m.negZeroKeyValue = 0.0
 	m.oneKeyPresent = false
 	m.oneKeyValue = 0.0
 	m.size = 0
@@ -254,6 +291,11 @@ func (m *Float32Float64SentinelHashMap) All() iter.Seq2[float32, float64] {
 	return func(yield func(float32, float64) bool) {
 		if m.zeroKeyPresent {
 			if !yield(0.0, m.zeroKeyValue) {
+				return
+			}
+		}
+		if m.negZeroKeyPresent {
+			if !yield(float32(math.Copysign(0, -1)), m.negZeroKeyValue) {
 				return
 			}
 		}
@@ -282,6 +324,11 @@ func (m *Float32Float64SentinelHashMap) Keys() iter.Seq[float32] {
 				return
 			}
 		}
+		if m.negZeroKeyPresent {
+			if !yield(float32(math.Copysign(0, -1))) {
+				return
+			}
+		}
 		if m.oneKeyPresent {
 			if !yield(float32Float64SentinelHashMapRemovedKey) {
 				return
@@ -304,6 +351,11 @@ func (m *Float32Float64SentinelHashMap) Values() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
 		if m.zeroKeyPresent {
 			if !yield(m.zeroKeyValue) {
+				return
+			}
+		}
+		if m.negZeroKeyPresent {
+			if !yield(m.negZeroKeyValue) {
 				return
 			}
 		}
@@ -410,10 +462,13 @@ func (m *Float32Float64SentinelHashMap) needsResize() bool {
 	if m.zeroKeyPresent {
 		regularEntries--
 	}
+	if m.negZeroKeyPresent {
+		regularEntries--
+	}
 	if m.oneKeyPresent {
 		regularEntries--
 	}
-	return (regularEntries+1)*4 > len(m.keys)*3 // 0.75 load factor, integer math
+	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
 func (m *Float32Float64SentinelHashMap) resize() {
@@ -428,6 +483,8 @@ func (m *Float32Float64SentinelHashMap) resize() {
 	savedSize := m.size
 	savedZeroPresent := m.zeroKeyPresent
 	savedZeroValue := m.zeroKeyValue
+	savedNegZeroPresent := m.negZeroKeyPresent
+	savedNegZeroValue := m.negZeroKeyValue
 	savedOnePresent := m.oneKeyPresent
 	savedOneValue := m.oneKeyValue
 
@@ -435,11 +492,15 @@ func (m *Float32Float64SentinelHashMap) resize() {
 	m.values = make([]float64, newCap)
 	m.size = 0
 	m.zeroKeyPresent = false
+	m.negZeroKeyPresent = false
 	m.oneKeyPresent = false
 
 	// Re-insert sentinel entries
 	if savedZeroPresent {
 		m.Put(0.0, savedZeroValue)
+	}
+	if savedNegZeroPresent {
+		m.Put(float32(math.Copysign(0, -1)), savedNegZeroValue)
 	}
 	if savedOnePresent {
 		m.Put(float32Float64SentinelHashMapRemovedKey, savedOneValue)
@@ -466,6 +527,7 @@ func nextPowerOfTwoFloat32Float64SentinelHashMap(n int) int {
 	n |= n >> 4
 	n |= n >> 8
 	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
 	n++
 	return n
 }

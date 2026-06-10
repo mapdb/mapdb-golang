@@ -120,8 +120,11 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 		return strconv.FormatBool(t)
 	case float64:
 		// JSON number. f32 list scalars (sum/min/max) render as floats;
-		// the structural `size` count stays an integer.
-		if mode == modeF32List && key != "size" {
+		// the structural `size` count stays an integer. Under F32Keyed the
+		// key-typed scalars min/max are also f32 and render via the f32
+		// formatter (matching TS); other scalars stay i32.
+		if (mode == modeF32List && key != "size") ||
+			(mode == modeF32Keyed && (key == "min" || key == "max")) {
 			return formatF32(float32(t))
 		}
 		return strconv.FormatInt(int64(t), 10)
@@ -198,6 +201,8 @@ func main() {
 		runF32HashMap(s)
 	case "HashSet<f32>":
 		runF32HashSet(s)
+	case "TreeSet<f32>":
+		runF32TreeSet(s)
 	case "ArrayList<f32>":
 		runF32ArrayList(s)
 	default:
@@ -1051,6 +1056,60 @@ func runF32HashSet(s scenario) {
 				parts := make([]string, len(vals))
 				for i, x := range vals {
 					parts[i] = "\"" + formatF32(x) + "\""
+				}
+				return "[" + strings.Join(parts, ",") + "]"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				return strconv.FormatBool(set.Contains(parseF32Label(rest)))
+			}
+			return unknown(key)
+		}()
+		emit(s.Name, key, val, s.Assertions[key], modeF32Keyed)
+	}
+}
+
+// ---- TreeSet<f32> --------------------------------------------------------
+
+// runF32TreeSet routes through the PRODUCTION treeset.Float32TreeSet, whose
+// node ordering is the cmpFloat32 sign-flip total order. The sorted output is
+// the tree's in-order traversal (All()) -- NEVER sorted in the runner -- so
+// this exercises the production float total-order comparator directly.
+func runF32TreeSet(s scenario) {
+	set := treeset.NewFloat32TreeSet()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			set.Add(parseF32(op["value"]))
+		case "remove":
+			set.Remove(parseF32(op["value"]))
+		case "clear":
+			set.Clear()
+		default:
+			fatalf("unknown f32-treeset op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(set.Size())
+			case "is_empty":
+				return strconv.FormatBool(set.IsEmpty())
+			case "min":
+				if mn, ok := set.Min(); ok {
+					return formatF32(mn)
+				}
+				return "null"
+			case "max":
+				if mx, ok := set.Max(); ok {
+					return formatF32(mx)
+				}
+				return "null"
+			case "sorted", "sorted_values", "to_sorted_array":
+				// In-order traversal straight from the production tree.
+				var parts []string
+				for v := range set.All() {
+					parts = append(parts, "\""+formatF32(v)+"\"")
 				}
 				return "[" + strings.Join(parts, ",") + "]"
 			}

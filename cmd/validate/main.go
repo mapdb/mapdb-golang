@@ -69,10 +69,41 @@ func emit(name, key, computed string, expected json.RawMessage, mode floatMode) 
 	}
 	fmt.Printf("%s: %s\n", key, computed)
 	want := renderExpected(expected, key, mode)
-	if computed != want {
+	if computed != want && !looseNaNMatch(expected, mode, computed) {
 		fmt.Printf("FAIL %s %s: expected=%s got=%s\n", name, key, want, computed)
 		anyFail = true
 	}
+}
+
+// looseNaNMatch implements the loose-NaN scalar rule: when the EXPECTED
+// operand is a bare NaN *label* ("NaN"/"+NaN"/"-NaN") — NOT a {"bits":"0x.."}
+// object and NOT an array element — the assertion passes against ANY NaN the
+// runner computed, regardless of sign/payload. This covers impl/arch-defined
+// arithmetic NaNs such as (+Inf)+(-Inf), whose bits differ across x86 vs ARM.
+// {"bits"} operands stay bitwise-exact and array elements stay exact/positional
+// (renderExpected is unchanged for both). See cross-language-validation/README.md
+// §"Float operand encoding".
+func looseNaNMatch(expected json.RawMessage, mode floatMode, computed string) bool {
+	if mode == modeNone {
+		return false
+	}
+	var v any
+	if err := json.Unmarshal(expected, &v); err != nil {
+		return false
+	}
+	s, ok := v.(string)
+	if !ok || !math.IsNaN(float64(parseF32Label(s))) {
+		return false
+	}
+	// Computed must itself be a NaN bit pattern (canonical "0x........").
+	if len(computed) != 10 || (computed[:2] != "0x" && computed[:2] != "0X") {
+		return false
+	}
+	bits, err := strconv.ParseUint(computed[2:], 16, 32)
+	if err != nil {
+		return false
+	}
+	return math.IsNaN(float64(math.Float32frombits(uint32(bits))))
 }
 
 // renderExpected renders an expected JSON assertion value into the same
@@ -97,6 +128,12 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 	case string:
 		// Float label scalar (e.g. sum: "NaN").
 		return formatF32(parseF32Label(t))
+	case map[string]any:
+		// Bits-escape float scalar (e.g. sum: {"bits":"0xffc00000"}).
+		if mode != modeNone {
+			return formatF32(parseF32(t))
+		}
+		return string(raw)
 	case []any:
 		parts := make([]string, len(t))
 		for i, e := range t {
@@ -120,6 +157,9 @@ func elementToF32(e any) float32 {
 		return parseF32Label(x)
 	case float64:
 		return float32(x)
+	case map[string]any:
+		// {"bits":"0x.."} escape inside an assertion array.
+		return parseF32(e)
 	}
 	fatalf("unexpected float array element: %T", e)
 	return 0
@@ -222,29 +262,69 @@ func asInt(v any) int {
 	return 0
 }
 
+// Q4 float operand encoding (see cross-language-validation/README.md
+// §"Float operand encoding"): JSON number, human-label string, or a
+// {"bits":"0x........"} object reinterpreting 32 IEEE-754 bits.
 func parseF32(v any) float32 {
 	switch x := v.(type) {
 	case string:
 		return parseF32Label(x)
 	case float64:
 		return float32(x)
+	case map[string]any:
+		if hx, ok := x["bits"].(string); ok {
+			return math.Float32frombits(parseF32Bits(hx))
+		}
+		fatalf("expected {\"bits\":\"0x..\"} float object, got %v", v)
 	}
 	fatalf("expected f32 value, got %T (%v)", v, v)
 	return 0
 }
 
+// parseF32Bits parses a 0x-prefixed, 8-hex-digit (case-insensitive) string
+// into a raw 32-bit IEEE-754 pattern (NaN-payload / signed-bit escape).
+func parseF32Bits(hx string) uint32 {
+	body := hx
+	if len(hx) >= 2 && (hx[:2] == "0x" || hx[:2] == "0X") {
+		body = hx[2:]
+	} else {
+		fatalf("f32 bits literal must start with 0x: %q", hx)
+	}
+	if len(body) != 8 {
+		fatalf("f32 bits literal must be 8 hex digits: %q", hx)
+	}
+	bits, err := strconv.ParseUint(body, 16, 32)
+	if err != nil {
+		fatalf("invalid f32 bits literal: %q", hx)
+	}
+	return uint32(bits)
+}
+
+// parseF32Label parses a human-label / decimal / hex-bits float string.
+// Used for string operands and assertion-key suffixes (get_-NaN,
+// contains_0.0, contains_0x7fc00001). Canonical NaN bits:
+// +NaN=0x7FC00000, -NaN=0xFFC00000.
 func parseF32Label(s string) float32 {
 	switch s {
-	case "NaN":
-		return float32(math.NaN())
+	case "NaN", "+NaN":
+		return math.Float32frombits(0x7FC00000)
+	case "-NaN":
+		return math.Float32frombits(0xFFC00000)
 	case "Infinity", "+Infinity":
 		return float32(math.Inf(1))
 	case "-Infinity":
 		return float32(math.Inf(-1))
+	case "0.0", "+0.0":
+		return 0.0
+	case "-0.0":
+		return float32(math.Copysign(0, -1))
 	case "pos_zero":
 		return 0.0
 	case "neg_zero":
 		return float32(math.Copysign(0, -1))
+	}
+	if len(s) >= 2 && (s[:2] == "0x" || s[:2] == "0X") {
+		return math.Float32frombits(parseF32Bits(s))
 	}
 	f, err := strconv.ParseFloat(s, 32)
 	if err != nil {
@@ -253,19 +333,19 @@ func parseF32Label(s string) float32 {
 	return float32(f)
 }
 
+// formatF32 is the canonical, bit-faithful serialization. NaN (any
+// sign/payload) and ±0.0 render as their 0x-hex bit pattern so distinct
+// payloads and signed zeros stay distinguishable and every port emits the
+// identical string; finite/inf values keep their human-readable label.
 func formatF32(v float32) string {
-	if math.IsNaN(float64(v)) {
-		return "NaN"
+	if math.IsNaN(float64(v)) || v == 0 {
+		return fmt.Sprintf("0x%08x", math.Float32bits(v))
 	}
 	if math.IsInf(float64(v), 1) {
 		return "Infinity"
 	}
 	if math.IsInf(float64(v), -1) {
 		return "-Infinity"
-	}
-	if v == 0 && math.Signbit(float64(v)) {
-		// +0/-0 are bit-pattern distinct; preserve the sign on print.
-		return "-0.0"
 	}
 	if v == float32(math.Trunc(float64(v))) && math.Abs(float64(v)) < 1e16 {
 		// Match Java/Rust "3.0" rendering for integer-valued floats.
@@ -396,10 +476,10 @@ func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
 	case "is_empty":
 		return strconv.FormatBool(len(values) == 0)
 	case "sum":
-		// Wrapping i32 sum via the production InjectInto accumulator (int32,
-		// wraps two's-complement) -- exercised by
-		// scenarios/06-overflow/i32_sum_overflow.json.
-		return strconv.FormatInt(int64(l.InjectInto(0, addInt32Wrapping)), 10)
+		// List Sum() widens into an int64 accumulator (IntList.sum(): long
+		// parity) and does NOT wrap at i32 -- see algorithms.md "Integer
+		// overflow contract" and scenarios/06-overflow/i32_sum_overflow.json.
+		return strconv.FormatInt(l.Sum(), 10)
 	case "inject_into_wrapping_product", "product":
 		return strconv.FormatInt(int64(l.InjectInto(1, mulInt32Wrapping)), 10)
 	case "max_minus_min":
@@ -428,8 +508,9 @@ func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
 		sorted.Sort()
 		return formatArray(snapshotList(sorted))
 	case "inject_into_sum":
-		// Production Sum() widens into an int64 accumulator per the spec.
-		return strconv.FormatInt(l.Sum(), 10)
+		// injectInto with a + reduction accumulates in the i32 seed type and
+		// wraps two's-complement at i32 -- via the production InjectInto.
+		return strconv.FormatInt(int64(l.InjectInto(0, addInt32Wrapping)), 10)
 	case "inject_into_product":
 		var acc int64 = 1
 		for _, v := range values {

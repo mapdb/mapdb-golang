@@ -12,7 +12,7 @@
 //
 //	//go:generate go run ../internal/codegen <collection>
 //
-// where <collection> is one of: interval.
+// where <collection> is one of: arraylist, interval.
 //
 // Drift guard: `go generate ./... && git diff --exit-code` is sufficient.
 package main
@@ -29,6 +29,8 @@ func main() {
 	}
 	var err error
 	switch os.Args[1] {
+	case "arraylist":
+		err = genArrayList()
 	case "interval":
 		err = genInterval()
 	default:

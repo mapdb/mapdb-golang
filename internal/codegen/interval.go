@@ -30,10 +30,16 @@ func genInterval() error {
 			StructName  string
 			GoType      string
 			MinStepExpr string
+			IsWidest    bool
 		}{
 			StructName:  p.Name + "Interval",
 			GoType:      p.GoType,
 			MinStepExpr: p.MinStepExpr(),
+			// int64 is the widest value type: it has no wider native type to
+			// widen into for the from + step*index product, so it computes the
+			// wrapping arithmetic directly at int64 width via an explicit uint64
+			// round-trip. Narrower types widen into int64 instead.
+			IsWidest: p.GoType == "int64",
 		}
 		tmpl := applies
 		if p.IsFloating {
@@ -55,12 +61,12 @@ func genInterval() error {
 	return nil
 }
 
-const intervalStubTmpl = `package interval
+const intervalStubTmpl = genHeader + `package interval
 
 // Interval is not applicable to {{.GoType}}.
 `
 
-const intervalTmpl = `package interval
+const intervalTmpl = genHeader + `package interval
 
 import (
 	"fmt"
@@ -146,11 +152,22 @@ func (iv *{{.StructName}}) Contains(value {{.GoType}}) bool {
 }
 
 // Get returns the element at the given index, or an error if out of bounds.
+{{- if .IsWidest}}
+//
+// Narrower intervals (int8/16/32) widen into int64 before computing
+// from + step*index so the product never overflows the value width. int64 has
+// no wider native type, so this computes directly at int64 width. Per the spec
+// integer-overflow contract (algorithms.md "Integer overflow contract"), the
+// arithmetic is wrapping two's-complement at the value width — Go's native
+// int64 arithmetic wraps, which is exactly the required semantics. The product
+// is built in uint64 and reinterpreted so the wrap is explicit and free of
+// implementation-defined signed-overflow assumptions.
+{{- end}}
 func (iv *{{.StructName}}) Get(index int) ({{.GoType}}, error) {
 	if index < 0 || index >= iv.Size() {
 		return 0, fmt.Errorf("{{.StructName}}: index out of bounds: %d (size %d)", index, iv.Size())
 	}
-	return {{.GoType}}(int64(iv.from) + int64(iv.step)*int64(index)), nil
+	return {{if .IsWidest}}int64(uint64(iv.from) + uint64(iv.step)*uint64(int64(index))){{else}}{{.GoType}}(int64(iv.from) + int64(iv.step)*int64(index)){{end}}, nil
 }
 
 func (iv *{{.StructName}}) absStep() uint64 {

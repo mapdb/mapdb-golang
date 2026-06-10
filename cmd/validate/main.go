@@ -146,7 +146,15 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 			case modeF32List:
 				parts[i] = formatF32(elementToF32(e))
 			default:
-				parts[i] = strconv.FormatInt(int64(e.(float64)), 10)
+				// modeNone arrays are normally i32 (JSON numbers). The
+				// HashMap<i64,i32> `sorted_keys` array is decimal STRINGS
+				// (i64 keys exceed 2^53) — render those quoted to match the
+				// runner's computed quoted-string array.
+				if s, ok := e.(string); ok {
+					parts[i] = "\"" + s + "\""
+				} else {
+					parts[i] = strconv.FormatInt(int64(e.(float64)), 10)
+				}
 			}
 		}
 		return "[" + strings.Join(parts, ",") + "]"
@@ -177,8 +185,18 @@ func main() {
 	if err != nil {
 		fatalf("failed to read scenario file: %v", err)
 	}
+	// Decode with UseNumber() so JSON number tokens are preserved as
+	// json.Number (their exact decimal string) rather than float64. This is
+	// REQUIRED for i64 keys: a bare number like 9007199254740993 or
+	// 9223372036854775807 would otherwise be rounded through f64 and corrupted.
+	// All scalar parsers (asInt32/asInt/parseF32/parseI64Operand) handle the
+	// json.Number case. (renderExpected re-unmarshals the raw assertion bytes
+	// into its own `any` WITHOUT UseNumber, so the expected-value rendering
+	// path is unaffected and still sees float64.)
+	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec.UseNumber()
 	var s scenario
-	if err := json.Unmarshal(data, &s); err != nil {
+	if err := dec.Decode(&s); err != nil {
 		fatalf("failed to parse JSON: %v", err)
 	}
 
@@ -187,6 +205,8 @@ func main() {
 	switch s.Collection {
 	case "HashMap<i32, i32>":
 		runHashMap(s)
+	case "HashMap<i64, i32>":
+		runI64HashMap(s)
 	case "ArrayList<i32>":
 		runArrayList(s)
 	case "HashSet<i32>":
@@ -248,7 +268,12 @@ func asInt32(v any) int32 {
 	case float64:
 		return int32(int64(n))
 	case json.Number:
-		i, _ := n.Int64()
+		// Make a parse failure FATAL (consistent with the i64 decimal-string
+		// rule) rather than silently coercing a bad operand to 0.
+		i, err := n.Int64()
+		if err != nil {
+			fatalf("invalid integer operand %q: %v", n.String(), err)
+		}
 		return int32(i)
 	}
 	fatalf("expected integer, got %T (%v)", v, v)
@@ -260,7 +285,10 @@ func asInt(v any) int {
 	case float64:
 		return int(n)
 	case json.Number:
-		i, _ := n.Int64()
+		i, err := n.Int64()
+		if err != nil {
+			fatalf("invalid integer operand %q: %v", n.String(), err)
+		}
 		return int(i)
 	}
 	fatalf("expected integer, got %T (%v)", v, v)
@@ -276,6 +304,14 @@ func parseF32(v any) float32 {
 		return parseF32Label(x)
 	case float64:
 		return float32(x)
+	case json.Number:
+		// Bare JSON-number f32 operand under UseNumber(): parse the decimal
+		// token to f64 then narrow to f32 (same as the float64 path).
+		f, err := strconv.ParseFloat(x.String(), 64)
+		if err != nil {
+			fatalf("invalid f32 number literal: %q", x.String())
+		}
+		return float32(f)
 	case map[string]any:
 		if hx, ok := x["bits"].(string); ok {
 			return math.Float32frombits(parseF32Bits(hx))
@@ -425,6 +461,92 @@ func evalMapAssertion(key string, m *hashmap.Int32Int32HashMap) string {
 	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
 		k, _ := strconv.ParseInt(rest, 10, 32)
 		return strconv.FormatBool(m.ContainsKey(int32(k)))
+	}
+	return unknown(key)
+}
+
+// ---- HashMap<i64, i32> ---------------------------------------------------
+
+// parseI64Operand parses a Wide-integer (i64) key operand — see
+// cross-language-validation/README.md §"Wide-integer (i64) operand encoding".
+// An i64 KEY is a decimal STRING (small keys may also be bare JSON numbers),
+// parsed straight to int64 via strconv.ParseInt(.,10,64) — never via f64. The
+// value stays an i32 JSON number.
+func parseI64Operand(v any) int64 {
+	switch n := v.(type) {
+	case string:
+		i, err := strconv.ParseInt(n, 10, 64)
+		if err != nil {
+			fatalf("invalid or out-of-range i64 decimal-string key: %q", n)
+		}
+		return i
+	case json.Number:
+		// Lossless: parse the exact decimal token (never via f64). Fatal on
+		// out-of-range so a bare 9223372036854775808 (2^63) can't silently wrap.
+		i, err := strconv.ParseInt(n.String(), 10, 64)
+		if err != nil {
+			fatalf("invalid or out-of-range i64 number key: %q", n.String())
+		}
+		return i
+	}
+	fatalf("expected i64 key (decimal string or number), got %T (%v)", v, v)
+	return 0
+}
+
+// runI64HashMap routes through the PRODUCTION Int64Int32HashMap (real i64 hash
+// spread + key identity).
+func runI64HashMap(s scenario) {
+	m := hashmap.NewInt64Int32HashMap()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			m.Put(parseI64Operand(op["key"]), asInt32(op["value"]))
+		case "remove":
+			m.Remove(parseI64Operand(op["key"]))
+		case "clear":
+			m.Clear()
+		default:
+			fatalf("unknown i64-hashmap op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalI64MapAssertion(key, m), s.Assertions[key], modeNone)
+	}
+}
+
+func evalI64MapAssertion(key string, m *hashmap.Int64Int32HashMap) string {
+	switch key {
+	case "size":
+		return strconv.Itoa(m.Size())
+	case "is_empty":
+		return strconv.FormatBool(m.IsEmpty())
+	case "sorted_keys":
+		// i64 keys exceed 2^53: serialize each as a plain decimal STRING in a
+		// quoted array, sorted numerically as i64 ascending.
+		keys := m.KeysToSlice()
+		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		parts := make([]string, len(keys))
+		for i, k := range keys {
+			parts[i] = "\"" + strconv.FormatInt(k, 10) + "\""
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	if rest, ok := strings.CutPrefix(key, "get_"); ok {
+		k, err := strconv.ParseInt(rest, 10, 64)
+		if err != nil {
+			fatalf("invalid or out-of-range i64 get_ suffix: %q", rest)
+		}
+		if v, found := m.Get(k); found {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return "null"
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		k, err := strconv.ParseInt(rest, 10, 64)
+		if err != nil {
+			fatalf("invalid or out-of-range i64 contains_ suffix: %q", rest)
+		}
+		return strconv.FormatBool(m.ContainsKey(k))
 	}
 	return unknown(key)
 }

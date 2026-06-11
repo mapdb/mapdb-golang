@@ -1,4 +1,3 @@
-
 package multimap
 
 import (

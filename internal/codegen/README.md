@@ -23,7 +23,11 @@ From the target collection's directory:
 //go:generate go run ../internal/codegen <collection>
 ```
 
-Currently supported: `interval`.
+Currently supported: `arraylist`, `interval`, `hashset`, `stack`, `deque`,
+`treeset`, `priority_queue`, `bag`, `treemap`. Float-ordered collections
+(`arraylist`, `treeset`, `priority_queue`, `bag`, `treemap`) also emit a
+`cmp_float.go` from the single shared `genCmpFloat` template, so the IEEE
+total-order comparator has exactly one source of truth.
 
 Run a regeneration with:
 
@@ -40,7 +44,9 @@ go generate ./... && git diff --exit-code
 ## How to add a new collection
 
 1. Add a new file `internal/codegen/<collection>.go` exporting a
-   `gen<Collection>()` function. Use `interval.go` as a model.
+   `gen<Collection>()` function. Use `arraylist.go` (single-type) or
+   `treemap.go` (K×V) as a model; call `genCmpFloat("<collection>")` at the
+   end if the collection needs float ordering.
 2. Add a `case` for it in `main.go`'s switch.
 3. Drop a `doc.go` into the target package with a `//go:generate`
    directive.

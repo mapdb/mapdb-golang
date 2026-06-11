@@ -1,2 +1,4 @@
 # built test/validate binaries
 /validate
+# stray binary from `go build` in the generator dir (the package is `main`)
+/codegen

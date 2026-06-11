@@ -8,9 +8,10 @@
 // Three shapes exist. prim×prim pairs (e.g. Int32Float32Pair) expose the full
 // surface: One/Two/Equals/String/CompareTo/Swap. Equals compares each field
 // independently — float fields by IEEE 754 bit pattern (math.Float32bits /
-// math.Float64bits), int/char fields by ==. CompareTo uses raw < / > on both
-// fields (including float fields), matching the hand-written originals. Swap
-// returns the transposed pair. Object pairs (Object<Two>Pair[T any] and
+// math.Float64bits), int/char fields by ==. CompareTo orders field by field:
+// float fields use the IEEE 754 totalOrder comparator (cmpFloat32 / cmpFloat64,
+// in cmp_float.go) so NaN and signed zeros order consistently and transitively;
+// int/char fields use raw < / >. Swap returns the transposed pair. Object pairs (Object<Two>Pair[T any] and
 // <One>ObjectPair[T any]) carry a generic element that is neither comparable
 // nor ordered, so they expose only One/Two/String — no Equals, CompareTo, or
 // Swap.

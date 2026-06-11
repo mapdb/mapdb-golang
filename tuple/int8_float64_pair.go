@@ -48,11 +48,8 @@ func (p Int8Float64Pair) CompareTo(other Int8Float64Pair) int {
 	if p.one > other.one {
 		return 1
 	}
-	if p.two < other.two {
-		return -1
-	}
-	if p.two > other.two {
-		return 1
+	if c := cmpFloat64(p.two, other.two); c != 0 {
+		return c
 	}
 	return 0
 }

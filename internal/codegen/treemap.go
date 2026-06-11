@@ -17,11 +17,13 @@ import (
 //
 // The KEY type drives all the interesting logic: integer/char keys order with
 // raw < / >, whereas float keys order via the shared IEEE total-order helper
-// cmpFloat32/64 (the phase-3 correctness fix). As with treeset, the
-// Floor/Ceiling exact-match checks and the RangeKeys/HeadMap/TailMap bound
-// checks use raw == / < / >= even for float keys — that is reproduced exactly;
-// the cmpFloat helper governs only the strict directional ordering used during
-// tree traversal (Put/findNode/Floor/Ceiling/Higher/Lower).
+// cmpFloat32/64 (the phase-3 correctness fix). As with treeset, for float keys
+// the Floor/Ceiling exact-match short-circuits and the RangeKeys/HeadMap/TailMap
+// [from, to) bound checks also route through cmpFloat32/64 so key navigation is
+// a true total order (NaN sorts to the top, ±0 are distinguished); int/char keys
+// keep raw == / < / >=. The cmpFloat helper already governs the strict
+// directional ordering used during tree traversal (Put/findNode/Floor/Ceiling/
+// Higher/Lower).
 //
 // The VALUE type is a carried payload only: it appears in method signatures,
 // the node's value field, and return tuples. treemap never compares values, so
@@ -266,7 +268,7 @@ func (m *{{.MapName}}TreeMap) Floor(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}
 	var result *{{.NodeName}}TreeNode
 	node := m.root
 	for node != nil {
-		if key == node.key {
+		if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) == 0{{else}}key == node.key{{end}} {
 			return node.key, node.value, true
 		}
 		if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) > 0{{else}}key > node.key{{end}} {
@@ -287,7 +289,7 @@ func (m *{{.MapName}}TreeMap) Ceiling(key {{.KeyType}}) ({{.KeyType}}, {{.ValTyp
 	var result *{{.NodeName}}TreeNode
 	node := m.root
 	for node != nil {
-		if key == node.key {
+		if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) == 0{{else}}key == node.key{{end}} {
 			return node.key, node.value, true
 		}
 		if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) < 0{{else}}key < node.key{{end}} {
@@ -349,10 +351,10 @@ func (m *{{.MapName}}TreeMap) Values() iter.Seq[{{.ValType}}] {
 func (m *{{.MapName}}TreeMap) RangeKeys(fromKey, toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		for k, v := range m.All() {
-			if k < fromKey {
+			if {{if .KeyIsFloat}}{{.CmpFn}}(k, fromKey) < 0{{else}}k < fromKey{{end}} {
 				continue
 			}
-			if k >= toKey {
+			if {{if .KeyIsFloat}}{{.CmpFn}}(k, toKey) >= 0{{else}}k >= toKey{{end}} {
 				return
 			}
 			if !yield(k, v) {
@@ -405,7 +407,7 @@ func (m *{{.MapName}}TreeMap) Lower(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}
 func (m *{{.MapName}}TreeMap) HeadMap(toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		for k, v := range m.All() {
-			if k >= toKey {
+			if {{if .KeyIsFloat}}{{.CmpFn}}(k, toKey) >= 0{{else}}k >= toKey{{end}} {
 				return
 			}
 			if !yield(k, v) {
@@ -420,7 +422,7 @@ func (m *{{.MapName}}TreeMap) HeadMap(toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}
 func (m *{{.MapName}}TreeMap) TailMap(fromKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		for k, v := range m.All() {
-			if k < fromKey {
+			if {{if .KeyIsFloat}}{{.CmpFn}}(k, fromKey) < 0{{else}}k < fromKey{{end}} {
 				continue
 			}
 			if !yield(k, v) {

@@ -144,7 +144,7 @@ func (m *Float64CharTreeMap) Floor(key float64) (float64, uint16, bool) {
 	var result *float64CharTreeNode
 	node := m.root
 	for node != nil {
-		if key == node.key {
+		if cmpFloat64(key, node.key) == 0 {
 			return node.key, node.value, true
 		}
 		if cmpFloat64(key, node.key) > 0 {
@@ -165,7 +165,7 @@ func (m *Float64CharTreeMap) Ceiling(key float64) (float64, uint16, bool) {
 	var result *float64CharTreeNode
 	node := m.root
 	for node != nil {
-		if key == node.key {
+		if cmpFloat64(key, node.key) == 0 {
 			return node.key, node.value, true
 		}
 		if cmpFloat64(key, node.key) < 0 {
@@ -227,10 +227,10 @@ func (m *Float64CharTreeMap) Values() iter.Seq[uint16] {
 func (m *Float64CharTreeMap) RangeKeys(fromKey, toKey float64) iter.Seq2[float64, uint16] {
 	return func(yield func(float64, uint16) bool) {
 		for k, v := range m.All() {
-			if k < fromKey {
+			if cmpFloat64(k, fromKey) < 0 {
 				continue
 			}
-			if k >= toKey {
+			if cmpFloat64(k, toKey) >= 0 {
 				return
 			}
 			if !yield(k, v) {
@@ -283,7 +283,7 @@ func (m *Float64CharTreeMap) Lower(key float64) (float64, uint16, bool) {
 func (m *Float64CharTreeMap) HeadMap(toKey float64) iter.Seq2[float64, uint16] {
 	return func(yield func(float64, uint16) bool) {
 		for k, v := range m.All() {
-			if k >= toKey {
+			if cmpFloat64(k, toKey) >= 0 {
 				return
 			}
 			if !yield(k, v) {
@@ -298,7 +298,7 @@ func (m *Float64CharTreeMap) HeadMap(toKey float64) iter.Seq2[float64, uint16] {
 func (m *Float64CharTreeMap) TailMap(fromKey float64) iter.Seq2[float64, uint16] {
 	return func(yield func(float64, uint16) bool) {
 		for k, v := range m.All() {
-			if k < fromKey {
+			if cmpFloat64(k, fromKey) < 0 {
 				continue
 			}
 			if !yield(k, v) {

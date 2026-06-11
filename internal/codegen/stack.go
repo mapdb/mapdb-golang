@@ -11,15 +11,19 @@ import (
 
 // stData is the per-primitive view the stack templates iterate over.
 //
-// The stack family is a plain LIFO slice-backed stack: it has no hashing,
-// no float bit-pattern equality (Contains/Equals use ==), and no
-// Sum/Min/Max reductions. The only type-dependent piece is the zero
-// literal used in the Pop/Peek/PeekAt error returns and Detect.
+// The stack family is a plain LIFO slice-backed stack: it has no hashing
+// and no Sum/Min/Max reductions. Membership/equality (Contains/Equals) on
+// float values uses IEEE-754 bit-pattern comparison (so Contains(NaN) works
+// and ±0 stay distinct); int/char values use raw ==. The type-dependent
+// pieces are the zero literal used in the Pop/Peek/PeekAt error returns and
+// Detect, plus the float bit-pattern equality function.
 type stData struct {
 	Name      string // Int32, Float32, Char (identifier stem)
 	GoType    string // int32, float32, uint16 (Go element type)
 	SnakeName string // int32, float32, char (file-name stem)
 	Zero      string // zero literal for this element type ("0" or "0.0")
+	IsFloat   bool
+	BitsFn    string // math.Float32bits / math.Float64bits (floats only)
 }
 
 // genStack writes the per-primitive array stack sources (base, immutable,
@@ -54,9 +58,14 @@ func genStack() error {
 			GoType:    p.GoType,
 			SnakeName: p.SnakeName,
 			Zero:      "0",
+			IsFloat:   p.IsFloating,
 		}
 		if p.IsFloating {
 			data.Zero = "0.0"
+			data.BitsFn = "math.Float32bits"
+			if p.ByteSize == 8 {
+				data.BitsFn = "math.Float64bits"
+			}
 		}
 
 		if err := write(p.SnakeName+"_array_stack.go", base, data); err != nil {
@@ -78,6 +87,9 @@ const arrayStackTmpl = genHeader + `package stack
 import (
 	"fmt"
 	"iter"
+{{- if .IsFloat}}
+	"math"
+{{- end}}
 	"strings"
 )
 
@@ -157,7 +169,7 @@ func (s *{{.Name}}ArrayStack) Clear() {
 // Contains returns true if the stack contains the given value.
 func (s *{{.Name}}ArrayStack) Contains(value {{.GoType}}) bool {
 	for _, v := range s.items {
-		if v == value {
+		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
 			return true
 		}
 	}
@@ -323,7 +335,7 @@ func (s *{{.Name}}ArrayStack) Equals(other *{{.Name}}ArrayStack) bool {
 		return false
 	}
 	for i := range s.items {
-		if s.items[i] != other.items[i] {
+		if {{if .IsFloat}}{{.BitsFn}}(s.items[i]) != {{.BitsFn}}(other.items[i]){{else}}s.items[i] != other.items[i]{{end}} {
 			return false
 		}
 	}

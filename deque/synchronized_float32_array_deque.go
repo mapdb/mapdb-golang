@@ -3,6 +3,7 @@
 package deque
 
 import (
+	"math"
 	"sync"
 )
 
@@ -131,7 +132,7 @@ func (d *SynchronizedFloat32ArrayDeque) Equals(other *SynchronizedFloat32ArrayDe
 		return false
 	}
 	for i, v := range thisSlice {
-		if otherSlice[i] != v {
+		if math.Float32bits(otherSlice[i]) != math.Float32bits(v) {
 			return false
 		}
 	}

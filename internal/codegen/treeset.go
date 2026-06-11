@@ -16,9 +16,10 @@ import (
 // are the zero literal used in the Min/Max/Floor/Ceiling "empty" returns and
 // the ordering comparison: integer/char keys order with raw < / >, whereas
 // float keys order via the shared IEEE total-order helper cmpFloat32/64 (the
-// phase-3 correctness fix). Note that the Floor/Ceiling/RangeValues equality
-// and bound checks use raw == / < / >= even for floats — that is reproduced
-// exactly, the cmpFloat helper governs only the strict directional ordering.
+// phase-3 correctness fix). For float keys the Floor/Ceiling exact-match
+// short-circuits and the RangeValues [from, to) bounds also route through
+// cmpFloat32/64 so navigation is a true total order (NaN sorts to the top,
+// ±0 are distinguished); int/char keys keep raw == / < / >=.
 type tsData struct {
 	Name      string // Int32, Float32, Char (identifier stem)
 	GoType    string // int32, float32, uint16 (Go element type)
@@ -198,7 +199,7 @@ func (s *{{.Name}}TreeSet) Floor(value {{.GoType}}) ({{.GoType}}, bool) {
 	var result *{{.SnakeName}}TreeSetNode
 	node := s.root
 	for node != nil {
-		if value == node.key {
+		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) == 0{{else}}value == node.key{{end}} {
 			return node.key, true
 		}
 		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) > 0{{else}}value > node.key{{end}} {
@@ -219,7 +220,7 @@ func (s *{{.Name}}TreeSet) Ceiling(value {{.GoType}}) ({{.GoType}}, bool) {
 	var result *{{.SnakeName}}TreeSetNode
 	node := s.root
 	for node != nil {
-		if value == node.key {
+		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) == 0{{else}}value == node.key{{end}} {
 			return node.key, true
 		}
 		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) < 0{{else}}value < node.key{{end}} {
@@ -259,10 +260,10 @@ func (s *{{.Name}}TreeSet) All() iter.Seq[{{.GoType}}] {
 func (s *{{.Name}}TreeSet) RangeValues(from, to {{.GoType}}) iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 		for v := range s.All() {
-			if v < from {
+			if {{if .IsFloat}}{{.CmpFn}}(v, from) < 0{{else}}v < from{{end}} {
 				continue
 			}
-			if v >= to {
+			if {{if .IsFloat}}{{.CmpFn}}(v, to) >= 0{{else}}v >= to{{end}} {
 				return
 			}
 			if !yield(v) {

@@ -144,7 +144,7 @@ func (m *Float32Int32TreeMap) Floor(key float32) (float32, int32, bool) {
 	var result *float32Int32TreeNode
 	node := m.root
 	for node != nil {
-		if key == node.key {
+		if cmpFloat32(key, node.key) == 0 {
 			return node.key, node.value, true
 		}
 		if cmpFloat32(key, node.key) > 0 {
@@ -165,7 +165,7 @@ func (m *Float32Int32TreeMap) Ceiling(key float32) (float32, int32, bool) {
 	var result *float32Int32TreeNode
 	node := m.root
 	for node != nil {
-		if key == node.key {
+		if cmpFloat32(key, node.key) == 0 {
 			return node.key, node.value, true
 		}
 		if cmpFloat32(key, node.key) < 0 {
@@ -227,10 +227,10 @@ func (m *Float32Int32TreeMap) Values() iter.Seq[int32] {
 func (m *Float32Int32TreeMap) RangeKeys(fromKey, toKey float32) iter.Seq2[float32, int32] {
 	return func(yield func(float32, int32) bool) {
 		for k, v := range m.All() {
-			if k < fromKey {
+			if cmpFloat32(k, fromKey) < 0 {
 				continue
 			}
-			if k >= toKey {
+			if cmpFloat32(k, toKey) >= 0 {
 				return
 			}
 			if !yield(k, v) {
@@ -283,7 +283,7 @@ func (m *Float32Int32TreeMap) Lower(key float32) (float32, int32, bool) {
 func (m *Float32Int32TreeMap) HeadMap(toKey float32) iter.Seq2[float32, int32] {
 	return func(yield func(float32, int32) bool) {
 		for k, v := range m.All() {
-			if k >= toKey {
+			if cmpFloat32(k, toKey) >= 0 {
 				return
 			}
 			if !yield(k, v) {
@@ -298,7 +298,7 @@ func (m *Float32Int32TreeMap) HeadMap(toKey float32) iter.Seq2[float32, int32] {
 func (m *Float32Int32TreeMap) TailMap(fromKey float32) iter.Seq2[float32, int32] {
 	return func(yield func(float32, int32) bool) {
 		for k, v := range m.All() {
-			if k < fromKey {
+			if cmpFloat32(k, fromKey) < 0 {
 				continue
 			}
 			if !yield(k, v) {

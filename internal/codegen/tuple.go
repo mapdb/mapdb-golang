@@ -22,9 +22,12 @@ import (
 //     on their own OneIsFloat / TwoIsFloat.
 //   - The "math" import is needed iff (OneIsFloat || TwoIsFloat).
 //
-// CompareTo uses RAW < / > on BOTH fields, including float fields — there is no
-// total-order comparator (cmpFloat). This reproduces the pre-existing
-// hand-written behaviour verbatim.
+// CompareTo orders the two fields lexicographically (first, then second). A
+// float field is compared via the shared IEEE total-order helper
+// (OneCmpFn / TwoCmpFn, cmpFloat32/64) so the ordering is a true total order
+// (NaN sorts to the top, ±0 distinguished, transitive); an int/char field uses
+// raw < / >. Each field branches independently on its own OneIsFloat /
+// TwoIsFloat. The shared cmp_float.go is emitted in the tuple package.
 //
 // Swap returns the TRANSPOSED pair: an <One><Two>Pair.Swap() returns a
 // <Two><One>Pair via New<Two><One>Pair(p.two, p.one). The transposed
@@ -50,6 +53,8 @@ type pairData struct {
 	TwoIsFloat bool
 	OneBitsFn  string // math.Float32bits / math.Float64bits (float first field)
 	TwoBitsFn  string // math.Float32bits / math.Float64bits (float second field)
+	OneCmpFn   string // cmpFloat32 / cmpFloat64 (float first field, CompareTo)
+	TwoCmpFn   string // cmpFloat32 / cmpFloat64 (float second field, CompareTo)
 
 	// NeedsMath drives the import block: true iff either field is float.
 	NeedsMath bool
@@ -109,6 +114,13 @@ func genTuple() error {
 		return "math.Float32bits"
 	}
 
+	cmpFn := func(p Primitive) string {
+		if p.ByteSize == 8 {
+			return "cmpFloat64"
+		}
+		return "cmpFloat32"
+	}
+
 	prims := Primitives()
 
 	// prim×prim pairs (49).
@@ -128,9 +140,11 @@ func genTuple() error {
 			}
 			if one.IsFloating {
 				data.OneBitsFn = bitsFn(one)
+				data.OneCmpFn = cmpFn(one)
 			}
 			if two.IsFloating {
 				data.TwoBitsFn = bitsFn(two)
+				data.TwoCmpFn = cmpFn(two)
 			}
 			if err := write(data.PairSnake+"_pair.go", pairTmpl, data); err != nil {
 				return err
@@ -161,7 +175,11 @@ func genTuple() error {
 		}
 	}
 
-	return nil
+	// Emit the shared cmp_float.go so float pairs' CompareTo can route
+	// through cmpFloat32/64. It is generated unconditionally for the tuple
+	// package; pairs with no float field simply never reference it (a
+	// package-level func may be unused by some files in the package).
+	return genCmpFloat("tuple")
 }
 
 const pairTmpl = genHeader + `package tuple
@@ -208,18 +226,30 @@ func (p {{.PairName}}Pair) String() string {
 // then second element if first elements are equal.
 // Returns negative if p < other, zero if equal, positive if p > other.
 func (p {{.PairName}}Pair) CompareTo(other {{.PairName}}Pair) int {
+{{- if .OneIsFloat}}
+	if c := {{.OneCmpFn}}(p.one, other.one); c != 0 {
+		return c
+	}
+{{- else}}
 	if p.one < other.one {
 		return -1
 	}
 	if p.one > other.one {
 		return 1
 	}
+{{- end}}
+{{- if .TwoIsFloat}}
+	if c := {{.TwoCmpFn}}(p.two, other.two); c != 0 {
+		return c
+	}
+{{- else}}
 	if p.two < other.two {
 		return -1
 	}
 	if p.two > other.two {
 		return 1
 	}
+{{- end}}
 	return 0
 }
 

@@ -122,7 +122,7 @@ func (s *Float32TreeSet) Floor(value float32) (float32, bool) {
 	var result *float32TreeSetNode
 	node := s.root
 	for node != nil {
-		if value == node.key {
+		if cmpFloat32(value, node.key) == 0 {
 			return node.key, true
 		}
 		if cmpFloat32(value, node.key) > 0 {
@@ -143,7 +143,7 @@ func (s *Float32TreeSet) Ceiling(value float32) (float32, bool) {
 	var result *float32TreeSetNode
 	node := s.root
 	for node != nil {
-		if value == node.key {
+		if cmpFloat32(value, node.key) == 0 {
 			return node.key, true
 		}
 		if cmpFloat32(value, node.key) < 0 {
@@ -183,10 +183,10 @@ func (s *Float32TreeSet) All() iter.Seq[float32] {
 func (s *Float32TreeSet) RangeValues(from, to float32) iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for v := range s.All() {
-			if v < from {
+			if cmpFloat32(v, from) < 0 {
 				continue
 			}
-			if v >= to {
+			if cmpFloat32(v, to) >= 0 {
 				return
 			}
 			if !yield(v) {

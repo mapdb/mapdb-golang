@@ -34,6 +34,16 @@ func (d dqData) EqExpr(a, b string) string {
 	return fmt.Sprintf("%s == %s", a, b)
 }
 
+// NeExpr returns the per-element inequality expression (a != b form). Floats
+// compare by bit pattern; everything else uses != (byte-identical to the
+// pre-fix int/char output).
+func (d dqData) NeExpr(a, b string) string {
+	if d.BitsFunc != "" {
+		return fmt.Sprintf("%s(%s) != %s(%s)", d.BitsFunc, a, d.BitsFunc, b)
+	}
+	return fmt.Sprintf("%s != %s", a, b)
+}
+
 // IsFloat reports whether this primitive uses bit-pattern equality (and
 // therefore needs the math import).
 func (d dqData) IsFloat() bool { return d.BitsFunc != "" }
@@ -347,6 +357,9 @@ func (d *{{.Name}}ArrayDeque) String() string {
 const synchronizedArrayDequeTmpl = genHeader + `package deque
 
 import (
+{{- if .IsFloat}}
+	"math"
+{{- end}}
 	"sync"
 )
 
@@ -475,7 +488,7 @@ func (d *Synchronized{{.Name}}ArrayDeque) Equals(other *Synchronized{{.Name}}Arr
 		return false
 	}
 	for i, v := range thisSlice {
-		if otherSlice[i] != v {
+		if {{.NeExpr "otherSlice[i]" "v"}} {
 			return false
 		}
 	}

@@ -5,6 +5,7 @@ package bag
 import (
 	"fmt"
 	"iter"
+	"math"
 	"sort"
 	"strings"
 )
@@ -410,7 +411,7 @@ func (b *Float64TreeBag) Equals(other *Float64TreeBag) bool {
 		return false
 	}
 	for i, entry := range b.entries {
-		if entry.value != other.entries[i].value || entry.count != other.entries[i].count {
+		if math.Float64bits(entry.value) != math.Float64bits(other.entries[i].value) || entry.count != other.entries[i].count {
 			return false
 		}
 	}

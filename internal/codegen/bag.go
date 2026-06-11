@@ -30,8 +30,10 @@ import (
 //     entry struct (value, count) recovers the original float. Every method
 //     differs accordingly (keyed by k := <BitsFn>(value), iterate over entries).
 //
-// The TREE bag differs only in the search comparison (raw < / > for int/char,
-// cmpFloatNN for floats) and the Zero literal used in Min/Max/Detect.
+// The TREE bag differs in the search comparison (raw < / > for int/char,
+// cmpFloatNN for floats), the Equals element comparison (raw == for int/char,
+// bit-pattern BitsFn for floats so NaN entries match and ±0 stay distinct), and
+// the Zero literal used in Min/Max/Detect.
 type bagData struct {
 	Name      string // Int32, Float32, Char (identifier stem)
 	GoType    string // int32, float32, uint16 (Go element type)
@@ -1156,6 +1158,9 @@ const treeBagTmpl = genHeader + `package bag
 import (
 	"fmt"
 	"iter"
+{{- if .IsFloat}}
+	"math"
+{{- end}}
 	"sort"
 	"strings"
 )
@@ -1561,7 +1566,7 @@ func (b *{{.Name}}TreeBag) Equals(other *{{.Name}}TreeBag) bool {
 		return false
 	}
 	for i, entry := range b.entries {
-		if entry.value != other.entries[i].value || entry.count != other.entries[i].count {
+		if {{if .IsFloat}}{{.BitsFn}}(entry.value) != {{.BitsFn}}(other.entries[i].value){{else}}entry.value != other.entries[i].value{{end}} || entry.count != other.entries[i].count {
 			return false
 		}
 	}

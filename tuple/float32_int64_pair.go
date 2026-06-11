@@ -42,11 +42,8 @@ func (p Float32Int64Pair) String() string {
 // then second element if first elements are equal.
 // Returns negative if p < other, zero if equal, positive if p > other.
 func (p Float32Int64Pair) CompareTo(other Float32Int64Pair) int {
-	if p.one < other.one {
-		return -1
-	}
-	if p.one > other.one {
-		return 1
+	if c := cmpFloat32(p.one, other.one); c != 0 {
+		return c
 	}
 	if p.two < other.two {
 		return -1

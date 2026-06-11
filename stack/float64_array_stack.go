@@ -5,6 +5,7 @@ package stack
 import (
 	"fmt"
 	"iter"
+	"math"
 	"strings"
 )
 
@@ -84,7 +85,7 @@ func (s *Float64ArrayStack) Clear() {
 // Contains returns true if the stack contains the given value.
 func (s *Float64ArrayStack) Contains(value float64) bool {
 	for _, v := range s.items {
-		if v == value {
+		if math.Float64bits(v) == math.Float64bits(value) {
 			return true
 		}
 	}
@@ -250,7 +251,7 @@ func (s *Float64ArrayStack) Equals(other *Float64ArrayStack) bool {
 		return false
 	}
 	for i := range s.items {
-		if s.items[i] != other.items[i] {
+		if math.Float64bits(s.items[i]) != math.Float64bits(other.items[i]) {
 			return false
 		}
 	}

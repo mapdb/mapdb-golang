@@ -3,6 +3,7 @@
 package deque
 
 import (
+	"math"
 	"sync"
 )
 
@@ -131,7 +132,7 @@ func (d *SynchronizedFloat64ArrayDeque) Equals(other *SynchronizedFloat64ArrayDe
 		return false
 	}
 	for i, v := range thisSlice {
-		if otherSlice[i] != v {
+		if math.Float64bits(otherSlice[i]) != math.Float64bits(v) {
 			return false
 		}
 	}

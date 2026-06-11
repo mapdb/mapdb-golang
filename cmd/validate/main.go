@@ -28,6 +28,7 @@ import (
 	"github.com/mapdb/mapdb-golang/bag"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
+	"github.com/mapdb/mapdb-golang/multimap"
 	"github.com/mapdb/mapdb-golang/treemap"
 	"github.com/mapdb/mapdb-golang/treeset"
 )
@@ -207,6 +208,10 @@ func main() {
 		runHashMap(s)
 	case "HashMap<i64, i32>":
 		runI64HashMap(s)
+	case "ListMultimap<i64, i32>":
+		runI64ListMultimap(s)
+	case "SetMultimap<i64, i32>":
+		runI64SetMultimap(s)
 	case "ArrayList<i32>":
 		runArrayList(s)
 	case "HashSet<i32>":
@@ -545,6 +550,79 @@ func evalI64MapAssertion(key string, m *hashmap.Int64Int32HashMap) string {
 		k, err := strconv.ParseInt(rest, 10, 64)
 		if err != nil {
 			fatalf("invalid or out-of-range i64 contains_ suffix: %q", rest)
+		}
+		return strconv.FormatBool(m.ContainsKey(k))
+	}
+	return unknown(key)
+}
+
+// ---- {List,Set}Multimap<i64, i32> ----------------------------------------
+
+// i64Multimap is the subset of the production List/SetMultimap API the
+// validator exercises. Both Int64Int32ListMultimap and Int64Int32SetMultimap
+// satisfy it; the multimaps back onto the Go BUILTIN map[int64][]int32 (stdlib
+// i64 hashing), NOT the production OpenHashMap high-bit fold — so this verifies
+// full-range i64 keys keep their identity (stay distinct and retrievable)
+// through the stdlib map. It checks key identity, not bucket-distribution
+// quality (which is the stdlib hasher's job and a native-test concern).
+type i64Multimap interface {
+	Put(key int64, value int32)
+	Get(key int64) []int32
+	RemoveAll(key int64) []int32
+	ContainsKey(key int64) bool
+	KeysCount() int
+	Keys() []int64
+}
+
+func runI64ListMultimap(s scenario) { runI64Multimap(s, multimap.NewInt64Int32ListMultimap()) }
+func runI64SetMultimap(s scenario)  { runI64Multimap(s, multimap.NewInt64Int32SetMultimap()) }
+
+func runI64Multimap(s scenario, m i64Multimap) {
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			m.Put(parseI64Operand(op["key"]), asInt32(op["value"]))
+		case "removeAll":
+			m.RemoveAll(parseI64Operand(op["key"]))
+		default:
+			fatalf("unknown i64-multimap op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalI64MultimapAssertion(key, m), s.Assertions[key], modeNone)
+	}
+}
+
+func evalI64MultimapAssertion(key string, m i64Multimap) string {
+	switch key {
+	case "distinct_key_count":
+		return strconv.Itoa(m.KeysCount())
+	case "sorted_keys":
+		// DISTINCT keys, ascending i64, each a quoted decimal string (i64 keys
+		// exceed 2^53) — same serialization as the i64-HashMap sorted_keys.
+		keys := m.Keys()
+		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		parts := make([]string, len(keys))
+		for i, k := range keys {
+			parts[i] = "\"" + strconv.FormatInt(k, 10) + "\""
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	if rest, ok := strings.CutPrefix(key, "get_"); ok {
+		k, err := strconv.ParseInt(rest, 10, 64)
+		if err != nil {
+			fatalf("invalid or out-of-range i64 get_ suffix: %q", rest)
+		}
+		// Values for the key as an ascending-sorted i32 array (sort a COPY);
+		// absent/removed key => []. Same compact emit as sorted_values.
+		vals := append([]int32(nil), m.Get(k)...)
+		sort.Slice(vals, func(i, j int) bool { return vals[i] < vals[j] })
+		return formatArray(vals)
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_key_"); ok {
+		k, err := strconv.ParseInt(rest, 10, 64)
+		if err != nil {
+			fatalf("invalid or out-of-range i64 contains_key_ suffix: %q", rest)
 		}
 		return strconv.FormatBool(m.ContainsKey(k))
 	}

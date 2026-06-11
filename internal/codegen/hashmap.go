@@ -102,10 +102,52 @@ func keyHashExpr(p Primitive) string {
 	}
 }
 
+// objHMData is the per-type view the object hash map templates iterate over.
+//
+// The object hash map family has TWO distinct generic shapes that do NOT mix:
+//
+// Shape A — Object<Value>HashMap[K comparable] (object KEY, prim value): the
+// key is a generic comparable, hashed with the shared hashComparable helper and
+// compared with ==; the value is a pure prim payload (no value-comparison
+// methods). The only type-dependent bit is the value Go type name and its zero
+// literal (ValZero: "0" or "0.0"). There is NO float-value branch.
+//
+// Shape B — <Key>ObjectHashMap[V any] (prim KEY, object value): the key axis is
+// IDENTICAL to genHashMap's key axis (golden-ratio hashKey with the per-key-type
+// KeyHashExpr, and bit-pattern equality for float keys); the value is V any, a
+// pure payload whose zero is the generic `var zero V`. The math/unsafe imports
+// are gated by KeyIsFloat alone.
+type objHMData struct {
+	// PrimName/PrimType/PrimSnake describe the prim half (the value for Shape A,
+	// the key for Shape B). PrimZero is its zero literal ("0" or "0.0").
+	PrimName  string // Int32, Float32, Char
+	PrimType  string // int32, float32, uint16 (Go type)
+	PrimSnake string // int32, float32, char
+	PrimZero  string // "0" or "0.0"
+
+	// MapName / MapSnake / EntryStem are the combined identifiers, e.g. for
+	// Shape A value=int32: ObjectInt32 / object_int32 / objectInt32; for Shape B
+	// key=int32: Int32Object / int32_object / int32Object.
+	MapName   string
+	MapSnake  string
+	EntryStem string
+
+	// KeyIsFloat (Shape B only) selects bit-pattern key equality and the
+	// unsafe-based float hashKey body; it also gates math/unsafe imports.
+	KeyIsFloat  bool
+	KeyBitsFn   string // math.Float32bits / math.Float64bits (float keys only)
+	KeyHashExpr string // inner operand of the golden-ratio multiply in hashKey
+	NeedsMath   bool
+	NeedsUnsafe bool
+}
+
 // genHashMap writes the 7×7 = 49 prim×prim hash map sources for each of the
-// base, immutable, and synchronized variants (147 files) plus the 49 prim×prim
-// bidirectional maps (*_hash_bi_map.go) into the current working directory.
-// Invoked from hashmap/ via go:generate.
+// base, immutable, and synchronized variants (147 files), the 49 prim×prim
+// bidirectional maps (*_hash_bi_map.go), and the 28 object-keyed/valued generic
+// maps — Shape A Object<Value>HashMap[K comparable] (object_<value>_hash_map.go
+// + immutable) and Shape B <Key>ObjectHashMap[V any] (<key>_object_hash_map.go
+// + immutable), 7 prims × 2 shapes × 2 variants — into the current working
+// directory. Invoked from hashmap/ via go:generate.
 func genHashMap() error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -116,8 +158,12 @@ func genHashMap() error {
 	immutable := template.Must(template.New("hm-immutable").Parse(immutableHashMapTmpl))
 	synchronized := template.Must(template.New("hm-sync").Parse(synchronizedHashMapTmpl))
 	bimap := template.Must(template.New("hm-bimap").Parse(hashBiMapTmpl))
+	objKey := template.Must(template.New("hm-objkey").Parse(objectKeyHashMapTmpl))
+	objKeyImm := template.Must(template.New("hm-objkey-imm").Parse(immutableObjectKeyHashMapTmpl))
+	objVal := template.Must(template.New("hm-objval").Parse(objectValueHashMapTmpl))
+	objValImm := template.Must(template.New("hm-objval-imm").Parse(immutableObjectValueHashMapTmpl))
 
-	write := func(name string, tmpl *template.Template, data hmData) error {
+	writeData := func(name string, tmpl *template.Template, data any) error {
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
 			return fmt.Errorf("execute %s: %w", name, err)
@@ -128,6 +174,9 @@ func genHashMap() error {
 		}
 		out := filepath.Join(cwd, name)
 		return os.WriteFile(out, formatted, 0o644)
+	}
+	write := func(name string, tmpl *template.Template, data hmData) error {
+		return writeData(name, tmpl, data)
 	}
 
 	prims := Primitives()
@@ -184,6 +233,57 @@ func genHashMap() error {
 			if err := write(data.MapSnake+"_hash_bi_map.go", bimap, data); err != nil {
 				return err
 			}
+		}
+	}
+
+	// Object maps: two distinct generic shapes, 7 prims × 2 variants each.
+	for _, p := range prims {
+		// Shape A: object KEY, prim value — Object<Value>HashMap[K comparable].
+		a := objHMData{
+			PrimName:  p.Name,
+			PrimType:  p.GoType,
+			PrimSnake: p.SnakeName,
+			PrimZero:  "0",
+			MapName:   "Object" + p.Name,
+			MapSnake:  "object_" + p.SnakeName,
+			EntryStem: "object" + p.Name,
+		}
+		if p.IsFloating {
+			a.PrimZero = "0.0"
+		}
+		if err := writeData(a.MapSnake+"_hash_map.go", objKey, a); err != nil {
+			return err
+		}
+		if err := writeData("immutable_"+a.MapSnake+"_hash_map.go", objKeyImm, a); err != nil {
+			return err
+		}
+
+		// Shape B: prim KEY, object value — <Key>ObjectHashMap[V any].
+		b := objHMData{
+			PrimName:    p.Name,
+			PrimType:    p.GoType,
+			PrimSnake:   p.SnakeName,
+			PrimZero:    "0",
+			MapName:     p.Name + "Object",
+			MapSnake:    p.SnakeName + "_object",
+			EntryStem:   lowerFirst(p.Name) + "Object",
+			KeyIsFloat:  p.IsFloating,
+			KeyHashExpr: keyHashExpr(p),
+			NeedsMath:   p.IsFloating,
+			NeedsUnsafe: p.IsFloating,
+		}
+		if p.IsFloating {
+			b.PrimZero = "0.0"
+			b.KeyBitsFn = "math.Float32bits"
+			if p.ByteSize == 8 {
+				b.KeyBitsFn = "math.Float64bits"
+			}
+		}
+		if err := writeData(b.MapSnake+"_hash_map.go", objVal, b); err != nil {
+			return err
+		}
+		if err := writeData("immutable_"+b.MapSnake+"_hash_map.go", objValImm, b); err != nil {
+			return err
 		}
 	}
 
@@ -1451,5 +1551,792 @@ func (m *{{.MapName}}HashBiMap) String() string {
 // Equals returns true if the other bi-map has the same key-value pairs.
 func (m *{{.MapName}}HashBiMap) Equals(other *{{.MapName}}HashBiMap) bool {
 	return m.forward.Equals(other.forward)
+}
+`
+
+const objectKeyHashMapTmpl = genHeader + `package hashmap
+
+import (
+	"fmt"
+	"iter"
+	"strings"
+)
+
+const (
+	{{.EntryStem}}HashMapDefaultCapacity = 16
+	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
+)
+
+// {{.MapName}}HashMap is an open-addressing hash map with generic comparable keys and {{.PrimType}} values.
+// The value type is specialized to avoid boxing overhead.
+type {{.MapName}}HashMap[K comparable] struct {
+	keys     []K
+	values   []{{.PrimType}}
+	occupied []bool
+	size     int
+}
+
+// New{{.MapName}}HashMap creates a new empty {{.MapName}}HashMap with default capacity.
+func New{{.MapName}}HashMap[K comparable]() *{{.MapName}}HashMap[K] {
+	return New{{.MapName}}HashMapWithCapacity[K]({{.EntryStem}}HashMapDefaultCapacity)
+}
+
+// New{{.MapName}}HashMapWithCapacity creates a new empty {{.MapName}}HashMap with the given initial capacity.
+func New{{.MapName}}HashMapWithCapacity[K comparable](capacity int) *{{.MapName}}HashMap[K] {
+	cap := nextPowerOfTwo{{.MapName}}HashMap(capacity)
+	return &{{.MapName}}HashMap[K]{
+		keys:     make([]K, cap),
+		values:   make([]{{.PrimType}}, cap),
+		occupied: make([]bool, cap),
+		size:     0,
+	}
+}
+
+// Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
+func (m *{{.MapName}}HashMap[K]) Put(key K, value {{.PrimType}}) ({{.PrimType}}, bool) {
+	if m.needsResize() {
+		m.resize()
+	}
+	cap := len(m.keys)
+	mask := cap - 1
+	idx := int(hashComparable(key)) & mask
+
+	for {
+		if !m.occupied[idx] {
+			m.keys[idx] = key
+			m.values[idx] = value
+			m.occupied[idx] = true
+			m.size++
+			return {{.PrimZero}}, false
+		}
+		if m.keys[idx] == key {
+			old := m.values[idx]
+			m.values[idx] = value
+			return old, true
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// Get returns the value for the given key and true if found, or the zero value and false if not.
+func (m *{{.MapName}}HashMap[K]) Get(key K) ({{.PrimType}}, bool) {
+	cap := len(m.keys)
+	if cap == 0 {
+		return {{.PrimZero}}, false
+	}
+	mask := cap - 1
+	idx := int(hashComparable(key)) & mask
+
+	for {
+		if !m.occupied[idx] {
+			return {{.PrimZero}}, false
+		}
+		if m.keys[idx] == key {
+			return m.values[idx], true
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// GetOrDefault returns the value for the given key if present, or the default value otherwise.
+func (m *{{.MapName}}HashMap[K]) GetOrDefault(key K, defaultValue {{.PrimType}}) {{.PrimType}} {
+	if v, ok := m.Get(key); ok {
+		return v
+	}
+	return defaultValue
+}
+
+// Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
+func (m *{{.MapName}}HashMap[K]) Remove(key K) ({{.PrimType}}, bool) {
+	cap := len(m.keys)
+	if cap == 0 {
+		return {{.PrimZero}}, false
+	}
+	mask := cap - 1
+	idx := int(hashComparable(key)) & mask
+
+	for {
+		if !m.occupied[idx] {
+			return {{.PrimZero}}, false
+		}
+		if m.keys[idx] == key {
+			old := m.values[idx]
+			m.occupied[idx] = false
+			var zeroK K
+			m.keys[idx] = zeroK
+			m.values[idx] = {{.PrimZero}}
+			m.size--
+			m.rehashFrom{{.MapName}}HashMap(idx, mask)
+			return old, true
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// ContainsKey returns true if the map contains the given key.
+func (m *{{.MapName}}HashMap[K]) ContainsKey(key K) bool {
+	_, ok := m.Get(key)
+	return ok
+}
+
+// Size returns the number of key-value pairs in the map.
+func (m *{{.MapName}}HashMap[K]) Size() int {
+	return m.size
+}
+
+// IsEmpty returns true if the map contains no entries.
+func (m *{{.MapName}}HashMap[K]) IsEmpty() bool {
+	return m.size == 0
+}
+
+// Clear removes all entries from the map.
+func (m *{{.MapName}}HashMap[K]) Clear() {
+	var zeroK K
+	for i := range m.occupied {
+		m.occupied[i] = false
+		m.keys[i] = zeroK
+		m.values[i] = {{.PrimZero}}
+	}
+	m.size = 0
+}
+
+// All returns an iter.Seq2 that yields all key-value pairs.
+func (m *{{.MapName}}HashMap[K]) All() iter.Seq2[K, {{.PrimType}}] {
+	return func(yield func(K, {{.PrimType}}) bool) {
+		for i := range m.occupied {
+			if m.occupied[i] {
+				if !yield(m.keys[i], m.values[i]) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Keys returns an iter.Seq that yields all keys.
+func (m *{{.MapName}}HashMap[K]) Keys() iter.Seq[K] {
+	return func(yield func(K) bool) {
+		for i := range m.occupied {
+			if m.occupied[i] {
+				if !yield(m.keys[i]) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Values returns an iter.Seq that yields all values.
+func (m *{{.MapName}}HashMap[K]) Values() iter.Seq[{{.PrimType}}] {
+	return func(yield func({{.PrimType}}) bool) {
+		for i := range m.occupied {
+			if m.occupied[i] {
+				if !yield(m.values[i]) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// ForEach calls the given function for each key-value pair.
+func (m *{{.MapName}}HashMap[K]) ForEach(f func(K, {{.PrimType}})) {
+	for i := range m.occupied {
+		if m.occupied[i] {
+			f(m.keys[i], m.values[i])
+		}
+	}
+}
+
+// Select returns a new map containing only entries that satisfy the predicate.
+func (m *{{.MapName}}HashMap[K]) Select(predicate func(K, {{.PrimType}}) bool) *{{.MapName}}HashMap[K] {
+	result := New{{.MapName}}HashMap[K]()
+	for i := range m.occupied {
+		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
+			result.Put(m.keys[i], m.values[i])
+		}
+	}
+	return result
+}
+
+// Reject returns a new map containing only entries that do not satisfy the predicate.
+func (m *{{.MapName}}HashMap[K]) Reject(predicate func(K, {{.PrimType}}) bool) *{{.MapName}}HashMap[K] {
+	result := New{{.MapName}}HashMap[K]()
+	for i := range m.occupied {
+		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
+			result.Put(m.keys[i], m.values[i])
+		}
+	}
+	return result
+}
+
+// String returns a string representation of the map.
+func (m *{{.MapName}}HashMap[K]) String() string {
+	if m.size == 0 {
+		return "{}"
+	}
+	var sb strings.Builder
+	sb.WriteString("{")
+	first := true
+	for i := range m.occupied {
+		if m.occupied[i] {
+			if !first {
+				sb.WriteString(", ")
+			}
+			fmt.Fprintf(&sb, "%v: %v", m.keys[i], m.values[i])
+			first = false
+		}
+	}
+	sb.WriteString("}")
+	return sb.String()
+}
+
+func (m *{{.MapName}}HashMap[K]) needsResize() bool {
+	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+}
+
+func (m *{{.MapName}}HashMap[K]) resize() {
+	oldKeys := m.keys
+	oldValues := m.values
+	oldOccupied := m.occupied
+	newCap := len(oldKeys) * 2
+	if newCap == 0 {
+		newCap = {{.EntryStem}}HashMapDefaultCapacity
+	}
+	m.keys = make([]K, newCap)
+	m.values = make([]{{.PrimType}}, newCap)
+	m.occupied = make([]bool, newCap)
+	m.size = 0
+
+	for i := range oldOccupied {
+		if oldOccupied[i] {
+			m.Put(oldKeys[i], oldValues[i])
+		}
+	}
+}
+
+func (m *{{.MapName}}HashMap[K]) rehashFrom{{.MapName}}HashMap(deleted int, mask int) {
+	idx := (deleted + 1) & mask
+	for m.occupied[idx] {
+		ideal := int(hashComparable(m.keys[idx])) & mask
+		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
+		} else {
+			m.keys[deleted] = m.keys[idx]
+			m.values[deleted] = m.values[idx]
+			m.occupied[deleted] = true
+			m.occupied[idx] = false
+			var zeroK K
+			m.keys[idx] = zeroK
+			m.values[idx] = {{.PrimZero}}
+			deleted = idx
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+func nextPowerOfTwo{{.MapName}}HashMap(n int) int {
+	if n <= 0 {
+		return 16
+	}
+	n--
+	n |= n >> 1
+	n |= n >> 2
+	n |= n >> 4
+	n |= n >> 8
+	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
+	n++
+	return n
+}
+`
+
+const immutableObjectKeyHashMapTmpl = genHeader + `package hashmap
+
+import (
+	"iter"
+)
+
+// Immutable{{.MapName}}HashMap is an immutable view of an {{.MapName}}HashMap.
+type Immutable{{.MapName}}HashMap[K comparable] struct {
+	delegate *{{.MapName}}HashMap[K]
+}
+
+// NewImmutable{{.MapName}}HashMap creates an immutable object-{{.PrimType}} map by copying entries from a mutable map.
+func NewImmutable{{.MapName}}HashMapFrom[K comparable](m *{{.MapName}}HashMap[K]) *Immutable{{.MapName}}HashMap[K] {
+	copy := New{{.MapName}}HashMapWithCapacity[K](m.Size() * 2)
+	m.ForEach(func(k K, v {{.PrimType}}) {
+		copy.Put(k, v)
+	})
+	return &Immutable{{.MapName}}HashMap[K]{delegate: copy}
+}
+
+// Get returns the value for the given key and true if found.
+func (m *Immutable{{.MapName}}HashMap[K]) Get(key K) ({{.PrimType}}, bool) {
+	return m.delegate.Get(key)
+}
+
+// GetOrDefault returns the value for the given key if present, or the default value.
+func (m *Immutable{{.MapName}}HashMap[K]) GetOrDefault(key K, defaultValue {{.PrimType}}) {{.PrimType}} {
+	return m.delegate.GetOrDefault(key, defaultValue)
+}
+
+// ContainsKey returns true if the map contains the given key.
+func (m *Immutable{{.MapName}}HashMap[K]) ContainsKey(key K) bool {
+	return m.delegate.ContainsKey(key)
+}
+
+// Size returns the number of key-value pairs.
+func (m *Immutable{{.MapName}}HashMap[K]) Size() int {
+	return m.delegate.Size()
+}
+
+// IsEmpty returns true if the map contains no entries.
+func (m *Immutable{{.MapName}}HashMap[K]) IsEmpty() bool {
+	return m.delegate.IsEmpty()
+}
+
+// All returns an iter.Seq2 that yields all key-value pairs.
+func (m *Immutable{{.MapName}}HashMap[K]) All() iter.Seq2[K, {{.PrimType}}] {
+	return m.delegate.All()
+}
+
+// Keys returns an iter.Seq that yields all keys.
+func (m *Immutable{{.MapName}}HashMap[K]) Keys() iter.Seq[K] {
+	return m.delegate.Keys()
+}
+
+// Values returns an iter.Seq that yields all values.
+func (m *Immutable{{.MapName}}HashMap[K]) Values() iter.Seq[{{.PrimType}}] {
+	return m.delegate.Values()
+}
+
+// ForEach calls the given function for each key-value pair.
+func (m *Immutable{{.MapName}}HashMap[K]) ForEach(f func(K, {{.PrimType}})) {
+	m.delegate.ForEach(f)
+}
+
+// Select returns a new immutable map with entries satisfying the predicate.
+func (m *Immutable{{.MapName}}HashMap[K]) Select(predicate func(K, {{.PrimType}}) bool) *Immutable{{.MapName}}HashMap[K] {
+	return &Immutable{{.MapName}}HashMap[K]{delegate: m.delegate.Select(predicate)}
+}
+
+// Reject returns a new immutable map with entries not satisfying the predicate.
+func (m *Immutable{{.MapName}}HashMap[K]) Reject(predicate func(K, {{.PrimType}}) bool) *Immutable{{.MapName}}HashMap[K] {
+	return &Immutable{{.MapName}}HashMap[K]{delegate: m.delegate.Reject(predicate)}
+}
+
+// String returns a string representation.
+func (m *Immutable{{.MapName}}HashMap[K]) String() string {
+	return m.delegate.String()
+}
+
+// ToMutable returns a mutable copy of this map.
+func (m *Immutable{{.MapName}}HashMap[K]) ToMutable() *{{.MapName}}HashMap[K] {
+	copy := New{{.MapName}}HashMapWithCapacity[K](m.Size() * 2)
+	m.ForEach(func(k K, v {{.PrimType}}) {
+		copy.Put(k, v)
+	})
+	return copy
+}
+`
+
+const objectValueHashMapTmpl = genHeader + `package hashmap
+
+import (
+	"fmt"
+	"iter"
+{{- if .NeedsMath}}
+	"math"
+{{- end}}
+	"strings"
+{{- if .NeedsUnsafe}}
+	"unsafe"
+{{- end}}
+)
+
+const (
+	{{.EntryStem}}HashMapDefaultCapacity = 16
+	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
+)
+
+// {{.MapName}}HashMap is an open-addressing hash map with {{.PrimType}} keys and generic values.
+// The key type is specialized to avoid boxing overhead.
+type {{.MapName}}HashMap[V any] struct {
+	keys     []{{.PrimType}}
+	values   []V
+	occupied []bool
+	size     int
+}
+
+// New{{.MapName}}HashMap creates a new empty {{.MapName}}HashMap with default capacity.
+func New{{.MapName}}HashMap[V any]() *{{.MapName}}HashMap[V] {
+	return New{{.MapName}}HashMapWithCapacity[V]({{.EntryStem}}HashMapDefaultCapacity)
+}
+
+// New{{.MapName}}HashMapWithCapacity creates a new empty {{.MapName}}HashMap with the given initial capacity.
+func New{{.MapName}}HashMapWithCapacity[V any](capacity int) *{{.MapName}}HashMap[V] {
+	cap := nextPowerOfTwo{{.MapName}}HashMap(capacity)
+	return &{{.MapName}}HashMap[V]{
+		keys:     make([]{{.PrimType}}, cap),
+		values:   make([]V, cap),
+		occupied: make([]bool, cap),
+		size:     0,
+	}
+}
+
+// Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
+func (m *{{.MapName}}HashMap[V]) Put(key {{.PrimType}}, value V) (V, bool) {
+	if m.needsResize() {
+		m.resize()
+	}
+	cap := len(m.keys)
+	mask := cap - 1
+	idx := int(m.hashKey(key)) & mask
+
+	for {
+		if !m.occupied[idx] {
+			m.keys[idx] = key
+			m.values[idx] = value
+			m.occupied[idx] = true
+			m.size++
+			var zero V
+			return zero, false
+		}
+		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
+			old := m.values[idx]
+			m.values[idx] = value
+			return old, true
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// Get returns the value for the given key and true if found, or the zero value and false if not.
+func (m *{{.MapName}}HashMap[V]) Get(key {{.PrimType}}) (V, bool) {
+	cap := len(m.keys)
+	if cap == 0 {
+		var zero V
+		return zero, false
+	}
+	mask := cap - 1
+	idx := int(m.hashKey(key)) & mask
+
+	for {
+		if !m.occupied[idx] {
+			var zero V
+			return zero, false
+		}
+		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
+			return m.values[idx], true
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// GetOrDefault returns the value for the given key if present, or the default value otherwise.
+func (m *{{.MapName}}HashMap[V]) GetOrDefault(key {{.PrimType}}, defaultValue V) V {
+	if v, ok := m.Get(key); ok {
+		return v
+	}
+	return defaultValue
+}
+
+// Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
+func (m *{{.MapName}}HashMap[V]) Remove(key {{.PrimType}}) (V, bool) {
+	cap := len(m.keys)
+	if cap == 0 {
+		var zero V
+		return zero, false
+	}
+	mask := cap - 1
+	idx := int(m.hashKey(key)) & mask
+
+	for {
+		if !m.occupied[idx] {
+			var zero V
+			return zero, false
+		}
+		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
+			old := m.values[idx]
+			m.occupied[idx] = false
+			m.keys[idx] = {{.PrimZero}}
+			var zeroV V
+			m.values[idx] = zeroV
+			m.size--
+			m.rehashFrom(idx, mask)
+			return old, true
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// ContainsKey returns true if the map contains the given key.
+func (m *{{.MapName}}HashMap[V]) ContainsKey(key {{.PrimType}}) bool {
+	_, ok := m.Get(key)
+	return ok
+}
+
+// Size returns the number of key-value pairs in the map.
+func (m *{{.MapName}}HashMap[V]) Size() int {
+	return m.size
+}
+
+// IsEmpty returns true if the map contains no entries.
+func (m *{{.MapName}}HashMap[V]) IsEmpty() bool {
+	return m.size == 0
+}
+
+// Clear removes all entries from the map.
+func (m *{{.MapName}}HashMap[V]) Clear() {
+	var zeroV V
+	for i := range m.occupied {
+		m.occupied[i] = false
+		m.keys[i] = {{.PrimZero}}
+		m.values[i] = zeroV
+	}
+	m.size = 0
+}
+
+// All returns an iter.Seq2 that yields all key-value pairs.
+func (m *{{.MapName}}HashMap[V]) All() iter.Seq2[{{.PrimType}}, V] {
+	return func(yield func({{.PrimType}}, V) bool) {
+		for i := range m.occupied {
+			if m.occupied[i] {
+				if !yield(m.keys[i], m.values[i]) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Keys returns an iter.Seq that yields all keys.
+func (m *{{.MapName}}HashMap[V]) Keys() iter.Seq[{{.PrimType}}] {
+	return func(yield func({{.PrimType}}) bool) {
+		for i := range m.occupied {
+			if m.occupied[i] {
+				if !yield(m.keys[i]) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Values returns an iter.Seq that yields all values.
+func (m *{{.MapName}}HashMap[V]) Values() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for i := range m.occupied {
+			if m.occupied[i] {
+				if !yield(m.values[i]) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// ForEach calls the given function for each key-value pair.
+func (m *{{.MapName}}HashMap[V]) ForEach(f func({{.PrimType}}, V)) {
+	for i := range m.occupied {
+		if m.occupied[i] {
+			f(m.keys[i], m.values[i])
+		}
+	}
+}
+
+// Select returns a new map containing only entries that satisfy the predicate.
+func (m *{{.MapName}}HashMap[V]) Select(predicate func({{.PrimType}}, V) bool) *{{.MapName}}HashMap[V] {
+	result := New{{.MapName}}HashMap[V]()
+	for i := range m.occupied {
+		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
+			result.Put(m.keys[i], m.values[i])
+		}
+	}
+	return result
+}
+
+// Reject returns a new map containing only entries that do not satisfy the predicate.
+func (m *{{.MapName}}HashMap[V]) Reject(predicate func({{.PrimType}}, V) bool) *{{.MapName}}HashMap[V] {
+	result := New{{.MapName}}HashMap[V]()
+	for i := range m.occupied {
+		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
+			result.Put(m.keys[i], m.values[i])
+		}
+	}
+	return result
+}
+
+// String returns a string representation of the map.
+func (m *{{.MapName}}HashMap[V]) String() string {
+	if m.size == 0 {
+		return "{}"
+	}
+	var sb strings.Builder
+	sb.WriteString("{")
+	first := true
+	for i := range m.occupied {
+		if m.occupied[i] {
+			if !first {
+				sb.WriteString(", ")
+			}
+			fmt.Fprintf(&sb, "%v: %v", m.keys[i], m.values[i])
+			first = false
+		}
+	}
+	sb.WriteString("}")
+	return sb.String()
+}
+
+func (m *{{.MapName}}HashMap[V]) hashKey(key {{.PrimType}}) uint64 {
+	return func() uint64 { h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+}
+
+func (m *{{.MapName}}HashMap[V]) needsResize() bool {
+	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+}
+
+func (m *{{.MapName}}HashMap[V]) resize() {
+	oldKeys := m.keys
+	oldValues := m.values
+	oldOccupied := m.occupied
+	newCap := len(oldKeys) * 2
+	if newCap == 0 {
+		newCap = {{.EntryStem}}HashMapDefaultCapacity
+	}
+	m.keys = make([]{{.PrimType}}, newCap)
+	m.values = make([]V, newCap)
+	m.occupied = make([]bool, newCap)
+	m.size = 0
+
+	for i := range oldOccupied {
+		if oldOccupied[i] {
+			m.Put(oldKeys[i], oldValues[i])
+		}
+	}
+}
+
+func (m *{{.MapName}}HashMap[V]) rehashFrom(deleted int, mask int) {
+	idx := (deleted + 1) & mask
+	for m.occupied[idx] {
+		ideal := int(m.hashKey(m.keys[idx])) & mask
+		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
+		} else {
+			m.keys[deleted] = m.keys[idx]
+			m.values[deleted] = m.values[idx]
+			m.occupied[deleted] = true
+			m.occupied[idx] = false
+			m.keys[idx] = {{.PrimZero}}
+			var zeroV V
+			m.values[idx] = zeroV
+			deleted = idx
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+func nextPowerOfTwo{{.MapName}}HashMap(n int) int {
+	if n <= 0 {
+		return 16
+	}
+	n--
+	n |= n >> 1
+	n |= n >> 2
+	n |= n >> 4
+	n |= n >> 8
+	n |= n >> 16
+	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
+	n++
+	return n
+}
+`
+
+const immutableObjectValueHashMapTmpl = genHeader + `package hashmap
+
+import (
+	"iter"
+)
+
+// Immutable{{.MapName}}HashMap is an immutable view of a {{.MapName}}HashMap.
+type Immutable{{.MapName}}HashMap[V any] struct {
+	delegate *{{.MapName}}HashMap[V]
+}
+
+// NewImmutable{{.MapName}}HashMapFrom creates an immutable {{.PrimType}}-object map by copying entries from a mutable map.
+func NewImmutable{{.MapName}}HashMapFrom[V any](m *{{.MapName}}HashMap[V]) *Immutable{{.MapName}}HashMap[V] {
+	copy := New{{.MapName}}HashMapWithCapacity[V](m.Size() * 2)
+	m.ForEach(func(k {{.PrimType}}, v V) {
+		copy.Put(k, v)
+	})
+	return &Immutable{{.MapName}}HashMap[V]{delegate: copy}
+}
+
+// Get returns the value for the given key and true if found.
+func (m *Immutable{{.MapName}}HashMap[V]) Get(key {{.PrimType}}) (V, bool) {
+	return m.delegate.Get(key)
+}
+
+// GetOrDefault returns the value for the given key if present, or the default value.
+func (m *Immutable{{.MapName}}HashMap[V]) GetOrDefault(key {{.PrimType}}, defaultValue V) V {
+	return m.delegate.GetOrDefault(key, defaultValue)
+}
+
+// ContainsKey returns true if the map contains the given key.
+func (m *Immutable{{.MapName}}HashMap[V]) ContainsKey(key {{.PrimType}}) bool {
+	return m.delegate.ContainsKey(key)
+}
+
+// Size returns the number of key-value pairs.
+func (m *Immutable{{.MapName}}HashMap[V]) Size() int {
+	return m.delegate.Size()
+}
+
+// IsEmpty returns true if the map contains no entries.
+func (m *Immutable{{.MapName}}HashMap[V]) IsEmpty() bool {
+	return m.delegate.IsEmpty()
+}
+
+// All returns an iter.Seq2 that yields all key-value pairs.
+func (m *Immutable{{.MapName}}HashMap[V]) All() iter.Seq2[{{.PrimType}}, V] {
+	return m.delegate.All()
+}
+
+// Keys returns an iter.Seq that yields all keys.
+func (m *Immutable{{.MapName}}HashMap[V]) Keys() iter.Seq[{{.PrimType}}] {
+	return m.delegate.Keys()
+}
+
+// Values returns an iter.Seq that yields all values.
+func (m *Immutable{{.MapName}}HashMap[V]) Values() iter.Seq[V] {
+	return m.delegate.Values()
+}
+
+// ForEach calls the given function for each key-value pair.
+func (m *Immutable{{.MapName}}HashMap[V]) ForEach(f func({{.PrimType}}, V)) {
+	m.delegate.ForEach(f)
+}
+
+// Select returns a new immutable map with entries satisfying the predicate.
+func (m *Immutable{{.MapName}}HashMap[V]) Select(predicate func({{.PrimType}}, V) bool) *Immutable{{.MapName}}HashMap[V] {
+	return &Immutable{{.MapName}}HashMap[V]{delegate: m.delegate.Select(predicate)}
+}
+
+// Reject returns a new immutable map with entries not satisfying the predicate.
+func (m *Immutable{{.MapName}}HashMap[V]) Reject(predicate func({{.PrimType}}, V) bool) *Immutable{{.MapName}}HashMap[V] {
+	return &Immutable{{.MapName}}HashMap[V]{delegate: m.delegate.Reject(predicate)}
+}
+
+// String returns a string representation.
+func (m *Immutable{{.MapName}}HashMap[V]) String() string {
+	return m.delegate.String()
+}
+
+// ToMutable returns a mutable copy of this map.
+func (m *Immutable{{.MapName}}HashMap[V]) ToMutable() *{{.MapName}}HashMap[V] {
+	copy := New{{.MapName}}HashMapWithCapacity[V](m.Size() * 2)
+	m.ForEach(func(k {{.PrimType}}, v V) {
+		copy.Put(k, v)
+	})
+	return copy
 }
 `

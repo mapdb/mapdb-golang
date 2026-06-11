@@ -815,7 +815,8 @@ func (e {{.MapName}}Entry) AndModify(f func(*{{.ValType}})) {{.MapName}}Entry {
 }
 
 func (m *{{.MapName}}HashMap) hashKey(key {{.KeyType}}) uint64 {
-	return func() uint64 { h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (m *{{.MapName}}HashMap) needsResize() bool {
@@ -2189,7 +2190,8 @@ func (m *{{.MapName}}HashMap[V]) String() string {
 }
 
 func (m *{{.MapName}}HashMap[V]) hashKey(key {{.PrimType}}) uint64 {
-	return func() uint64 { h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (m *{{.MapName}}HashMap[V]) needsResize() bool {

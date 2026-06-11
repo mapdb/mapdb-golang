@@ -466,15 +466,13 @@ func (s *{{.Name}}HashSet) Equals(other *{{.Name}}HashSet) bool {
 
 func (s *{{.Name}}HashSet) hash(value {{.GoType}}) uint64 {
 {{- if .IsBool}}
-	return func() uint64 {
-		if value {
-			return 1
-		} else {
-			return 0
-		}
-	}()
+	if value {
+		return 1
+	}
+	return 0
 {{- else}}
-	return func() uint64 { h := {{.HashExpr}} * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := {{.HashExpr}} * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 {{- end}}
 }
 

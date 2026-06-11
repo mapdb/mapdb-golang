@@ -519,7 +519,8 @@ func (e CharInt8Entry) AndModify(f func(*int8)) CharInt8Entry {
 }
 
 func (m *CharInt8HashMap) hashKey(key uint16) uint64 {
-	return func() uint64 { h := uint64(key) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := uint64(key) * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (m *CharInt8HashMap) needsResize() bool {

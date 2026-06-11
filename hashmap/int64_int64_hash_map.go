@@ -519,7 +519,8 @@ func (e Int64Int64Entry) AndModify(f func(*int64)) Int64Int64Entry {
 }
 
 func (m *Int64Int64HashMap) hashKey(key int64) uint64 {
-	return func() uint64 { h := uint64(key) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := uint64(key) * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (m *Int64Int64HashMap) needsResize() bool {

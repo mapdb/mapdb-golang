@@ -357,13 +357,10 @@ func (s *BoolHashSet) Equals(other *BoolHashSet) bool {
 }
 
 func (s *BoolHashSet) hash(value bool) uint64 {
-	return func() uint64 {
-		if value {
-			return 1
-		} else {
-			return 0
-		}
-	}()
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func (s *BoolHashSet) needsResize() bool {

@@ -357,7 +357,8 @@ func (s *Int8HashSet) Equals(other *Int8HashSet) bool {
 }
 
 func (s *Int8HashSet) hash(value int8) uint64 {
-	return func() uint64 { h := uint64(value) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := uint64(value) * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (s *Int8HashSet) needsResize() bool {

@@ -357,7 +357,8 @@ func (s *CharHashSet) Equals(other *CharHashSet) bool {
 }
 
 func (s *CharHashSet) hash(value uint16) uint64 {
-	return func() uint64 { h := uint64(value) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := uint64(value) * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (s *CharHashSet) needsResize() bool {

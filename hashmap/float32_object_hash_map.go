@@ -245,10 +245,8 @@ func (m *Float32ObjectHashMap[V]) String() string {
 }
 
 func (m *Float32ObjectHashMap[V]) hashKey(key float32) uint64 {
-	return func() uint64 {
-		h := uint64(*(*uint32)(unsafe.Pointer(&key))) * 0x9E3779B97F4A7C15
-		return h ^ (h >> 32)
-	}()
+	h := uint64(*(*uint32)(unsafe.Pointer(&key))) * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (m *Float32ObjectHashMap[V]) needsResize() bool {

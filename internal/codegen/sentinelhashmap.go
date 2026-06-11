@@ -623,7 +623,8 @@ func (m *{{.MapName}}SentinelHashMap) String() string {
 }
 
 func (m *{{.MapName}}SentinelHashMap) hashKey(key {{.KeyType}}) uint64 {
-	return func() uint64 { h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (m *{{.MapName}}SentinelHashMap) needsResize() bool {

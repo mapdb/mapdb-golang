@@ -521,7 +521,8 @@ func (e Float64Int8Entry) AndModify(f func(*int8)) Float64Int8Entry {
 }
 
 func (m *Float64Int8HashMap) hashKey(key float64) uint64 {
-	return func() uint64 { h := *(*uint64)(unsafe.Pointer(&key)) * 0x9E3779B97F4A7C15; return h ^ (h >> 32) }()
+	h := *(*uint64)(unsafe.Pointer(&key)) * 0x9E3779B97F4A7C15
+	return h ^ (h >> 32)
 }
 
 func (m *Float64Int8HashMap) needsResize() bool {

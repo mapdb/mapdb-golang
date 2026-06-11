@@ -80,6 +80,11 @@ type hmData struct {
 	// EntryStem is the lower-camel struct stem, e.g. int32Float32 (used for
 	// int32Float32HashMapEntry / the Entry type Int32Float32Entry uses MapName).
 	EntryStem string // int32Float32
+
+	// RevName is the transposed (value→key) identifier stem, e.g. Float32Int32
+	// for an Int32Float32 bimap. The bidirectional map's reverse inner map is a
+	// *<RevName>HashMap, and Inverse() returns *<RevName>HashBiMap.
+	RevName string // Float32Int32
 }
 
 // keyHashExpr returns the per-key-type inner operand of the golden-ratio
@@ -98,8 +103,9 @@ func keyHashExpr(p Primitive) string {
 }
 
 // genHashMap writes the 7×7 = 49 prim×prim hash map sources for each of the
-// base, immutable, and synchronized variants (147 files) into the current
-// working directory. Invoked from hashmap/ via go:generate.
+// base, immutable, and synchronized variants (147 files) plus the 49 prim×prim
+// bidirectional maps (*_hash_bi_map.go) into the current working directory.
+// Invoked from hashmap/ via go:generate.
 func genHashMap() error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -109,6 +115,7 @@ func genHashMap() error {
 	base := template.Must(template.New("hm-base").Parse(hashMapTmpl))
 	immutable := template.Must(template.New("hm-immutable").Parse(immutableHashMapTmpl))
 	synchronized := template.Must(template.New("hm-sync").Parse(synchronizedHashMapTmpl))
+	bimap := template.Must(template.New("hm-bimap").Parse(hashBiMapTmpl))
 
 	write := func(name string, tmpl *template.Template, data hmData) error {
 		var buf bytes.Buffer
@@ -148,6 +155,7 @@ func genHashMap() error {
 				MapName:   k.Name + v.Name,
 				MapSnake:  k.SnakeName + "_" + v.SnakeName,
 				EntryStem: lowerFirst(k.Name) + v.Name,
+				RevName:   v.Name + k.Name,
 			}
 			if k.IsFloating {
 				data.KeyZero = "0.0"
@@ -171,6 +179,9 @@ func genHashMap() error {
 				return err
 			}
 			if err := write("synchronized_"+data.MapSnake+"_hash_map.go", synchronized, data); err != nil {
+				return err
+			}
+			if err := write(data.MapSnake+"_hash_bi_map.go", bimap, data); err != nil {
 				return err
 			}
 		}
@@ -1279,4 +1290,166 @@ func (m *Synchronized{{.MapName}}HashMap) Equals(other *Synchronized{{.MapName}}
 // the wrapper. If you need atomic check-and-modify under the synchronized
 // wrapper, use UpdateValue or take the wrapper's lock externally and
 // call into the delegate directly via a helper.
+`
+
+const hashBiMapTmpl = genHeader + `package hashmap
+
+import (
+	"fmt"
+	"iter"
+{{- if .KeyIsFloat}}
+	"math"
+{{- end}}
+	"strings"
+)
+
+// {{.MapName}}HashBiMap is a bidirectional map with {{.KeyType}} keys and {{.ValType}} values.
+// Both key-to-value and value-to-key lookups are O(1).
+type {{.MapName}}HashBiMap struct {
+	forward *{{.MapName}}HashMap
+	reverse *{{.RevName}}HashMap
+}
+
+// New{{.MapName}}HashBiMap creates a new empty {{.MapName}}HashBiMap with default capacity.
+func New{{.MapName}}HashBiMap() *{{.MapName}}HashBiMap {
+	return &{{.MapName}}HashBiMap{
+		forward: New{{.MapName}}HashMap(),
+		reverse: New{{.RevName}}HashMap(),
+	}
+}
+
+// New{{.MapName}}HashBiMapWithCapacity creates a new empty {{.MapName}}HashBiMap with the given initial capacity.
+func New{{.MapName}}HashBiMapWithCapacity(capacity int) *{{.MapName}}HashBiMap {
+	return &{{.MapName}}HashBiMap{
+		forward: New{{.MapName}}HashMapWithCapacity(capacity),
+		reverse: New{{.RevName}}HashMapWithCapacity(capacity),
+	}
+}
+
+// Put inserts or updates a key-value pair in both directions.
+// If the key already existed, the old value mapping is removed from the reverse map.
+// If the value already existed as a value for a different key, that old key mapping is removed.
+// Returns the previous value and true if the key existed.
+func (m *{{.MapName}}HashBiMap) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
+	// If this value is already mapped to a different key, remove that old key->value pair
+	if oldKey, ok := m.reverse.Get(value); ok {
+		if !({{if .KeyIsFloat}}{{.KeyBitsFn}}(oldKey) == {{.KeyBitsFn}}(key){{else}}oldKey == key{{end}}) {
+			m.forward.Remove(oldKey)
+		}
+	}
+
+	// If this key already has a value, remove the old value->key reverse mapping
+	oldVal, existed := m.forward.Get(key)
+	if existed {
+		m.reverse.Remove(oldVal)
+	}
+
+	m.forward.Put(key, value)
+	m.reverse.Put(value, key)
+	return oldVal, existed
+}
+
+// Get returns the value for the given key and true if found, or the zero value and false if not.
+func (m *{{.MapName}}HashBiMap) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
+	return m.forward.Get(key)
+}
+
+// GetKey returns the key for the given value and true if found, or the zero value and false if not.
+func (m *{{.MapName}}HashBiMap) GetKey(value {{.ValType}}) ({{.KeyType}}, bool) {
+	return m.reverse.Get(value)
+}
+
+// Remove deletes the entry for the given key from both directions.
+// Returns the previous value and true if the key existed.
+func (m *{{.MapName}}HashBiMap) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
+	oldVal, existed := m.forward.Remove(key)
+	if existed {
+		m.reverse.Remove(oldVal)
+	}
+	return oldVal, existed
+}
+
+// RemoveValue deletes the entry for the given value from both directions.
+// Returns the previous key and true if the value existed.
+func (m *{{.MapName}}HashBiMap) RemoveValue(value {{.ValType}}) ({{.KeyType}}, bool) {
+	oldKey, existed := m.reverse.Remove(value)
+	if existed {
+		m.forward.Remove(oldKey)
+	}
+	return oldKey, existed
+}
+
+// ContainsKey returns true if the map contains the given key.
+func (m *{{.MapName}}HashBiMap) ContainsKey(key {{.KeyType}}) bool {
+	return m.forward.ContainsKey(key)
+}
+
+// ContainsValue returns true if the map contains the given value.
+func (m *{{.MapName}}HashBiMap) ContainsValue(value {{.ValType}}) bool {
+	return m.reverse.ContainsKey(value)
+}
+
+// Size returns the number of key-value pairs in the map.
+func (m *{{.MapName}}HashBiMap) Size() int {
+	return m.forward.Size()
+}
+
+// IsEmpty returns true if the map contains no entries.
+func (m *{{.MapName}}HashBiMap) IsEmpty() bool {
+	return m.forward.IsEmpty()
+}
+
+// Clear removes all entries from both directions.
+func (m *{{.MapName}}HashBiMap) Clear() {
+	m.forward.Clear()
+	m.reverse.Clear()
+}
+
+// ForEach calls the given function for each key-value pair.
+func (m *{{.MapName}}HashBiMap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
+	m.forward.ForEach(f)
+}
+
+// Keys returns an iter.Seq that yields all keys.
+func (m *{{.MapName}}HashBiMap) Keys() iter.Seq[{{.KeyType}}] {
+	return m.forward.Keys()
+}
+
+// Values returns an iter.Seq that yields all values.
+func (m *{{.MapName}}HashBiMap) Values() iter.Seq[{{.ValType}}] {
+	return m.forward.Values()
+}
+
+// Inverse returns a new {{.RevName}}HashBiMap with keys and values swapped.
+func (m *{{.MapName}}HashBiMap) Inverse() *{{.RevName}}HashBiMap {
+	result := New{{.RevName}}HashBiMap()
+	m.forward.ForEach(func(k {{.KeyType}}, v {{.ValType}}) {
+		result.Put(v, k)
+	})
+	return result
+}
+
+// String returns a string representation of the bi-map.
+func (m *{{.MapName}}HashBiMap) String() string {
+	if m.forward.Size() == 0 {
+		return "{}"
+	}
+	var sb strings.Builder
+	sb.WriteString("{")
+	first := true
+	m.forward.ForEach(func(k {{.KeyType}}, v {{.ValType}}) {
+		if !first {
+			sb.WriteString(", ")
+		}
+		fmt.Fprintf(&sb, "%v: %v", k, v)
+		first = false
+	})
+	sb.WriteString("}")
+	return sb.String()
+}
+
+// Equals returns true if the other bi-map has the same key-value pairs.
+func (m *{{.MapName}}HashBiMap) Equals(other *{{.MapName}}HashBiMap) bool {
+	return m.forward.Equals(other.forward)
+}
 `

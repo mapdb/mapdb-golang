@@ -12,7 +12,7 @@
 //
 //	//go:generate go run ../internal/codegen <collection>
 //
-// where <collection> is one of: arraylist, interval, hashset, stack.
+// where <collection> is one of: arraylist, interval, hashset, stack, deque.
 //
 // Drift guard: `go generate ./... && git diff --exit-code` is sufficient.
 package main
@@ -37,6 +37,8 @@ func main() {
 		err = genHashSet()
 	case "stack":
 		err = genStack()
+	case "deque":
+		err = genDeque()
 	default:
 		err = fmt.Errorf("unknown collection %q", os.Args[1])
 	}

@@ -13,7 +13,7 @@
 //	//go:generate go run ../internal/codegen <collection>
 //
 // where <collection> is one of: arraylist, interval, hashset, stack, deque,
-// treeset, treemap, priority_queue, bag.
+// treeset, treemap, hashmap, priority_queue, bag.
 //
 // Drift guard: `go generate ./... && git diff --exit-code` is sufficient.
 package main
@@ -44,6 +44,8 @@ func main() {
 		err = genTreeSet()
 	case "treemap":
 		err = genTreeMap()
+	case "hashmap":
+		err = genHashMap()
 	case "priority_queue":
 		err = genPriorityQueue()
 	case "bag":

@@ -386,7 +386,7 @@ func (l *{{.Name}}ArrayList) BinarySearch(value {{.GoType}}) (int, bool) {
 		if {{if .IsFloat}}{{.BitsFn}}(l.items[mid]) == {{.BitsFn}}(value){{else}}l.items[mid] == value{{end}} {
 			return mid, true
 		}
-		if l.items[mid] < value {
+		if {{if .IsFloat}}{{.CmpFn}}(l.items[mid], value) < 0{{else}}l.items[mid] < value{{end}} {
 			lo = mid + 1
 		} else {
 			hi = mid - 1

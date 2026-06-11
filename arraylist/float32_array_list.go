@@ -295,7 +295,7 @@ func (l *Float32ArrayList) BinarySearch(value float32) (int, bool) {
 		if math.Float32bits(l.items[mid]) == math.Float32bits(value) {
 			return mid, true
 		}
-		if l.items[mid] < value {
+		if cmpFloat32(l.items[mid], value) < 0 {
 			lo = mid + 1
 		} else {
 			hi = mid - 1

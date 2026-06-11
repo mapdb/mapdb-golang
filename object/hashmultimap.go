@@ -41,12 +41,18 @@ func NewHashMultimapWithCapacity[K comparable, V any](keyCapacity int) *HashMult
 
 // Put appends v to the list at key k.
 func (h *HashMultimap[K, V]) Put(k K, v V) {
+	if h.m == nil {
+		h.m = make(map[K][]V)
+	}
 	h.m[k] = append(h.m[k], v)
 	h.totalSize++
 }
 
 // PutAll appends every value in values to the list at key k.
 func (h *HashMultimap[K, V]) PutAll(k K, values ...V) {
+	if h.m == nil {
+		h.m = make(map[K][]V)
+	}
 	h.m[k] = append(h.m[k], values...)
 	h.totalSize += len(values)
 }
@@ -118,6 +124,10 @@ func (h *HashMultimap[K, V]) RemoveMatching(k K, target V, eq func(V, V) bool) i
 
 // Size returns the total number of values stored across all keys.
 func (h *HashMultimap[K, V]) Size() int { return h.totalSize }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (h *HashMultimap[K, V]) Len() int { return h.Size() }
 
 // SizeDistinct returns the number of distinct keys.
 func (h *HashMultimap[K, V]) SizeDistinct() int { return len(h.m) }

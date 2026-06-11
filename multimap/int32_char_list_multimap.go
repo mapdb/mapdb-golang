@@ -24,6 +24,9 @@ func NewInt32CharListMultimap() *Int32CharListMultimap {
 
 // Put adds a value to the list for the given key.
 func (m *Int32CharListMultimap) Put(key int32, value uint16) {
+	if m.data == nil {
+		m.data = make(map[int32][]uint16)
+	}
 	m.data[key] = append(m.data[key], value)
 	m.size++
 }
@@ -84,6 +87,10 @@ func (m *Int32CharListMultimap) KeysCount() int {
 func (m *Int32CharListMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Int32CharListMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *Int32CharListMultimap) IsEmpty() bool {

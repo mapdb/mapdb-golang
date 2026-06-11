@@ -25,6 +25,9 @@ func NewCharInt8SetMultimap() *CharInt8SetMultimap {
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
 func (m *CharInt8SetMultimap) Put(key uint16, value int8) {
+	if m.data == nil {
+		m.data = make(map[uint16][]int8)
+	}
 	for _, existing := range m.data[key] {
 		if existing == value {
 			return
@@ -90,6 +93,10 @@ func (m *CharInt8SetMultimap) KeysCount() int {
 func (m *CharInt8SetMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *CharInt8SetMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *CharInt8SetMultimap) IsEmpty() bool {

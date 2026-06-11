@@ -152,6 +152,10 @@ func (q *{{.Name}}PriorityQueue) Peek() ({{.GoType}}, error) {
 // Size returns the number of elements in the queue.
 func (q *{{.Name}}PriorityQueue) Size() int { return len(q.items) }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (q *{{.Name}}PriorityQueue) Len() int { return q.Size() }
+
 // IsEmpty returns true if the queue has no elements.
 func (q *{{.Name}}PriorityQueue) IsEmpty() bool { return len(q.items) == 0 }
 
@@ -286,6 +290,10 @@ func (q *Synchronized{{.Name}}PriorityQueue) Size() int {
 	defer q.mu.RUnlock()
 	return q.delegate.Size()
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (q *Synchronized{{.Name}}PriorityQueue) Len() int { return q.Size() }
 
 func (q *Synchronized{{.Name}}PriorityQueue) IsEmpty() bool {
 	q.mu.RLock()

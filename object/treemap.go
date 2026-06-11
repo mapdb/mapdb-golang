@@ -95,7 +95,11 @@ func (m *TreeMap[K, V]) Remove(key K) (V, bool) {
 	return old, true
 }
 
-func (m *TreeMap[K, V]) Size() int     { return m.size }
+func (m *TreeMap[K, V]) Size() int { return m.size }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *TreeMap[K, V]) Len() int      { return m.Size() }
 func (m *TreeMap[K, V]) IsEmpty() bool { return m.size == 0 }
 
 func (m *TreeMap[K, V]) Clear() {

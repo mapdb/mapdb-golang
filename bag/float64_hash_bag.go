@@ -45,6 +45,9 @@ func Float64HashBagOf(values ...float64) *Float64HashBag {
 
 // Add adds one occurrence of the value.
 func (b *Float64HashBag) Add(value float64) {
+	if b.counts == nil {
+		b.counts = make(map[uint64]float64BagEntry)
+	}
 	k := math.Float64bits(value)
 	e := b.counts[k]
 	e.value = value
@@ -62,6 +65,9 @@ func (b *Float64HashBag) AddOccurrences(value float64, occurrences int) int {
 	k := math.Float64bits(value)
 	if occurrences == 0 {
 		return b.counts[k].count
+	}
+	if b.counts == nil {
+		b.counts = make(map[uint64]float64BagEntry)
 	}
 	e := b.counts[k]
 	e.value = value
@@ -135,6 +141,10 @@ func (b *Float64HashBag) Contains(value float64) bool {
 func (b *Float64HashBag) Size() int {
 	return b.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *Float64HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
 func (b *Float64HashBag) SizeDistinct() int {

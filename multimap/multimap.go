@@ -22,12 +22,18 @@ func NewMultimap[K comparable, V any]() *Multimap[K, V] {
 
 // Put adds a value for the key. Always appends (does not check for duplicates).
 func (m *Multimap[K, V]) Put(key K, value V) {
+	if m.data == nil {
+		m.data = make(map[K][]V)
+	}
 	m.data[key] = append(m.data[key], value)
 	m.size++
 }
 
 // PutAll adds multiple values for the key.
 func (m *Multimap[K, V]) PutAll(key K, values ...V) {
+	if m.data == nil {
+		m.data = make(map[K][]V)
+	}
 	m.data[key] = append(m.data[key], values...)
 	m.size += len(values)
 }
@@ -61,6 +67,10 @@ func (m *Multimap[K, V]) RemoveAll(key K) []V {
 
 // Size returns total number of values across all keys.
 func (m *Multimap[K, V]) Size() int { return m.size }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Multimap[K, V]) Len() int { return m.Size() }
 
 // SizeDistinct returns the number of distinct keys.
 func (m *Multimap[K, V]) SizeDistinct() int { return len(m.data) }

@@ -34,7 +34,11 @@ func NewHashSetFrom[T comparable](values ...T) *HashSet[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (s *HashSet[T]) Size() int     { return len(s.m) }
+func (s *HashSet[T]) Size() int { return len(s.m) }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *HashSet[T]) Len() int      { return s.Size() }
 func (s *HashSet[T]) IsEmpty() bool { return len(s.m) == 0 }
 
 // ── Iterable ──────────────────────────────────────────────────────────
@@ -102,6 +106,9 @@ func (s *HashSet[T]) ToSlice() []T {
 // ── MutableSet ────────────────────────────────────────────────────────
 
 func (s *HashSet[T]) Add(value T) bool {
+	if s.m == nil {
+		s.m = make(map[T]struct{})
+	}
 	if _, ok := s.m[value]; ok {
 		return false
 	}

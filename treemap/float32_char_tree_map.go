@@ -106,6 +106,10 @@ func (m *Float32CharTreeMap) Size() int {
 	return m.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Float32CharTreeMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map is empty.
 func (m *Float32CharTreeMap) IsEmpty() bool {
 	return m.size == 0

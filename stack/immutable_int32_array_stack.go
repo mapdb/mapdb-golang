@@ -43,6 +43,10 @@ func (s *ImmutableInt32ArrayStack) Size() int {
 	return s.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *ImmutableInt32ArrayStack) Len() int { return s.Size() }
+
 // IsEmpty returns true if the stack contains no elements.
 func (s *ImmutableInt32ArrayStack) IsEmpty() bool {
 	return s.delegate.IsEmpty()

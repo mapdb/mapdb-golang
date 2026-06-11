@@ -107,6 +107,10 @@ func (l *Int32ArrayList) IndexOf(value int32) int {
 // Size returns the number of elements in the list.
 func (l *Int32ArrayList) Size() int { return len(l.items) }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (l *Int32ArrayList) Len() int { return l.Size() }
+
 // IsEmpty returns true if the list contains no elements.
 func (l *Int32ArrayList) IsEmpty() bool { return len(l.items) == 0 }
 

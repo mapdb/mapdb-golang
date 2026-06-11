@@ -34,6 +34,9 @@ func Int64HashBagOf(values ...int64) *Int64HashBag {
 
 // Add adds one occurrence of the value.
 func (b *Int64HashBag) Add(value int64) {
+	if b.counts == nil {
+		b.counts = make(map[int64]int)
+	}
 	b.counts[value]++
 	b.size++
 }
@@ -46,6 +49,9 @@ func (b *Int64HashBag) AddOccurrences(value int64, occurrences int) int {
 	}
 	if occurrences == 0 {
 		return b.counts[value]
+	}
+	if b.counts == nil {
+		b.counts = make(map[int64]int)
 	}
 	b.counts[value] += occurrences
 	b.size += occurrences
@@ -111,6 +117,10 @@ func (b *Int64HashBag) Contains(value int64) bool {
 func (b *Int64HashBag) Size() int {
 	return b.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *Int64HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
 func (b *Int64HashBag) SizeDistinct() int {

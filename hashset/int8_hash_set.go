@@ -125,6 +125,10 @@ func (s *Int8HashSet) Size() int {
 	return s.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Int8HashSet) Len() int { return s.Size() }
+
 // IsEmpty returns true if the set contains no elements.
 func (s *Int8HashSet) IsEmpty() bool {
 	return s.size == 0

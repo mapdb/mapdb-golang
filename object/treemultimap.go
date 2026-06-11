@@ -118,6 +118,10 @@ func (t *TreeMultimap[K, V]) RemoveMatching(k K, target V, eq func(V, V) bool) i
 // Size returns the total number of values.
 func (t *TreeMultimap[K, V]) Size() int { return t.totalSize }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (t *TreeMultimap[K, V]) Len() int { return t.Size() }
+
 // SizeDistinct returns the number of distinct keys.
 func (t *TreeMultimap[K, V]) SizeDistinct() int { return t.tm.Size() }
 

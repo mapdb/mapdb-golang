@@ -67,6 +67,10 @@ func (s *Int16ArrayStack) Size() int {
 	return len(s.items)
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Int16ArrayStack) Len() int { return s.Size() }
+
 // IsEmpty returns true if the stack contains no elements.
 func (s *Int16ArrayStack) IsEmpty() bool {
 	return len(s.items) == 0

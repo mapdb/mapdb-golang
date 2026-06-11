@@ -7,7 +7,6 @@ import (
 	"iter"
 	"math"
 	"strings"
-	"unsafe"
 )
 
 const (
@@ -267,6 +266,10 @@ func (m *Float64CharSentinelHashMap) Size() int {
 	return m.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Float64CharSentinelHashMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *Float64CharSentinelHashMap) IsEmpty() bool {
 	return m.size == 0
@@ -451,7 +454,7 @@ func (m *Float64CharSentinelHashMap) String() string {
 }
 
 func (m *Float64CharSentinelHashMap) hashKey(key float64) uint64 {
-	h := *(*uint64)(unsafe.Pointer(&key)) * 0x9E3779B97F4A7C15
+	h := math.Float64bits(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 

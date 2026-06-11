@@ -167,6 +167,10 @@ func (s *{{.Name}}TreeSet) Contains(value {{.GoType}}) bool {
 // Size returns the number of elements.
 func (s *{{.Name}}TreeSet) Size() int { return s.size }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *{{.Name}}TreeSet) Len() int { return s.Size() }
+
 // IsEmpty returns true if the set is empty.
 func (s *{{.Name}}TreeSet) IsEmpty() bool { return s.size == 0 }
 

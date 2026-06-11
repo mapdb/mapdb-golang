@@ -48,7 +48,11 @@ func (h *HashMap[K, V]) ContainsKey(key K) bool {
 	return ok
 }
 
-func (h *HashMap[K, V]) Size() int     { return len(h.m) }
+func (h *HashMap[K, V]) Size() int { return len(h.m) }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (h *HashMap[K, V]) Len() int      { return h.Size() }
 func (h *HashMap[K, V]) IsEmpty() bool { return len(h.m) == 0 }
 
 func (h *HashMap[K, V]) All() iter.Seq2[K, V] {
@@ -117,6 +121,9 @@ func (h *HashMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
 // ── MutableMap ────────────────────────────────────────────────────────
 
 func (h *HashMap[K, V]) Put(key K, value V) (V, bool) {
+	if h.m == nil {
+		h.m = make(map[K]V)
+	}
 	old, existed := h.m[key]
 	h.m[key] = value
 	return old, existed

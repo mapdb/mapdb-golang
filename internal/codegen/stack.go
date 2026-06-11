@@ -140,6 +140,10 @@ func (s *{{.Name}}ArrayStack) Size() int {
 	return len(s.items)
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *{{.Name}}ArrayStack) Len() int { return s.Size() }
+
 // IsEmpty returns true if the stack contains no elements.
 func (s *{{.Name}}ArrayStack) IsEmpty() bool {
 	return len(s.items) == 0
@@ -370,6 +374,10 @@ func (s *Immutable{{.Name}}ArrayStack) Size() int {
 	return s.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Immutable{{.Name}}ArrayStack) Len() int { return s.Size() }
+
 // IsEmpty returns true if the stack contains no elements.
 func (s *Immutable{{.Name}}ArrayStack) IsEmpty() bool {
 	return s.delegate.IsEmpty()
@@ -547,6 +555,10 @@ func (s *Synchronized{{.Name}}ArrayStack) Size() int {
 	defer s.mu.RUnlock()
 	return s.delegate.Size()
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Synchronized{{.Name}}ArrayStack) Len() int { return s.Size() }
 
 func (s *Synchronized{{.Name}}ArrayStack) IsEmpty() bool {
 	s.mu.RLock()

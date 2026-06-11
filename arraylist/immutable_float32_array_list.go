@@ -32,6 +32,10 @@ func (l *ImmutableFloat32ArrayList) Size() int {
 	return l.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (l *ImmutableFloat32ArrayList) Len() int { return l.Size() }
+
 // IsEmpty returns true if the list contains no elements.
 func (l *ImmutableFloat32ArrayList) IsEmpty() bool {
 	return l.delegate.IsEmpty()

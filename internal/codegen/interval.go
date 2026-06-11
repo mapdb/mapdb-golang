@@ -140,6 +140,10 @@ func (iv *{{.StructName}}) Size() int {
 	return int(count)
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (iv *{{.StructName}}) Len() int { return iv.Size() }
+
 // IsEmpty returns true if the interval contains no elements.
 func (iv *{{.StructName}}) IsEmpty() bool { return iv.Size() == 0 }
 

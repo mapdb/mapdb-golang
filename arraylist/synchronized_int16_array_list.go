@@ -136,6 +136,10 @@ func (l *SynchronizedInt16ArrayList) Size() int {
 	return l.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (l *SynchronizedInt16ArrayList) Len() int { return l.Size() }
+
 func (l *SynchronizedInt16ArrayList) IsEmpty() bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()

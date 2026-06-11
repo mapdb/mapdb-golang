@@ -169,6 +169,9 @@ func {{.Name}}HashBagOf(values ...{{.GoType}}) *{{.Name}}HashBag {
 
 // Add adds one occurrence of the value.
 func (b *{{.Name}}HashBag) Add(value {{.GoType}}) {
+	if b.counts == nil {
+		b.counts = make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}})
+	}
 {{- if .IsFloat}}
 	k := {{.BitsFn}}(value)
 	e := b.counts[k]
@@ -193,6 +196,9 @@ func (b *{{.Name}}HashBag) AddOccurrences(value {{.GoType}}, occurrences int) in
 	if occurrences == 0 {
 		return b.counts[k].count
 	}
+	if b.counts == nil {
+		b.counts = make(map[{{.BitsType}}]{{.SnakeName}}BagEntry)
+	}
 	e := b.counts[k]
 	e.value = value
 	e.count += occurrences
@@ -202,6 +208,9 @@ func (b *{{.Name}}HashBag) AddOccurrences(value {{.GoType}}, occurrences int) in
 {{- else}}
 	if occurrences == 0 {
 		return b.counts[value]
+	}
+	if b.counts == nil {
+		b.counts = make(map[{{.GoType}}]int)
 	}
 	b.counts[value] += occurrences
 	b.size += occurrences
@@ -312,6 +321,10 @@ func (b *{{.Name}}HashBag) Contains(value {{.GoType}}) bool {
 func (b *{{.Name}}HashBag) Size() int {
 	return b.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *{{.Name}}HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
 func (b *{{.Name}}HashBag) SizeDistinct() int {
@@ -716,6 +729,10 @@ func (b *Immutable{{.Name}}HashBag) Size() int {
 	return b.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *Immutable{{.Name}}HashBag) Len() int { return b.Size() }
+
 // SizeDistinct returns the number of distinct elements.
 func (b *Immutable{{.Name}}HashBag) SizeDistinct() int {
 	return b.delegate.SizeDistinct()
@@ -913,6 +930,10 @@ func (b *Synchronized{{.Name}}HashBag) Size() int {
 	defer b.mu.RUnlock()
 	return b.delegate.Size()
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *Synchronized{{.Name}}HashBag) Len() int { return b.Size() }
 
 func (b *Synchronized{{.Name}}HashBag) SizeDistinct() int {
 	b.mu.RLock()
@@ -1292,6 +1313,10 @@ func (b *{{.Name}}TreeBag) Contains(value {{.GoType}}) bool {
 func (b *{{.Name}}TreeBag) Size() int {
 	return b.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *{{.Name}}TreeBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
 func (b *{{.Name}}TreeBag) SizeDistinct() int {

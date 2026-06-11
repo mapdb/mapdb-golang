@@ -138,6 +138,10 @@ func (d *Float32ArrayDeque) PeekLast() (float32, error) {
 // Size returns the number of elements in the deque.
 func (d *Float32ArrayDeque) Size() int { return d.size }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (d *Float32ArrayDeque) Len() int { return d.Size() }
+
 // IsEmpty returns true if the deque contains no elements.
 func (d *Float32ArrayDeque) IsEmpty() bool { return d.size == 0 }
 

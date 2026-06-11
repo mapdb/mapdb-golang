@@ -22,9 +22,8 @@ type hsData struct {
 	// (math.Float32bits / math.Float64bits). Floats only.
 	BitsFn string
 
-	// NeedsMath / NeedsUnsafe drive the import block of the base file.
-	NeedsMath   bool
-	NeedsUnsafe bool
+	// NeedsMath drives the import block of the base file.
+	NeedsMath bool
 
 	// IsBool selects the boolean hash body (no golden-ratio mixing).
 	IsBool bool
@@ -49,13 +48,13 @@ func hashSetTypes() []hsData {
 		{Name: "Char", GoType: "uint16", SnakeName: "char", Zero: "0", HashExpr: "uint64(value)"},
 		{
 			Name: "Float32", GoType: "float32", SnakeName: "float32", Zero: "0.0",
-			IsFloat: true, BitsFn: "math.Float32bits", NeedsMath: true, NeedsUnsafe: true,
-			HashExpr: "uint64(*(*uint32)(unsafe.Pointer(&value)))",
+			IsFloat: true, BitsFn: "math.Float32bits", NeedsMath: true,
+			HashExpr: "uint64(math.Float32bits(value))",
 		},
 		{
 			Name: "Float64", GoType: "float64", SnakeName: "float64", Zero: "0.0",
-			IsFloat: true, BitsFn: "math.Float64bits", NeedsMath: true, NeedsUnsafe: true,
-			HashExpr: "*(*uint64)(unsafe.Pointer(&value))",
+			IsFloat: true, BitsFn: "math.Float64bits", NeedsMath: true,
+			HashExpr: "math.Float64bits(value)",
 		},
 		{Name: "Bool", GoType: "bool", SnakeName: "bool", Zero: "false", IsBool: true},
 	}
@@ -111,9 +110,6 @@ import (
 	"math"
 {{- end}}
 	"strings"
-{{- if .NeedsUnsafe}}
-	"unsafe"
-{{- end}}
 )
 
 const (
@@ -232,6 +228,10 @@ func (s *{{.Name}}HashSet) Contains(value {{.GoType}}) bool {
 func (s *{{.Name}}HashSet) Size() int {
 	return s.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *{{.Name}}HashSet) Len() int { return s.Size() }
 
 // IsEmpty returns true if the set contains no elements.
 func (s *{{.Name}}HashSet) IsEmpty() bool {
@@ -563,6 +563,10 @@ func (s *Immutable{{.Name}}HashSet) Size() int {
 	return s.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Immutable{{.Name}}HashSet) Len() int { return s.Size() }
+
 // IsEmpty returns true if the set contains no elements.
 func (s *Immutable{{.Name}}HashSet) IsEmpty() bool {
 	return s.delegate.IsEmpty()
@@ -730,6 +734,10 @@ func (s *Synchronized{{.Name}}HashSet) Size() int {
 	defer s.mu.RUnlock()
 	return s.delegate.Size()
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Synchronized{{.Name}}HashSet) Len() int { return s.Size() }
 
 func (s *Synchronized{{.Name}}HashSet) IsEmpty() bool {
 	s.mu.RLock()

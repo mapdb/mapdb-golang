@@ -23,7 +23,7 @@ import (
 // KEY axis (KeyIsFloat / KeyBitsFn / KeyHashExpr):
 //   - hashKey: identical to the base hashmap's keyHashExpr (int/char golden-mix
 //     uint64(<cast>(key)); int32 double-casts through uint32; floats reinterpret
-//     the bit pattern via unsafe).
+//     the bit pattern via math.FloatNbits).
 //   - sentinel checks: for FLOAT keys the empty/0 sentinel is compared on the
 //     bit pattern — KeyBitsFn(key) == KeyBitsFn(emptyKey) — and a SEPARATE -0.0
 //     sentinel (KeyBitsFn(key) == <Map>NegZeroBits) is routed to its own
@@ -37,7 +37,7 @@ import (
 // values use bit-pattern equality, int/char values use ==. ValZero is the value
 // zero literal ("0" or "0.0").
 //
-// Imports: "math" iff (KeyIsFloat || ValueIsFloat); "unsafe" iff KeyIsFloat.
+// Imports: "math" iff (KeyIsFloat || ValueIsFloat).
 type shmData struct {
 	KeyName  string // Int32, Float32, Char (key identifier stem)
 	KeyType  string // int32, float32, uint16 (Go key type)
@@ -59,8 +59,7 @@ type shmData struct {
 	ValueIsFloat bool
 	ValBitsFn    string // math.Float32bits / math.Float64bits (float values only)
 
-	NeedsMath   bool
-	NeedsUnsafe bool
+	NeedsMath bool
 
 	MapName   string // Int32Float32 (exported type stem: Int32Float32SentinelHashMap)
 	MapSnake  string // int32_float32 (file-name stem)
@@ -110,8 +109,7 @@ func genSentinelHashMap() error {
 
 				ValueIsFloat: v.IsFloating,
 
-				NeedsMath:   k.IsFloating || v.IsFloating,
-				NeedsUnsafe: k.IsFloating,
+				NeedsMath: k.IsFloating || v.IsFloating,
 
 				MapName:   k.Name + v.Name,
 				MapSnake:  k.SnakeName + "_" + v.SnakeName,
@@ -157,9 +155,6 @@ import (
 	"math"
 {{- end}}
 	"strings"
-{{- if .NeedsUnsafe}}
-	"unsafe"
-{{- end}}
 )
 
 const (
@@ -430,6 +425,10 @@ func (m *{{.MapName}}SentinelHashMap) ContainsValue(value {{.ValType}}) bool {
 func (m *{{.MapName}}SentinelHashMap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *{{.MapName}}SentinelHashMap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the map contains no entries.
 func (m *{{.MapName}}SentinelHashMap) IsEmpty() bool {

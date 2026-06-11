@@ -7,7 +7,6 @@ import (
 	"iter"
 	"math"
 	"strings"
-	"unsafe"
 )
 
 const (
@@ -126,6 +125,10 @@ func (s *Float32HashSet) Contains(value float32) bool {
 func (s *Float32HashSet) Size() int {
 	return s.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Float32HashSet) Len() int { return s.Size() }
 
 // IsEmpty returns true if the set contains no elements.
 func (s *Float32HashSet) IsEmpty() bool {
@@ -359,7 +362,7 @@ func (s *Float32HashSet) Equals(other *Float32HashSet) bool {
 }
 
 func (s *Float32HashSet) hash(value float32) uint64 {
-	h := uint64(*(*uint32)(unsafe.Pointer(&value))) * 0x9E3779B97F4A7C15
+	h := uint64(math.Float32bits(value)) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 

@@ -59,6 +59,10 @@ func (d *SynchronizedFloat64ArrayDeque) Size() int {
 	return d.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (d *SynchronizedFloat64ArrayDeque) Len() int { return d.Size() }
+
 func (d *SynchronizedFloat64ArrayDeque) IsEmpty() bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()

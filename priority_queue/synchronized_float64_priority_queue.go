@@ -41,6 +41,10 @@ func (q *SynchronizedFloat64PriorityQueue) Size() int {
 	return q.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (q *SynchronizedFloat64PriorityQueue) Len() int { return q.Size() }
+
 func (q *SynchronizedFloat64PriorityQueue) IsEmpty() bool {
 	q.mu.RLock()
 	defer q.mu.RUnlock()

@@ -27,6 +27,10 @@ func NewFloat64Float64ListMultimap() *Float64Float64ListMultimap {
 
 // Put adds a value to the list for the given key.
 func (m *Float64Float64ListMultimap) Put(key float64, value float64) {
+	if m.data == nil {
+		m.data = make(map[uint64][]float64)
+		m.keys = make(map[uint64]float64)
+	}
 	kb := math.Float64bits(key)
 	m.data[kb] = append(m.data[kb], value)
 	m.keys[kb] = key
@@ -91,6 +95,10 @@ func (m *Float64Float64ListMultimap) KeysCount() int {
 func (m *Float64Float64ListMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Float64Float64ListMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *Float64Float64ListMultimap) IsEmpty() bool {

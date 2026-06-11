@@ -74,6 +74,10 @@ func (iv *Int8Interval) Size() int {
 	return int(count)
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (iv *Int8Interval) Len() int { return iv.Size() }
+
 // IsEmpty returns true if the interval contains no elements.
 func (iv *Int8Interval) IsEmpty() bool { return iv.Size() == 0 }
 

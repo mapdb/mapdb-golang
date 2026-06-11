@@ -25,6 +25,9 @@ func NewInt16Int8SetMultimap() *Int16Int8SetMultimap {
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
 func (m *Int16Int8SetMultimap) Put(key int16, value int8) {
+	if m.data == nil {
+		m.data = make(map[int16][]int8)
+	}
 	for _, existing := range m.data[key] {
 		if existing == value {
 			return
@@ -90,6 +93,10 @@ func (m *Int16Int8SetMultimap) KeysCount() int {
 func (m *Int16Int8SetMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Int16Int8SetMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *Int16Int8SetMultimap) IsEmpty() bool {

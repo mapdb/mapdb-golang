@@ -67,6 +67,10 @@ func (s *CharArrayStack) Size() int {
 	return len(s.items)
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *CharArrayStack) Len() int { return s.Size() }
+
 // IsEmpty returns true if the stack contains no elements.
 func (s *CharArrayStack) IsEmpty() bool {
 	return len(s.items) == 0

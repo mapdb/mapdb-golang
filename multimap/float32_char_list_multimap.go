@@ -27,6 +27,10 @@ func NewFloat32CharListMultimap() *Float32CharListMultimap {
 
 // Put adds a value to the list for the given key.
 func (m *Float32CharListMultimap) Put(key float32, value uint16) {
+	if m.data == nil {
+		m.data = make(map[uint32][]uint16)
+		m.keys = make(map[uint32]float32)
+	}
 	kb := math.Float32bits(key)
 	m.data[kb] = append(m.data[kb], value)
 	m.keys[kb] = key
@@ -91,6 +95,10 @@ func (m *Float32CharListMultimap) KeysCount() int {
 func (m *Float32CharListMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Float32CharListMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *Float32CharListMultimap) IsEmpty() bool {

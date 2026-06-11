@@ -7,7 +7,6 @@ import (
 	"iter"
 	"math"
 	"strings"
-	"unsafe"
 )
 
 const (
@@ -159,6 +158,10 @@ func (m *Float32Int32HashMap) ContainsValue(value int32) bool {
 func (m *Float32Int32HashMap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Float32Int32HashMap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the map contains no entries.
 func (m *Float32Int32HashMap) IsEmpty() bool {
@@ -521,7 +524,7 @@ func (e Float32Int32Entry) AndModify(f func(*int32)) Float32Int32Entry {
 }
 
 func (m *Float32Int32HashMap) hashKey(key float32) uint64 {
-	h := uint64(*(*uint32)(unsafe.Pointer(&key))) * 0x9E3779B97F4A7C15
+	h := uint64(math.Float32bits(key)) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 

@@ -230,6 +230,10 @@ func (m *Int64Int8SentinelHashMap) Size() int {
 	return m.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Int64Int8SentinelHashMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *Int64Int8SentinelHashMap) IsEmpty() bool {
 	return m.size == 0

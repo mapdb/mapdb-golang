@@ -35,9 +35,9 @@ import (
 // originals verbatim — so it is hardcoded in the template, not parameterised.
 //
 // Imports: "math" is needed iff (KeyIsFloat || ValueIsFloat) — used by key
-// hashing/equality and/or value equality. "unsafe" is needed iff KeyIsFloat
-// (the float hashKey reinterpret). The synchronized wrapper always imports
-// "unsafe" (pointer-address lock ordering in Equals), independent of types.
+// hashing/equality (math.FloatNbits in the float hashKey body) and/or value
+// equality. The synchronized wrapper always imports "unsafe" (pointer-address
+// lock ordering in Equals), independent of types.
 type hmData struct {
 	KeyName  string // Int32, Float32, Char (key identifier stem)
 	KeyType  string // int32, float32, uint16 (Go key type)
@@ -50,8 +50,8 @@ type hmData struct {
 	ValZero  string // value zero literal ("0" or "0.0")
 
 	// KeyIsFloat selects bit-pattern key equality at the probe sites and the
-	// unsafe-based float hashKey body; it also (with ValueIsFloat) gates the
-	// math import and (alone) gates the unsafe import.
+	// math.FloatNbits-based float hashKey body; it also (with ValueIsFloat)
+	// gates the math import.
 	KeyIsFloat bool
 	// KeyBitsFn is the float bit-pattern function for key equality
 	// (math.Float32bits / math.Float64bits). Float keys only.
@@ -59,7 +59,7 @@ type hmData struct {
 	// KeyHashExpr is the inner operand of the golden-ratio multiply in
 	// hashKey: h := <KeyHashExpr> * 0x9E3779B97F4A7C15. Captured per key type
 	// because the integer/char/float reinterpretations differ (int32 alone
-	// double-casts through uint32; floats reinterpret via unsafe).
+	// double-casts through uint32; floats reinterpret via math.FloatNbits).
 	KeyHashExpr string
 
 	// ValueIsFloat selects bit-pattern value equality in ContainsValue/Equals.
@@ -68,9 +68,8 @@ type hmData struct {
 	// values only.
 	ValBitsFn string
 
-	// NeedsMath / NeedsUnsafe drive the base file's import block.
-	NeedsMath   bool
-	NeedsUnsafe bool
+	// NeedsMath drives the base file's import block.
+	NeedsMath bool
 
 	// MapName is the combined identifier stem, e.g. Int32Float32 (used for the
 	// exported type Int32Float32HashMap); MapSnake is the file-name stem,
@@ -92,9 +91,9 @@ type hmData struct {
 func keyHashExpr(p Primitive) string {
 	switch {
 	case p.IsFloating && p.ByteSize == 4:
-		return "uint64(*(*uint32)(unsafe.Pointer(&key)))"
+		return "uint64(math.Float32bits(key))"
 	case p.IsFloating && p.ByteSize == 8:
-		return "*(*uint64)(unsafe.Pointer(&key))"
+		return "math.Float64bits(key)"
 	case p.GoType == "int32":
 		return "uint64(uint32(key))"
 	default:
@@ -133,12 +132,11 @@ type objHMData struct {
 	EntryStem string
 
 	// KeyIsFloat (Shape B only) selects bit-pattern key equality and the
-	// unsafe-based float hashKey body; it also gates math/unsafe imports.
+	// math.FloatNbits-based float hashKey body; it also gates the math import.
 	KeyIsFloat  bool
 	KeyBitsFn   string // math.Float32bits / math.Float64bits (float keys only)
 	KeyHashExpr string // inner operand of the golden-ratio multiply in hashKey
 	NeedsMath   bool
-	NeedsUnsafe bool
 }
 
 // genHashMap writes the 7×7 = 49 prim×prim hash map sources for each of the
@@ -198,8 +196,7 @@ func genHashMap() error {
 
 				ValueIsFloat: v.IsFloating,
 
-				NeedsMath:   k.IsFloating || v.IsFloating,
-				NeedsUnsafe: k.IsFloating,
+				NeedsMath: k.IsFloating || v.IsFloating,
 
 				MapName:   k.Name + v.Name,
 				MapSnake:  k.SnakeName + "_" + v.SnakeName,
@@ -270,7 +267,6 @@ func genHashMap() error {
 			KeyIsFloat:  p.IsFloating,
 			KeyHashExpr: keyHashExpr(p),
 			NeedsMath:   p.IsFloating,
-			NeedsUnsafe: p.IsFloating,
 		}
 		if p.IsFloating {
 			b.PrimZero = "0.0"
@@ -299,9 +295,6 @@ import (
 	"math"
 {{- end}}
 	"strings"
-{{- if .NeedsUnsafe}}
-	"unsafe"
-{{- end}}
 )
 
 const (
@@ -453,6 +446,10 @@ func (m *{{.MapName}}HashMap) ContainsValue(value {{.ValType}}) bool {
 func (m *{{.MapName}}HashMap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *{{.MapName}}HashMap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the map contains no entries.
 func (m *{{.MapName}}HashMap) IsEmpty() bool {
@@ -934,6 +931,10 @@ func (m *Immutable{{.MapName}}HashMap) Size() int {
 	return m.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Immutable{{.MapName}}HashMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *Immutable{{.MapName}}HashMap) IsEmpty() bool {
 	return m.delegate.IsEmpty()
@@ -1137,6 +1138,10 @@ func (m *Synchronized{{.MapName}}HashMap) Size() int {
 	defer m.mu.RUnlock()
 	return m.delegate.Size()
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Synchronized{{.MapName}}HashMap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the map contains no entries.
 func (m *Synchronized{{.MapName}}HashMap) IsEmpty() bool {
@@ -1495,6 +1500,10 @@ func (m *{{.MapName}}HashBiMap) Size() int {
 	return m.forward.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *{{.MapName}}HashBiMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *{{.MapName}}HashBiMap) IsEmpty() bool {
 	return m.forward.IsEmpty()
@@ -1684,6 +1693,10 @@ func (m *{{.MapName}}HashMap[K]) ContainsKey(key K) bool {
 func (m *{{.MapName}}HashMap[K]) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *{{.MapName}}HashMap[K]) Len() int { return m.Size() }
 
 // IsEmpty returns true if the map contains no entries.
 func (m *{{.MapName}}HashMap[K]) IsEmpty() bool {
@@ -1891,6 +1904,10 @@ func (m *Immutable{{.MapName}}HashMap[K]) Size() int {
 	return m.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Immutable{{.MapName}}HashMap[K]) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *Immutable{{.MapName}}HashMap[K]) IsEmpty() bool {
 	return m.delegate.IsEmpty()
@@ -1950,9 +1967,6 @@ import (
 	"math"
 {{- end}}
 	"strings"
-{{- if .NeedsUnsafe}}
-	"unsafe"
-{{- end}}
 )
 
 const (
@@ -2081,6 +2095,10 @@ func (m *{{.MapName}}HashMap[V]) ContainsKey(key {{.PrimType}}) bool {
 func (m *{{.MapName}}HashMap[V]) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *{{.MapName}}HashMap[V]) Len() int { return m.Size() }
 
 // IsEmpty returns true if the map contains no entries.
 func (m *{{.MapName}}HashMap[V]) IsEmpty() bool {
@@ -2292,6 +2310,10 @@ func (m *Immutable{{.MapName}}HashMap[V]) ContainsKey(key {{.PrimType}}) bool {
 func (m *Immutable{{.MapName}}HashMap[V]) Size() int {
 	return m.delegate.Size()
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Immutable{{.MapName}}HashMap[V]) Len() int { return m.Size() }
 
 // IsEmpty returns true if the map contains no entries.
 func (m *Immutable{{.MapName}}HashMap[V]) IsEmpty() bool {

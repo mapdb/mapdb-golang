@@ -40,6 +40,10 @@ func (m *ImmutableObjectFloat32HashMap[K]) Size() int {
 	return m.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *ImmutableObjectFloat32HashMap[K]) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *ImmutableObjectFloat32HashMap[K]) IsEmpty() bool {
 	return m.delegate.IsEmpty()

@@ -32,6 +32,10 @@ func (s *ImmutableFloat32HashSet) Size() int {
 	return s.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *ImmutableFloat32HashSet) Len() int { return s.Size() }
+
 // IsEmpty returns true if the set contains no elements.
 func (s *ImmutableFloat32HashSet) IsEmpty() bool {
 	return s.delegate.IsEmpty()

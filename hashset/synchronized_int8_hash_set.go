@@ -92,6 +92,10 @@ func (s *SynchronizedInt8HashSet) Size() int {
 	return s.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *SynchronizedInt8HashSet) Len() int { return s.Size() }
+
 func (s *SynchronizedInt8HashSet) IsEmpty() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

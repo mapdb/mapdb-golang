@@ -137,6 +137,10 @@ func (d *Int8ArrayDeque) PeekLast() (int8, error) {
 // Size returns the number of elements in the deque.
 func (d *Int8ArrayDeque) Size() int { return d.size }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (d *Int8ArrayDeque) Len() int { return d.Size() }
+
 // IsEmpty returns true if the deque contains no elements.
 func (d *Int8ArrayDeque) IsEmpty() bool { return d.size == 0 }
 

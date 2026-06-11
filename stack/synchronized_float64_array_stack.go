@@ -77,6 +77,10 @@ func (s *SynchronizedFloat64ArrayStack) Size() int {
 	return s.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *SynchronizedFloat64ArrayStack) Len() int { return s.Size() }
+
 func (s *SynchronizedFloat64ArrayStack) IsEmpty() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -100,6 +100,10 @@ func (b *SynchronizedInt32HashBag) Size() int {
 	return b.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *SynchronizedInt32HashBag) Len() int { return b.Size() }
+
 func (b *SynchronizedInt32HashBag) SizeDistinct() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

@@ -63,6 +63,10 @@ func (q *Float64PriorityQueue) Peek() (float64, error) {
 // Size returns the number of elements in the queue.
 func (q *Float64PriorityQueue) Size() int { return len(q.items) }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (q *Float64PriorityQueue) Len() int { return q.Size() }
+
 // IsEmpty returns true if the queue has no elements.
 func (q *Float64PriorityQueue) IsEmpty() bool { return len(q.items) == 0 }
 

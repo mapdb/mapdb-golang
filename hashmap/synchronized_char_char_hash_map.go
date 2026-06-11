@@ -124,6 +124,10 @@ func (m *SynchronizedCharCharHashMap) Size() int {
 	return m.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *SynchronizedCharCharHashMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *SynchronizedCharCharHashMap) IsEmpty() bool {
 	m.mu.RLock()

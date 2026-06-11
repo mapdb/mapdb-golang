@@ -168,6 +168,12 @@ func New{{.MapName}}ListMultimap() *{{.MapName}}ListMultimap {
 
 // Put adds a value to the list for the given key.
 func (m *{{.MapName}}ListMultimap) Put(key {{.KeyType}}, value {{.ValType}}) {
+	if m.data == nil {
+		m.data = make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}})
+{{- if .KeyIsFloat}}
+		m.keys = make(map[{{.KeyBitsType}}]{{.KeyType}})
+{{- end}}
+	}
 {{- if .KeyIsFloat}}
 	kb := {{.KeyBitsFn}}(key)
 	m.data[kb] = append(m.data[kb], value)
@@ -244,6 +250,10 @@ func (m *{{.MapName}}ListMultimap) KeysCount() int {
 func (m *{{.MapName}}ListMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *{{.MapName}}ListMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *{{.MapName}}ListMultimap) IsEmpty() bool {
@@ -447,6 +457,12 @@ func New{{.MapName}}SetMultimap() *{{.MapName}}SetMultimap {
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
 func (m *{{.MapName}}SetMultimap) Put(key {{.KeyType}}, value {{.ValType}}) {
+	if m.data == nil {
+		m.data = make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}})
+{{- if .KeyIsFloat}}
+		m.keys = make(map[{{.KeyBitsType}}]{{.KeyType}})
+{{- end}}
+	}
 {{- if .KeyIsFloat}}
 	kb := {{.KeyBitsFn}}(key)
 	for _, existing := range m.data[kb] {
@@ -533,6 +549,10 @@ func (m *{{.MapName}}SetMultimap) KeysCount() int {
 func (m *{{.MapName}}SetMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *{{.MapName}}SetMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *{{.MapName}}SetMultimap) IsEmpty() bool {

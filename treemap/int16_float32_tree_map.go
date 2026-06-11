@@ -106,6 +106,10 @@ func (m *Int16Float32TreeMap) Size() int {
 	return m.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Int16Float32TreeMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map is empty.
 func (m *Int16Float32TreeMap) IsEmpty() bool {
 	return m.size == 0

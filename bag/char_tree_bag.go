@@ -163,6 +163,10 @@ func (b *CharTreeBag) Size() int {
 	return b.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *CharTreeBag) Len() int { return b.Size() }
+
 // SizeDistinct returns the number of distinct elements.
 func (b *CharTreeBag) SizeDistinct() int {
 	return len(b.entries)

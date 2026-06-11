@@ -40,6 +40,10 @@ func (b *ImmutableFloat64HashBag) Size() int {
 	return b.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *ImmutableFloat64HashBag) Len() int { return b.Size() }
+
 // SizeDistinct returns the number of distinct elements.
 func (b *ImmutableFloat64HashBag) SizeDistinct() int {
 	return b.delegate.SizeDistinct()

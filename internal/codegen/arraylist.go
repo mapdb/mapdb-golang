@@ -11,8 +11,8 @@ import (
 
 // alData is the per-primitive view the arraylist templates iterate over.
 type alData struct {
-	Name     string // Int32, Float32, Char (identifier stem)
-	GoType   string // int32, float32, uint16
+	Name      string // Int32, Float32, Char (identifier stem)
+	GoType    string // int32, float32, uint16
 	SnakeName string
 	Zero      string // "0" or "0.0" (zero literal for this element type)
 	IsFloat   bool
@@ -198,6 +198,10 @@ func (l *{{.Name}}ArrayList) IndexOf(value {{.GoType}}) int {
 
 // Size returns the number of elements in the list.
 func (l *{{.Name}}ArrayList) Size() int { return len(l.items) }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (l *{{.Name}}ArrayList) Len() int { return l.Size() }
 
 // IsEmpty returns true if the list contains no elements.
 func (l *{{.Name}}ArrayList) IsEmpty() bool { return len(l.items) == 0 }
@@ -564,6 +568,10 @@ func (l *Immutable{{.Name}}ArrayList) Size() int {
 	return l.delegate.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (l *Immutable{{.Name}}ArrayList) Len() int { return l.Size() }
+
 // IsEmpty returns true if the list contains no elements.
 func (l *Immutable{{.Name}}ArrayList) IsEmpty() bool {
 	return l.delegate.IsEmpty()
@@ -795,6 +803,10 @@ func (l *Synchronized{{.Name}}ArrayList) Size() int {
 	defer l.mu.RUnlock()
 	return l.delegate.Size()
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (l *Synchronized{{.Name}}ArrayList) Len() int { return l.Size() }
 
 func (l *Synchronized{{.Name}}ArrayList) IsEmpty() bool {
 	l.mu.RLock()

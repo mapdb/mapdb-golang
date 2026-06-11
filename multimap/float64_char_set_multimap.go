@@ -28,6 +28,10 @@ func NewFloat64CharSetMultimap() *Float64CharSetMultimap {
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
 func (m *Float64CharSetMultimap) Put(key float64, value uint16) {
+	if m.data == nil {
+		m.data = make(map[uint64][]uint16)
+		m.keys = make(map[uint64]float64)
+	}
 	kb := math.Float64bits(key)
 	for _, existing := range m.data[kb] {
 		if existing == value {
@@ -97,6 +101,10 @@ func (m *Float64CharSetMultimap) KeysCount() int {
 func (m *Float64CharSetMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Float64CharSetMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *Float64CharSetMultimap) IsEmpty() bool {

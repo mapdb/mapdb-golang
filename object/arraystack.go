@@ -32,7 +32,11 @@ func NewArrayStackFrom[T comparable](values ...T) *ArrayStack[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (s *ArrayStack[T]) Size() int     { return len(s.items) }
+func (s *ArrayStack[T]) Size() int { return len(s.items) }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *ArrayStack[T]) Len() int      { return s.Size() }
 func (s *ArrayStack[T]) IsEmpty() bool { return len(s.items) == 0 }
 
 // ── Stack ─────────────────────────────────────────────────────────────

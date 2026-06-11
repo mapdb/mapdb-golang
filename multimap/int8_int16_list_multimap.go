@@ -24,6 +24,9 @@ func NewInt8Int16ListMultimap() *Int8Int16ListMultimap {
 
 // Put adds a value to the list for the given key.
 func (m *Int8Int16ListMultimap) Put(key int8, value int16) {
+	if m.data == nil {
+		m.data = make(map[int8][]int16)
+	}
 	m.data[key] = append(m.data[key], value)
 	m.size++
 }
@@ -84,6 +87,10 @@ func (m *Int8Int16ListMultimap) KeysCount() int {
 func (m *Int8Int16ListMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *Int8Int16ListMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *Int8Int16ListMultimap) IsEmpty() bool {

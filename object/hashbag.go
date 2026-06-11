@@ -37,7 +37,11 @@ func NewHashBagFrom[T comparable](values ...T) *HashBag[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (b *HashBag[T]) Size() int     { return b.size }
+func (b *HashBag[T]) Size() int { return b.size }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *HashBag[T]) Len() int      { return b.Size() }
 func (b *HashBag[T]) IsEmpty() bool { return b.size == 0 }
 
 // ── Bag ───────────────────────────────────────────────────────────────
@@ -122,6 +126,9 @@ func (b *HashBag[T]) ToSlice() []T {
 // ── MutableBag ────────────────────────────────────────────────────────
 
 func (b *HashBag[T]) Add(value T) {
+	if b.counts == nil {
+		b.counts = make(map[T]int)
+	}
 	b.counts[value]++
 	b.size++
 }
@@ -130,6 +137,9 @@ func (b *HashBag[T]) Add(value T) {
 func (b *HashBag[T]) AddOccurrences(value T, occurrences int) {
 	if occurrences <= 0 {
 		return
+	}
+	if b.counts == nil {
+		b.counts = make(map[T]int)
 	}
 	b.counts[value] += occurrences
 	b.size += occurrences

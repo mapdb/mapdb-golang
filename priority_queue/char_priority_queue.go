@@ -62,6 +62,10 @@ func (q *CharPriorityQueue) Peek() (uint16, error) {
 // Size returns the number of elements in the queue.
 func (q *CharPriorityQueue) Size() int { return len(q.items) }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (q *CharPriorityQueue) Len() int { return q.Size() }
+
 // IsEmpty returns true if the queue has no elements.
 func (q *CharPriorityQueue) IsEmpty() bool { return len(q.items) == 0 }
 

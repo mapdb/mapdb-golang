@@ -25,6 +25,9 @@ func NewCharInt32SetMultimap() *CharInt32SetMultimap {
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
 func (m *CharInt32SetMultimap) Put(key uint16, value int32) {
+	if m.data == nil {
+		m.data = make(map[uint16][]int32)
+	}
 	for _, existing := range m.data[key] {
 		if existing == value {
 			return
@@ -90,6 +93,10 @@ func (m *CharInt32SetMultimap) KeysCount() int {
 func (m *CharInt32SetMultimap) Size() int {
 	return m.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *CharInt32SetMultimap) Len() int { return m.Size() }
 
 // IsEmpty returns true if the multimap contains no values.
 func (m *CharInt32SetMultimap) IsEmpty() bool {

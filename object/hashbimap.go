@@ -50,7 +50,11 @@ func (b *HashBiMap[K, V]) ContainsKey(key K) bool {
 	return ok
 }
 
-func (b *HashBiMap[K, V]) Size() int     { return len(b.forward) }
+func (b *HashBiMap[K, V]) Size() int { return len(b.forward) }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *HashBiMap[K, V]) Len() int      { return b.Size() }
 func (b *HashBiMap[K, V]) IsEmpty() bool { return len(b.forward) == 0 }
 
 func (b *HashBiMap[K, V]) All() iter.Seq2[K, V] {
@@ -136,6 +140,10 @@ func (b *HashBiMap[K, V]) ContainsValue(value V) bool {
 // key, that old key is removed to maintain the bijection invariant.
 // Returns the old value for the key if it existed.
 func (b *HashBiMap[K, V]) Put(key K, value V) (V, bool) {
+	if b.forward == nil {
+		b.forward = make(map[K]V)
+		b.inverse = make(map[V]K)
+	}
 	// If this value already maps to a different key, remove that key
 	if existingKey, ok := b.inverse[value]; ok {
 		if existingKey != key {

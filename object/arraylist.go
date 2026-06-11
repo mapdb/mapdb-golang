@@ -39,7 +39,11 @@ func NewArrayListWithCapacity[T comparable](capacity int) *ArrayList[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (a *ArrayList[T]) Size() int     { return len(a.items) }
+func (a *ArrayList[T]) Size() int { return len(a.items) }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (a *ArrayList[T]) Len() int      { return a.Size() }
 func (a *ArrayList[T]) IsEmpty() bool { return len(a.items) == 0 }
 
 // ── Iterable ──────────────────────────────────────────────────────────

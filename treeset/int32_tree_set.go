@@ -91,6 +91,10 @@ func (s *Int32TreeSet) Contains(value int32) bool {
 // Size returns the number of elements.
 func (s *Int32TreeSet) Size() int { return s.size }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *Int32TreeSet) Len() int { return s.Size() }
+
 // IsEmpty returns true if the set is empty.
 func (s *Int32TreeSet) IsEmpty() bool { return s.size == 0 }
 

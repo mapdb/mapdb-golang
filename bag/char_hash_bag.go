@@ -34,6 +34,9 @@ func CharHashBagOf(values ...uint16) *CharHashBag {
 
 // Add adds one occurrence of the value.
 func (b *CharHashBag) Add(value uint16) {
+	if b.counts == nil {
+		b.counts = make(map[uint16]int)
+	}
 	b.counts[value]++
 	b.size++
 }
@@ -46,6 +49,9 @@ func (b *CharHashBag) AddOccurrences(value uint16, occurrences int) int {
 	}
 	if occurrences == 0 {
 		return b.counts[value]
+	}
+	if b.counts == nil {
+		b.counts = make(map[uint16]int)
 	}
 	b.counts[value] += occurrences
 	b.size += occurrences
@@ -111,6 +117,10 @@ func (b *CharHashBag) Contains(value uint16) bool {
 func (b *CharHashBag) Size() int {
 	return b.size
 }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (b *CharHashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
 func (b *CharHashBag) SizeDistinct() int {

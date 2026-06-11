@@ -106,7 +106,11 @@ func (s *HashSetWithStrategy[T]) Contains(value T) bool {
 	}
 }
 
-func (s *HashSetWithStrategy[T]) Size() int     { return s.size }
+func (s *HashSetWithStrategy[T]) Size() int { return s.size }
+
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *HashSetWithStrategy[T]) Len() int      { return s.Size() }
 func (s *HashSetWithStrategy[T]) IsEmpty() bool { return s.size == 0 }
 
 func (s *HashSetWithStrategy[T]) Clear() {

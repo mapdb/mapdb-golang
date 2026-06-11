@@ -99,6 +99,10 @@ func (m *CharFloat32HashBiMap) Size() int {
 	return m.forward.Size()
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *CharFloat32HashBiMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *CharFloat32HashBiMap) IsEmpty() bool {
 	return m.forward.IsEmpty()

@@ -135,6 +135,10 @@ func (m *CharObjectHashMap[V]) Size() int {
 	return m.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *CharObjectHashMap[V]) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *CharObjectHashMap[V]) IsEmpty() bool {
 	return m.size == 0

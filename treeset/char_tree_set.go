@@ -91,6 +91,10 @@ func (s *CharTreeSet) Contains(value uint16) bool {
 // Size returns the number of elements.
 func (s *CharTreeSet) Size() int { return s.size }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (s *CharTreeSet) Len() int { return s.Size() }
+
 // IsEmpty returns true if the set is empty.
 func (s *CharTreeSet) IsEmpty() bool { return s.size == 0 }
 

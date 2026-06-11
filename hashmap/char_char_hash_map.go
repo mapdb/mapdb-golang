@@ -158,6 +158,10 @@ func (m *CharCharHashMap) Size() int {
 	return m.size
 }
 
+// Len returns the number of elements. It is an alias for Size, matching
+// Go convention (sort.Interface, container/list, bytes.Buffer).
+func (m *CharCharHashMap) Len() int { return m.Size() }
+
 // IsEmpty returns true if the map contains no entries.
 func (m *CharCharHashMap) IsEmpty() bool {
 	return m.size == 0

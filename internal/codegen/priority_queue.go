@@ -1,0 +1,325 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"go/format"
+	"os"
+	"path/filepath"
+	"text/template"
+)
+
+// pqData is the per-primitive view the priority_queue templates iterate over.
+//
+// The priority_queue family is a binary min-heap. It has a BASE variant and a
+// SYNCHRONIZED wrapper (no immutable variant). The synchronized wrapper is
+// fully type-independent apart from the element type. The base file has three
+// type-dependent pieces, all of which are reproduced exactly:
+//   - the zero literal used in the Pop/Peek empty-queue error returns ("0" for
+//     integer/char elements, "0.0" for floats);
+//   - the Contains equality: integer/char elements compare with raw ==, whereas
+//     floats compare bit patterns via math.FloatNNbits so that a queued NaN can
+//     be found (raw == is always false for NaN);
+//   - the less(a, b) ordering: integer/char keys order with raw <, whereas
+//     floats order via the shared IEEE total-order helper cmpFloat32/64 (the
+//     phase-3 correctness fix) so that NaN sinks to the bottom of the min-heap.
+//
+// Float base files additionally import "math" for the bit-pattern equality.
+type pqData struct {
+	Name      string // Int32, Float32, Char (identifier stem)
+	GoType    string // int32, float32, uint16 (Go element type)
+	SnakeName string // int32, float32, char (file-name stem)
+	Zero      string // zero literal for this element type ("0" or "0.0")
+	IsFloat   bool
+	CmpFn     string // cmpFloat32 / cmpFloat64 (floats only)
+	BitsFn    string // math.Float32bits / math.Float64bits (floats only)
+}
+
+// genPriorityQueue writes the per-primitive binary min-heap priority queue
+// sources (base and synchronized variants) plus the shared cmp_float.go into
+// the current working directory. Invoked from priority_queue/ via go:generate.
+func genPriorityQueue() error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	base := template.Must(template.New("pq-base").Parse(priorityQueueTmpl))
+	synchronized := template.Must(template.New("pq-sync").Parse(synchronizedPriorityQueueTmpl))
+
+	write := func(name string, tmpl *template.Template, data pqData) error {
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, data); err != nil {
+			return fmt.Errorf("execute %s: %w", name, err)
+		}
+		formatted, err := format.Source(buf.Bytes())
+		if err != nil {
+			return fmt.Errorf("format %s: %w\n---\n%s", name, err, buf.String())
+		}
+		out := filepath.Join(cwd, name)
+		return os.WriteFile(out, formatted, 0o644)
+	}
+
+	for _, p := range Primitives() {
+		data := pqData{
+			Name:      p.Name,
+			GoType:    p.GoType,
+			SnakeName: p.SnakeName,
+			Zero:      "0",
+			IsFloat:   p.IsFloating,
+		}
+		if p.IsFloating {
+			data.Zero = "0.0"
+			data.CmpFn = "cmpFloat32"
+			data.BitsFn = "math.Float32bits"
+			if p.ByteSize == 8 {
+				data.CmpFn = "cmpFloat64"
+				data.BitsFn = "math.Float64bits"
+			}
+		}
+
+		if err := write(p.SnakeName+"_priority_queue.go", base, data); err != nil {
+			return err
+		}
+		if err := write("synchronized_"+p.SnakeName+"_priority_queue.go", synchronized, data); err != nil {
+			return err
+		}
+	}
+
+	return genCmpFloat("priority_queue")
+}
+
+const priorityQueueTmpl = genHeader + `package priority_queue
+
+import (
+	"fmt"
+{{if .IsFloat}}	"math"
+{{end}}	"strings"
+)
+
+// {{.Name}}PriorityQueue is a min-heap priority queue of {{.GoType}} values.
+// O(log n) Push/Pop, O(1) Peek.
+type {{.Name}}PriorityQueue struct {
+	items []{{.GoType}}
+}
+
+// New{{.Name}}PriorityQueue creates a new empty {{.Name}}PriorityQueue.
+func New{{.Name}}PriorityQueue() *{{.Name}}PriorityQueue {
+	return &{{.Name}}PriorityQueue{items: make([]{{.GoType}}, 0, 16)}
+}
+
+// {{.Name}}PriorityQueueOf creates a new {{.Name}}PriorityQueue and heapifies the given values in O(n).
+func {{.Name}}PriorityQueueOf(values ...{{.GoType}}) *{{.Name}}PriorityQueue {
+	q := &{{.Name}}PriorityQueue{items: make([]{{.GoType}}, len(values))}
+	copy(q.items, values)
+	if len(q.items) > 1 {
+		for i := len(q.items)/2 - 1; i >= 0; i-- {
+			q.siftDown(i)
+		}
+	}
+	return q
+}
+
+// Push adds a value to the heap. O(log n).
+func (q *{{.Name}}PriorityQueue) Push(value {{.GoType}}) {
+	q.items = append(q.items, value)
+	q.siftUp(len(q.items) - 1)
+}
+
+// Pop removes and returns the smallest element, or an error if empty. O(log n).
+func (q *{{.Name}}PriorityQueue) Pop() ({{.GoType}}, error) {
+	if len(q.items) == 0 {
+		return {{.Zero}}, fmt.Errorf("{{.Name}}PriorityQueue: Pop on empty queue")
+	}
+	top := q.items[0]
+	last := len(q.items) - 1
+	q.items[0] = q.items[last]
+	q.items = q.items[:last]
+	if len(q.items) > 0 {
+		q.siftDown(0)
+	}
+	return top, nil
+}
+
+// Peek returns the smallest element without removing it, or an error if empty.
+func (q *{{.Name}}PriorityQueue) Peek() ({{.GoType}}, error) {
+	if len(q.items) == 0 {
+		return {{.Zero}}, fmt.Errorf("{{.Name}}PriorityQueue: Peek on empty queue")
+	}
+	return q.items[0], nil
+}
+
+// Size returns the number of elements in the queue.
+func (q *{{.Name}}PriorityQueue) Size() int { return len(q.items) }
+
+// IsEmpty returns true if the queue has no elements.
+func (q *{{.Name}}PriorityQueue) IsEmpty() bool { return len(q.items) == 0 }
+
+// Clear removes all elements.
+func (q *{{.Name}}PriorityQueue) Clear() { q.items = q.items[:0] }
+
+// Contains returns true if the queue contains the given value. O(n).
+func (q *{{.Name}}PriorityQueue) Contains(value {{.GoType}}) bool {
+	for _, v := range q.items {
+		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
+			return true
+		}
+	}
+	return false
+}
+
+// ToSlice returns a copy of the internal heap array (NOT sorted).
+func (q *{{.Name}}PriorityQueue) ToSlice() []{{.GoType}} {
+	out := make([]{{.GoType}}, len(q.items))
+	copy(out, q.items)
+	return out
+}
+
+// DrainSorted pops all elements in ascending order, consuming the queue.
+func (q *{{.Name}}PriorityQueue) DrainSorted() []{{.GoType}} {
+	out := make([]{{.GoType}}, 0, len(q.items))
+	for len(q.items) > 0 {
+		v, _ := q.Pop()
+		out = append(out, v)
+	}
+	return out
+}
+
+// String returns a string representation in heap-array order.
+func (q *{{.Name}}PriorityQueue) String() string {
+	if len(q.items) == 0 {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteString("[")
+	for i, v := range q.items {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		fmt.Fprintf(&sb, "%v", v)
+	}
+	sb.WriteString("]")
+	return sb.String()
+}
+
+func (q *{{.Name}}PriorityQueue) less(a, b int) bool {
+{{if .IsFloat}}	// Bit-tiebreak comparator: NaN compares as greatest, so it sinks to the
+	// bottom of the min-heap and drains last instead of first (raw ` + "`<`" + ` returns
+	// false for any NaN comparison, corrupting heap order).
+	return {{.CmpFn}}(q.items[a], q.items[b]) < 0
+{{else}}	return q.items[a] < q.items[b]
+{{end}}}
+
+func (q *{{.Name}}PriorityQueue) siftUp(start int) {
+	i := start
+	for i > 0 {
+		parent := (i - 1) / 2
+		if q.less(i, parent) {
+			q.items[i], q.items[parent] = q.items[parent], q.items[i]
+			i = parent
+		} else {
+			break
+		}
+	}
+}
+
+func (q *{{.Name}}PriorityQueue) siftDown(start int) {
+	i := start
+	n := len(q.items)
+	for {
+		left := 2*i + 1
+		if left >= n {
+			break
+		}
+		right := left + 1
+		best := left
+		if right < n && q.less(right, left) {
+			best = right
+		}
+		if q.less(best, i) {
+			q.items[best], q.items[i] = q.items[i], q.items[best]
+			i = best
+		} else {
+			break
+		}
+	}
+}
+`
+
+const synchronizedPriorityQueueTmpl = genHeader + `package priority_queue
+
+import (
+	"sync"
+)
+
+// Synchronized{{.Name}}PriorityQueue is a thread-safe wrapper around {{.Name}}PriorityQueue.
+type Synchronized{{.Name}}PriorityQueue struct {
+	delegate *{{.Name}}PriorityQueue
+	mu       sync.RWMutex
+}
+
+// NewSynchronized{{.Name}}PriorityQueue creates a new thread-safe empty priority queue.
+func NewSynchronized{{.Name}}PriorityQueue() *Synchronized{{.Name}}PriorityQueue {
+	return &Synchronized{{.Name}}PriorityQueue{delegate: New{{.Name}}PriorityQueue()}
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) Push(value {{.GoType}}) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.delegate.Push(value)
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) Pop() ({{.GoType}}, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.delegate.Pop()
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) Peek() ({{.GoType}}, error) {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.delegate.Peek()
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) Size() int {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.delegate.Size()
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) IsEmpty() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.delegate.IsEmpty()
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) Clear() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.delegate.Clear()
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) Contains(value {{.GoType}}) bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.delegate.Contains(value)
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) ToSlice() []{{.GoType}} {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.delegate.ToSlice()
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) DrainSorted() []{{.GoType}} {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.delegate.DrainSorted()
+}
+
+func (q *Synchronized{{.Name}}PriorityQueue) String() string {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.delegate.String()
+}
+`

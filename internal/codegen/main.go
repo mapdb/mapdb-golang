@@ -13,7 +13,7 @@
 //	//go:generate go run ../internal/codegen <collection>
 //
 // where <collection> is one of: arraylist, interval, hashset, stack, deque,
-// treeset.
+// treeset, priority_queue.
 //
 // Drift guard: `go generate ./... && git diff --exit-code` is sufficient.
 package main
@@ -42,6 +42,8 @@ func main() {
 		err = genDeque()
 	case "treeset":
 		err = genTreeSet()
+	case "priority_queue":
+		err = genPriorityQueue()
 	default:
 		err = fmt.Errorf("unknown collection %q", os.Args[1])
 	}

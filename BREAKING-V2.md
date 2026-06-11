@@ -5,6 +5,13 @@ Phase 7 applied the **additive** Go idiom improvements (no source breakage):
 `unsafe.Pointer` float-bit reinterpretation, and lazy initialization so
 zero-value map-backed collections no longer panic.
 
+Note that the lazy-init zero-value fix covers only the **built-in-map-backed**
+families (`bag`, `multimap`, and the map-backed `object/` generics). The
+open-addressed codegen tables (`*HashMap`/`*HashSet`/sentinel maps) and the
+`Synchronized*` wrappers (below) remain **construct-only** — use their
+`New*` constructors. Making zero-value usability uniform across every family
+is deferred to v2.
+
 The following are genuinely **breaking** and are intentionally batched for a
 single coordinated v2 so downstream code breaks at most once:
 

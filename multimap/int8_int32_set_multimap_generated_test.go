@@ -1,12 +1,11 @@
-
 package multimap
 
 import (
 	"testing"
 )
 
-func TestInt8Int32SetMultimap_Generated_PutGet(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_PutGet(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	m.Put(2, 3)
@@ -21,16 +20,16 @@ func TestInt8Int32SetMultimap_Generated_PutGet(t *testing.T) {
 	if len(m.Get(99)) != 0 {
 		t.Errorf("Get(99) len = %d, want 0", len(m.Get(99)))
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
 	if m.KeysCount() != 2 {
 		t.Errorf("KeysCount() = %d, want 2", m.KeysCount())
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_GetAll(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_GetAll(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	vals := m.GetAll(1)
@@ -39,8 +38,8 @@ func TestInt8Int32SetMultimap_Generated_GetAll(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_RemoveAll(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_RemoveAll(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	m.Put(2, 3)
@@ -48,8 +47,8 @@ func TestInt8Int32SetMultimap_Generated_RemoveAll(t *testing.T) {
 	if len(removed) != 2 {
 		t.Errorf("RemoveAll returned %d values, want 2", len(removed))
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size() = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size() = %d, want 1", m.Len())
 	}
 	if m.KeysCount() != 1 {
 		t.Errorf("KeysCount() = %d, want 1", m.KeysCount())
@@ -59,8 +58,8 @@ func TestInt8Int32SetMultimap_Generated_RemoveAll(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_ContainsKey(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_ContainsKey(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	if !m.ContainsKey(1) {
 		t.Errorf("ContainsKey(1) = false, want true")
@@ -70,8 +69,8 @@ func TestInt8Int32SetMultimap_Generated_ContainsKey(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_ContainsKeyValue(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_ContainsKeyValue(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	if !m.ContainsKeyValue(1, 1) {
@@ -82,21 +81,21 @@ func TestInt8Int32SetMultimap_Generated_ContainsKeyValue(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_Clear(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_Clear(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(2, 2)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Errorf("IsEmpty() = false after Clear, want true")
 	}
-	if m.Size() != 0 {
-		t.Errorf("Size() = %d after Clear, want 0", m.Size())
+	if m.Len() != 0 {
+		t.Errorf("Size() = %d after Clear, want 0", m.Len())
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_ForEach(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_ForEach(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	m.Put(2, 3)
@@ -109,8 +108,8 @@ func TestInt8Int32SetMultimap_Generated_ForEach(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_ForEachKeyValues(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_ForEachKeyValues(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	m.Put(2, 3)
@@ -126,23 +125,23 @@ func TestInt8Int32SetMultimap_Generated_ForEachKeyValues(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_SelectReject(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_SelectReject(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	m.Put(2, 3)
 	sel := m.Select(func(_ int8, v int32) bool { return v == 1 })
-	if sel.Size() != 1 {
-		t.Errorf("Select size = %d, want 1", sel.Size())
+	if sel.Len() != 1 {
+		t.Errorf("Select size = %d, want 1", sel.Len())
 	}
 	rej := m.Reject(func(_ int8, v int32) bool { return v == 1 })
-	if rej.Size() != 2 {
-		t.Errorf("Reject size = %d, want 2", rej.Size())
+	if rej.Len() != 2 {
+		t.Errorf("Reject size = %d, want 2", rej.Len())
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_KeysValues(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_KeysValues(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	m.Put(1, 2)
 	m.Put(2, 3)
@@ -156,11 +155,11 @@ func TestInt8Int32SetMultimap_Generated_KeysValues(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_Equals(t *testing.T) {
-	m1 := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_Equals(t *testing.T) {
+	m1 := NewInt8Int32Set()
 	m1.Put(1, 1)
 	m1.Put(1, 2)
-	m2 := NewInt8Int32SetMultimap()
+	m2 := NewInt8Int32Set()
 	m2.Put(1, 1)
 	m2.Put(1, 2)
 	if !m1.Equals(m2) {
@@ -168,8 +167,8 @@ func TestInt8Int32SetMultimap_Generated_Equals(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_String(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
+func TestInt8Int32Set_Generated_String(t *testing.T) {
+	m := NewInt8Int32Set()
 	m.Put(1, 1)
 	s := m.String()
 	if len(s) == 0 {
@@ -177,14 +176,14 @@ func TestInt8Int32SetMultimap_Generated_String(t *testing.T) {
 	}
 }
 
-func TestInt8Int32SetMultimap_Generated_FluentAPI(t *testing.T) {
-	m := NewInt8Int32SetMultimap()
-	m.WithKeyValue(1, 1).WithKeyValue(1, 2).WithKeyValue(2, 3)
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+func TestInt8Int32Set_Generated_FluentAPI(t *testing.T) {
+	m := NewInt8Int32Set()
+	m.PutReturning(1, 1).PutReturning(1, 2).PutReturning(2, 3)
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
-	m.WithoutKey(1)
-	if m.Size() != 1 {
-		t.Errorf("Size() = %d after WithoutKey, want 1", m.Size())
+	m.RemoveKeyReturning(1)
+	if m.Len() != 1 {
+		t.Errorf("Size() = %d after RemoveKeyReturning, want 1", m.Len())
 	}
 }

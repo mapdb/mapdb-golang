@@ -1,4 +1,3 @@
-
 package collection
 
 import (
@@ -14,11 +13,9 @@ import (
 
 // CharSized exposes the element count of a collection.
 type CharSized interface {
-	// Size returns the number of elements.
-	Size() int
-
-	// IsEmpty returns true if the collection contains no elements.
-	IsEmpty() bool
+	// Len returns the number of elements. Use x.Len() == 0 to test for
+	// emptiness.
+	Len() int
 }
 
 // CharIterable provides element-by-element traversal.
@@ -92,8 +89,8 @@ type CharMutableCollection interface {
 type CharList interface {
 	CharCollection
 
-	// Get returns the element at the given index, or an error if out of bounds.
-	Get(index int) (uint16, error)
+	// Get returns the element at the given index. It panics on out-of-range index.
+	Get(index int) uint16
 
 	// IndexOf returns the index of the first occurrence of value, or -1 if absent.
 	IndexOf(value uint16) int
@@ -108,8 +105,9 @@ type CharMutableList interface {
 	// Add appends a value to the end of the list.
 	Add(value uint16)
 
-	// Set replaces the element at the given index. Returns the previous value or an error.
-	Set(index int, value uint16) (uint16, error)
+	// Set sets the value at the given index, returning the previous value.
+	// It panics on out-of-range index.
+	Set(index int, value uint16) uint16
 }
 
 // CharSet marker interface for set-like collections (uniqueness implied).
@@ -155,8 +153,8 @@ type CharMutableBag interface {
 type CharStack interface {
 	CharCollection
 
-	// Peek returns the top of the stack without removing it.
-	Peek() (uint16, error)
+	// Peek returns the top element without removing it. The bool is false if empty.
+	Peek() (uint16, bool)
 }
 
 // CharMutableStack mutable LIFO stack with Push and Pop.
@@ -168,6 +166,6 @@ type CharMutableStack interface {
 	// Push pushes a value onto the top of the stack.
 	Push(value uint16)
 
-	// Pop pops and returns the top of the stack, or an error if empty.
-	Pop() (uint16, error)
+	// Pop removes and returns the top element. The bool is false if empty.
+	Pop() (uint16, bool)
 }

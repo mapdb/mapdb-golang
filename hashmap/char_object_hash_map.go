@@ -9,28 +9,28 @@ import (
 )
 
 const (
-	charObjectHashMapDefaultCapacity = 16
+	charObjectDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// CharObjectHashMap is an open-addressing hash map with uint16 keys and generic values.
+// CharObject is an open-addressing hash map with uint16 keys and generic values.
 // The key type is specialized to avoid boxing overhead.
-type CharObjectHashMap[V any] struct {
+type CharObject[V any] struct {
 	keys     []uint16
 	values   []V
 	occupied []bool
 	size     int
 }
 
-// NewCharObjectHashMap creates a new empty CharObjectHashMap with default capacity.
-func NewCharObjectHashMap[V any]() *CharObjectHashMap[V] {
-	return NewCharObjectHashMapWithCapacity[V](charObjectHashMapDefaultCapacity)
+// NewCharObject creates a new empty CharObject with default capacity.
+func NewCharObject[V any]() *CharObject[V] {
+	return NewCharObjectWithCapacity[V](charObjectDefaultCapacity)
 }
 
-// NewCharObjectHashMapWithCapacity creates a new empty CharObjectHashMap with the given initial capacity.
-func NewCharObjectHashMapWithCapacity[V any](capacity int) *CharObjectHashMap[V] {
-	cap := nextPowerOfTwoCharObjectHashMap(capacity)
-	return &CharObjectHashMap[V]{
+// NewCharObjectWithCapacity creates a new empty CharObject with the given initial capacity.
+func NewCharObjectWithCapacity[V any](capacity int) *CharObject[V] {
+	cap := nextPowerOfTwoCharObject(capacity)
+	return &CharObject[V]{
 		keys:     make([]uint16, cap),
 		values:   make([]V, cap),
 		occupied: make([]bool, cap),
@@ -39,7 +39,7 @@ func NewCharObjectHashMapWithCapacity[V any](capacity int) *CharObjectHashMap[V]
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *CharObjectHashMap[V]) Put(key uint16, value V) (V, bool) {
+func (m *CharObject[V]) Put(key uint16, value V) (V, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -66,7 +66,7 @@ func (m *CharObjectHashMap[V]) Put(key uint16, value V) (V, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *CharObjectHashMap[V]) Get(key uint16) (V, bool) {
+func (m *CharObject[V]) Get(key uint16) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -88,7 +88,7 @@ func (m *CharObjectHashMap[V]) Get(key uint16) (V, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *CharObjectHashMap[V]) GetOrDefault(key uint16, defaultValue V) V {
+func (m *CharObject[V]) GetOrDefault(key uint16, defaultValue V) V {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -96,7 +96,7 @@ func (m *CharObjectHashMap[V]) GetOrDefault(key uint16, defaultValue V) V {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *CharObjectHashMap[V]) Remove(key uint16) (V, bool) {
+func (m *CharObject[V]) Remove(key uint16) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -125,27 +125,18 @@ func (m *CharObjectHashMap[V]) Remove(key uint16) (V, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *CharObjectHashMap[V]) ContainsKey(key uint16) bool {
+func (m *CharObject[V]) ContainsKey(key uint16) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *CharObjectHashMap[V]) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *CharObject[V]) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *CharObjectHashMap[V]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *CharObjectHashMap[V]) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *CharObjectHashMap[V]) Clear() {
+func (m *CharObject[V]) Clear() {
 	var zeroV V
 	for i := range m.occupied {
 		m.occupied[i] = false
@@ -156,7 +147,7 @@ func (m *CharObjectHashMap[V]) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *CharObjectHashMap[V]) All() iter.Seq2[uint16, V] {
+func (m *CharObject[V]) All() iter.Seq2[uint16, V] {
 	return func(yield func(uint16, V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -169,7 +160,7 @@ func (m *CharObjectHashMap[V]) All() iter.Seq2[uint16, V] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *CharObjectHashMap[V]) Keys() iter.Seq[uint16] {
+func (m *CharObject[V]) Keys() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -182,7 +173,7 @@ func (m *CharObjectHashMap[V]) Keys() iter.Seq[uint16] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *CharObjectHashMap[V]) Values() iter.Seq[V] {
+func (m *CharObject[V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -195,7 +186,7 @@ func (m *CharObjectHashMap[V]) Values() iter.Seq[V] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *CharObjectHashMap[V]) ForEach(f func(uint16, V)) {
+func (m *CharObject[V]) ForEach(f func(uint16, V)) {
 	for i := range m.occupied {
 		if m.occupied[i] {
 			f(m.keys[i], m.values[i])
@@ -204,8 +195,8 @@ func (m *CharObjectHashMap[V]) ForEach(f func(uint16, V)) {
 }
 
 // Select returns a new map containing only entries that satisfy the predicate.
-func (m *CharObjectHashMap[V]) Select(predicate func(uint16, V) bool) *CharObjectHashMap[V] {
-	result := NewCharObjectHashMap[V]()
+func (m *CharObject[V]) Select(predicate func(uint16, V) bool) *CharObject[V] {
+	result := NewCharObject[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -215,8 +206,8 @@ func (m *CharObjectHashMap[V]) Select(predicate func(uint16, V) bool) *CharObjec
 }
 
 // Reject returns a new map containing only entries that do not satisfy the predicate.
-func (m *CharObjectHashMap[V]) Reject(predicate func(uint16, V) bool) *CharObjectHashMap[V] {
-	result := NewCharObjectHashMap[V]()
+func (m *CharObject[V]) Reject(predicate func(uint16, V) bool) *CharObject[V] {
+	result := NewCharObject[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -226,7 +217,7 @@ func (m *CharObjectHashMap[V]) Reject(predicate func(uint16, V) bool) *CharObjec
 }
 
 // String returns a string representation of the map.
-func (m *CharObjectHashMap[V]) String() string {
+func (m *CharObject[V]) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -246,22 +237,22 @@ func (m *CharObjectHashMap[V]) String() string {
 	return sb.String()
 }
 
-func (m *CharObjectHashMap[V]) hashKey(key uint16) uint64 {
+func (m *CharObject[V]) hashKey(key uint16) uint64 {
 	h := uint64(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *CharObjectHashMap[V]) needsResize() bool {
+func (m *CharObject[V]) needsResize() bool {
 	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *CharObjectHashMap[V]) resize() {
+func (m *CharObject[V]) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	oldOccupied := m.occupied
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = charObjectHashMapDefaultCapacity
+		newCap = charObjectDefaultCapacity
 	}
 	m.keys = make([]uint16, newCap)
 	m.values = make([]V, newCap)
@@ -275,7 +266,7 @@ func (m *CharObjectHashMap[V]) resize() {
 	}
 }
 
-func (m *CharObjectHashMap[V]) rehashFrom(deleted int, mask int) {
+func (m *CharObject[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(m.hashKey(m.keys[idx])) & mask
@@ -294,7 +285,7 @@ func (m *CharObjectHashMap[V]) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoCharObjectHashMap(n int) int {
+func nextPowerOfTwoCharObject(n int) int {
 	if n <= 0 {
 		return 16
 	}

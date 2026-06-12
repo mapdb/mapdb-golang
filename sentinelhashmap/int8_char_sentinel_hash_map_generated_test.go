@@ -1,15 +1,14 @@
-
 package sentinelhashmap
 
 import "testing"
 
-func TestInt8CharSentinelHashMap_Generated_PutGet(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_PutGet(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	m.Put(2, 2)
 	m.Put(3, 3)
-	if m.Size() != 3 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size = %d", m.Len())
 	}
 	if v, ok := m.Get(1); !ok || v != 1 {
 		t.Errorf("Get = (%v,%v)", v, ok)
@@ -18,28 +17,28 @@ func TestInt8CharSentinelHashMap_Generated_PutGet(t *testing.T) {
 		t.Error("Get missing should be false")
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_PutOverwrite(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_PutOverwrite(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	old, existed := m.Put(1, 2)
 	if !existed || old != 1 {
 		t.Errorf("Overwrite = (%v,%v)", old, existed)
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_Remove(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_Remove(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	m.Put(2, 2)
 	old, ok := m.Remove(1)
 	if !ok || old != 1 {
 		t.Errorf("Remove = (%v,%v)", old, ok)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size = %d", m.Len())
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_ContainsKey(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_ContainsKey(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	if !m.ContainsKey(1) {
 		t.Error("Should contain")
@@ -48,23 +47,23 @@ func TestInt8CharSentinelHashMap_Generated_ContainsKey(t *testing.T) {
 		t.Error("Should not contain")
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_ContainsValue(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_ContainsValue(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	if !m.ContainsValue(1) {
 		t.Error("Should contain value")
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_Clear(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_Clear(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_All(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_All(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	m.Put(2, 2)
 	count := 0
@@ -75,37 +74,37 @@ func TestInt8CharSentinelHashMap_Generated_All(t *testing.T) {
 		t.Errorf("All count = %d", count)
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_Select(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_Select(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	m.Put(2, 2)
 	m.Put(3, 3)
 	sel := m.Select(func(k int8, v uint16) bool { return v > 1 })
-	if sel.Size() != 2 {
-		t.Errorf("Select size = %d", sel.Size())
+	if sel.Len() != 2 {
+		t.Errorf("Select size = %d", sel.Len())
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_AnySatisfy(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_AnySatisfy(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	m.Put(2, 2)
 	if !m.AnySatisfy(func(k int8, v uint16) bool { return v == 2 }) {
 		t.Error("Should be true")
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_String(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_String(t *testing.T) {
+	m := NewInt8Char()
 	m.Put(1, 1)
 	if m.String() == "" {
 		t.Error("empty")
 	}
 }
-func TestInt8CharSentinelHashMap_Generated_Resize(t *testing.T) {
-	m := NewInt8CharSentinelHashMap()
+func TestInt8Char_Generated_Resize(t *testing.T) {
+	m := NewInt8Char()
 	for i := int8(0); i < 100; i++ {
 		m.Put(i, uint16(i))
 	}
-	if m.Size() != 100 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 100 {
+		t.Errorf("Size = %d", m.Len())
 	}
 }

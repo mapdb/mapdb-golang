@@ -1,35 +1,34 @@
-
 package stack
 
 import "testing"
 
-func TestSynchronizedCharArrayStack_Generated_PushPopPeek(t *testing.T) {
-	s := NewSynchronizedCharArrayStack()
+func TestSynchronizedChar_Generated_PushPopPeek(t *testing.T) {
+	s := NewSynchronizedChar()
 	s.Push(1)
 	s.Push(2)
 	s.Push(3)
-	if s.Size() != 3 {
-		t.Errorf("Size = %d", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size = %d", s.Len())
 	}
-	if p, err := s.Peek(); err != nil || p != 3 {
-		t.Errorf("Peek = (%v, %v)", p, err)
+	if p, ok := s.Peek(); !ok || p != 3 {
+		t.Errorf("Peek = (%v, %v)", p, ok)
 	}
-	val, err := s.Pop()
-	if err != nil || val != 3 {
-		t.Errorf("Pop = (%v, %v)", val, err)
+	val, ok := s.Pop()
+	if !ok || val != 3 {
+		t.Errorf("Pop = (%v, %v)", val, ok)
 	}
-	if s.Size() != 2 {
-		t.Errorf("Size after pop = %d", s.Size())
+	if s.Len() != 2 {
+		t.Errorf("Size after pop = %d", s.Len())
 	}
 }
-func TestSynchronizedCharArrayStack_Generated_IsEmpty(t *testing.T) {
-	s := NewSynchronizedCharArrayStack()
-	if !s.IsEmpty() {
+func TestSynchronizedChar_Generated_IsEmpty(t *testing.T) {
+	s := NewSynchronizedChar()
+	if s.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestSynchronizedCharArrayStack_Generated_Contains(t *testing.T) {
-	s := NewSynchronizedCharArrayStack()
+func TestSynchronizedChar_Generated_Contains(t *testing.T) {
+	s := NewSynchronizedChar()
 	s.Push(1)
 	if !s.Contains(1) {
 		t.Error("Contains should be true")
@@ -38,16 +37,16 @@ func TestSynchronizedCharArrayStack_Generated_Contains(t *testing.T) {
 		t.Error("Contains should be false")
 	}
 }
-func TestSynchronizedCharArrayStack_Generated_Clear(t *testing.T) {
-	s := NewSynchronizedCharArrayStack()
+func TestSynchronizedChar_Generated_Clear(t *testing.T) {
+	s := NewSynchronizedChar()
 	s.Push(1)
 	s.Clear()
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestSynchronizedCharArrayStack_Generated_All(t *testing.T) {
-	s := NewSynchronizedCharArrayStack()
+func TestSynchronizedChar_Generated_All(t *testing.T) {
+	s := NewSynchronizedChar()
 	s.Push(1)
 	s.Push(2)
 	count := 0
@@ -58,10 +57,15 @@ func TestSynchronizedCharArrayStack_Generated_All(t *testing.T) {
 		t.Errorf("All count = %d", count)
 	}
 }
-func TestSynchronizedCharArrayStack_Generated_String(t *testing.T) {
-	s := NewSynchronizedCharArrayStack()
+func TestSynchronizedChar_Generated_String(t *testing.T) {
+	s := NewSynchronizedChar()
 	s.Push(1)
 	if s.String() == "" {
 		t.Error("empty")
 	}
+}
+
+func TestSynchronizedChar_Generated_PeekAtPanics(t *testing.T) {
+	s := NewSynchronizedCharFrom(CharOf(1, 2, 3))
+	assertPanics(t, func() { _ = s.PeekAt(99) })
 }

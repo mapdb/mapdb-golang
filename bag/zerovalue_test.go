@@ -5,11 +5,11 @@ import "testing"
 // Zero-value (nil-map) usability: a freshly declared map-backed bag must accept
 // mutations without panicking ("assignment to entry in nil map"). Phase 7a.
 
-func TestZeroValueInt32HashBag(t *testing.T) {
-	var b Int32HashBag
+func TestZeroValueHashInt32(t *testing.T) {
+	var b HashInt32
 	b.Add(1)
 	b.AddOccurrences(2, 3)
-	if got := b.Size(); got != 4 {
+	if got := b.Len(); got != 4 {
 		t.Fatalf("Size() = %d, want 4", got)
 	}
 	if got := b.OccurrencesOf(2); got != 3 {
@@ -17,18 +17,18 @@ func TestZeroValueInt32HashBag(t *testing.T) {
 	}
 }
 
-func TestZeroValueFloat64HashBag(t *testing.T) {
-	var b Float64HashBag
+func TestZeroValueHashFloat64(t *testing.T) {
+	var b HashFloat64
 	b.Add(1.5)
 	if got := b.OccurrencesOf(1.5); got != 1 {
 		t.Fatalf("OccurrencesOf(1.5) = %d, want 1", got)
 	}
 }
 
-func TestZeroValueInt32TreeBag(t *testing.T) {
-	var b Int32TreeBag
+func TestZeroValueTreeInt32(t *testing.T) {
+	var b TreeInt32
 	b.Add(7)
-	if got := b.Size(); got != 1 {
+	if got := b.Len(); got != 1 {
 		t.Fatalf("Size() = %d, want 1", got)
 	}
 }

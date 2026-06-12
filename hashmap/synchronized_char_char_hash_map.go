@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedCharCharHashMap is a thread-safe wrapper around CharCharHashMap.
+// SynchronizedCharChar is a thread-safe wrapper around CharChar.
 //
 // Read methods hold RLock; writes hold Lock. Functional methods
 // (ForEach, Select, AnySatisfy, …) snapshot (keys, values) under
@@ -19,29 +19,29 @@ import (
 // hold the write lock while invoking the callback — the callback
 // must not re-enter the wrapper in that case. This matches the
 // Java EC synchronized-collection convention.
-type SynchronizedCharCharHashMap struct {
-	delegate *CharCharHashMap
+type SynchronizedCharChar struct {
+	delegate *CharChar
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedCharCharHashMap wraps a mutable map with synchronization.
-func NewSynchronizedCharCharHashMap() *SynchronizedCharCharHashMap {
-	return &SynchronizedCharCharHashMap{delegate: NewCharCharHashMap()}
+// NewSynchronizedCharChar wraps a mutable map with synchronization.
+func NewSynchronizedCharChar() *SynchronizedCharChar {
+	return &SynchronizedCharChar{delegate: NewCharChar()}
 }
 
-// NewSynchronizedCharCharHashMapWithCapacity wraps a new map with the given initial capacity.
-func NewSynchronizedCharCharHashMapWithCapacity(capacity int) *SynchronizedCharCharHashMap {
-	return &SynchronizedCharCharHashMap{delegate: NewCharCharHashMapWithCapacity(capacity)}
+// NewSynchronizedCharCharWithCapacity wraps a new map with the given initial capacity.
+func NewSynchronizedCharCharWithCapacity(capacity int) *SynchronizedCharChar {
+	return &SynchronizedCharChar{delegate: NewCharCharWithCapacity(capacity)}
 }
 
-// NewSynchronizedCharCharHashMapFrom wraps an existing map with synchronization.
+// NewSynchronizedCharCharFrom wraps an existing map with synchronization.
 // The wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedCharCharHashMapFrom(m *CharCharHashMap) *SynchronizedCharCharHashMap {
-	return &SynchronizedCharCharHashMap{delegate: m}
+func NewSynchronizedCharCharFrom(m *CharChar) *SynchronizedCharChar {
+	return &SynchronizedCharChar{delegate: m}
 }
 
 // snapshot returns (keys, values) slices in matching order, taken under RLock.
-func (m *SynchronizedCharCharHashMap) snapshot() (keys []uint16, values []uint16) {
+func (m *SynchronizedCharChar) snapshot() (keys []uint16, values []uint16) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.KeysToSlice(), m.delegate.ValuesToSlice()
@@ -50,21 +50,21 @@ func (m *SynchronizedCharCharHashMap) snapshot() (keys []uint16, values []uint16
 // ── writes ────────────────────────────────────────────────────────────
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *SynchronizedCharCharHashMap) Put(key uint16, value uint16) (uint16, bool) {
+func (m *SynchronizedCharChar) Put(key uint16, value uint16) (uint16, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.Put(key, value)
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if found.
-func (m *SynchronizedCharCharHashMap) Remove(key uint16) (uint16, bool) {
+func (m *SynchronizedCharChar) Remove(key uint16) (uint16, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.Remove(key)
 }
 
 // Clear removes all entries.
-func (m *SynchronizedCharCharHashMap) Clear() {
+func (m *SynchronizedCharChar) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delegate.Clear()
@@ -72,7 +72,7 @@ func (m *SynchronizedCharCharHashMap) Clear() {
 
 // AddToValue increments the value for the given key by `amount`,
 // inserting it if absent. Holds the write lock; returns the new value.
-func (m *SynchronizedCharCharHashMap) AddToValue(key uint16, amount uint16) uint16 {
+func (m *SynchronizedCharChar) AddToValue(key uint16, amount uint16) uint16 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.AddToValue(key, amount)
@@ -81,7 +81,7 @@ func (m *SynchronizedCharCharHashMap) AddToValue(key uint16, amount uint16) uint
 // UpdateValue applies f to the current (or initial) value under the
 // write lock. The callback must not re-enter this wrapper — it will
 // deadlock. Prefer Get + Put on caller side if re-entry is needed.
-func (m *SynchronizedCharCharHashMap) UpdateValue(key uint16, initial uint16, f func(uint16) uint16) uint16 {
+func (m *SynchronizedCharChar) UpdateValue(key uint16, initial uint16, f func(uint16) uint16) uint16 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.UpdateValue(key, initial, f)
@@ -90,74 +90,63 @@ func (m *SynchronizedCharCharHashMap) UpdateValue(key uint16, initial uint16, f 
 // ── simple reads ──────────────────────────────────────────────────────
 
 // Get returns the value for the given key and true if found.
-func (m *SynchronizedCharCharHashMap) Get(key uint16) (uint16, bool) {
+func (m *SynchronizedCharChar) Get(key uint16) (uint16, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *SynchronizedCharCharHashMap) GetOrDefault(key uint16, defaultValue uint16) uint16 {
+func (m *SynchronizedCharChar) GetOrDefault(key uint16, defaultValue uint16) uint16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *SynchronizedCharCharHashMap) ContainsKey(key uint16) bool {
+func (m *SynchronizedCharChar) ContainsKey(key uint16) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if any entry's value matches.
-func (m *SynchronizedCharCharHashMap) ContainsValue(value uint16) bool {
+func (m *SynchronizedCharChar) ContainsValue(value uint16) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *SynchronizedCharCharHashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *SynchronizedCharChar) Len() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *SynchronizedCharCharHashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *SynchronizedCharCharHashMap) IsEmpty() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.delegate.IsEmpty()
+	return m.delegate.Len()
 }
 
 // SumOfValues returns the sum of all values, under RLock.
-func (m *SynchronizedCharCharHashMap) SumOfValues() uint16 {
+func (m *SynchronizedCharChar) SumOfValues() uint16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.SumOfValues()
 }
 
 // KeysToSlice returns a copy of all keys.
-func (m *SynchronizedCharCharHashMap) KeysToSlice() []uint16 {
+func (m *SynchronizedCharChar) KeysToSlice() []uint16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns a copy of all values.
-func (m *SynchronizedCharCharHashMap) ValuesToSlice() []uint16 {
+func (m *SynchronizedCharChar) ValuesToSlice() []uint16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *SynchronizedCharCharHashMap) String() string {
+func (m *SynchronizedCharChar) String() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.String()
@@ -167,7 +156,7 @@ func (m *SynchronizedCharCharHashMap) String() string {
 
 // All returns an iter.Seq2 over a snapshot of all key-value pairs.
 // Iteration is lock-free.
-func (m *SynchronizedCharCharHashMap) All() iter.Seq2[uint16, uint16] {
+func (m *SynchronizedCharChar) All() iter.Seq2[uint16, uint16] {
 	keys, values := m.snapshot()
 	return func(yield func(uint16, uint16) bool) {
 		for i := range keys {
@@ -179,7 +168,7 @@ func (m *SynchronizedCharCharHashMap) All() iter.Seq2[uint16, uint16] {
 }
 
 // Keys returns an iter.Seq over a snapshot of keys.
-func (m *SynchronizedCharCharHashMap) Keys() iter.Seq[uint16] {
+func (m *SynchronizedCharChar) Keys() iter.Seq[uint16] {
 	keys, _ := m.snapshot()
 	return func(yield func(uint16) bool) {
 		for _, k := range keys {
@@ -191,7 +180,7 @@ func (m *SynchronizedCharCharHashMap) Keys() iter.Seq[uint16] {
 }
 
 // Values returns an iter.Seq over a snapshot of values.
-func (m *SynchronizedCharCharHashMap) Values() iter.Seq[uint16] {
+func (m *SynchronizedCharChar) Values() iter.Seq[uint16] {
 	_, values := m.snapshot()
 	return func(yield func(uint16) bool) {
 		for _, v := range values {
@@ -205,7 +194,7 @@ func (m *SynchronizedCharCharHashMap) Values() iter.Seq[uint16] {
 // ── functional (callback) methods over snapshot ──────────────────────
 
 // ForEach iterates entries over a snapshot. Callback runs unlocked.
-func (m *SynchronizedCharCharHashMap) ForEach(f func(uint16, uint16)) {
+func (m *SynchronizedCharChar) ForEach(f func(uint16, uint16)) {
 	keys, values := m.snapshot()
 	for i := range keys {
 		f(keys[i], values[i])
@@ -213,7 +202,7 @@ func (m *SynchronizedCharCharHashMap) ForEach(f func(uint16, uint16)) {
 }
 
 // ForEachKey iterates keys over a snapshot. Callback runs unlocked.
-func (m *SynchronizedCharCharHashMap) ForEachKey(f func(uint16)) {
+func (m *SynchronizedCharChar) ForEachKey(f func(uint16)) {
 	keys, _ := m.snapshot()
 	for _, k := range keys {
 		f(k)
@@ -221,7 +210,7 @@ func (m *SynchronizedCharCharHashMap) ForEachKey(f func(uint16)) {
 }
 
 // ForEachValue iterates values over a snapshot. Callback runs unlocked.
-func (m *SynchronizedCharCharHashMap) ForEachValue(f func(uint16)) {
+func (m *SynchronizedCharChar) ForEachValue(f func(uint16)) {
 	_, values := m.snapshot()
 	for _, v := range values {
 		f(v)
@@ -229,7 +218,7 @@ func (m *SynchronizedCharCharHashMap) ForEachValue(f func(uint16)) {
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *SynchronizedCharCharHashMap) AnySatisfy(predicate func(uint16, uint16) bool) bool {
+func (m *SynchronizedCharChar) AnySatisfy(predicate func(uint16, uint16) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -240,7 +229,7 @@ func (m *SynchronizedCharCharHashMap) AnySatisfy(predicate func(uint16, uint16) 
 }
 
 // AllSatisfy returns true if every entry satisfies the predicate.
-func (m *SynchronizedCharCharHashMap) AllSatisfy(predicate func(uint16, uint16) bool) bool {
+func (m *SynchronizedCharChar) AllSatisfy(predicate func(uint16, uint16) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if !predicate(keys[i], values[i]) {
@@ -251,7 +240,7 @@ func (m *SynchronizedCharCharHashMap) AllSatisfy(predicate func(uint16, uint16) 
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *SynchronizedCharCharHashMap) NoneSatisfy(predicate func(uint16, uint16) bool) bool {
+func (m *SynchronizedCharChar) NoneSatisfy(predicate func(uint16, uint16) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -262,7 +251,7 @@ func (m *SynchronizedCharCharHashMap) NoneSatisfy(predicate func(uint16, uint16)
 }
 
 // Count returns the number of entries satisfying the predicate.
-func (m *SynchronizedCharCharHashMap) Count(predicate func(uint16, uint16) bool) int {
+func (m *SynchronizedCharChar) Count(predicate func(uint16, uint16) bool) int {
 	keys, values := m.snapshot()
 	n := 0
 	for i := range keys {
@@ -274,7 +263,7 @@ func (m *SynchronizedCharCharHashMap) Count(predicate func(uint16, uint16) bool)
 }
 
 // Detect returns any entry satisfying the predicate, or zero values and false.
-func (m *SynchronizedCharCharHashMap) Detect(predicate func(uint16, uint16) bool) (uint16, uint16, bool) {
+func (m *SynchronizedCharChar) Detect(predicate func(uint16, uint16) bool) (uint16, uint16, bool) {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -287,7 +276,7 @@ func (m *SynchronizedCharCharHashMap) Detect(predicate func(uint16, uint16) bool
 }
 
 // InjectInto folds entries into an accumulator, callback unlocked.
-func (m *SynchronizedCharCharHashMap) InjectInto(initial uint16, f func(uint16, uint16, uint16) uint16) uint16 {
+func (m *SynchronizedCharChar) InjectInto(initial uint16, f func(uint16, uint16, uint16) uint16) uint16 {
 	keys, values := m.snapshot()
 	acc := initial
 	for i := range keys {
@@ -299,9 +288,9 @@ func (m *SynchronizedCharCharHashMap) InjectInto(initial uint16, f func(uint16, 
 // ── functional that return a new map ─────────────────────────────────
 
 // Select returns a new (unsynchronized) map with entries satisfying predicate.
-func (m *SynchronizedCharCharHashMap) Select(predicate func(uint16, uint16) bool) *CharCharHashMap {
+func (m *SynchronizedCharChar) Select(predicate func(uint16, uint16) bool) *CharChar {
 	keys, values := m.snapshot()
-	result := NewCharCharHashMap()
+	result := NewCharChar()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
 			result.Put(keys[i], values[i])
@@ -311,9 +300,9 @@ func (m *SynchronizedCharCharHashMap) Select(predicate func(uint16, uint16) bool
 }
 
 // Reject returns a new (unsynchronized) map with entries NOT satisfying predicate.
-func (m *SynchronizedCharCharHashMap) Reject(predicate func(uint16, uint16) bool) *CharCharHashMap {
+func (m *SynchronizedCharChar) Reject(predicate func(uint16, uint16) bool) *CharChar {
 	keys, values := m.snapshot()
-	result := NewCharCharHashMap()
+	result := NewCharChar()
 	for i := range keys {
 		if !predicate(keys[i], values[i]) {
 			result.Put(keys[i], values[i])
@@ -324,24 +313,24 @@ func (m *SynchronizedCharCharHashMap) Reject(predicate func(uint16, uint16) bool
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (m *SynchronizedCharCharHashMap) WithKeyValue(key uint16, value uint16) *SynchronizedCharCharHashMap {
+func (m *SynchronizedCharChar) PutReturning(key uint16, value uint16) *SynchronizedCharChar {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.delegate.WithKeyValue(key, value)
+	m.delegate.PutReturning(key, value)
 	return m
 }
 
-func (m *SynchronizedCharCharHashMap) WithoutKey(key uint16) *SynchronizedCharCharHashMap {
+func (m *SynchronizedCharChar) RemoveKeyReturning(key uint16) *SynchronizedCharChar {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.delegate.WithoutKey(key)
+	m.delegate.RemoveKeyReturning(key)
 	return m
 }
 
 // WithoutAllKeys is variadic for caller convenience; internally the
 // slice is passed straight through since the underlying method already
 // accepts a slice.
-func (m *SynchronizedCharCharHashMap) WithoutAllKeys(keys ...uint16) *SynchronizedCharCharHashMap {
+func (m *SynchronizedCharChar) WithoutAllKeys(keys ...uint16) *SynchronizedCharChar {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delegate.WithoutAllKeys(keys)
@@ -350,7 +339,7 @@ func (m *SynchronizedCharCharHashMap) WithoutAllKeys(keys ...uint16) *Synchroniz
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (m *SynchronizedCharCharHashMap) ToImmutable() *ImmutableCharCharHashMap {
+func (m *SynchronizedCharChar) ToImmutable() *ImmutableCharChar {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ToImmutable()
@@ -358,7 +347,7 @@ func (m *SynchronizedCharCharHashMap) ToImmutable() *ImmutableCharCharHashMap {
 
 // Equals compares by contents. Locks acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (m *SynchronizedCharCharHashMap) Equals(other *SynchronizedCharCharHashMap) bool {
+func (m *SynchronizedCharChar) Equals(other *SynchronizedCharChar) bool {
 	if m == other {
 		m.mu.RLock()
 		defer m.mu.RUnlock()

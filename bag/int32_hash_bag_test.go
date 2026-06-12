@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-func TestInt32HashBag_AddOccurrences(t *testing.T) {
-	b := NewInt32HashBag()
+func TestHashInt32_AddOccurrences(t *testing.T) {
+	b := NewHashInt32()
 	b.Add(1)
 	b.Add(1)
 	b.Add(2)
@@ -16,16 +16,16 @@ func TestInt32HashBag_AddOccurrences(t *testing.T) {
 	if b.OccurrencesOf(2) != 1 {
 		t.Errorf("OccurrencesOf(2) = %d, want 1", b.OccurrencesOf(2))
 	}
-	if b.Size() != 3 {
-		t.Errorf("Size = %d, want 3", b.Size())
+	if b.Len() != 3 {
+		t.Errorf("Size = %d, want 3", b.Len())
 	}
 	if b.SizeDistinct() != 2 {
 		t.Errorf("SizeDistinct = %d, want 2", b.SizeDistinct())
 	}
 }
 
-func TestInt32HashBag_Remove(t *testing.T) {
-	b := Int32HashBagOf(1, 1, 1, 2)
+func TestHashInt32_Remove(t *testing.T) {
+	b := HashInt32Of(1, 1, 1, 2)
 	b.Remove(1)
 	if b.OccurrencesOf(1) != 2 {
 		t.Errorf("After Remove(1): occurrences = %d, want 2", b.OccurrencesOf(1))
@@ -36,8 +36,8 @@ func TestInt32HashBag_Remove(t *testing.T) {
 	}
 }
 
-func TestInt32HashBag_ForEachWithOccurrences(t *testing.T) {
-	b := Int32HashBagOf(1, 1, 2, 2, 2)
+func TestHashInt32_ForEachWithOccurrences(t *testing.T) {
+	b := HashInt32Of(1, 1, 2, 2, 2)
 	total := 0
 	b.ForEachWithOccurrences(func(v int32, count int) {
 		total += count
@@ -47,8 +47,8 @@ func TestInt32HashBag_ForEachWithOccurrences(t *testing.T) {
 	}
 }
 
-func TestInt32HashBag_TopOccurrences(t *testing.T) {
-	b := Int32HashBagOf(1, 1, 1, 2, 2, 3)
+func TestHashInt32_TopOccurrences(t *testing.T) {
+	b := HashInt32Of(1, 1, 1, 2, 2, 3)
 	top := b.TopOccurrences(1)
 	if len(top) != 1 || top[0].Count != 3 {
 		t.Errorf("TopOccurrences(1) = %v", top)

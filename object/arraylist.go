@@ -7,7 +7,6 @@
 package object
 
 import (
-	"errors"
 	"fmt"
 	"iter"
 	"slices"
@@ -39,12 +38,8 @@ func NewArrayListWithCapacity[T comparable](capacity int) *ArrayList[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (a *ArrayList[T]) Size() int { return len(a.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (a *ArrayList[T]) Len() int      { return a.Size() }
-func (a *ArrayList[T]) IsEmpty() bool { return len(a.items) == 0 }
+// Len returns the number of elements. Use a.Len() == 0 to test for emptiness.
+func (a *ArrayList[T]) Len() int { return len(a.items) }
 
 // ── Iterable ──────────────────────────────────────────────────────────
 
@@ -112,12 +107,11 @@ func (a *ArrayList[T]) ToSlice() []T {
 
 // ── List ──────────────────────────────────────────────────────────────
 
-func (a *ArrayList[T]) Get(index int) (T, error) {
+func (a *ArrayList[T]) Get(index int) T {
 	if index < 0 || index >= len(a.items) {
-		var zero T
-		return zero, fmt.Errorf("index out of bounds: %d (size %d)", index, len(a.items))
+		panic(fmt.Sprintf("object.ArrayList: index out of range [%d] with length %d", index, a.Len()))
 	}
-	return a.items[index], nil
+	return a.items[index]
 }
 
 func (a *ArrayList[T]) IndexOf(value T) int {
@@ -135,14 +129,13 @@ func (a *ArrayList[T]) Add(value T) {
 	a.items = append(a.items, value)
 }
 
-func (a *ArrayList[T]) Set(index int, value T) (T, error) {
+func (a *ArrayList[T]) Set(index int, value T) T {
 	if index < 0 || index >= len(a.items) {
-		var zero T
-		return zero, fmt.Errorf("index out of bounds: %d (size %d)", index, len(a.items))
+		panic(fmt.Sprintf("object.ArrayList: index out of range [%d] with length %d", index, a.Len()))
 	}
 	old := a.items[index]
 	a.items[index] = value
-	return old, nil
+	return old
 }
 
 func (a *ArrayList[T]) Clear() {
@@ -268,8 +261,6 @@ func (a *ArrayList[T]) String() string {
 }
 
 // ── Interface compliance ──────────────────────────────────────────────
-
-var errIndexOutOfBounds = errors.New("index out of bounds")
 
 var _ MutableList[int] = (*ArrayList[int])(nil)
 var _ MutableList[string] = (*ArrayList[string])(nil)

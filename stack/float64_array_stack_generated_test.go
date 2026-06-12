@@ -1,65 +1,64 @@
-
 package stack
 
 import (
 	"testing"
 )
 
-func TestFloat64ArrayStack_Generated_PushPeekPop(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_PushPeekPop(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	s.Push(3.0)
 
-	if s.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", s.Len())
 	}
 
-	if top, err := s.Peek(); err != nil || top != 3.0 {
-		t.Errorf("Peek() = (%v, %v), want (3.0, nil)", top, err)
+	if top, ok := s.Peek(); !ok || top != 3.0 {
+		t.Errorf("Peek() = (%v, %v), want (3.0, true)", top, ok)
 	}
 
-	if val, err := s.Pop(); err != nil || val != 3.0 {
-		t.Errorf("Pop() = (%v, %v), want (3.0, nil)", val, err)
+	if val, ok := s.Pop(); !ok || val != 3.0 {
+		t.Errorf("Pop() = (%v, %v), want (3.0, true)", val, ok)
 	}
-	if s.Size() != 2 {
-		t.Errorf("Size after pop = %d, want 2", s.Size())
+	if s.Len() != 2 {
+		t.Errorf("Size after pop = %d, want 2", s.Len())
 	}
 }
 
-func TestFloat64ArrayStack_Generated_PopPeekEmpty(t *testing.T) {
-	s := NewFloat64ArrayStack()
-	if _, err := s.Pop(); err == nil {
-		t.Error("Pop on empty stack should return an error")
+func TestFloat64_Generated_PopPeekEmpty(t *testing.T) {
+	s := NewFloat64()
+	if _, ok := s.Pop(); ok {
+		t.Error("Pop on empty stack should report not-ok")
 	}
-	if _, err := s.Peek(); err == nil {
-		t.Error("Peek on empty stack should return an error")
+	if _, ok := s.Peek(); ok {
+		t.Error("Peek on empty stack should report not-ok")
 	}
 }
 
-func TestFloat64ArrayStack_Generated_IsEmpty(t *testing.T) {
-	s := NewFloat64ArrayStack()
-	if !s.IsEmpty() {
+func TestFloat64_Generated_IsEmpty(t *testing.T) {
+	s := NewFloat64()
+	if s.Len() != 0 {
 		t.Error("New stack should be empty")
 	}
 	s.Push(1.0)
-	if s.IsEmpty() {
+	if s.Len() == 0 {
 		t.Error("Stack with element should not be empty")
 	}
 }
 
-func TestFloat64ArrayStack_Generated_Clear(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_Clear(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	s.Clear()
-	if s.Size() != 0 || !s.IsEmpty() {
-		t.Errorf("After Clear: size=%d, empty=%v", s.Size(), s.IsEmpty())
+	if s.Len() != 0 {
+		t.Errorf("After Clear: size=%d, empty=%v", s.Len(), s.Len() == 0)
 	}
 }
 
-func TestFloat64ArrayStack_Generated_Contains(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_Contains(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	if !s.Contains(1.0) {
@@ -70,8 +69,8 @@ func TestFloat64ArrayStack_Generated_Contains(t *testing.T) {
 	}
 }
 
-func TestFloat64ArrayStack_Generated_All(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_All(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	s.Push(3.0)
@@ -84,8 +83,8 @@ func TestFloat64ArrayStack_Generated_All(t *testing.T) {
 	}
 }
 
-func TestFloat64ArrayStack_Generated_ForEach(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_ForEach(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	sum := float64(0)
@@ -98,8 +97,8 @@ func TestFloat64ArrayStack_Generated_ForEach(t *testing.T) {
 	}
 }
 
-func TestFloat64ArrayStack_Generated_ToSlice(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_ToSlice(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	s.Push(3.0)
@@ -109,8 +108,8 @@ func TestFloat64ArrayStack_Generated_ToSlice(t *testing.T) {
 	}
 }
 
-func TestFloat64ArrayStack_Generated_LIFO_Order(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_LIFO_Order(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	s.Push(3.0)
@@ -123,10 +122,15 @@ func TestFloat64ArrayStack_Generated_LIFO_Order(t *testing.T) {
 	}
 }
 
-func TestFloat64ArrayStack_Generated_String(t *testing.T) {
-	s := NewFloat64ArrayStack()
+func TestFloat64_Generated_String(t *testing.T) {
+	s := NewFloat64()
 	s.Push(1.0)
 	if s.String() == "" {
 		t.Error("String should not be empty")
 	}
+}
+
+func TestFloat64_Generated_PeekAtPanics(t *testing.T) {
+	s := Float64Of(1, 2, 3)
+	assertPanics(t, func() { _ = s.PeekAt(99) })
 }

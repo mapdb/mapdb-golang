@@ -37,12 +37,9 @@ func NewHashBagFrom[T comparable](values ...T) *HashBag[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (b *HashBag[T]) Size() int { return b.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *HashBag[T]) Len() int      { return b.Size() }
-func (b *HashBag[T]) IsEmpty() bool { return b.size == 0 }
+// Len returns the total number of elements (counting duplicates).
+// Use b.Len() == 0 to test for emptiness.
+func (b *HashBag[T]) Len() int { return b.size }
 
 // ── Bag ───────────────────────────────────────────────────────────────
 

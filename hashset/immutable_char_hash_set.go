@@ -6,107 +6,98 @@ import (
 	"iter"
 )
 
-// ImmutableCharHashSet is an immutable view of a CharHashSet.
-type ImmutableCharHashSet struct {
-	delegate *CharHashSet
+// ImmutableChar is an immutable view of a Char.
+type ImmutableChar struct {
+	delegate *Char
 }
 
-// NewImmutableCharHashSet creates an immutable set from the given values.
-func NewImmutableCharHashSet(values ...uint16) *ImmutableCharHashSet {
-	return &ImmutableCharHashSet{delegate: CharHashSetOf(values...)}
+// NewImmutableChar creates an immutable set from the given values.
+func NewImmutableChar(values ...uint16) *ImmutableChar {
+	return &ImmutableChar{delegate: CharOf(values...)}
 }
 
-// ImmutableCharHashSetFrom creates an immutable copy of a mutable set.
-func ImmutableCharHashSetFrom(s *CharHashSet) *ImmutableCharHashSet {
-	copy := CharHashSetOf(s.ToSlice()...)
-	return &ImmutableCharHashSet{delegate: copy}
+// ImmutableCharFrom creates an immutable copy of a mutable set.
+func ImmutableCharFrom(s *Char) *ImmutableChar {
+	copy := CharOf(s.ToSlice()...)
+	return &ImmutableChar{delegate: copy}
 }
 
 // Contains returns true if the set contains the given value.
-func (s *ImmutableCharHashSet) Contains(value uint16) bool {
+func (s *ImmutableChar) Contains(value uint16) bool {
 	return s.delegate.Contains(value)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableCharHashSet) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableCharHashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *ImmutableCharHashSet) IsEmpty() bool {
-	return s.delegate.IsEmpty()
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableChar) Len() int {
+	return s.delegate.Len()
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *ImmutableCharHashSet) All() iter.Seq[uint16] {
+func (s *ImmutableChar) All() iter.Seq[uint16] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element.
-func (s *ImmutableCharHashSet) ForEach(f func(uint16)) {
+func (s *ImmutableChar) ForEach(f func(uint16)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable set with elements satisfying the predicate.
-func (s *ImmutableCharHashSet) Select(predicate func(uint16) bool) *ImmutableCharHashSet {
-	return &ImmutableCharHashSet{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableChar) Select(predicate func(uint16) bool) *ImmutableChar {
+	return &ImmutableChar{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable set with elements not satisfying the predicate.
-func (s *ImmutableCharHashSet) Reject(predicate func(uint16) bool) *ImmutableCharHashSet {
-	return &ImmutableCharHashSet{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableChar) Reject(predicate func(uint16) bool) *ImmutableChar {
+	return &ImmutableChar{delegate: s.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableCharHashSet) AnySatisfy(predicate func(uint16) bool) bool {
+func (s *ImmutableChar) AnySatisfy(predicate func(uint16) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableCharHashSet) AllSatisfy(predicate func(uint16) bool) bool {
+func (s *ImmutableChar) AllSatisfy(predicate func(uint16) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableCharHashSet) NoneSatisfy(predicate func(uint16) bool) bool {
+func (s *ImmutableChar) NoneSatisfy(predicate func(uint16) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Union returns a new immutable set with elements from both sets.
-func (s *ImmutableCharHashSet) Union(other *ImmutableCharHashSet) *ImmutableCharHashSet {
-	return &ImmutableCharHashSet{delegate: s.delegate.Union(other.delegate)}
+func (s *ImmutableChar) Union(other *ImmutableChar) *ImmutableChar {
+	return &ImmutableChar{delegate: s.delegate.Union(other.delegate)}
 }
 
 // Intersect returns a new immutable set with elements in both sets.
-func (s *ImmutableCharHashSet) Intersect(other *ImmutableCharHashSet) *ImmutableCharHashSet {
-	return &ImmutableCharHashSet{delegate: s.delegate.Intersect(other.delegate)}
+func (s *ImmutableChar) Intersect(other *ImmutableChar) *ImmutableChar {
+	return &ImmutableChar{delegate: s.delegate.Intersect(other.delegate)}
 }
 
 // Difference returns a new immutable set with elements in this but not other.
-func (s *ImmutableCharHashSet) Difference(other *ImmutableCharHashSet) *ImmutableCharHashSet {
-	return &ImmutableCharHashSet{delegate: s.delegate.Difference(other.delegate)}
+func (s *ImmutableChar) Difference(other *ImmutableChar) *ImmutableChar {
+	return &ImmutableChar{delegate: s.delegate.Difference(other.delegate)}
 }
 
 // ToSlice returns all elements as a slice.
-func (s *ImmutableCharHashSet) ToSlice() []uint16 {
+func (s *ImmutableChar) ToSlice() []uint16 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableCharHashSet) String() string {
+func (s *ImmutableChar) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable set has the same elements.
-func (s *ImmutableCharHashSet) Equals(other *ImmutableCharHashSet) bool {
+func (s *ImmutableChar) Equals(other *ImmutableChar) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this set.
-func (s *ImmutableCharHashSet) ToMutable() *CharHashSet {
-	return CharHashSetOf(s.ToSlice()...)
+func (s *ImmutableChar) ToMutable() *Char {
+	return CharOf(s.ToSlice()...)
 }

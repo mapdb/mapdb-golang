@@ -9,26 +9,26 @@ import (
 	"strings"
 )
 
-// Float64Float32HashBiMap is a bidirectional map with float64 keys and float32 values.
+// Float64Float32BiMap is a bidirectional map with float64 keys and float32 values.
 // Both key-to-value and value-to-key lookups are O(1).
-type Float64Float32HashBiMap struct {
-	forward *Float64Float32HashMap
-	reverse *Float32Float64HashMap
+type Float64Float32BiMap struct {
+	forward *Float64Float32
+	reverse *Float32Float64
 }
 
-// NewFloat64Float32HashBiMap creates a new empty Float64Float32HashBiMap with default capacity.
-func NewFloat64Float32HashBiMap() *Float64Float32HashBiMap {
-	return &Float64Float32HashBiMap{
-		forward: NewFloat64Float32HashMap(),
-		reverse: NewFloat32Float64HashMap(),
+// NewFloat64Float32BiMap creates a new empty Float64Float32BiMap with default capacity.
+func NewFloat64Float32BiMap() *Float64Float32BiMap {
+	return &Float64Float32BiMap{
+		forward: NewFloat64Float32(),
+		reverse: NewFloat32Float64(),
 	}
 }
 
-// NewFloat64Float32HashBiMapWithCapacity creates a new empty Float64Float32HashBiMap with the given initial capacity.
-func NewFloat64Float32HashBiMapWithCapacity(capacity int) *Float64Float32HashBiMap {
-	return &Float64Float32HashBiMap{
-		forward: NewFloat64Float32HashMapWithCapacity(capacity),
-		reverse: NewFloat32Float64HashMapWithCapacity(capacity),
+// NewFloat64Float32BiMapWithCapacity creates a new empty Float64Float32BiMap with the given initial capacity.
+func NewFloat64Float32BiMapWithCapacity(capacity int) *Float64Float32BiMap {
+	return &Float64Float32BiMap{
+		forward: NewFloat64Float32WithCapacity(capacity),
+		reverse: NewFloat32Float64WithCapacity(capacity),
 	}
 }
 
@@ -36,7 +36,7 @@ func NewFloat64Float32HashBiMapWithCapacity(capacity int) *Float64Float32HashBiM
 // If the key already existed, the old value mapping is removed from the reverse map.
 // If the value already existed as a value for a different key, that old key mapping is removed.
 // Returns the previous value and true if the key existed.
-func (m *Float64Float32HashBiMap) Put(key float64, value float32) (float32, bool) {
+func (m *Float64Float32BiMap) Put(key float64, value float32) (float32, bool) {
 	// If this value is already mapped to a different key, remove that old key->value pair
 	if oldKey, ok := m.reverse.Get(value); ok {
 		if !(math.Float64bits(oldKey) == math.Float64bits(key)) {
@@ -56,18 +56,18 @@ func (m *Float64Float32HashBiMap) Put(key float64, value float32) (float32, bool
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Float64Float32HashBiMap) Get(key float64) (float32, bool) {
+func (m *Float64Float32BiMap) Get(key float64) (float32, bool) {
 	return m.forward.Get(key)
 }
 
 // GetKey returns the key for the given value and true if found, or the zero value and false if not.
-func (m *Float64Float32HashBiMap) GetKey(value float32) (float64, bool) {
+func (m *Float64Float32BiMap) GetKey(value float32) (float64, bool) {
 	return m.reverse.Get(value)
 }
 
 // Remove deletes the entry for the given key from both directions.
 // Returns the previous value and true if the key existed.
-func (m *Float64Float32HashBiMap) Remove(key float64) (float32, bool) {
+func (m *Float64Float32BiMap) Remove(key float64) (float32, bool) {
 	oldVal, existed := m.forward.Remove(key)
 	if existed {
 		m.reverse.Remove(oldVal)
@@ -77,7 +77,7 @@ func (m *Float64Float32HashBiMap) Remove(key float64) (float32, bool) {
 
 // RemoveValue deletes the entry for the given value from both directions.
 // Returns the previous key and true if the value existed.
-func (m *Float64Float32HashBiMap) RemoveValue(value float32) (float64, bool) {
+func (m *Float64Float32BiMap) RemoveValue(value float32) (float64, bool) {
 	oldKey, existed := m.reverse.Remove(value)
 	if existed {
 		m.forward.Remove(oldKey)
@@ -86,53 +86,44 @@ func (m *Float64Float32HashBiMap) RemoveValue(value float32) (float64, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Float64Float32HashBiMap) ContainsKey(key float64) bool {
+func (m *Float64Float32BiMap) ContainsKey(key float64) bool {
 	return m.forward.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Float64Float32HashBiMap) ContainsValue(value float32) bool {
+func (m *Float64Float32BiMap) ContainsValue(value float32) bool {
 	return m.reverse.ContainsKey(value)
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Float64Float32HashBiMap) Size() int {
-	return m.forward.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float64Float32HashBiMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Float64Float32HashBiMap) IsEmpty() bool {
-	return m.forward.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float64Float32BiMap) Len() int {
+	return m.forward.Len()
 }
 
 // Clear removes all entries from both directions.
-func (m *Float64Float32HashBiMap) Clear() {
+func (m *Float64Float32BiMap) Clear() {
 	m.forward.Clear()
 	m.reverse.Clear()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Float64Float32HashBiMap) ForEach(f func(float64, float32)) {
+func (m *Float64Float32BiMap) ForEach(f func(float64, float32)) {
 	m.forward.ForEach(f)
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Float64Float32HashBiMap) Keys() iter.Seq[float64] {
+func (m *Float64Float32BiMap) Keys() iter.Seq[float64] {
 	return m.forward.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Float64Float32HashBiMap) Values() iter.Seq[float32] {
+func (m *Float64Float32BiMap) Values() iter.Seq[float32] {
 	return m.forward.Values()
 }
 
-// Inverse returns a new Float32Float64HashBiMap with keys and values swapped.
-func (m *Float64Float32HashBiMap) Inverse() *Float32Float64HashBiMap {
-	result := NewFloat32Float64HashBiMap()
+// Inverse returns a new Float32Float64BiMap with keys and values swapped.
+func (m *Float64Float32BiMap) Inverse() *Float32Float64BiMap {
+	result := NewFloat32Float64BiMap()
 	m.forward.ForEach(func(k float64, v float32) {
 		result.Put(v, k)
 	})
@@ -140,8 +131,8 @@ func (m *Float64Float32HashBiMap) Inverse() *Float32Float64HashBiMap {
 }
 
 // String returns a string representation of the bi-map.
-func (m *Float64Float32HashBiMap) String() string {
-	if m.forward.Size() == 0 {
+func (m *Float64Float32BiMap) String() string {
+	if m.forward.Len() == 0 {
 		return "{}"
 	}
 	var sb strings.Builder
@@ -159,6 +150,6 @@ func (m *Float64Float32HashBiMap) String() string {
 }
 
 // Equals returns true if the other bi-map has the same key-value pairs.
-func (m *Float64Float32HashBiMap) Equals(other *Float64Float32HashBiMap) bool {
+func (m *Float64Float32BiMap) Equals(other *Float64Float32BiMap) bool {
 	return m.forward.Equals(other.forward)
 }

@@ -6,127 +6,118 @@ import (
 	"iter"
 )
 
-// ImmutableInt8ArrayList is an immutable view of a Int8ArrayList.
-type ImmutableInt8ArrayList struct {
-	delegate *Int8ArrayList
+// ImmutableInt8 is an immutable view of a Int8.
+type ImmutableInt8 struct {
+	delegate *Int8
 }
 
-// NewImmutableInt8ArrayList creates an immutable list from the given values.
-func NewImmutableInt8ArrayList(values ...int8) *ImmutableInt8ArrayList {
-	return &ImmutableInt8ArrayList{delegate: Int8ArrayListOf(values...)}
+// NewImmutableInt8 creates an immutable list from the given values.
+func NewImmutableInt8(values ...int8) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: Int8Of(values...)}
 }
 
-// ImmutableInt8ArrayListFrom creates an immutable copy of a mutable list.
-func ImmutableInt8ArrayListFrom(l *Int8ArrayList) *ImmutableInt8ArrayList {
-	copy := Int8ArrayListOf(l.ToSlice()...)
-	return &ImmutableInt8ArrayList{delegate: copy}
+// ImmutableInt8From creates an immutable copy of a mutable list.
+func ImmutableInt8From(l *Int8) *ImmutableInt8 {
+	copy := Int8Of(l.ToSlice()...)
+	return &ImmutableInt8{delegate: copy}
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *ImmutableInt8ArrayList) Get(index int) (int8, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *ImmutableInt8) Get(index int) int8 {
 	return l.delegate.Get(index)
 }
 
-// Size returns the number of elements.
-func (l *ImmutableInt8ArrayList) Size() int {
-	return l.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *ImmutableInt8ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *ImmutableInt8ArrayList) IsEmpty() bool {
-	return l.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use l.Len() == 0 to test for
+// emptiness.
+func (l *ImmutableInt8) Len() int { return l.delegate.Len() }
 
 // Contains returns true if the list contains the given value.
-func (l *ImmutableInt8ArrayList) Contains(value int8) bool {
+func (l *ImmutableInt8) Contains(value int8) bool {
 	return l.delegate.Contains(value)
 }
 
 // IndexOf returns the index of the first occurrence, or -1.
-func (l *ImmutableInt8ArrayList) IndexOf(value int8) int {
+func (l *ImmutableInt8) IndexOf(value int8) int {
 	return l.delegate.IndexOf(value)
 }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *ImmutableInt8ArrayList) All() iter.Seq[int8] {
+func (l *ImmutableInt8) All() iter.Seq[int8] {
 	return l.delegate.All()
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *ImmutableInt8ArrayList) AllWithIndex() iter.Seq2[int, int8] {
+func (l *ImmutableInt8) AllWithIndex() iter.Seq2[int, int8] {
 	return l.delegate.AllWithIndex()
 }
 
 // ForEach calls the given function for each element.
-func (l *ImmutableInt8ArrayList) ForEach(f func(int8)) {
+func (l *ImmutableInt8) ForEach(f func(int8)) {
 	l.delegate.ForEach(f)
 }
 
 // Select returns a new immutable list with elements satisfying the predicate.
-func (l *ImmutableInt8ArrayList) Select(predicate func(int8) bool) *ImmutableInt8ArrayList {
-	return &ImmutableInt8ArrayList{delegate: l.delegate.Select(predicate)}
+func (l *ImmutableInt8) Select(predicate func(int8) bool) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: l.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable list with elements not satisfying the predicate.
-func (l *ImmutableInt8ArrayList) Reject(predicate func(int8) bool) *ImmutableInt8ArrayList {
-	return &ImmutableInt8ArrayList{delegate: l.delegate.Reject(predicate)}
+func (l *ImmutableInt8) Reject(predicate func(int8) bool) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: l.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element satisfying the predicate, or zero and false.
-func (l *ImmutableInt8ArrayList) Detect(predicate func(int8) bool) (int8, bool) {
+func (l *ImmutableInt8) Detect(predicate func(int8) bool) (int8, bool) {
 	return l.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *ImmutableInt8ArrayList) AnySatisfy(predicate func(int8) bool) bool {
+func (l *ImmutableInt8) AnySatisfy(predicate func(int8) bool) bool {
 	return l.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *ImmutableInt8ArrayList) AllSatisfy(predicate func(int8) bool) bool {
+func (l *ImmutableInt8) AllSatisfy(predicate func(int8) bool) bool {
 	return l.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *ImmutableInt8ArrayList) NoneSatisfy(predicate func(int8) bool) bool {
+func (l *ImmutableInt8) NoneSatisfy(predicate func(int8) bool) bool {
 	return l.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (l *ImmutableInt8ArrayList) Count(predicate func(int8) bool) int {
+func (l *ImmutableInt8) Count(predicate func(int8) bool) int {
 	return l.delegate.Count(predicate)
 }
 
 // Reversed returns a new immutable list in reverse order.
-func (l *ImmutableInt8ArrayList) Reversed() *ImmutableInt8ArrayList {
-	return &ImmutableInt8ArrayList{delegate: l.delegate.Reversed()}
+func (l *ImmutableInt8) Reversed() *ImmutableInt8 {
+	return &ImmutableInt8{delegate: l.delegate.Reversed()}
 }
 
 // Distinct returns a new immutable list with duplicates removed.
-func (l *ImmutableInt8ArrayList) Distinct() *ImmutableInt8ArrayList {
-	return &ImmutableInt8ArrayList{delegate: l.delegate.Distinct()}
+func (l *ImmutableInt8) Distinct() *ImmutableInt8 {
+	return &ImmutableInt8{delegate: l.delegate.Distinct()}
 }
 
 // ToSlice returns a copy of all elements as a slice.
-func (l *ImmutableInt8ArrayList) ToSlice() []int8 {
+func (l *ImmutableInt8) ToSlice() []int8 {
 	return l.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (l *ImmutableInt8ArrayList) String() string {
+func (l *ImmutableInt8) String() string {
 	return l.delegate.String()
 }
 
 // Equals returns true if the other immutable list has the same elements in order.
-func (l *ImmutableInt8ArrayList) Equals(other *ImmutableInt8ArrayList) bool {
+func (l *ImmutableInt8) Equals(other *ImmutableInt8) bool {
 	return l.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this list.
-func (l *ImmutableInt8ArrayList) ToMutable() *Int8ArrayList {
-	return Int8ArrayListOf(l.ToSlice()...)
+func (l *ImmutableInt8) ToMutable() *Int8 {
+	return Int8Of(l.ToSlice()...)
 }

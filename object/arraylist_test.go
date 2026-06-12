@@ -12,31 +12,31 @@ import (
 
 func TestArrayList_NewEmpty(t *testing.T) {
 	list := NewArrayList[int]()
-	if list.Size() != 0 {
-		t.Errorf("Size() = %d, want 0", list.Size())
+	if list.Len() != 0 {
+		t.Errorf("Size() = %d, want 0", list.Len())
 	}
-	if !list.IsEmpty() {
+	if list.Len() != 0 {
 		t.Error("IsEmpty() = false, want true")
 	}
 }
 
 func TestArrayList_NewArrayListFrom(t *testing.T) {
 	list := NewArrayListFrom(1, 2, 3)
-	if list.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", list.Size())
+	if list.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", list.Len())
 	}
-	v, err := list.Get(0)
-	if err != nil || v != 1 {
-		t.Errorf("Get(0) = (%d, %v), want (1, nil)", v, err)
+	v := list.Get(0)
+	if v != 1 {
+		t.Errorf("Get(0) = %d, want 1", v)
 	}
 }
 
 func TestArrayList_NewArrayListFrom_String(t *testing.T) {
 	list := NewArrayListFrom("a", "b", "c")
-	if list.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", list.Size())
+	if list.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", list.Len())
 	}
-	v, _ := list.Get(1)
+	v := list.Get(1)
 	if v != "b" {
 		t.Errorf("Get(1) = %q, want %q", v, "b")
 	}
@@ -46,10 +46,10 @@ func TestArrayList_Add(t *testing.T) {
 	list := NewArrayList[int]()
 	list.Add(10)
 	list.Add(20)
-	if list.Size() != 2 {
-		t.Errorf("Size() = %d, want 2", list.Size())
+	if list.Len() != 2 {
+		t.Errorf("Size() = %d, want 2", list.Len())
 	}
-	if list.IsEmpty() {
+	if list.Len() == 0 {
 		t.Error("IsEmpty() = true, want false")
 	}
 }
@@ -57,10 +57,7 @@ func TestArrayList_Add(t *testing.T) {
 func TestArrayList_Get(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		list := NewArrayListFrom(10, 20, 30)
-		v, err := list.Get(1)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		v := list.Get(1)
 		if v != 20 {
 			t.Errorf("Get(1) = %d, want 20", v)
 		}
@@ -68,32 +65,23 @@ func TestArrayList_Get(t *testing.T) {
 
 	t.Run("out of bounds negative", func(t *testing.T) {
 		list := NewArrayListFrom(10, 20)
-		_, err := list.Get(-1)
-		if err == nil {
-			t.Error("expected error for negative index")
-		}
+		assertPanics(t, func() { list.Get(-1) })
 	})
 
 	t.Run("out of bounds high", func(t *testing.T) {
 		list := NewArrayListFrom(10, 20)
-		_, err := list.Get(5)
-		if err == nil {
-			t.Error("expected error for index beyond size")
-		}
+		assertPanics(t, func() { list.Get(5) })
 	})
 }
 
 func TestArrayList_Set(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		list := NewArrayListFrom(10, 20, 30)
-		old, err := list.Set(1, 99)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		old := list.Set(1, 99)
 		if old != 20 {
 			t.Errorf("Set returned old = %d, want 20", old)
 		}
-		v, _ := list.Get(1)
+		v := list.Get(1)
 		if v != 99 {
 			t.Errorf("after Set, Get(1) = %d, want 99", v)
 		}
@@ -101,10 +89,7 @@ func TestArrayList_Set(t *testing.T) {
 
 	t.Run("out of bounds", func(t *testing.T) {
 		list := NewArrayListFrom(10)
-		_, err := list.Set(5, 99)
-		if err == nil {
-			t.Error("expected error for out-of-bounds Set")
-		}
+		assertPanics(t, func() { list.Set(5, 99) })
 	})
 }
 
@@ -188,8 +173,8 @@ func TestArrayList_NoneSatisfy(t *testing.T) {
 func TestArrayList_Select(t *testing.T) {
 	list := NewArrayListFrom(1, 2, 3, 4, 5)
 	evens := list.Select(func(v int) bool { return v%2 == 0 })
-	if evens.Size() != 2 {
-		t.Errorf("Select size = %d, want 2", evens.Size())
+	if evens.Len() != 2 {
+		t.Errorf("Select size = %d, want 2", evens.Len())
 	}
 	if !evens.Contains(2) || !evens.Contains(4) {
 		t.Errorf("Select result = %v, want [2, 4]", evens)
@@ -199,8 +184,8 @@ func TestArrayList_Select(t *testing.T) {
 func TestArrayList_Reject(t *testing.T) {
 	list := NewArrayListFrom(1, 2, 3, 4, 5)
 	odds := list.Reject(func(v int) bool { return v%2 == 0 })
-	if odds.Size() != 3 {
-		t.Errorf("Reject size = %d, want 3", odds.Size())
+	if odds.Len() != 3 {
+		t.Errorf("Reject size = %d, want 3", odds.Len())
 	}
 }
 
@@ -272,8 +257,8 @@ func TestArrayList_Reversed(t *testing.T) {
 func TestArrayList_Distinct(t *testing.T) {
 	list := NewArrayListFrom(1, 2, 2, 3, 1)
 	d := list.Distinct()
-	if d.Size() != 3 {
-		t.Errorf("Distinct size = %d, want 3", d.Size())
+	if d.Len() != 3 {
+		t.Errorf("Distinct size = %d, want 3", d.Len())
 	}
 	// first occurrence order
 	got := d.ToSlice()
@@ -289,11 +274,11 @@ func TestArrayList_Remove(t *testing.T) {
 		if !ok {
 			t.Error("Remove(2) = false, want true")
 		}
-		if list.Size() != 3 {
-			t.Errorf("Size after Remove = %d, want 3", list.Size())
+		if list.Len() != 3 {
+			t.Errorf("Size after Remove = %d, want 3", list.Len())
 		}
 		// should remove first occurrence
-		v, _ := list.Get(1)
+		v := list.Get(1)
 		if v != 3 {
 			t.Errorf("after Remove(2), index 1 = %d, want 3", v)
 		}
@@ -311,10 +296,10 @@ func TestArrayList_Remove(t *testing.T) {
 func TestArrayList_Clear(t *testing.T) {
 	list := NewArrayListFrom(1, 2, 3)
 	list.Clear()
-	if list.Size() != 0 {
-		t.Errorf("Size after Clear = %d, want 0", list.Size())
+	if list.Len() != 0 {
+		t.Errorf("Size after Clear = %d, want 0", list.Len())
 	}
-	if !list.IsEmpty() {
+	if list.Len() != 0 {
 		t.Error("IsEmpty after Clear = false, want true")
 	}
 }
@@ -343,7 +328,7 @@ func TestArrayList_ToSlice(t *testing.T) {
 	}
 	// mutating slice should not affect list
 	s[0] = 999
-	v, _ := list.Get(0)
+	v := list.Get(0)
 	if v != 1 {
 		t.Error("ToSlice did not return a copy")
 	}
@@ -366,7 +351,7 @@ func TestArrayList_StringTypes(t *testing.T) {
 	}
 
 	selected := list.Select(func(s string) bool { return len(s) == 3 })
-	if selected.Size() != 3 {
-		t.Errorf("Select 3-char strings size = %d, want 3", selected.Size())
+	if selected.Len() != 3 {
+		t.Errorf("Select 3-char strings size = %d, want 3", selected.Len())
 	}
 }

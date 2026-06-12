@@ -1,29 +1,28 @@
-
 package stack
 
 import "testing"
 
-func TestImmutableInt16ArrayStack_Generated_PeekAndSize(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_PeekAndSize(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	m.Push(2)
 	m.Push(3)
 	im := m.ToImmutable()
-	if im.Size() != 3 {
-		t.Errorf("Size = %d, want 3", im.Size())
+	if im.Len() != 3 {
+		t.Errorf("Size = %d, want 3", im.Len())
 	}
-	if p, err := im.Peek(); err != nil || p != 3 {
-		t.Errorf("Peek = (%v, %v)", p, err)
+	if p, ok := im.Peek(); !ok || p != 3 {
+		t.Errorf("Peek = (%v, %v)", p, ok)
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_IsEmpty(t *testing.T) {
-	im := NewInt16ArrayStack().ToImmutable()
-	if !im.IsEmpty() {
+func TestImmutableInt16_Generated_IsEmpty(t *testing.T) {
+	im := NewInt16().ToImmutable()
+	if im.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_Contains(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_Contains(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	m.Push(2)
 	im := m.ToImmutable()
@@ -34,45 +33,45 @@ func TestImmutableInt16ArrayStack_Generated_Contains(t *testing.T) {
 		t.Error("Contains should be false")
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_Push(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_Push(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	im := m.ToImmutable()
 	im2 := im.Push(2)
-	if im.Size() != 1 {
+	if im.Len() != 1 {
 		t.Error("Original should not change")
 	}
-	if im2.Size() != 2 {
-		t.Errorf("New size = %d, want 2", im2.Size())
+	if im2.Len() != 2 {
+		t.Errorf("New size = %d, want 2", im2.Len())
 	}
-	if p, err := im2.Peek(); err != nil || p != 2 {
-		t.Errorf("New peek = (%v, %v)", p, err)
+	if p, ok := im2.Peek(); !ok || p != 2 {
+		t.Errorf("New peek = (%v, %v)", p, ok)
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_Pop(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_Pop(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	m.Push(2)
 	im := m.ToImmutable()
-	im2, val, err := im.Pop()
-	if err != nil || val != 2 {
-		t.Errorf("Pop = (%v, %v)", val, err)
+	im2, val, ok := im.Pop()
+	if !ok || val != 2 {
+		t.Errorf("Pop = (%v, %v)", val, ok)
 	}
-	if im2.Size() != 1 {
-		t.Errorf("After pop size = %d, want 1", im2.Size())
+	if im2.Len() != 1 {
+		t.Errorf("After pop size = %d, want 1", im2.Len())
 	}
-	if im.Size() != 2 {
+	if im.Len() != 2 {
 		t.Error("Original should not change")
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_PopEmpty(t *testing.T) {
-	im := NewInt16ArrayStack().ToImmutable()
-	if _, _, err := im.Pop(); err == nil {
-		t.Error("Pop on empty immutable stack should return an error")
+func TestImmutableInt16_Generated_PopEmpty(t *testing.T) {
+	im := NewInt16().ToImmutable()
+	if _, _, ok := im.Pop(); ok {
+		t.Error("Pop on empty immutable stack should report not-ok")
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_All(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_All(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	m.Push(2)
 	im := m.ToImmutable()
@@ -84,19 +83,19 @@ func TestImmutableInt16ArrayStack_Generated_All(t *testing.T) {
 		t.Errorf("All count = %d, want 2", count)
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_Select(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_Select(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	m.Push(2)
 	m.Push(3)
 	im := m.ToImmutable()
 	sel := im.Select(func(v int16) bool { return v > 1 })
-	if sel.Size() != 2 {
-		t.Errorf("Select size = %d, want 2", sel.Size())
+	if sel.Len() != 2 {
+		t.Errorf("Select size = %d, want 2", sel.Len())
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_ToSlice(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_ToSlice(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	m.Push(2)
 	im := m.ToImmutable()
@@ -104,31 +103,36 @@ func TestImmutableInt16ArrayStack_Generated_ToSlice(t *testing.T) {
 		t.Error("ToSlice wrong len")
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_Equals(t *testing.T) {
-	m1 := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_Equals(t *testing.T) {
+	m1 := NewInt16()
 	m1.Push(1)
 	m1.Push(2)
-	m2 := NewInt16ArrayStack()
+	m2 := NewInt16()
 	m2.Push(1)
 	m2.Push(2)
 	if !m1.ToImmutable().Equals(m2.ToImmutable()) {
 		t.Error("Should be equal")
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_ToMutable(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_ToMutable(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	im := m.ToImmutable()
 	m2 := im.ToMutable()
 	m2.Push(2)
-	if im.Size() != 1 {
+	if im.Len() != 1 {
 		t.Error("Immutable should not change")
 	}
 }
-func TestImmutableInt16ArrayStack_Generated_String(t *testing.T) {
-	m := NewInt16ArrayStack()
+func TestImmutableInt16_Generated_String(t *testing.T) {
+	m := NewInt16()
 	m.Push(1)
 	if m.ToImmutable().String() == "" {
 		t.Error("String empty")
 	}
+}
+
+func TestImmutableInt16_Generated_PeekAtPanics(t *testing.T) {
+	s := NewImmutableInt16(1, 2, 3)
+	assertPanics(t, func() { _ = s.PeekAt(99) })
 }

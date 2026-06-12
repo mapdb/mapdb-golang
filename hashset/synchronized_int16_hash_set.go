@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt16HashSet is a thread-safe wrapper around Int16HashSet.
+// SynchronizedInt16 is a thread-safe wrapper around Int16.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take a
 // caller-supplied function (Select, ForEach, AnySatisfy, …) snapshot
@@ -17,36 +17,36 @@ import (
 // without deadlocking.
 //
 // Methods that return a new set (Select, Reject, Union, Intersect,
-// Difference, SymmetricDifference) return an unwrapped *Int16HashSet;
+// Difference, SymmetricDifference) return an unwrapped *Int16;
 // the caller owns it.
-type SynchronizedInt16HashSet struct {
-	delegate *Int16HashSet
+type SynchronizedInt16 struct {
+	delegate *Int16
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt16HashSet creates a new thread-safe empty set.
-func NewSynchronizedInt16HashSet() *SynchronizedInt16HashSet {
-	return &SynchronizedInt16HashSet{delegate: NewInt16HashSet()}
+// NewSynchronizedInt16 creates a new thread-safe empty set.
+func NewSynchronizedInt16() *SynchronizedInt16 {
+	return &SynchronizedInt16{delegate: NewInt16()}
 }
 
-// NewSynchronizedInt16HashSetFrom wraps an existing set. The
+// NewSynchronizedInt16From wraps an existing set. The
 // wrapper takes ownership — callers must not mutate the delegate
 // directly without locking.
-func NewSynchronizedInt16HashSetFrom(s *Int16HashSet) *SynchronizedInt16HashSet {
-	return &SynchronizedInt16HashSet{delegate: s}
+func NewSynchronizedInt16From(s *Int16) *SynchronizedInt16 {
+	return &SynchronizedInt16{delegate: s}
 }
 
-// SynchronizedInt16HashSetOf constructs a synchronized set from values.
-func SynchronizedInt16HashSetOf(values ...int16) *SynchronizedInt16HashSet {
-	s := NewInt16HashSet()
+// SynchronizedInt16Of constructs a synchronized set from values.
+func SynchronizedInt16Of(values ...int16) *SynchronizedInt16 {
+	s := NewInt16()
 	for _, v := range values {
 		s.Add(v)
 	}
-	return &SynchronizedInt16HashSet{delegate: s}
+	return &SynchronizedInt16{delegate: s}
 }
 
 // snapshot returns a defensive copy of the set's elements under RLock.
-func (s *SynchronizedInt16HashSet) snapshot() []int16 {
+func (s *SynchronizedInt16) snapshot() []int16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -54,25 +54,25 @@ func (s *SynchronizedInt16HashSet) snapshot() []int16 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedInt16HashSet) Add(value int16) bool {
+func (s *SynchronizedInt16) Add(value int16) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Add(value)
 }
 
-func (s *SynchronizedInt16HashSet) AddAll(values ...int16) {
+func (s *SynchronizedInt16) AddAll(values ...int16) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.AddAll(values...)
 }
 
-func (s *SynchronizedInt16HashSet) Remove(value int16) bool {
+func (s *SynchronizedInt16) Remove(value int16) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Remove(value)
 }
 
-func (s *SynchronizedInt16HashSet) Clear() {
+func (s *SynchronizedInt16) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -80,35 +80,26 @@ func (s *SynchronizedInt16HashSet) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedInt16HashSet) Contains(value int16) bool {
+func (s *SynchronizedInt16) Contains(value int16) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedInt16HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedInt16) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedInt16HashSet) Len() int { return s.Size() }
-
-func (s *SynchronizedInt16HashSet) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedInt16HashSet) ToSlice() []int16 {
+func (s *SynchronizedInt16) ToSlice() []int16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedInt16HashSet) String() string {
+func (s *SynchronizedInt16) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -117,7 +108,7 @@ func (s *SynchronizedInt16HashSet) String() string {
 // ── iteration ────────────────────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (s *SynchronizedInt16HashSet) All() iter.Seq[int16] {
+func (s *SynchronizedInt16) All() iter.Seq[int16] {
 	snapshot := s.snapshot()
 	return func(yield func(int16) bool) {
 		for _, v := range snapshot {
@@ -130,13 +121,13 @@ func (s *SynchronizedInt16HashSet) All() iter.Seq[int16] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedInt16HashSet) ForEach(f func(int16)) {
+func (s *SynchronizedInt16) ForEach(f func(int16)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedInt16HashSet) AnySatisfy(predicate func(int16) bool) bool {
+func (s *SynchronizedInt16) AnySatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -145,7 +136,7 @@ func (s *SynchronizedInt16HashSet) AnySatisfy(predicate func(int16) bool) bool {
 	return false
 }
 
-func (s *SynchronizedInt16HashSet) AllSatisfy(predicate func(int16) bool) bool {
+func (s *SynchronizedInt16) AllSatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -154,7 +145,7 @@ func (s *SynchronizedInt16HashSet) AllSatisfy(predicate func(int16) bool) bool {
 	return true
 }
 
-func (s *SynchronizedInt16HashSet) NoneSatisfy(predicate func(int16) bool) bool {
+func (s *SynchronizedInt16) NoneSatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -163,7 +154,7 @@ func (s *SynchronizedInt16HashSet) NoneSatisfy(predicate func(int16) bool) bool 
 	return true
 }
 
-func (s *SynchronizedInt16HashSet) Detect(predicate func(int16) bool) (int16, bool) {
+func (s *SynchronizedInt16) Detect(predicate func(int16) bool) (int16, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -175,9 +166,9 @@ func (s *SynchronizedInt16HashSet) Detect(predicate func(int16) bool) (int16, bo
 
 // ── functional that return a new set ─────────────────────────────────
 
-func (s *SynchronizedInt16HashSet) Select(predicate func(int16) bool) *Int16HashSet {
+func (s *SynchronizedInt16) Select(predicate func(int16) bool) *Int16 {
 	snapshot := s.snapshot()
-	result := NewInt16HashSet()
+	result := NewInt16()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -186,9 +177,9 @@ func (s *SynchronizedInt16HashSet) Select(predicate func(int16) bool) *Int16Hash
 	return result
 }
 
-func (s *SynchronizedInt16HashSet) Reject(predicate func(int16) bool) *Int16HashSet {
+func (s *SynchronizedInt16) Reject(predicate func(int16) bool) *Int16 {
 	snapshot := s.snapshot()
-	result := NewInt16HashSet()
+	result := NewInt16()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -201,7 +192,7 @@ func (s *SynchronizedInt16HashSet) Reject(predicate func(int16) bool) *Int16Hash
 
 // lockPair acquires two RLocks in pointer-address order and returns
 // a release function. Guarantees no A.op(B) ⟷ B.op(A) deadlock.
-func (s *SynchronizedInt16HashSet) lockPair(other *SynchronizedInt16HashSet) func() {
+func (s *SynchronizedInt16) lockPair(other *SynchronizedInt16) func() {
 	if s == other {
 		s.mu.RLock()
 		return func() { s.mu.RUnlock() }
@@ -215,25 +206,25 @@ func (s *SynchronizedInt16HashSet) lockPair(other *SynchronizedInt16HashSet) fun
 	return func() { second.mu.RUnlock(); first.mu.RUnlock() }
 }
 
-func (s *SynchronizedInt16HashSet) Union(other *SynchronizedInt16HashSet) *Int16HashSet {
+func (s *SynchronizedInt16) Union(other *SynchronizedInt16) *Int16 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Union(other.delegate)
 }
 
-func (s *SynchronizedInt16HashSet) Intersect(other *SynchronizedInt16HashSet) *Int16HashSet {
+func (s *SynchronizedInt16) Intersect(other *SynchronizedInt16) *Int16 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Intersect(other.delegate)
 }
 
-func (s *SynchronizedInt16HashSet) Difference(other *SynchronizedInt16HashSet) *Int16HashSet {
+func (s *SynchronizedInt16) Difference(other *SynchronizedInt16) *Int16 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Difference(other.delegate)
 }
 
-func (s *SynchronizedInt16HashSet) SymmetricDifference(other *SynchronizedInt16HashSet) *Int16HashSet {
+func (s *SynchronizedInt16) SymmetricDifference(other *SynchronizedInt16) *Int16 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.SymmetricDifference(other.delegate)
@@ -241,37 +232,41 @@ func (s *SynchronizedInt16HashSet) SymmetricDifference(other *SynchronizedInt16H
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedInt16HashSet) With(value int16) *SynchronizedInt16HashSet {
+// AddReturning adds the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedInt16) AddReturning(value int16) *SynchronizedInt16 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedInt16HashSet) WithAll(values ...int16) *SynchronizedInt16HashSet {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (s *SynchronizedInt16) AddAllReturning(values ...int16) *SynchronizedInt16 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
-func (s *SynchronizedInt16HashSet) Without(value int16) *SynchronizedInt16HashSet {
+// RemoveReturning removes the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedInt16) RemoveReturning(value int16) *SynchronizedInt16 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.Without(value)
+	s.delegate.RemoveReturning(value)
 	return s
 }
 
-func (s *SynchronizedInt16HashSet) WithoutAll(values ...int16) *SynchronizedInt16HashSet {
+// RemoveAllReturning removes all given values and returns the receiver (mutating, fluent).
+func (s *SynchronizedInt16) RemoveAllReturning(values ...int16) *SynchronizedInt16 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithoutAll(values...)
+	s.delegate.RemoveAllReturning(values...)
 	return s
 }
 
 // ── conversions ───────────────────────────────────────────────────────
 
-func (s *SynchronizedInt16HashSet) ToImmutable() *ImmutableInt16HashSet {
+func (s *SynchronizedInt16) ToImmutable() *ImmutableInt16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -279,7 +274,7 @@ func (s *SynchronizedInt16HashSet) ToImmutable() *ImmutableInt16HashSet {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent deadlocks under concurrent A.Equals(B) / B.Equals(A).
-func (s *SynchronizedInt16HashSet) Equals(other *SynchronizedInt16HashSet) bool {
+func (s *SynchronizedInt16) Equals(other *SynchronizedInt16) bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Equals(other.delegate)

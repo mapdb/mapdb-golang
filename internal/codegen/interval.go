@@ -32,7 +32,7 @@ func genInterval() error {
 			MinStepExpr string
 			IsWidest    bool
 		}{
-			StructName:  p.Name + "Interval",
+			StructName:  p.Name,
 			GoType:      p.GoType,
 			MinStepExpr: p.MinStepExpr(),
 			// int64 is the widest value type: it has no wider native type to
@@ -87,13 +87,13 @@ type {{.StructName}} struct {
 // the from/to direction.
 func New{{.StructName}}(from, to, step {{.GoType}}) *{{.StructName}} {
 	if step == 0 {
-		panic("{{.StructName}}: step must not be zero")
+		panic("interval.{{.StructName}}: step must not be zero")
 	}
 	if from < to && step < 0 {
-		panic("{{.StructName}}: step must be positive when from < to")
+		panic("interval.{{.StructName}}: step must be positive when from < to")
 	}
 	if from > to && step > 0 {
-		panic("{{.StructName}}: step must be negative when from > to")
+		panic("interval.{{.StructName}}: step must be negative when from > to")
 	}
 	return &{{.StructName}}{from: from, to: to, step: step}
 }
@@ -127,8 +127,9 @@ func (iv *{{.StructName}}) To() {{.GoType}} { return iv.to }
 // Step returns the step.
 func (iv *{{.StructName}}) Step() {{.GoType}} { return iv.step }
 
-// Size returns the number of elements in the interval.
-func (iv *{{.StructName}}) Size() int {
+// Len returns the number of elements in the interval. Use iv.Len() == 0 to
+// test for emptiness.
+func (iv *{{.StructName}}) Len() int {
 	if (iv.step > 0 && iv.from > iv.to) || (iv.step < 0 && iv.from < iv.to) {
 		return 0
 	}
@@ -140,12 +141,6 @@ func (iv *{{.StructName}}) Size() int {
 	return int(count)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (iv *{{.StructName}}) Len() int { return iv.Size() }
-
-// IsEmpty returns true if the interval contains no elements.
-func (iv *{{.StructName}}) IsEmpty() bool { return iv.Size() == 0 }
 
 // Contains returns true if the interval contains the given value.
 func (iv *{{.StructName}}) Contains(value {{.GoType}}) bool {
@@ -155,7 +150,8 @@ func (iv *{{.StructName}}) Contains(value {{.GoType}}) bool {
 	return value <= iv.from && value >= iv.to && (uint64(int64(iv.from))-uint64(int64(value)))%iv.absStep() == 0
 }
 
-// Get returns the element at the given index, or an error if out of bounds.
+// Get returns the element at the given index. It panics if the index is out
+// of bounds, matching the semantics of a native Go slice.
 {{- if .IsWidest}}
 //
 // Narrower intervals (int8/16/32) widen into int64 before computing
@@ -167,11 +163,11 @@ func (iv *{{.StructName}}) Contains(value {{.GoType}}) bool {
 // is built in uint64 and reinterpreted so the wrap is explicit and free of
 // implementation-defined signed-overflow assumptions.
 {{- end}}
-func (iv *{{.StructName}}) Get(index int) ({{.GoType}}, error) {
-	if index < 0 || index >= iv.Size() {
-		return 0, fmt.Errorf("{{.StructName}}: index out of bounds: %d (size %d)", index, iv.Size())
+func (iv *{{.StructName}}) Get(index int) {{.GoType}} {
+	if index < 0 || index >= iv.Len() {
+		panic(fmt.Sprintf("interval.{{.StructName}}: index out of range [%d] with length %d", index, iv.Len()))
 	}
-	return {{if .IsWidest}}int64(uint64(iv.from) + uint64(iv.step)*uint64(int64(index))){{else}}{{.GoType}}(int64(iv.from) + int64(iv.step)*int64(index)){{end}}, nil
+	return {{if .IsWidest}}int64(uint64(iv.from) + uint64(iv.step)*uint64(int64(index))){{else}}{{.GoType}}(int64(iv.from) + int64(iv.step)*int64(index)){{end}}
 }
 
 func (iv *{{.StructName}}) absStep() uint64 {
@@ -192,13 +188,9 @@ func (iv *{{.StructName}}) distance() uint64 {
 // All returns an iter.Seq that yields elements in order.
 func (iv *{{.StructName}}) All() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
-		size := iv.Size()
+		size := iv.Len()
 		for i := 0; i < size; i++ {
-			value, err := iv.Get(i)
-			if err != nil {
-				return
-			}
-			if !yield(value) {
+			if !yield(iv.Get(i)) {
 				return
 			}
 		}
@@ -244,7 +236,7 @@ func (iv *{{.StructName}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 
 // ToSlice returns all elements as a slice.
 func (iv *{{.StructName}}) ToSlice() []{{.GoType}} {
-	n := iv.Size()
+	n := iv.Len()
 	result := make([]{{.GoType}}, 0, n)
 	for v := range iv.All() {
 		result = append(result, v)
@@ -255,14 +247,14 @@ func (iv *{{.StructName}}) ToSlice() []{{.GoType}} {
 // Reversed returns a new interval with elements in reverse order.
 func (iv *{{.StructName}}) Reversed() *{{.StructName}} {
 	if iv.step == {{.MinStepExpr}} {
-		panic("{{.StructName}}: cannot reverse interval with minimum step")
+		panic("interval.{{.StructName}}: cannot reverse interval with minimum step")
 	}
 	return &{{.StructName}}{from: iv.to, to: iv.from, step: -iv.step}
 }
 
 // String returns a string representation of the interval.
 func (iv *{{.StructName}}) String() string {
-	n := iv.Size()
+	n := iv.Len()
 	if n == 0 {
 		return "[]"
 	}

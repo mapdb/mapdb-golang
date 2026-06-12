@@ -8,26 +8,26 @@ import (
 	"strings"
 )
 
-// CharInt8HashBiMap is a bidirectional map with uint16 keys and int8 values.
+// CharInt8BiMap is a bidirectional map with uint16 keys and int8 values.
 // Both key-to-value and value-to-key lookups are O(1).
-type CharInt8HashBiMap struct {
-	forward *CharInt8HashMap
-	reverse *Int8CharHashMap
+type CharInt8BiMap struct {
+	forward *CharInt8
+	reverse *Int8Char
 }
 
-// NewCharInt8HashBiMap creates a new empty CharInt8HashBiMap with default capacity.
-func NewCharInt8HashBiMap() *CharInt8HashBiMap {
-	return &CharInt8HashBiMap{
-		forward: NewCharInt8HashMap(),
-		reverse: NewInt8CharHashMap(),
+// NewCharInt8BiMap creates a new empty CharInt8BiMap with default capacity.
+func NewCharInt8BiMap() *CharInt8BiMap {
+	return &CharInt8BiMap{
+		forward: NewCharInt8(),
+		reverse: NewInt8Char(),
 	}
 }
 
-// NewCharInt8HashBiMapWithCapacity creates a new empty CharInt8HashBiMap with the given initial capacity.
-func NewCharInt8HashBiMapWithCapacity(capacity int) *CharInt8HashBiMap {
-	return &CharInt8HashBiMap{
-		forward: NewCharInt8HashMapWithCapacity(capacity),
-		reverse: NewInt8CharHashMapWithCapacity(capacity),
+// NewCharInt8BiMapWithCapacity creates a new empty CharInt8BiMap with the given initial capacity.
+func NewCharInt8BiMapWithCapacity(capacity int) *CharInt8BiMap {
+	return &CharInt8BiMap{
+		forward: NewCharInt8WithCapacity(capacity),
+		reverse: NewInt8CharWithCapacity(capacity),
 	}
 }
 
@@ -35,7 +35,7 @@ func NewCharInt8HashBiMapWithCapacity(capacity int) *CharInt8HashBiMap {
 // If the key already existed, the old value mapping is removed from the reverse map.
 // If the value already existed as a value for a different key, that old key mapping is removed.
 // Returns the previous value and true if the key existed.
-func (m *CharInt8HashBiMap) Put(key uint16, value int8) (int8, bool) {
+func (m *CharInt8BiMap) Put(key uint16, value int8) (int8, bool) {
 	// If this value is already mapped to a different key, remove that old key->value pair
 	if oldKey, ok := m.reverse.Get(value); ok {
 		if !(oldKey == key) {
@@ -55,18 +55,18 @@ func (m *CharInt8HashBiMap) Put(key uint16, value int8) (int8, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *CharInt8HashBiMap) Get(key uint16) (int8, bool) {
+func (m *CharInt8BiMap) Get(key uint16) (int8, bool) {
 	return m.forward.Get(key)
 }
 
 // GetKey returns the key for the given value and true if found, or the zero value and false if not.
-func (m *CharInt8HashBiMap) GetKey(value int8) (uint16, bool) {
+func (m *CharInt8BiMap) GetKey(value int8) (uint16, bool) {
 	return m.reverse.Get(value)
 }
 
 // Remove deletes the entry for the given key from both directions.
 // Returns the previous value and true if the key existed.
-func (m *CharInt8HashBiMap) Remove(key uint16) (int8, bool) {
+func (m *CharInt8BiMap) Remove(key uint16) (int8, bool) {
 	oldVal, existed := m.forward.Remove(key)
 	if existed {
 		m.reverse.Remove(oldVal)
@@ -76,7 +76,7 @@ func (m *CharInt8HashBiMap) Remove(key uint16) (int8, bool) {
 
 // RemoveValue deletes the entry for the given value from both directions.
 // Returns the previous key and true if the value existed.
-func (m *CharInt8HashBiMap) RemoveValue(value int8) (uint16, bool) {
+func (m *CharInt8BiMap) RemoveValue(value int8) (uint16, bool) {
 	oldKey, existed := m.reverse.Remove(value)
 	if existed {
 		m.forward.Remove(oldKey)
@@ -85,53 +85,44 @@ func (m *CharInt8HashBiMap) RemoveValue(value int8) (uint16, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *CharInt8HashBiMap) ContainsKey(key uint16) bool {
+func (m *CharInt8BiMap) ContainsKey(key uint16) bool {
 	return m.forward.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *CharInt8HashBiMap) ContainsValue(value int8) bool {
+func (m *CharInt8BiMap) ContainsValue(value int8) bool {
 	return m.reverse.ContainsKey(value)
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *CharInt8HashBiMap) Size() int {
-	return m.forward.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *CharInt8HashBiMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *CharInt8HashBiMap) IsEmpty() bool {
-	return m.forward.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *CharInt8BiMap) Len() int {
+	return m.forward.Len()
 }
 
 // Clear removes all entries from both directions.
-func (m *CharInt8HashBiMap) Clear() {
+func (m *CharInt8BiMap) Clear() {
 	m.forward.Clear()
 	m.reverse.Clear()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *CharInt8HashBiMap) ForEach(f func(uint16, int8)) {
+func (m *CharInt8BiMap) ForEach(f func(uint16, int8)) {
 	m.forward.ForEach(f)
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *CharInt8HashBiMap) Keys() iter.Seq[uint16] {
+func (m *CharInt8BiMap) Keys() iter.Seq[uint16] {
 	return m.forward.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *CharInt8HashBiMap) Values() iter.Seq[int8] {
+func (m *CharInt8BiMap) Values() iter.Seq[int8] {
 	return m.forward.Values()
 }
 
-// Inverse returns a new Int8CharHashBiMap with keys and values swapped.
-func (m *CharInt8HashBiMap) Inverse() *Int8CharHashBiMap {
-	result := NewInt8CharHashBiMap()
+// Inverse returns a new Int8CharBiMap with keys and values swapped.
+func (m *CharInt8BiMap) Inverse() *Int8CharBiMap {
+	result := NewInt8CharBiMap()
 	m.forward.ForEach(func(k uint16, v int8) {
 		result.Put(v, k)
 	})
@@ -139,8 +130,8 @@ func (m *CharInt8HashBiMap) Inverse() *Int8CharHashBiMap {
 }
 
 // String returns a string representation of the bi-map.
-func (m *CharInt8HashBiMap) String() string {
-	if m.forward.Size() == 0 {
+func (m *CharInt8BiMap) String() string {
+	if m.forward.Len() == 0 {
 		return "{}"
 	}
 	var sb strings.Builder
@@ -158,6 +149,6 @@ func (m *CharInt8HashBiMap) String() string {
 }
 
 // Equals returns true if the other bi-map has the same key-value pairs.
-func (m *CharInt8HashBiMap) Equals(other *CharInt8HashBiMap) bool {
+func (m *CharInt8BiMap) Equals(other *CharInt8BiMap) bool {
 	return m.forward.Equals(other.forward)
 }

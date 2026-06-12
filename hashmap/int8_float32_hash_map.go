@@ -10,43 +10,43 @@ import (
 )
 
 const (
-	int8Float32HashMapDefaultCapacity = 16
+	int8Float32DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// int8Float32HashMapEntry holds a single slot in the hash map for cache locality.
-type int8Float32HashMapEntry struct {
+// int8Float32Entry holds a single slot in the hash map for cache locality.
+type int8Float32Entry struct {
 	key      int8
 	value    float32
 	occupied bool
 }
 
-// Int8Float32HashMap is an open-addressing hash map with int8 keys and float32 values.
-type Int8Float32HashMap struct {
-	entries []int8Float32HashMapEntry
+// Int8Float32 is an open-addressing hash map with int8 keys and float32 values.
+type Int8Float32 struct {
+	entries []int8Float32Entry
 	size    int
 }
 
-// NewInt8Float32HashMap creates a new empty Int8Float32HashMap with default capacity.
-func NewInt8Float32HashMap() *Int8Float32HashMap {
-	return NewInt8Float32HashMapWithCapacity(int8Float32HashMapDefaultCapacity)
+// NewInt8Float32 creates a new empty Int8Float32 with default capacity.
+func NewInt8Float32() *Int8Float32 {
+	return NewInt8Float32WithCapacity(int8Float32DefaultCapacity)
 }
 
-// NewInt8Float32HashMapWithCapacity creates a new empty Int8Float32HashMap with the given initial capacity.
-func NewInt8Float32HashMapWithCapacity(capacity int) *Int8Float32HashMap {
-	cap := nextPowerOfTwoInt8Float32HashMap(capacity)
-	return &Int8Float32HashMap{
-		entries: make([]int8Float32HashMapEntry, cap),
+// NewInt8Float32WithCapacity creates a new empty Int8Float32 with the given initial capacity.
+func NewInt8Float32WithCapacity(capacity int) *Int8Float32 {
+	cap := nextPowerOfTwoInt8Float32(capacity)
+	return &Int8Float32{
+		entries: make([]int8Float32Entry, cap),
 		size:    0,
 	}
 }
 
-// Int8Float32HashMapOf creates a new Int8Float32HashMap from key-value pairs.
-func Int8Float32HashMapOf(pairs ...struct {
+// Int8Float32Of creates a new Int8Float32 from key-value pairs.
+func Int8Float32Of(pairs ...struct {
 	Key   int8
 	Value float32
-}) *Int8Float32HashMap {
-	m := NewInt8Float32HashMapWithCapacity(len(pairs) * 2)
+}) *Int8Float32 {
+	m := NewInt8Float32WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
@@ -54,7 +54,7 @@ func Int8Float32HashMapOf(pairs ...struct {
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Int8Float32HashMap) Put(key int8, value float32) (float32, bool) {
+func (m *Int8Float32) Put(key int8, value float32) (float32, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -80,7 +80,7 @@ func (m *Int8Float32HashMap) Put(key int8, value float32) (float32, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Int8Float32HashMap) Get(key int8) (float32, bool) {
+func (m *Int8Float32) Get(key int8) (float32, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0.0, false
@@ -100,7 +100,7 @@ func (m *Int8Float32HashMap) Get(key int8) (float32, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Int8Float32HashMap) GetOrDefault(key int8, defaultValue float32) float32 {
+func (m *Int8Float32) GetOrDefault(key int8, defaultValue float32) float32 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -108,7 +108,7 @@ func (m *Int8Float32HashMap) GetOrDefault(key int8, defaultValue float32) float3
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Int8Float32HashMap) Remove(key int8) (float32, bool) {
+func (m *Int8Float32) Remove(key int8) (float32, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0.0, false
@@ -139,13 +139,13 @@ func (m *Int8Float32HashMap) Remove(key int8) (float32, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int8Float32HashMap) ContainsKey(key int8) bool {
+func (m *Int8Float32) ContainsKey(key int8) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Int8Float32HashMap) ContainsValue(value float32) bool {
+func (m *Int8Float32) ContainsValue(value float32) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && math.Float32bits(m.entries[i].value) == math.Float32bits(value) {
 			return true
@@ -154,30 +154,21 @@ func (m *Int8Float32HashMap) ContainsValue(value float32) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Int8Float32HashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int8Float32) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int8Float32HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Int8Float32HashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Int8Float32HashMap) Clear() {
+func (m *Int8Float32) Clear() {
 	for i := range m.entries {
-		m.entries[i] = int8Float32HashMapEntry{}
+		m.entries[i] = int8Float32Entry{}
 	}
 	m.size = 0
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Int8Float32HashMap) All() iter.Seq2[int8, float32] {
+func (m *Int8Float32) All() iter.Seq2[int8, float32] {
 	return func(yield func(int8, float32) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -190,7 +181,7 @@ func (m *Int8Float32HashMap) All() iter.Seq2[int8, float32] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Int8Float32HashMap) Keys() iter.Seq[int8] {
+func (m *Int8Float32) Keys() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -203,7 +194,7 @@ func (m *Int8Float32HashMap) Keys() iter.Seq[int8] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Int8Float32HashMap) Values() iter.Seq[float32] {
+func (m *Int8Float32) Values() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -216,7 +207,7 @@ func (m *Int8Float32HashMap) Values() iter.Seq[float32] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int8Float32HashMap) ForEach(f func(int8, float32)) {
+func (m *Int8Float32) ForEach(f func(int8, float32)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key, m.entries[i].value)
@@ -225,7 +216,7 @@ func (m *Int8Float32HashMap) ForEach(f func(int8, float32)) {
 }
 
 // ForEachKey calls the given function for each key.
-func (m *Int8Float32HashMap) ForEachKey(f func(int8)) {
+func (m *Int8Float32) ForEachKey(f func(int8)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key)
@@ -234,7 +225,7 @@ func (m *Int8Float32HashMap) ForEachKey(f func(int8)) {
 }
 
 // ForEachValue calls the given function for each value.
-func (m *Int8Float32HashMap) ForEachValue(f func(float32)) {
+func (m *Int8Float32) ForEachValue(f func(float32)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].value)
@@ -243,8 +234,8 @@ func (m *Int8Float32HashMap) ForEachValue(f func(float32)) {
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *Int8Float32HashMap) Select(predicate func(int8, float32) bool) *Int8Float32HashMap {
-	result := NewInt8Float32HashMap()
+func (m *Int8Float32) Select(predicate func(int8, float32) bool) *Int8Float32 {
+	result := NewInt8Float32()
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -254,8 +245,8 @@ func (m *Int8Float32HashMap) Select(predicate func(int8, float32) bool) *Int8Flo
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *Int8Float32HashMap) Reject(predicate func(int8, float32) bool) *Int8Float32HashMap {
-	result := NewInt8Float32HashMap()
+func (m *Int8Float32) Reject(predicate func(int8, float32) bool) *Int8Float32 {
+	result := NewInt8Float32()
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -265,7 +256,7 @@ func (m *Int8Float32HashMap) Reject(predicate func(int8, float32) bool) *Int8Flo
 }
 
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
-func (m *Int8Float32HashMap) Detect(predicate func(int8, float32) bool) (int8, float32, bool) {
+func (m *Int8Float32) Detect(predicate func(int8, float32) bool) (int8, float32, bool) {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
@@ -275,7 +266,7 @@ func (m *Int8Float32HashMap) Detect(predicate func(int8, float32) bool) (int8, f
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *Int8Float32HashMap) AnySatisfy(predicate func(int8, float32) bool) bool {
+func (m *Int8Float32) AnySatisfy(predicate func(int8, float32) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
@@ -285,7 +276,7 @@ func (m *Int8Float32HashMap) AnySatisfy(predicate func(int8, float32) bool) bool
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *Int8Float32HashMap) AllSatisfy(predicate func(int8, float32) bool) bool {
+func (m *Int8Float32) AllSatisfy(predicate func(int8, float32) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -295,7 +286,7 @@ func (m *Int8Float32HashMap) AllSatisfy(predicate func(int8, float32) bool) bool
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *Int8Float32HashMap) NoneSatisfy(predicate func(int8, float32) bool) bool {
+func (m *Int8Float32) NoneSatisfy(predicate func(int8, float32) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -305,7 +296,7 @@ func (m *Int8Float32HashMap) NoneSatisfy(predicate func(int8, float32) bool) boo
 }
 
 // Count returns the number of key-value pairs that satisfy the predicate.
-func (m *Int8Float32HashMap) Count(predicate func(int8, float32) bool) int {
+func (m *Int8Float32) Count(predicate func(int8, float32) bool) int {
 	count := 0
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
@@ -316,7 +307,7 @@ func (m *Int8Float32HashMap) Count(predicate func(int8, float32) bool) int {
 }
 
 // String returns a string representation of the map.
-func (m *Int8Float32HashMap) String() string {
+func (m *Int8Float32) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -337,7 +328,7 @@ func (m *Int8Float32HashMap) String() string {
 }
 
 // Equals returns true if the other map has the same key-value pairs.
-func (m *Int8Float32HashMap) Equals(other *Int8Float32HashMap) bool {
+func (m *Int8Float32) Equals(other *Int8Float32) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -353,7 +344,7 @@ func (m *Int8Float32HashMap) Equals(other *Int8Float32HashMap) bool {
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *Int8Float32HashMap) KeysToSlice() []int8 {
+func (m *Int8Float32) KeysToSlice() []int8 {
 	result := make([]int8, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -364,7 +355,7 @@ func (m *Int8Float32HashMap) KeysToSlice() []int8 {
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Int8Float32HashMap) ValuesToSlice() []float32 {
+func (m *Int8Float32) ValuesToSlice() []float32 {
 	result := make([]float32, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -375,12 +366,12 @@ func (m *Int8Float32HashMap) ValuesToSlice() []float32 {
 }
 
 // ToImmutable returns an immutable copy of this map.
-func (m *Int8Float32HashMap) ToImmutable() *ImmutableInt8Float32HashMap {
-	return ImmutableInt8Float32HashMapFrom(m)
+func (m *Int8Float32) ToImmutable() *ImmutableInt8Float32 {
+	return ImmutableInt8Float32From(m)
 }
 
 // InjectInto performs a left fold over all key-value pairs.
-func (m *Int8Float32HashMap) InjectInto(initial float32, f func(float32, int8, float32) float32) float32 {
+func (m *Int8Float32) InjectInto(initial float32, f func(float32, int8, float32) float32) float32 {
 	result := initial
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -393,7 +384,7 @@ func (m *Int8Float32HashMap) InjectInto(initial float32, f func(float32, int8, f
 // AddToValue adds the given amount to the value for the key.
 // If the key is not present, inserts it with the given amount as value.
 // Returns the new value.
-func (m *Int8Float32HashMap) AddToValue(key int8, amount float32) float32 {
+func (m *Int8Float32) AddToValue(key int8, amount float32) float32 {
 	if v, ok := m.Get(key); ok {
 		newVal := v + amount
 		m.Put(key, newVal)
@@ -406,7 +397,7 @@ func (m *Int8Float32HashMap) AddToValue(key int8, amount float32) float32 {
 // UpdateValue updates the value for the key using the function.
 // If key is absent, inserts initialValue first then applies the function.
 // Returns the new value.
-func (m *Int8Float32HashMap) UpdateValue(key int8, initialValue float32, f func(float32) float32) float32 {
+func (m *Int8Float32) UpdateValue(key int8, initialValue float32, f func(float32) float32) float32 {
 	if v, ok := m.Get(key); ok {
 		newVal := f(v)
 		m.Put(key, newVal)
@@ -417,20 +408,20 @@ func (m *Int8Float32HashMap) UpdateValue(key int8, initialValue float32, f func(
 	return newVal
 }
 
-// WithKeyValue returns the map after putting the key-value pair (fluent API).
-func (m *Int8Float32HashMap) WithKeyValue(key int8, value float32) *Int8Float32HashMap {
+// PutReturning returns the map after putting the key-value pair (fluent API).
+func (m *Int8Float32) PutReturning(key int8, value float32) *Int8Float32 {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey returns the map after removing the key (fluent API).
-func (m *Int8Float32HashMap) WithoutKey(key int8) *Int8Float32HashMap {
+// RemoveKeyReturning returns the map after removing the key (fluent API).
+func (m *Int8Float32) RemoveKeyReturning(key int8) *Int8Float32 {
 	m.Remove(key)
 	return m
 }
 
 // WithoutAllKeys removes all given keys (fluent API).
-func (m *Int8Float32HashMap) WithoutAllKeys(keys []int8) *Int8Float32HashMap {
+func (m *Int8Float32) WithoutAllKeys(keys []int8) *Int8Float32 {
 	for _, k := range keys {
 		m.Remove(k)
 	}
@@ -438,7 +429,7 @@ func (m *Int8Float32HashMap) WithoutAllKeys(keys []int8) *Int8Float32HashMap {
 }
 
 // SumOfValues returns the sum of all values.
-func (m *Int8Float32HashMap) SumOfValues() float32 {
+func (m *Int8Float32) SumOfValues() float32 {
 	var sum float32
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -450,19 +441,19 @@ func (m *Int8Float32HashMap) SumOfValues() float32 {
 
 // Entry returns a handle for in-place check-and-modify operations on the
 // given key. The handle is not thread-safe: external synchronisation (the
-// SynchronizedInt8Float32HashMap wrapper's Lock / RLock, or your own mutex) is required
+// SynchronizedInt8Float32 wrapper's Lock / RLock, or your own mutex) is required
 // when multiple goroutines share the same underlying map. The name is
 // modelled on Rust's std::collections::hash_map::Entry, not on Java's
 // ConcurrentMap.compute; there is no internal locking, no CAS, and no
 // atomicity guarantee across callback invocation.
-func (m *Int8Float32HashMap) Entry(key int8) Int8Float32Entry {
+func (m *Int8Float32) Entry(key int8) Int8Float32Entry {
 	return Int8Float32Entry{m: m, key: key}
 }
 
 // Int8Float32Entry provides in-place check-and-modify operations for a single
-// key. Not thread-safe — see Int8Float32HashMap.Entry.
+// key. Not thread-safe — see Int8Float32.Entry.
 type Int8Float32Entry struct {
-	m   *Int8Float32HashMap
+	m   *Int8Float32
 	key int8
 }
 
@@ -523,22 +514,22 @@ func (e Int8Float32Entry) AndModify(f func(*float32)) Int8Float32Entry {
 	}
 }
 
-func (m *Int8Float32HashMap) hashKey(key int8) uint64 {
+func (m *Int8Float32) hashKey(key int8) uint64 {
 	h := uint64(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Int8Float32HashMap) needsResize() bool {
+func (m *Int8Float32) needsResize() bool {
 	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
 }
 
-func (m *Int8Float32HashMap) resize() {
+func (m *Int8Float32) resize() {
 	oldEntries := m.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = int8Float32HashMapDefaultCapacity
+		newCap = int8Float32DefaultCapacity
 	}
-	m.entries = make([]int8Float32HashMapEntry, newCap)
+	m.entries = make([]int8Float32Entry, newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -549,7 +540,7 @@ func (m *Int8Float32HashMap) resize() {
 }
 
 // rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *Int8Float32HashMap) rehashFrom(deleted int, mask int) {
+func (m *Int8Float32) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
@@ -558,7 +549,7 @@ func (m *Int8Float32HashMap) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = int8Float32HashMapEntry{}
+			m.entries[idx] = int8Float32Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -568,7 +559,7 @@ func (m *Int8Float32HashMap) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoInt8Float32HashMap(n int) int {
+func nextPowerOfTwoInt8Float32(n int) int {
 	if n <= 0 {
 		return 16
 	}

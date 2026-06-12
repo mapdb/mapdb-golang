@@ -8,30 +8,30 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt8ArrayStack is a thread-safe wrapper around Int8ArrayStack.
+// SynchronizedInt8 is a thread-safe wrapper around Int8.
 //
 // Read methods hold an RLock; writes hold a Lock. Callback methods
 // (ForEach/Select/…) snapshot under RLock and run the callback
 // unlocked so it can safely re-enter the wrapper.
-type SynchronizedInt8ArrayStack struct {
-	delegate *Int8ArrayStack
+type SynchronizedInt8 struct {
+	delegate *Int8
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt8ArrayStack creates a new thread-safe empty stack.
-func NewSynchronizedInt8ArrayStack() *SynchronizedInt8ArrayStack {
-	return &SynchronizedInt8ArrayStack{delegate: NewInt8ArrayStack()}
+// NewSynchronizedInt8 creates a new thread-safe empty stack.
+func NewSynchronizedInt8() *SynchronizedInt8 {
+	return &SynchronizedInt8{delegate: NewInt8()}
 }
 
-// NewSynchronizedInt8ArrayStackFrom wraps an existing stack. The
+// NewSynchronizedInt8From wraps an existing stack. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedInt8ArrayStackFrom(s *Int8ArrayStack) *SynchronizedInt8ArrayStack {
-	return &SynchronizedInt8ArrayStack{delegate: s}
+func NewSynchronizedInt8From(s *Int8) *SynchronizedInt8 {
+	return &SynchronizedInt8{delegate: s}
 }
 
 // snapshot copies the stack contents under RLock. The returned slice
 // is ordered the same way the delegate's ToSlice would order it.
-func (s *SynchronizedInt8ArrayStack) snapshot() []int8 {
+func (s *SynchronizedInt8) snapshot() []int8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -39,19 +39,19 @@ func (s *SynchronizedInt8ArrayStack) snapshot() []int8 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedInt8ArrayStack) Push(value int8) {
+func (s *SynchronizedInt8) Push(value int8) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Push(value)
 }
 
-func (s *SynchronizedInt8ArrayStack) Pop() (int8, error) {
+func (s *SynchronizedInt8) Pop() (int8, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Pop()
 }
 
-func (s *SynchronizedInt8ArrayStack) Clear() {
+func (s *SynchronizedInt8) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -59,47 +59,38 @@ func (s *SynchronizedInt8ArrayStack) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedInt8ArrayStack) Peek() (int8, error) {
+func (s *SynchronizedInt8) Peek() (int8, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
 }
 
-func (s *SynchronizedInt8ArrayStack) PeekAt(index int) (int8, error) {
+func (s *SynchronizedInt8) PeekAt(index int) int8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.PeekAt(index)
 }
 
-func (s *SynchronizedInt8ArrayStack) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedInt8) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedInt8ArrayStack) Len() int { return s.Size() }
-
-func (s *SynchronizedInt8ArrayStack) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedInt8ArrayStack) Contains(value int8) bool {
+func (s *SynchronizedInt8) Contains(value int8) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedInt8ArrayStack) ToSlice() []int8 {
+func (s *SynchronizedInt8) ToSlice() []int8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedInt8ArrayStack) String() string {
+func (s *SynchronizedInt8) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -107,7 +98,7 @@ func (s *SynchronizedInt8ArrayStack) String() string {
 
 // ── iteration ────────────────────────────────────────────────────────
 
-func (s *SynchronizedInt8ArrayStack) All() iter.Seq[int8] {
+func (s *SynchronizedInt8) All() iter.Seq[int8] {
 	snapshot := s.snapshot()
 	return func(yield func(int8) bool) {
 		for _, v := range snapshot {
@@ -120,13 +111,13 @@ func (s *SynchronizedInt8ArrayStack) All() iter.Seq[int8] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedInt8ArrayStack) ForEach(f func(int8)) {
+func (s *SynchronizedInt8) ForEach(f func(int8)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedInt8ArrayStack) AnySatisfy(predicate func(int8) bool) bool {
+func (s *SynchronizedInt8) AnySatisfy(predicate func(int8) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -135,7 +126,7 @@ func (s *SynchronizedInt8ArrayStack) AnySatisfy(predicate func(int8) bool) bool 
 	return false
 }
 
-func (s *SynchronizedInt8ArrayStack) AllSatisfy(predicate func(int8) bool) bool {
+func (s *SynchronizedInt8) AllSatisfy(predicate func(int8) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -144,7 +135,7 @@ func (s *SynchronizedInt8ArrayStack) AllSatisfy(predicate func(int8) bool) bool 
 	return true
 }
 
-func (s *SynchronizedInt8ArrayStack) NoneSatisfy(predicate func(int8) bool) bool {
+func (s *SynchronizedInt8) NoneSatisfy(predicate func(int8) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -153,7 +144,7 @@ func (s *SynchronizedInt8ArrayStack) NoneSatisfy(predicate func(int8) bool) bool
 	return true
 }
 
-func (s *SynchronizedInt8ArrayStack) Count(predicate func(int8) bool) int {
+func (s *SynchronizedInt8) Count(predicate func(int8) bool) int {
 	n := 0
 	for _, v := range s.snapshot() {
 		if predicate(v) {
@@ -163,7 +154,7 @@ func (s *SynchronizedInt8ArrayStack) Count(predicate func(int8) bool) int {
 	return n
 }
 
-func (s *SynchronizedInt8ArrayStack) Detect(predicate func(int8) bool) (int8, bool) {
+func (s *SynchronizedInt8) Detect(predicate func(int8) bool) (int8, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -173,7 +164,7 @@ func (s *SynchronizedInt8ArrayStack) Detect(predicate func(int8) bool) (int8, bo
 	return zero, false
 }
 
-func (s *SynchronizedInt8ArrayStack) InjectInto(initial int8, f func(int8, int8) int8) int8 {
+func (s *SynchronizedInt8) InjectInto(initial int8, f func(int8, int8) int8) int8 {
 	acc := initial
 	for _, v := range s.snapshot() {
 		acc = f(acc, v)
@@ -183,13 +174,13 @@ func (s *SynchronizedInt8ArrayStack) InjectInto(initial int8, f func(int8, int8)
 
 // ── functional that return a new stack ───────────────────────────────
 
-func (s *SynchronizedInt8ArrayStack) Select(predicate func(int8) bool) *Int8ArrayStack {
+func (s *SynchronizedInt8) Select(predicate func(int8) bool) *Int8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Select(predicate)
 }
 
-func (s *SynchronizedInt8ArrayStack) Reject(predicate func(int8) bool) *Int8ArrayStack {
+func (s *SynchronizedInt8) Reject(predicate func(int8) bool) *Int8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Reject(predicate)
@@ -197,23 +188,23 @@ func (s *SynchronizedInt8ArrayStack) Reject(predicate func(int8) bool) *Int8Arra
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedInt8ArrayStack) With(value int8) *SynchronizedInt8ArrayStack {
+func (s *SynchronizedInt8) AddReturning(value int8) *SynchronizedInt8 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedInt8ArrayStack) WithAll(values ...int8) *SynchronizedInt8ArrayStack {
+func (s *SynchronizedInt8) AddAllReturning(values ...int8) *SynchronizedInt8 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (s *SynchronizedInt8ArrayStack) ToImmutable() *ImmutableInt8ArrayStack {
+func (s *SynchronizedInt8) ToImmutable() *ImmutableInt8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -221,7 +212,7 @@ func (s *SynchronizedInt8ArrayStack) ToImmutable() *ImmutableInt8ArrayStack {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (s *SynchronizedInt8ArrayStack) Equals(other *SynchronizedInt8ArrayStack) bool {
+func (s *SynchronizedInt8) Equals(other *SynchronizedInt8) bool {
 	if s == other {
 		s.mu.RLock()
 		defer s.mu.RUnlock()

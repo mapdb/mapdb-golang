@@ -14,11 +14,11 @@ import (
 )
 
 func TestParallel_LenIsEmpty(t *testing.T) {
-	if !AsParallel([]int{}).IsEmpty() {
+	if AsParallel([]int{}).Len() != 0 {
 		t.Fatal("expected empty")
 	}
 	p := AsParallel([]int{1, 2, 3})
-	if p.IsEmpty() {
+	if p.Len() == 0 {
 		t.Fatal("expected non-empty")
 	}
 	if p.Len() != 3 {

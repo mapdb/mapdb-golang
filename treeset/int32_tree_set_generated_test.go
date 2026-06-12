@@ -1,15 +1,14 @@
-
 package treeset
 
 import "testing"
 
-func TestInt32TreeSet_Generated_AddContains(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_AddContains(t *testing.T) {
+	s := NewInt32()
 	s.Add(3)
 	s.Add(1)
 	s.Add(2)
-	if s.Size() != 3 {
-		t.Errorf("Size = %d", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size = %d", s.Len())
 	}
 	if !s.Contains(2) {
 		t.Error("Contains should be true")
@@ -18,16 +17,16 @@ func TestInt32TreeSet_Generated_AddContains(t *testing.T) {
 		t.Error("Contains should be false")
 	}
 }
-func TestInt32TreeSet_Generated_AddDuplicate(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_AddDuplicate(t *testing.T) {
+	s := NewInt32()
 	s.Add(1)
 	added := s.Add(1)
 	if added {
 		t.Error("Duplicate should return false")
 	}
 }
-func TestInt32TreeSet_Generated_Remove(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_Remove(t *testing.T) {
+	s := NewInt32()
 	s.Add(1)
 	s.Add(2)
 	if !s.Remove(1) {
@@ -37,8 +36,8 @@ func TestInt32TreeSet_Generated_Remove(t *testing.T) {
 		t.Error("Should not contain")
 	}
 }
-func TestInt32TreeSet_Generated_MinMax(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_MinMax(t *testing.T) {
+	s := NewInt32()
 	s.Add(3)
 	s.Add(1)
 	s.Add(2)
@@ -49,8 +48,8 @@ func TestInt32TreeSet_Generated_MinMax(t *testing.T) {
 		t.Errorf("Max = %v", max)
 	}
 }
-func TestInt32TreeSet_Generated_FloorCeiling(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_FloorCeiling(t *testing.T) {
+	s := NewInt32()
 	s.Add(1)
 	s.Add(3)
 	if f, ok := s.Floor(2); !ok || f != 1 {
@@ -60,16 +59,16 @@ func TestInt32TreeSet_Generated_FloorCeiling(t *testing.T) {
 		t.Errorf("Ceiling = %v", c)
 	}
 }
-func TestInt32TreeSet_Generated_Clear(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_Clear(t *testing.T) {
+	s := NewInt32()
 	s.Add(1)
 	s.Clear()
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestInt32TreeSet_Generated_SortedIteration(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_SortedIteration(t *testing.T) {
+	s := NewInt32()
 	s.Add(3)
 	s.Add(1)
 	s.Add(2)
@@ -83,59 +82,59 @@ func TestInt32TreeSet_Generated_SortedIteration(t *testing.T) {
 		}
 	}
 }
-func TestInt32TreeSet_Generated_Select(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_Select(t *testing.T) {
+	s := NewInt32()
 	s.Add(1)
 	s.Add(2)
 	s.Add(3)
 	sel := s.Select(func(v int32) bool { return v > 1 })
-	if sel.Size() != 2 {
-		t.Errorf("Select size = %d", sel.Size())
+	if sel.Len() != 2 {
+		t.Errorf("Select size = %d", sel.Len())
 	}
 }
-func TestInt32TreeSet_Generated_Union(t *testing.T) {
-	a := NewInt32TreeSet()
+func TestInt32_Generated_Union(t *testing.T) {
+	a := NewInt32()
 	a.Add(1)
 	a.Add(2)
-	b := NewInt32TreeSet()
+	b := NewInt32()
 	b.Add(2)
 	b.Add(3)
-	if a.Union(b).Size() != 3 {
+	if a.Union(b).Len() != 3 {
 		t.Error("Union wrong")
 	}
 }
-func TestInt32TreeSet_Generated_Intersect(t *testing.T) {
-	a := NewInt32TreeSet()
+func TestInt32_Generated_Intersect(t *testing.T) {
+	a := NewInt32()
 	a.Add(1)
 	a.Add(2)
-	b := NewInt32TreeSet()
+	b := NewInt32()
 	b.Add(2)
 	b.Add(3)
-	if a.Intersect(b).Size() != 1 {
+	if a.Intersect(b).Len() != 1 {
 		t.Error("Intersect wrong")
 	}
 }
-func TestInt32TreeSet_Generated_Difference(t *testing.T) {
-	a := NewInt32TreeSet()
+func TestInt32_Generated_Difference(t *testing.T) {
+	a := NewInt32()
 	a.Add(1)
 	a.Add(2)
-	b := NewInt32TreeSet()
+	b := NewInt32()
 	b.Add(2)
 	b.Add(3)
-	if a.Difference(b).Size() != 1 {
+	if a.Difference(b).Len() != 1 {
 		t.Error("Difference wrong")
 	}
 }
-func TestInt32TreeSet_Generated_ToSlice(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_ToSlice(t *testing.T) {
+	s := NewInt32()
 	s.Add(1)
 	s.Add(2)
 	if len(s.ToSlice()) != 2 {
 		t.Error("wrong len")
 	}
 }
-func TestInt32TreeSet_Generated_String(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_Generated_String(t *testing.T) {
+	s := NewInt32()
 	s.Add(1)
 	if s.String() == "" {
 		t.Error("empty")

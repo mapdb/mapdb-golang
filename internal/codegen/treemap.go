@@ -146,20 +146,20 @@ type {{.NodeName}}TreeNode struct {
 	color  bool
 }
 
-// {{.MapName}}TreeMap is a sorted map with {{.KeyType}} keys and {{.ValType}} values, backed by a red-black tree.
+// {{.MapName}} is a sorted map with {{.KeyType}} keys and {{.ValType}} values, backed by a red-black tree.
 // Keys are maintained in ascending order.
-type {{.MapName}}TreeMap struct {
+type {{.MapName}} struct {
 	root *{{.NodeName}}TreeNode
 	size int
 }
 
-// New{{.MapName}}TreeMap creates a new empty sorted map.
-func New{{.MapName}}TreeMap() *{{.MapName}}TreeMap {
-	return &{{.MapName}}TreeMap{}
+// New{{.MapName}} creates a new empty sorted map.
+func New{{.MapName}}() *{{.MapName}} {
+	return &{{.MapName}}{}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *{{.MapName}}TreeMap) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
+func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
 	if m.root == nil {
 		m.root = &{{.NodeName}}TreeNode{key: key, value: value, color: {{.NodeName}}TreeNodeBlack}
 		m.size++
@@ -192,7 +192,7 @@ func (m *{{.MapName}}TreeMap) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValT
 }
 
 // Get returns the value for the key, or the zero value and false if not found.
-func (m *{{.MapName}}TreeMap) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
+func (m *{{.MapName}}) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return {{.ValZero}}, false
@@ -201,7 +201,7 @@ func (m *{{.MapName}}TreeMap) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
 }
 
 // GetOrDefault returns the value for the key if present, or the default value otherwise.
-func (m *{{.MapName}}TreeMap) GetOrDefault(key {{.KeyType}}, defaultValue {{.ValType}}) {{.ValType}} {
+func (m *{{.MapName}}) GetOrDefault(key {{.KeyType}}, defaultValue {{.ValType}}) {{.ValType}} {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -209,12 +209,12 @@ func (m *{{.MapName}}TreeMap) GetOrDefault(key {{.KeyType}}, defaultValue {{.Val
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *{{.MapName}}TreeMap) ContainsKey(key {{.KeyType}}) bool {
+func (m *{{.MapName}}) ContainsKey(key {{.KeyType}}) bool {
 	return m.findNode(key) != nil
 }
 
 // Remove removes the entry for the given key. Returns the previous value and true if found.
-func (m *{{.MapName}}TreeMap) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
+func (m *{{.MapName}}) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return {{.ValZero}}, false
@@ -225,28 +225,19 @@ func (m *{{.MapName}}TreeMap) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
 	return old, true
 }
 
-// Size returns the number of entries.
-func (m *{{.MapName}}TreeMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *{{.MapName}}) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *{{.MapName}}TreeMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map is empty.
-func (m *{{.MapName}}TreeMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries.
-func (m *{{.MapName}}TreeMap) Clear() {
+func (m *{{.MapName}}) Clear() {
 	m.root = nil
 	m.size = 0
 }
 
 // Min returns the smallest key and its value, or zero values and false if empty.
-func (m *{{.MapName}}TreeMap) Min() ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) Min() ({{.KeyType}}, {{.ValType}}, bool) {
 	if m.root == nil {
 		return 0, {{.ValZero}}, false
 	}
@@ -255,7 +246,7 @@ func (m *{{.MapName}}TreeMap) Min() ({{.KeyType}}, {{.ValType}}, bool) {
 }
 
 // Max returns the largest key and its value, or zero values and false if empty.
-func (m *{{.MapName}}TreeMap) Max() ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) Max() ({{.KeyType}}, {{.ValType}}, bool) {
 	if m.root == nil {
 		return 0, {{.ValZero}}, false
 	}
@@ -264,7 +255,7 @@ func (m *{{.MapName}}TreeMap) Max() ({{.KeyType}}, {{.ValType}}, bool) {
 }
 
 // Floor returns the largest key <= the given key, or zero values and false.
-func (m *{{.MapName}}TreeMap) Floor(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) Floor(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
 	var result *{{.NodeName}}TreeNode
 	node := m.root
 	for node != nil {
@@ -285,7 +276,7 @@ func (m *{{.MapName}}TreeMap) Floor(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}
 }
 
 // Ceiling returns the smallest key >= the given key, or zero values and false.
-func (m *{{.MapName}}TreeMap) Ceiling(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) Ceiling(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
 	var result *{{.NodeName}}TreeNode
 	node := m.root
 	for node != nil {
@@ -306,7 +297,7 @@ func (m *{{.MapName}}TreeMap) Ceiling(key {{.KeyType}}) ({{.KeyType}}, {{.ValTyp
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs in ascending key order.
-func (m *{{.MapName}}TreeMap) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+func (m *{{.MapName}}) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		var inorder func(node *{{.NodeName}}TreeNode) bool
 		inorder = func(node *{{.NodeName}}TreeNode) bool {
@@ -326,7 +317,7 @@ func (m *{{.MapName}}TreeMap) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 }
 
 // Keys returns an iter.Seq that yields all keys in ascending order.
-func (m *{{.MapName}}TreeMap) Keys() iter.Seq[{{.KeyType}}] {
+func (m *{{.MapName}}) Keys() iter.Seq[{{.KeyType}}] {
 	return func(yield func({{.KeyType}}) bool) {
 		for k, _ := range m.All() {
 			if !yield(k) {
@@ -337,7 +328,7 @@ func (m *{{.MapName}}TreeMap) Keys() iter.Seq[{{.KeyType}}] {
 }
 
 // Values returns an iter.Seq that yields all values in key order.
-func (m *{{.MapName}}TreeMap) Values() iter.Seq[{{.ValType}}] {
+func (m *{{.MapName}}) Values() iter.Seq[{{.ValType}}] {
 	return func(yield func({{.ValType}}) bool) {
 		for _, v := range m.All() {
 			if !yield(v) {
@@ -348,7 +339,7 @@ func (m *{{.MapName}}TreeMap) Values() iter.Seq[{{.ValType}}] {
 }
 
 // RangeKeys returns an iter.Seq2 that yields entries with keys in [fromKey, toKey).
-func (m *{{.MapName}}TreeMap) RangeKeys(fromKey, toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+func (m *{{.MapName}}) RangeKeys(fromKey, toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		for k, v := range m.All() {
 			if {{if .KeyIsFloat}}{{.CmpFn}}(k, fromKey) < 0{{else}}k < fromKey{{end}} {
@@ -366,7 +357,7 @@ func (m *{{.MapName}}TreeMap) RangeKeys(fromKey, toKey {{.KeyType}}) iter.Seq2[{
 
 // Higher returns the smallest key strictly greater than ` + "`key`" + ` (and its value),
 // or zero values and false. Unlike Ceiling, never returns ` + "`key`" + ` itself.
-func (m *{{.MapName}}TreeMap) Higher(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) Higher(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
 	var result *{{.NodeName}}TreeNode
 	node := m.root
 	for node != nil {
@@ -385,7 +376,7 @@ func (m *{{.MapName}}TreeMap) Higher(key {{.KeyType}}) ({{.KeyType}}, {{.ValType
 
 // Lower returns the largest key strictly less than ` + "`key`" + ` (and its value),
 // or zero values and false. Unlike Floor, never returns ` + "`key`" + ` itself.
-func (m *{{.MapName}}TreeMap) Lower(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) Lower(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
 	var result *{{.NodeName}}TreeNode
 	node := m.root
 	for node != nil {
@@ -404,7 +395,7 @@ func (m *{{.MapName}}TreeMap) Lower(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}
 
 // HeadMap returns an iter.Seq2 over entries with keys strictly less than toKey.
 // Matches Java NavigableMap.headMap(toKey) (exclusive by default).
-func (m *{{.MapName}}TreeMap) HeadMap(toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+func (m *{{.MapName}}) HeadMap(toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		for k, v := range m.All() {
 			if {{if .KeyIsFloat}}{{.CmpFn}}(k, toKey) >= 0{{else}}k >= toKey{{end}} {
@@ -419,7 +410,7 @@ func (m *{{.MapName}}TreeMap) HeadMap(toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}
 
 // TailMap returns an iter.Seq2 over entries with keys >= fromKey.
 // Matches Java NavigableMap.tailMap(fromKey) (inclusive by default).
-func (m *{{.MapName}}TreeMap) TailMap(fromKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+func (m *{{.MapName}}) TailMap(fromKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		for k, v := range m.All() {
 			if {{if .KeyIsFloat}}{{.CmpFn}}(k, fromKey) < 0{{else}}k < fromKey{{end}} {
@@ -434,18 +425,18 @@ func (m *{{.MapName}}TreeMap) TailMap(fromKey {{.KeyType}}) iter.Seq2[{{.KeyType
 
 // SubMap returns an iter.Seq2 over entries with keys in [fromKey, toKey).
 // Alias for RangeKeys; exists for Java-NavigableMap API parity.
-func (m *{{.MapName}}TreeMap) SubMap(fromKey, toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+func (m *{{.MapName}}) SubMap(fromKey, toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return m.RangeKeys(fromKey, toKey)
 }
 
 // FirstEntry is an alias of Min — the smallest key and its value, or zero/false.
-func (m *{{.MapName}}TreeMap) FirstEntry() ({{.KeyType}}, {{.ValType}}, bool) { return m.Min() }
+func (m *{{.MapName}}) FirstEntry() ({{.KeyType}}, {{.ValType}}, bool) { return m.Min() }
 
 // LastEntry is an alias of Max — the largest key and its value, or zero/false.
-func (m *{{.MapName}}TreeMap) LastEntry() ({{.KeyType}}, {{.ValType}}, bool) { return m.Max() }
+func (m *{{.MapName}}) LastEntry() ({{.KeyType}}, {{.ValType}}, bool) { return m.Max() }
 
 // PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
-func (m *{{.MapName}}TreeMap) PollFirstEntry() ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) PollFirstEntry() ({{.KeyType}}, {{.ValType}}, bool) {
 	k, v, ok := m.Min()
 	if !ok {
 		return 0, {{.ValZero}}, false
@@ -455,7 +446,7 @@ func (m *{{.MapName}}TreeMap) PollFirstEntry() ({{.KeyType}}, {{.ValType}}, bool
 }
 
 // PollLastEntry removes and returns the largest entry, or zero/false if empty.
-func (m *{{.MapName}}TreeMap) PollLastEntry() ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) PollLastEntry() ({{.KeyType}}, {{.ValType}}, bool) {
 	k, v, ok := m.Max()
 	if !ok {
 		return 0, {{.ValZero}}, false
@@ -465,7 +456,7 @@ func (m *{{.MapName}}TreeMap) PollLastEntry() ({{.KeyType}}, {{.ValType}}, bool)
 }
 
 // DescendingMap returns an iter.Seq2 over entries in descending key order.
-func (m *{{.MapName}}TreeMap) DescendingMap() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+func (m *{{.MapName}}) DescendingMap() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		var reverse func(node *{{.NodeName}}TreeNode) bool
 		reverse = func(node *{{.NodeName}}TreeNode) bool {
@@ -485,7 +476,7 @@ func (m *{{.MapName}}TreeMap) DescendingMap() iter.Seq2[{{.KeyType}}, {{.ValType
 }
 
 // DescendingKeys returns an iter.Seq over keys in descending order.
-func (m *{{.MapName}}TreeMap) DescendingKeys() iter.Seq[{{.KeyType}}] {
+func (m *{{.MapName}}) DescendingKeys() iter.Seq[{{.KeyType}}] {
 	return func(yield func({{.KeyType}}) bool) {
 		for k := range m.DescendingMap() {
 			if !yield(k) {
@@ -496,15 +487,15 @@ func (m *{{.MapName}}TreeMap) DescendingKeys() iter.Seq[{{.KeyType}}] {
 }
 
 // ForEach calls the function for each key-value pair in ascending order.
-func (m *{{.MapName}}TreeMap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
+func (m *{{.MapName}}) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 	for k, v := range m.All() {
 		f(k, v)
 	}
 }
 
-// Select returns a new TreeMap with entries satisfying the predicate.
-func (m *{{.MapName}}TreeMap) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}TreeMap {
-	result := New{{.MapName}}TreeMap()
+// Select returns a new map with entries satisfying the predicate.
+func (m *{{.MapName}}) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}} {
+	result := New{{.MapName}}()
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			result.Put(k, v)
@@ -513,9 +504,9 @@ func (m *{{.MapName}}TreeMap) Select(predicate func({{.KeyType}}, {{.ValType}}) 
 	return result
 }
 
-// Reject returns a new TreeMap with entries NOT satisfying the predicate.
-func (m *{{.MapName}}TreeMap) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}TreeMap {
-	result := New{{.MapName}}TreeMap()
+// Reject returns a new map with entries NOT satisfying the predicate.
+func (m *{{.MapName}}) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}} {
+	result := New{{.MapName}}()
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			result.Put(k, v)
@@ -525,7 +516,7 @@ func (m *{{.MapName}}TreeMap) Reject(predicate func({{.KeyType}}, {{.ValType}}) 
 }
 
 // Detect returns the first entry satisfying the predicate (in key order), or (zero, zero, false).
-func (m *{{.MapName}}TreeMap) Detect(predicate func({{.KeyType}}, {{.ValType}}) bool) ({{.KeyType}}, {{.ValType}}, bool) {
+func (m *{{.MapName}}) Detect(predicate func({{.KeyType}}, {{.ValType}}) bool) ({{.KeyType}}, {{.ValType}}, bool) {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return k, v, true
@@ -537,7 +528,7 @@ func (m *{{.MapName}}TreeMap) Detect(predicate func({{.KeyType}}, {{.ValType}}) 
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *{{.MapName}}TreeMap) AnySatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
+func (m *{{.MapName}}) AnySatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return true
@@ -547,7 +538,7 @@ func (m *{{.MapName}}TreeMap) AnySatisfy(predicate func({{.KeyType}}, {{.ValType
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *{{.MapName}}TreeMap) AllSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
+func (m *{{.MapName}}) AllSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			return false
@@ -557,7 +548,7 @@ func (m *{{.MapName}}TreeMap) AllSatisfy(predicate func({{.KeyType}}, {{.ValType
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *{{.MapName}}TreeMap) NoneSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
+func (m *{{.MapName}}) NoneSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return false
@@ -567,7 +558,7 @@ func (m *{{.MapName}}TreeMap) NoneSatisfy(predicate func({{.KeyType}}, {{.ValTyp
 }
 
 // Count returns the number of entries satisfying the predicate.
-func (m *{{.MapName}}TreeMap) Count(predicate func({{.KeyType}}, {{.ValType}}) bool) int {
+func (m *{{.MapName}}) Count(predicate func({{.KeyType}}, {{.ValType}}) bool) int {
 	c := 0
 	for k, v := range m.All() {
 		if predicate(k, v) {
@@ -578,7 +569,7 @@ func (m *{{.MapName}}TreeMap) Count(predicate func({{.KeyType}}, {{.ValType}}) b
 }
 
 // String returns a string representation with entries in sorted key order.
-func (m *{{.MapName}}TreeMap) String() string {
+func (m *{{.MapName}}) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -598,7 +589,7 @@ func (m *{{.MapName}}TreeMap) String() string {
 
 // --- Red-black tree internals ---
 
-func (m *{{.MapName}}TreeMap) findNode(key {{.KeyType}}) *{{.NodeName}}TreeNode {
+func (m *{{.MapName}}) findNode(key {{.KeyType}}) *{{.NodeName}}TreeNode {
 	node := m.root
 	for node != nil {
 		if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) < 0{{else}}key < node.key{{end}} {
@@ -612,21 +603,21 @@ func (m *{{.MapName}}TreeMap) findNode(key {{.KeyType}}) *{{.NodeName}}TreeNode 
 	return nil
 }
 
-func (m *{{.MapName}}TreeMap) minNode(node *{{.NodeName}}TreeNode) *{{.NodeName}}TreeNode {
+func (m *{{.MapName}}) minNode(node *{{.NodeName}}TreeNode) *{{.NodeName}}TreeNode {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
 
-func (m *{{.MapName}}TreeMap) maxNode(node *{{.NodeName}}TreeNode) *{{.NodeName}}TreeNode {
+func (m *{{.MapName}}) maxNode(node *{{.NodeName}}TreeNode) *{{.NodeName}}TreeNode {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (m *{{.MapName}}TreeMap) rotateLeft(x *{{.NodeName}}TreeNode) {
+func (m *{{.MapName}}) rotateLeft(x *{{.NodeName}}TreeNode) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -644,7 +635,7 @@ func (m *{{.MapName}}TreeMap) rotateLeft(x *{{.NodeName}}TreeNode) {
 	x.parent = y
 }
 
-func (m *{{.MapName}}TreeMap) rotateRight(x *{{.NodeName}}TreeNode) {
+func (m *{{.MapName}}) rotateRight(x *{{.NodeName}}TreeNode) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -662,7 +653,7 @@ func (m *{{.MapName}}TreeMap) rotateRight(x *{{.NodeName}}TreeNode) {
 	x.parent = y
 }
 
-func (m *{{.MapName}}TreeMap) fixAfterInsert(z *{{.NodeName}}TreeNode) {
+func (m *{{.MapName}}) fixAfterInsert(z *{{.NodeName}}TreeNode) {
 	for z.parent != nil && z.parent.color == {{.NodeName}}TreeNodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
@@ -701,7 +692,7 @@ func (m *{{.MapName}}TreeMap) fixAfterInsert(z *{{.NodeName}}TreeNode) {
 	m.root.color = {{.NodeName}}TreeNodeBlack
 }
 
-func (m *{{.MapName}}TreeMap) deleteNode(z *{{.NodeName}}TreeNode) {
+func (m *{{.MapName}}) deleteNode(z *{{.NodeName}}TreeNode) {
 	if z.left != nil && z.right != nil {
 		succ := m.minNode(z.right)
 		z.key = succ.key
@@ -742,7 +733,7 @@ func (m *{{.MapName}}TreeMap) deleteNode(z *{{.NodeName}}TreeNode) {
 	}
 }
 
-func (m *{{.MapName}}TreeMap) fixAfterDelete(x *{{.NodeName}}TreeNode) {
+func (m *{{.MapName}}) fixAfterDelete(x *{{.NodeName}}TreeNode) {
 	for x != m.root && x.color == {{.NodeName}}TreeNodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right

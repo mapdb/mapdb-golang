@@ -75,8 +75,8 @@ func TestGroupBy(t *testing.T) {
 	if len(groups.Get("even")) != 3 || len(groups.Get("odd")) != 3 {
 		t.Errorf("GroupBy = %v", groups)
 	}
-	if groups.Size() != 6 || groups.SizeDistinct() != 2 {
-		t.Errorf("GroupBy sizes = (%d, %d)", groups.Size(), groups.SizeDistinct())
+	if groups.Len() != 6 || groups.SizeDistinct() != 2 {
+		t.Errorf("GroupBy sizes = (%d, %d)", groups.Len(), groups.SizeDistinct())
 	}
 }
 

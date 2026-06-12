@@ -34,12 +34,8 @@ func NewHashSetFrom[T comparable](values ...T) *HashSet[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (s *HashSet[T]) Size() int { return len(s.m) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *HashSet[T]) Len() int      { return s.Size() }
-func (s *HashSet[T]) IsEmpty() bool { return len(s.m) == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *HashSet[T]) Len() int { return len(s.m) }
 
 // ── Iterable ──────────────────────────────────────────────────────────
 

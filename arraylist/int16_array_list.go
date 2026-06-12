@@ -3,81 +3,86 @@
 package arraylist
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// Int16ArrayList is a resizable array-backed list of int16 values.
+// Int16 is a resizable array-backed list of int16 values.
 // Length is always len(l.items); there is no separate size counter.
-type Int16ArrayList struct {
+//
+// The zero value is an empty, ready-to-use list.
+type Int16 struct {
 	items []int16
 }
 
-// NewInt16ArrayList creates a new empty Int16ArrayList.
-func NewInt16ArrayList() *Int16ArrayList {
-	return &Int16ArrayList{items: make([]int16, 0, 16)}
+// NewInt16 creates a new empty Int16.
+func NewInt16() *Int16 {
+	return &Int16{items: make([]int16, 0, 16)}
 }
 
-// NewInt16ArrayListWithCapacity creates a new empty Int16ArrayList with the given initial capacity.
-func NewInt16ArrayListWithCapacity(capacity int) *Int16ArrayList {
-	return &Int16ArrayList{items: make([]int16, 0, capacity)}
+// NewInt16WithCapacity creates a new empty Int16 with the given initial capacity.
+func NewInt16WithCapacity(capacity int) *Int16 {
+	return &Int16{items: make([]int16, 0, capacity)}
 }
 
-// Int16ArrayListOf creates a new Int16ArrayList from the given values.
-func Int16ArrayListOf(values ...int16) *Int16ArrayList {
-	l := &Int16ArrayList{items: make([]int16, len(values))}
+// Int16Of creates a new Int16 from the given values.
+func Int16Of(values ...int16) *Int16 {
+	l := &Int16{items: make([]int16, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
-func (l *Int16ArrayList) Add(value int16) {
+func (l *Int16) Add(value int16) {
 	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
-func (l *Int16ArrayList) AddAll(values ...int16) {
+func (l *Int16) AddAll(values ...int16) {
 	l.items = append(l.items, values...)
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *Int16ArrayList) Get(index int) (int16, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *Int16) Get(index int) int16 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int16ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int16: index out of range [%d] with length %d", index, len(l.items)))
 	}
-	return l.items[index], nil
+	return l.items[index]
 }
 
-// Set sets the value at the given index, returning the previous value.
-// Returns an error if the index is out of bounds.
-func (l *Int16ArrayList) Set(index int, value int16) (int16, error) {
+// Set sets the value at the given index, returning the previous value. It
+// panics if the index is out of bounds, matching the semantics of a native
+// Go slice.
+func (l *Int16) Set(index int, value int16) int16 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int16ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int16: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	l.items[index] = value
-	return old, nil
+	return old
 }
 
-// RemoveAtIndex removes the value at the given index and returns it.
-// Returns an error if the index is out of bounds.
-func (l *Int16ArrayList) RemoveAtIndex(index int) (int16, error) {
+// RemoveAtIndex removes the value at the given index and returns it. It panics
+// if the index is out of bounds, matching the semantics of a native Go slice.
+func (l *Int16) RemoveAtIndex(index int) int16 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int16ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int16: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	copy(l.items[index:], l.items[index+1:])
 	l.items = l.items[:len(l.items)-1]
-	return old, nil
+	return old
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
-func (l *Int16ArrayList) Remove(value int16) bool {
+func (l *Int16) Remove(value int16) bool {
 	for i, v := range l.items {
 		if v == value {
-			_, _ = l.RemoveAtIndex(i)
+			l.RemoveAtIndex(i)
 			return true
 		}
 	}
@@ -85,7 +90,7 @@ func (l *Int16ArrayList) Remove(value int16) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *Int16ArrayList) Contains(value int16) bool {
+func (l *Int16) Contains(value int16) bool {
 	for _, v := range l.items {
 		if v == value {
 			return true
@@ -95,7 +100,7 @@ func (l *Int16ArrayList) Contains(value int16) bool {
 }
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
-func (l *Int16ArrayList) IndexOf(value int16) int {
+func (l *Int16) IndexOf(value int16) int {
 	for i, v := range l.items {
 		if v == value {
 			return i
@@ -104,21 +109,16 @@ func (l *Int16ArrayList) IndexOf(value int16) int {
 	return -1
 }
 
-// Size returns the number of elements in the list.
-func (l *Int16ArrayList) Size() int { return len(l.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *Int16ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *Int16ArrayList) IsEmpty() bool { return len(l.items) == 0 }
+// Len returns the number of elements in the list, matching the Go
+// convention (sort.Interface, container/list, bytes.Buffer). Use
+// l.Len() == 0 to test for emptiness.
+func (l *Int16) Len() int { return len(l.items) }
 
 // Clear removes all elements from the list.
-func (l *Int16ArrayList) Clear() { l.items = l.items[:0] }
+func (l *Int16) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *Int16ArrayList) All() iter.Seq[int16] {
+func (l *Int16) All() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for _, v := range l.items {
 			if !yield(v) {
@@ -129,7 +129,7 @@ func (l *Int16ArrayList) All() iter.Seq[int16] {
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *Int16ArrayList) AllWithIndex() iter.Seq2[int, int16] {
+func (l *Int16) AllWithIndex() iter.Seq2[int, int16] {
 	return func(yield func(int, int16) bool) {
 		for i, v := range l.items {
 			if !yield(i, v) {
@@ -140,22 +140,22 @@ func (l *Int16ArrayList) AllWithIndex() iter.Seq2[int, int16] {
 }
 
 // ForEach calls the given function for each element.
-func (l *Int16ArrayList) ForEach(f func(int16)) {
+func (l *Int16) ForEach(f func(int16)) {
 	for _, v := range l.items {
 		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
-func (l *Int16ArrayList) ForEachWithIndex(f func(int16, int)) {
+func (l *Int16) ForEachWithIndex(f func(int16, int)) {
 	for i, v := range l.items {
 		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
-func (l *Int16ArrayList) Select(predicate func(int16) bool) *Int16ArrayList {
-	result := NewInt16ArrayList()
+func (l *Int16) Select(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for _, v := range l.items {
 		if predicate(v) {
 			result.Add(v)
@@ -165,8 +165,8 @@ func (l *Int16ArrayList) Select(predicate func(int16) bool) *Int16ArrayList {
 }
 
 // Reject returns a new list containing only elements that do not satisfy the predicate.
-func (l *Int16ArrayList) Reject(predicate func(int16) bool) *Int16ArrayList {
-	result := NewInt16ArrayList()
+func (l *Int16) Reject(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for _, v := range l.items {
 		if !predicate(v) {
 			result.Add(v)
@@ -176,7 +176,7 @@ func (l *Int16ArrayList) Reject(predicate func(int16) bool) *Int16ArrayList {
 }
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
-func (l *Int16ArrayList) Detect(predicate func(int16) bool) (int16, bool) {
+func (l *Int16) Detect(predicate func(int16) bool) (int16, bool) {
 	for _, v := range l.items {
 		if predicate(v) {
 			return v, true
@@ -186,7 +186,7 @@ func (l *Int16ArrayList) Detect(predicate func(int16) bool) (int16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *Int16ArrayList) AnySatisfy(predicate func(int16) bool) bool {
+func (l *Int16) AnySatisfy(predicate func(int16) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return true
@@ -196,7 +196,7 @@ func (l *Int16ArrayList) AnySatisfy(predicate func(int16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *Int16ArrayList) AllSatisfy(predicate func(int16) bool) bool {
+func (l *Int16) AllSatisfy(predicate func(int16) bool) bool {
 	for _, v := range l.items {
 		if !predicate(v) {
 			return false
@@ -206,7 +206,7 @@ func (l *Int16ArrayList) AllSatisfy(predicate func(int16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *Int16ArrayList) NoneSatisfy(predicate func(int16) bool) bool {
+func (l *Int16) NoneSatisfy(predicate func(int16) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return false
@@ -216,7 +216,7 @@ func (l *Int16ArrayList) NoneSatisfy(predicate func(int16) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *Int16ArrayList) Count(predicate func(int16) bool) int {
+func (l *Int16) Count(predicate func(int16) bool) int {
 	count := 0
 	for _, v := range l.items {
 		if predicate(v) {
@@ -227,7 +227,7 @@ func (l *Int16ArrayList) Count(predicate func(int16) bool) int {
 }
 
 // InjectInto performs a left fold over the list.
-func (l *Int16ArrayList) InjectInto(initial int16, f func(int16, int16) int16) int16 {
+func (l *Int16) InjectInto(initial int16, f func(int16, int16) int16) int16 {
 	result := initial
 	for _, v := range l.items {
 		result = f(result, v)
@@ -236,7 +236,7 @@ func (l *Int16ArrayList) InjectInto(initial int16, f func(int16, int16) int16) i
 }
 
 // Sum returns the sum of all elements as int64 to avoid overflow.
-func (l *Int16ArrayList) Sum() int64 {
+func (l *Int16) Sum() int64 {
 	var sum int64
 	for _, v := range l.items {
 		sum += int64(v)
@@ -245,7 +245,7 @@ func (l *Int16ArrayList) Sum() int64 {
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
-func (l *Int16ArrayList) Min() (int16, bool) {
+func (l *Int16) Min() (int16, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -259,7 +259,7 @@ func (l *Int16ArrayList) Min() (int16, bool) {
 }
 
 // Max returns the maximum element, or the zero value and false if empty.
-func (l *Int16ArrayList) Max() (int16, bool) {
+func (l *Int16) Max() (int16, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -273,21 +273,28 @@ func (l *Int16ArrayList) Max() (int16, bool) {
 }
 
 // Sort sorts the list in ascending order.
-func (l *Int16ArrayList) Sort() {
-	sort.Slice(l.items, func(i, j int) bool {
-		return l.items[i] < l.items[j]
+func (l *Int16) Sort() {
+	slices.SortFunc(l.items, func(a, b int16) int {
+		return cmp.Compare(a, b)
 	})
 }
 
-// SortWithComparator sorts the list using the given comparison function.
-func (l *Int16ArrayList) SortWithComparator(less func(int16, int16) bool) {
-	sort.Slice(l.items, func(i, j int) bool {
-		return less(l.items[i], l.items[j])
+// SortWithComparator sorts the list using the given less function.
+func (l *Int16) SortWithComparator(less func(int16, int16) bool) {
+	slices.SortFunc(l.items, func(a, b int16) int {
+		switch {
+		case less(a, b):
+			return -1
+		case less(b, a):
+			return 1
+		default:
+			return 0
+		}
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
-func (l *Int16ArrayList) BinarySearch(value int16) (int, bool) {
+func (l *Int16) BinarySearch(value int16) (int, bool) {
 	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
@@ -304,9 +311,9 @@ func (l *Int16ArrayList) BinarySearch(value int16) (int, bool) {
 }
 
 // Reversed returns a new list with elements in reverse order.
-func (l *Int16ArrayList) Reversed() *Int16ArrayList {
+func (l *Int16) Reversed() *Int16 {
 	n := len(l.items)
-	result := NewInt16ArrayListWithCapacity(n)
+	result := NewInt16WithCapacity(n)
 	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
@@ -314,9 +321,9 @@ func (l *Int16ArrayList) Reversed() *Int16ArrayList {
 }
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
-func (l *Int16ArrayList) Distinct() *Int16ArrayList {
+func (l *Int16) Distinct() *Int16 {
 	seen := make(map[int16]struct{})
-	result := NewInt16ArrayList()
+	result := NewInt16()
 	for _, v := range l.items {
 		if _, ok := seen[v]; !ok {
 			seen[v] = struct{}{}
@@ -327,26 +334,26 @@ func (l *Int16ArrayList) Distinct() *Int16ArrayList {
 }
 
 // ToSlice returns a copy of the list elements as a slice.
-func (l *Int16ArrayList) ToSlice() []int16 {
+func (l *Int16) ToSlice() []int16 {
 	result := make([]int16, len(l.items))
 	copy(result, l.items)
 	return result
 }
 
 // With returns the list after adding the value (fluent API).
-func (l *Int16ArrayList) With(value int16) *Int16ArrayList {
+func (l *Int16) AddReturning(value int16) *Int16 {
 	l.Add(value)
 	return l
 }
 
-// Without returns the list after removing the first occurrence of value (fluent API).
-func (l *Int16ArrayList) Without(value int16) *Int16ArrayList {
+// RemoveReturning removes the first occurrence of value and returns the receiver (mutating, fluent).
+func (l *Int16) RemoveReturning(value int16) *Int16 {
 	l.Remove(value)
 	return l
 }
 
 // String returns a string representation of the list.
-func (l *Int16ArrayList) String() string {
+func (l *Int16) String() string {
 	if len(l.items) == 0 {
 		return "[]"
 	}
@@ -363,7 +370,7 @@ func (l *Int16ArrayList) String() string {
 }
 
 // Equals returns true if the other list has the same elements in the same order.
-func (l *Int16ArrayList) Equals(other *Int16ArrayList) bool {
+func (l *Int16) Equals(other *Int16) bool {
 	if len(l.items) != len(other.items) {
 		return false
 	}
@@ -375,16 +382,16 @@ func (l *Int16ArrayList) Equals(other *Int16ArrayList) bool {
 	return true
 }
 
-// WithAll returns the list after adding all values (fluent API).
-func (l *Int16ArrayList) WithAll(values ...int16) *Int16ArrayList {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (l *Int16) AddAllReturning(values ...int16) *Int16 {
 	l.AddAll(values...)
 	return l
 }
 
-// WithoutAll removes every occurrence of any of the given values.
+// RemoveAllReturning removes every occurrence of any of the given values.
 // Compacts in place — keeps the existing backing storage and avoids
 // the temporary-list allocation the previous implementation made.
-func (l *Int16ArrayList) WithoutAll(values ...int16) *Int16ArrayList {
+func (l *Int16) RemoveAllReturning(values ...int16) *Int16 {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
@@ -413,6 +420,6 @@ func (l *Int16ArrayList) WithoutAll(values ...int16) *Int16ArrayList {
 }
 
 // ToImmutable returns an immutable copy of this list.
-func (l *Int16ArrayList) ToImmutable() *ImmutableInt16ArrayList {
-	return ImmutableInt16ArrayListFrom(l)
+func (l *Int16) ToImmutable() *ImmutableInt16 {
+	return ImmutableInt16From(l)
 }

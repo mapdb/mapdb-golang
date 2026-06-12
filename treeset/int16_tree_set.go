@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	int16TreeSetNodeRed   = false
-	int16TreeSetNodeBlack = true
+	int16NodeRed   = false
+	int16NodeBlack = true
 )
 
-type int16TreeSetNode struct {
+type int16Node struct {
 	key    int16
-	left   *int16TreeSetNode
-	right  *int16TreeSetNode
-	parent *int16TreeSetNode
+	left   *int16Node
+	right  *int16Node
+	parent *int16Node
 	color  bool
 }
 
-// Int16TreeSet is a sorted set of int16 values, backed by a red-black tree.
-type Int16TreeSet struct {
-	root *int16TreeSetNode
+// Int16 is a sorted set of int16 values, backed by a red-black tree.
+type Int16 struct {
+	root *int16Node
 	size int
 }
 
-// NewInt16TreeSet creates a new empty sorted set.
-func NewInt16TreeSet() *Int16TreeSet {
-	return &Int16TreeSet{}
+// NewInt16 creates a new empty sorted set.
+func NewInt16() *Int16 {
+	return &Int16{}
 }
 
-// Int16TreeSetOf creates a new sorted set from the given values.
-func Int16TreeSetOf(values ...int16) *Int16TreeSet {
-	s := NewInt16TreeSet()
+// Int16Of creates a new sorted set from the given values.
+func Int16Of(values ...int16) *Int16 {
+	s := NewInt16()
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -42,9 +42,9 @@ func Int16TreeSetOf(values ...int16) *Int16TreeSet {
 }
 
 // Add inserts a value. Returns true if added (not already present).
-func (s *Int16TreeSet) Add(value int16) bool {
+func (s *Int16) Add(value int16) bool {
 	if s.root == nil {
-		s.root = &int16TreeSetNode{key: value, color: int16TreeSetNodeBlack}
+		s.root = &int16Node{key: value, color: int16NodeBlack}
 		s.size++
 		return true
 	}
@@ -52,7 +52,7 @@ func (s *Int16TreeSet) Add(value int16) bool {
 	for {
 		if value < node.key {
 			if node.left == nil {
-				node.left = &int16TreeSetNode{key: value, parent: node, color: int16TreeSetNodeRed}
+				node.left = &int16Node{key: value, parent: node, color: int16NodeRed}
 				s.fixAfterInsert(node.left)
 				s.size++
 				return true
@@ -60,7 +60,7 @@ func (s *Int16TreeSet) Add(value int16) bool {
 			node = node.left
 		} else if value > node.key {
 			if node.right == nil {
-				node.right = &int16TreeSetNode{key: value, parent: node, color: int16TreeSetNodeRed}
+				node.right = &int16Node{key: value, parent: node, color: int16NodeRed}
 				s.fixAfterInsert(node.right)
 				s.size++
 				return true
@@ -73,7 +73,7 @@ func (s *Int16TreeSet) Add(value int16) bool {
 }
 
 // Remove removes a value. Returns true if found and removed.
-func (s *Int16TreeSet) Remove(value int16) bool {
+func (s *Int16) Remove(value int16) bool {
 	node := s.findNode(value)
 	if node == nil {
 		return false
@@ -84,25 +84,18 @@ func (s *Int16TreeSet) Remove(value int16) bool {
 }
 
 // Contains returns true if the set contains the value.
-func (s *Int16TreeSet) Contains(value int16) bool {
+func (s *Int16) Contains(value int16) bool {
 	return s.findNode(value) != nil
 }
 
-// Size returns the number of elements.
-func (s *Int16TreeSet) Size() int { return s.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int16TreeSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set is empty.
-func (s *Int16TreeSet) IsEmpty() bool { return s.size == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Int16) Len() int { return s.size }
 
 // Clear removes all elements.
-func (s *Int16TreeSet) Clear() { s.root = nil; s.size = 0 }
+func (s *Int16) Clear() { s.root = nil; s.size = 0 }
 
 // Min returns the smallest element, or zero and false if empty.
-func (s *Int16TreeSet) Min() (int16, bool) {
+func (s *Int16) Min() (int16, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -110,7 +103,7 @@ func (s *Int16TreeSet) Min() (int16, bool) {
 }
 
 // Max returns the largest element, or zero and false if empty.
-func (s *Int16TreeSet) Max() (int16, bool) {
+func (s *Int16) Max() (int16, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -118,8 +111,8 @@ func (s *Int16TreeSet) Max() (int16, bool) {
 }
 
 // Floor returns the largest element <= value, or zero and false.
-func (s *Int16TreeSet) Floor(value int16) (int16, bool) {
-	var result *int16TreeSetNode
+func (s *Int16) Floor(value int16) (int16, bool) {
+	var result *int16Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -139,8 +132,8 @@ func (s *Int16TreeSet) Floor(value int16) (int16, bool) {
 }
 
 // Ceiling returns the smallest element >= value, or zero and false.
-func (s *Int16TreeSet) Ceiling(value int16) (int16, bool) {
-	var result *int16TreeSetNode
+func (s *Int16) Ceiling(value int16) (int16, bool) {
+	var result *int16Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -160,10 +153,10 @@ func (s *Int16TreeSet) Ceiling(value int16) (int16, bool) {
 }
 
 // All returns an iter.Seq that yields elements in ascending order.
-func (s *Int16TreeSet) All() iter.Seq[int16] {
+func (s *Int16) All() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
-		var inorder func(node *int16TreeSetNode) bool
-		inorder = func(node *int16TreeSetNode) bool {
+		var inorder func(node *int16Node) bool
+		inorder = func(node *int16Node) bool {
 			if node == nil {
 				return true
 			}
@@ -180,7 +173,7 @@ func (s *Int16TreeSet) All() iter.Seq[int16] {
 }
 
 // RangeValues returns an iter.Seq that yields elements in [from, to).
-func (s *Int16TreeSet) RangeValues(from, to int16) iter.Seq[int16] {
+func (s *Int16) RangeValues(from, to int16) iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for v := range s.All() {
 			if v < from {
@@ -197,15 +190,15 @@ func (s *Int16TreeSet) RangeValues(from, to int16) iter.Seq[int16] {
 }
 
 // ForEach calls the function for each element in ascending order.
-func (s *Int16TreeSet) ForEach(f func(int16)) {
+func (s *Int16) ForEach(f func(int16)) {
 	for v := range s.All() {
 		f(v)
 	}
 }
 
 // Select returns a new sorted set with elements satisfying the predicate.
-func (s *Int16TreeSet) Select(predicate func(int16) bool) *Int16TreeSet {
-	result := NewInt16TreeSet()
+func (s *Int16) Select(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for v := range s.All() {
 		if predicate(v) {
 			result.Add(v)
@@ -215,8 +208,8 @@ func (s *Int16TreeSet) Select(predicate func(int16) bool) *Int16TreeSet {
 }
 
 // Reject returns a new sorted set with elements NOT satisfying the predicate.
-func (s *Int16TreeSet) Reject(predicate func(int16) bool) *Int16TreeSet {
-	result := NewInt16TreeSet()
+func (s *Int16) Reject(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for v := range s.All() {
 		if !predicate(v) {
 			result.Add(v)
@@ -226,7 +219,7 @@ func (s *Int16TreeSet) Reject(predicate func(int16) bool) *Int16TreeSet {
 }
 
 // Detect returns the first element satisfying the predicate, or (zero, false) if none.
-func (s *Int16TreeSet) Detect(predicate func(int16) bool) (int16, bool) {
+func (s *Int16) Detect(predicate func(int16) bool) (int16, bool) {
 	for v := range s.All() {
 		if predicate(v) {
 			return v, true
@@ -237,7 +230,7 @@ func (s *Int16TreeSet) Detect(predicate func(int16) bool) (int16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int16TreeSet) AnySatisfy(predicate func(int16) bool) bool {
+func (s *Int16) AnySatisfy(predicate func(int16) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return true
@@ -247,7 +240,7 @@ func (s *Int16TreeSet) AnySatisfy(predicate func(int16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int16TreeSet) AllSatisfy(predicate func(int16) bool) bool {
+func (s *Int16) AllSatisfy(predicate func(int16) bool) bool {
 	for v := range s.All() {
 		if !predicate(v) {
 			return false
@@ -257,7 +250,7 @@ func (s *Int16TreeSet) AllSatisfy(predicate func(int16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int16TreeSet) NoneSatisfy(predicate func(int16) bool) bool {
+func (s *Int16) NoneSatisfy(predicate func(int16) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return false
@@ -267,7 +260,7 @@ func (s *Int16TreeSet) NoneSatisfy(predicate func(int16) bool) bool {
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *Int16TreeSet) Count(predicate func(int16) bool) int {
+func (s *Int16) Count(predicate func(int16) bool) int {
 	c := 0
 	for v := range s.All() {
 		if predicate(v) {
@@ -278,8 +271,8 @@ func (s *Int16TreeSet) Count(predicate func(int16) bool) int {
 }
 
 // Union returns a new sorted set with elements from both sets.
-func (s *Int16TreeSet) Union(other *Int16TreeSet) *Int16TreeSet {
-	result := NewInt16TreeSet()
+func (s *Int16) Union(other *Int16) *Int16 {
+	result := NewInt16()
 	for v := range s.All() {
 		result.Add(v)
 	}
@@ -290,8 +283,8 @@ func (s *Int16TreeSet) Union(other *Int16TreeSet) *Int16TreeSet {
 }
 
 // Intersect returns a new sorted set with elements in both sets.
-func (s *Int16TreeSet) Intersect(other *Int16TreeSet) *Int16TreeSet {
-	result := NewInt16TreeSet()
+func (s *Int16) Intersect(other *Int16) *Int16 {
+	result := NewInt16()
 	for v := range s.All() {
 		if other.Contains(v) {
 			result.Add(v)
@@ -301,8 +294,8 @@ func (s *Int16TreeSet) Intersect(other *Int16TreeSet) *Int16TreeSet {
 }
 
 // Difference returns a new sorted set with elements in this but not other.
-func (s *Int16TreeSet) Difference(other *Int16TreeSet) *Int16TreeSet {
-	result := NewInt16TreeSet()
+func (s *Int16) Difference(other *Int16) *Int16 {
+	result := NewInt16()
 	for v := range s.All() {
 		if !other.Contains(v) {
 			result.Add(v)
@@ -312,7 +305,7 @@ func (s *Int16TreeSet) Difference(other *Int16TreeSet) *Int16TreeSet {
 }
 
 // ToSlice returns elements as a sorted slice.
-func (s *Int16TreeSet) ToSlice() []int16 {
+func (s *Int16) ToSlice() []int16 {
 	result := make([]int16, 0, s.size)
 	for v := range s.All() {
 		result = append(result, v)
@@ -320,14 +313,14 @@ func (s *Int16TreeSet) ToSlice() []int16 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *Int16TreeSet) With(value int16) *Int16TreeSet { s.Add(value); return s }
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Int16) AddReturning(value int16) *Int16 { s.Add(value); return s }
 
-// Without returns the set after removing the value (fluent API).
-func (s *Int16TreeSet) Without(value int16) *Int16TreeSet { s.Remove(value); return s }
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Int16) RemoveReturning(value int16) *Int16 { s.Remove(value); return s }
 
 // String returns a string representation in sorted order.
-func (s *Int16TreeSet) String() string {
+func (s *Int16) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -347,7 +340,7 @@ func (s *Int16TreeSet) String() string {
 
 // --- Red-black tree internals (same as TreeMap) ---
 
-func (s *Int16TreeSet) findNode(key int16) *int16TreeSetNode {
+func (s *Int16) findNode(key int16) *int16Node {
 	node := s.root
 	for node != nil {
 		if key < node.key {
@@ -360,20 +353,20 @@ func (s *Int16TreeSet) findNode(key int16) *int16TreeSetNode {
 	}
 	return nil
 }
-func (s *Int16TreeSet) minNode(node *int16TreeSetNode) *int16TreeSetNode {
+func (s *Int16) minNode(node *int16Node) *int16Node {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
-func (s *Int16TreeSet) maxNode(node *int16TreeSetNode) *int16TreeSetNode {
+func (s *Int16) maxNode(node *int16Node) *int16Node {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (s *Int16TreeSet) rotateLeft(x *int16TreeSetNode) {
+func (s *Int16) rotateLeft(x *int16Node) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -390,7 +383,7 @@ func (s *Int16TreeSet) rotateLeft(x *int16TreeSetNode) {
 	y.left = x
 	x.parent = y
 }
-func (s *Int16TreeSet) rotateRight(x *int16TreeSetNode) {
+func (s *Int16) rotateRight(x *int16Node) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -408,52 +401,52 @@ func (s *Int16TreeSet) rotateRight(x *int16TreeSetNode) {
 	x.parent = y
 }
 
-func (s *Int16TreeSet) fixAfterInsert(z *int16TreeSetNode) {
-	for z.parent != nil && z.parent.color == int16TreeSetNodeRed {
+func (s *Int16) fixAfterInsert(z *int16Node) {
+	for z.parent != nil && z.parent.color == int16NodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
-			if y != nil && y.color == int16TreeSetNodeRed {
-				z.parent.color = int16TreeSetNodeBlack
-				y.color = int16TreeSetNodeBlack
-				z.parent.parent.color = int16TreeSetNodeRed
+			if y != nil && y.color == int16NodeRed {
+				z.parent.color = int16NodeBlack
+				y.color = int16NodeBlack
+				z.parent.parent.color = int16NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.right {
 					z = z.parent
 					s.rotateLeft(z)
 				}
-				z.parent.color = int16TreeSetNodeBlack
-				z.parent.parent.color = int16TreeSetNodeRed
+				z.parent.color = int16NodeBlack
+				z.parent.parent.color = int16NodeRed
 				s.rotateRight(z.parent.parent)
 			}
 		} else {
 			y := z.parent.parent.left
-			if y != nil && y.color == int16TreeSetNodeRed {
-				z.parent.color = int16TreeSetNodeBlack
-				y.color = int16TreeSetNodeBlack
-				z.parent.parent.color = int16TreeSetNodeRed
+			if y != nil && y.color == int16NodeRed {
+				z.parent.color = int16NodeBlack
+				y.color = int16NodeBlack
+				z.parent.parent.color = int16NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.left {
 					z = z.parent
 					s.rotateRight(z)
 				}
-				z.parent.color = int16TreeSetNodeBlack
-				z.parent.parent.color = int16TreeSetNodeRed
+				z.parent.color = int16NodeBlack
+				z.parent.parent.color = int16NodeRed
 				s.rotateLeft(z.parent.parent)
 			}
 		}
 	}
-	s.root.color = int16TreeSetNodeBlack
+	s.root.color = int16NodeBlack
 }
 
-func (s *Int16TreeSet) deleteNode(z *int16TreeSetNode) {
+func (s *Int16) deleteNode(z *int16Node) {
 	if z.left != nil && z.right != nil {
 		succ := s.minNode(z.right)
 		z.key = succ.key
 		z = succ
 	}
-	var child *int16TreeSetNode
+	var child *int16Node
 	if z.left != nil {
 		child = z.left
 	} else {
@@ -468,13 +461,13 @@ func (s *Int16TreeSet) deleteNode(z *int16TreeSetNode) {
 		} else {
 			z.parent.right = child
 		}
-		if z.color == int16TreeSetNodeBlack {
+		if z.color == int16NodeBlack {
 			s.fixAfterDelete(child)
 		}
 	} else if z.parent == nil {
 		s.root = nil
 	} else {
-		if z.color == int16TreeSetNodeBlack {
+		if z.color == int16NodeBlack {
 			s.fixAfterDelete(z)
 		}
 		if z.parent != nil {
@@ -487,17 +480,17 @@ func (s *Int16TreeSet) deleteNode(z *int16TreeSetNode) {
 	}
 }
 
-func (s *Int16TreeSet) fixAfterDelete(x *int16TreeSetNode) {
-	for x != s.root && x.color == int16TreeSetNodeBlack {
+func (s *Int16) fixAfterDelete(x *int16Node) {
+	for x != s.root && x.color == int16NodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right
 			if w == nil {
 				x = x.parent
 				continue
 			}
-			if w.color == int16TreeSetNodeRed {
-				w.color = int16TreeSetNodeBlack
-				x.parent.color = int16TreeSetNodeRed
+			if w.color == int16NodeRed {
+				w.color = int16NodeBlack
+				x.parent.color = int16NodeRed
 				s.rotateLeft(x.parent)
 				w = x.parent.right
 			}
@@ -505,24 +498,24 @@ func (s *Int16TreeSet) fixAfterDelete(x *int16TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int16TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int16TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int16NodeBlack
+			rb := w.right == nil || w.right.color == int16NodeBlack
 			if lb && rb {
-				w.color = int16TreeSetNodeRed
+				w.color = int16NodeRed
 				x = x.parent
 			} else {
 				if rb {
 					if w.left != nil {
-						w.left.color = int16TreeSetNodeBlack
+						w.left.color = int16NodeBlack
 					}
-					w.color = int16TreeSetNodeRed
+					w.color = int16NodeRed
 					s.rotateRight(w)
 					w = x.parent.right
 				}
 				w.color = x.parent.color
-				x.parent.color = int16TreeSetNodeBlack
+				x.parent.color = int16NodeBlack
 				if w.right != nil {
-					w.right.color = int16TreeSetNodeBlack
+					w.right.color = int16NodeBlack
 				}
 				s.rotateLeft(x.parent)
 				x = s.root
@@ -533,9 +526,9 @@ func (s *Int16TreeSet) fixAfterDelete(x *int16TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			if w.color == int16TreeSetNodeRed {
-				w.color = int16TreeSetNodeBlack
-				x.parent.color = int16TreeSetNodeRed
+			if w.color == int16NodeRed {
+				w.color = int16NodeBlack
+				x.parent.color = int16NodeRed
 				s.rotateRight(x.parent)
 				w = x.parent.left
 			}
@@ -543,29 +536,29 @@ func (s *Int16TreeSet) fixAfterDelete(x *int16TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int16TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int16TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int16NodeBlack
+			rb := w.right == nil || w.right.color == int16NodeBlack
 			if lb && rb {
-				w.color = int16TreeSetNodeRed
+				w.color = int16NodeRed
 				x = x.parent
 			} else {
 				if lb {
 					if w.right != nil {
-						w.right.color = int16TreeSetNodeBlack
+						w.right.color = int16NodeBlack
 					}
-					w.color = int16TreeSetNodeRed
+					w.color = int16NodeRed
 					s.rotateLeft(w)
 					w = x.parent.left
 				}
 				w.color = x.parent.color
-				x.parent.color = int16TreeSetNodeBlack
+				x.parent.color = int16NodeBlack
 				if w.left != nil {
-					w.left.color = int16TreeSetNodeBlack
+					w.left.color = int16NodeBlack
 				}
 				s.rotateRight(x.parent)
 				x = s.root
 			}
 		}
 	}
-	x.color = int16TreeSetNodeBlack
+	x.color = int16NodeBlack
 }

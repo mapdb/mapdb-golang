@@ -9,28 +9,28 @@ import (
 )
 
 const (
-	int16ObjectHashMapDefaultCapacity = 16
+	int16ObjectDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// Int16ObjectHashMap is an open-addressing hash map with int16 keys and generic values.
+// Int16Object is an open-addressing hash map with int16 keys and generic values.
 // The key type is specialized to avoid boxing overhead.
-type Int16ObjectHashMap[V any] struct {
+type Int16Object[V any] struct {
 	keys     []int16
 	values   []V
 	occupied []bool
 	size     int
 }
 
-// NewInt16ObjectHashMap creates a new empty Int16ObjectHashMap with default capacity.
-func NewInt16ObjectHashMap[V any]() *Int16ObjectHashMap[V] {
-	return NewInt16ObjectHashMapWithCapacity[V](int16ObjectHashMapDefaultCapacity)
+// NewInt16Object creates a new empty Int16Object with default capacity.
+func NewInt16Object[V any]() *Int16Object[V] {
+	return NewInt16ObjectWithCapacity[V](int16ObjectDefaultCapacity)
 }
 
-// NewInt16ObjectHashMapWithCapacity creates a new empty Int16ObjectHashMap with the given initial capacity.
-func NewInt16ObjectHashMapWithCapacity[V any](capacity int) *Int16ObjectHashMap[V] {
-	cap := nextPowerOfTwoInt16ObjectHashMap(capacity)
-	return &Int16ObjectHashMap[V]{
+// NewInt16ObjectWithCapacity creates a new empty Int16Object with the given initial capacity.
+func NewInt16ObjectWithCapacity[V any](capacity int) *Int16Object[V] {
+	cap := nextPowerOfTwoInt16Object(capacity)
+	return &Int16Object[V]{
 		keys:     make([]int16, cap),
 		values:   make([]V, cap),
 		occupied: make([]bool, cap),
@@ -39,7 +39,7 @@ func NewInt16ObjectHashMapWithCapacity[V any](capacity int) *Int16ObjectHashMap[
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Int16ObjectHashMap[V]) Put(key int16, value V) (V, bool) {
+func (m *Int16Object[V]) Put(key int16, value V) (V, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -66,7 +66,7 @@ func (m *Int16ObjectHashMap[V]) Put(key int16, value V) (V, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Int16ObjectHashMap[V]) Get(key int16) (V, bool) {
+func (m *Int16Object[V]) Get(key int16) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -88,7 +88,7 @@ func (m *Int16ObjectHashMap[V]) Get(key int16) (V, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Int16ObjectHashMap[V]) GetOrDefault(key int16, defaultValue V) V {
+func (m *Int16Object[V]) GetOrDefault(key int16, defaultValue V) V {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -96,7 +96,7 @@ func (m *Int16ObjectHashMap[V]) GetOrDefault(key int16, defaultValue V) V {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Int16ObjectHashMap[V]) Remove(key int16) (V, bool) {
+func (m *Int16Object[V]) Remove(key int16) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -125,27 +125,18 @@ func (m *Int16ObjectHashMap[V]) Remove(key int16) (V, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int16ObjectHashMap[V]) ContainsKey(key int16) bool {
+func (m *Int16Object[V]) ContainsKey(key int16) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Int16ObjectHashMap[V]) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int16Object[V]) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int16ObjectHashMap[V]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Int16ObjectHashMap[V]) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Int16ObjectHashMap[V]) Clear() {
+func (m *Int16Object[V]) Clear() {
 	var zeroV V
 	for i := range m.occupied {
 		m.occupied[i] = false
@@ -156,7 +147,7 @@ func (m *Int16ObjectHashMap[V]) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Int16ObjectHashMap[V]) All() iter.Seq2[int16, V] {
+func (m *Int16Object[V]) All() iter.Seq2[int16, V] {
 	return func(yield func(int16, V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -169,7 +160,7 @@ func (m *Int16ObjectHashMap[V]) All() iter.Seq2[int16, V] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Int16ObjectHashMap[V]) Keys() iter.Seq[int16] {
+func (m *Int16Object[V]) Keys() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -182,7 +173,7 @@ func (m *Int16ObjectHashMap[V]) Keys() iter.Seq[int16] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Int16ObjectHashMap[V]) Values() iter.Seq[V] {
+func (m *Int16Object[V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -195,7 +186,7 @@ func (m *Int16ObjectHashMap[V]) Values() iter.Seq[V] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int16ObjectHashMap[V]) ForEach(f func(int16, V)) {
+func (m *Int16Object[V]) ForEach(f func(int16, V)) {
 	for i := range m.occupied {
 		if m.occupied[i] {
 			f(m.keys[i], m.values[i])
@@ -204,8 +195,8 @@ func (m *Int16ObjectHashMap[V]) ForEach(f func(int16, V)) {
 }
 
 // Select returns a new map containing only entries that satisfy the predicate.
-func (m *Int16ObjectHashMap[V]) Select(predicate func(int16, V) bool) *Int16ObjectHashMap[V] {
-	result := NewInt16ObjectHashMap[V]()
+func (m *Int16Object[V]) Select(predicate func(int16, V) bool) *Int16Object[V] {
+	result := NewInt16Object[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -215,8 +206,8 @@ func (m *Int16ObjectHashMap[V]) Select(predicate func(int16, V) bool) *Int16Obje
 }
 
 // Reject returns a new map containing only entries that do not satisfy the predicate.
-func (m *Int16ObjectHashMap[V]) Reject(predicate func(int16, V) bool) *Int16ObjectHashMap[V] {
-	result := NewInt16ObjectHashMap[V]()
+func (m *Int16Object[V]) Reject(predicate func(int16, V) bool) *Int16Object[V] {
+	result := NewInt16Object[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -226,7 +217,7 @@ func (m *Int16ObjectHashMap[V]) Reject(predicate func(int16, V) bool) *Int16Obje
 }
 
 // String returns a string representation of the map.
-func (m *Int16ObjectHashMap[V]) String() string {
+func (m *Int16Object[V]) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -246,22 +237,22 @@ func (m *Int16ObjectHashMap[V]) String() string {
 	return sb.String()
 }
 
-func (m *Int16ObjectHashMap[V]) hashKey(key int16) uint64 {
+func (m *Int16Object[V]) hashKey(key int16) uint64 {
 	h := uint64(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Int16ObjectHashMap[V]) needsResize() bool {
+func (m *Int16Object[V]) needsResize() bool {
 	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *Int16ObjectHashMap[V]) resize() {
+func (m *Int16Object[V]) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	oldOccupied := m.occupied
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = int16ObjectHashMapDefaultCapacity
+		newCap = int16ObjectDefaultCapacity
 	}
 	m.keys = make([]int16, newCap)
 	m.values = make([]V, newCap)
@@ -275,7 +266,7 @@ func (m *Int16ObjectHashMap[V]) resize() {
 	}
 }
 
-func (m *Int16ObjectHashMap[V]) rehashFrom(deleted int, mask int) {
+func (m *Int16Object[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(m.hashKey(m.keys[idx])) & mask
@@ -294,7 +285,7 @@ func (m *Int16ObjectHashMap[V]) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoInt16ObjectHashMap(n int) int {
+func nextPowerOfTwoInt16Object(n int) int {
 	if n <= 0 {
 		return 16
 	}

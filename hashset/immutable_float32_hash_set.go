@@ -6,107 +6,98 @@ import (
 	"iter"
 )
 
-// ImmutableFloat32HashSet is an immutable view of a Float32HashSet.
-type ImmutableFloat32HashSet struct {
-	delegate *Float32HashSet
+// ImmutableFloat32 is an immutable view of a Float32.
+type ImmutableFloat32 struct {
+	delegate *Float32
 }
 
-// NewImmutableFloat32HashSet creates an immutable set from the given values.
-func NewImmutableFloat32HashSet(values ...float32) *ImmutableFloat32HashSet {
-	return &ImmutableFloat32HashSet{delegate: Float32HashSetOf(values...)}
+// NewImmutableFloat32 creates an immutable set from the given values.
+func NewImmutableFloat32(values ...float32) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: Float32Of(values...)}
 }
 
-// ImmutableFloat32HashSetFrom creates an immutable copy of a mutable set.
-func ImmutableFloat32HashSetFrom(s *Float32HashSet) *ImmutableFloat32HashSet {
-	copy := Float32HashSetOf(s.ToSlice()...)
-	return &ImmutableFloat32HashSet{delegate: copy}
+// ImmutableFloat32From creates an immutable copy of a mutable set.
+func ImmutableFloat32From(s *Float32) *ImmutableFloat32 {
+	copy := Float32Of(s.ToSlice()...)
+	return &ImmutableFloat32{delegate: copy}
 }
 
 // Contains returns true if the set contains the given value.
-func (s *ImmutableFloat32HashSet) Contains(value float32) bool {
+func (s *ImmutableFloat32) Contains(value float32) bool {
 	return s.delegate.Contains(value)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableFloat32HashSet) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableFloat32HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *ImmutableFloat32HashSet) IsEmpty() bool {
-	return s.delegate.IsEmpty()
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableFloat32) Len() int {
+	return s.delegate.Len()
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *ImmutableFloat32HashSet) All() iter.Seq[float32] {
+func (s *ImmutableFloat32) All() iter.Seq[float32] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element.
-func (s *ImmutableFloat32HashSet) ForEach(f func(float32)) {
+func (s *ImmutableFloat32) ForEach(f func(float32)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable set with elements satisfying the predicate.
-func (s *ImmutableFloat32HashSet) Select(predicate func(float32) bool) *ImmutableFloat32HashSet {
-	return &ImmutableFloat32HashSet{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableFloat32) Select(predicate func(float32) bool) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable set with elements not satisfying the predicate.
-func (s *ImmutableFloat32HashSet) Reject(predicate func(float32) bool) *ImmutableFloat32HashSet {
-	return &ImmutableFloat32HashSet{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableFloat32) Reject(predicate func(float32) bool) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: s.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableFloat32HashSet) AnySatisfy(predicate func(float32) bool) bool {
+func (s *ImmutableFloat32) AnySatisfy(predicate func(float32) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableFloat32HashSet) AllSatisfy(predicate func(float32) bool) bool {
+func (s *ImmutableFloat32) AllSatisfy(predicate func(float32) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableFloat32HashSet) NoneSatisfy(predicate func(float32) bool) bool {
+func (s *ImmutableFloat32) NoneSatisfy(predicate func(float32) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Union returns a new immutable set with elements from both sets.
-func (s *ImmutableFloat32HashSet) Union(other *ImmutableFloat32HashSet) *ImmutableFloat32HashSet {
-	return &ImmutableFloat32HashSet{delegate: s.delegate.Union(other.delegate)}
+func (s *ImmutableFloat32) Union(other *ImmutableFloat32) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: s.delegate.Union(other.delegate)}
 }
 
 // Intersect returns a new immutable set with elements in both sets.
-func (s *ImmutableFloat32HashSet) Intersect(other *ImmutableFloat32HashSet) *ImmutableFloat32HashSet {
-	return &ImmutableFloat32HashSet{delegate: s.delegate.Intersect(other.delegate)}
+func (s *ImmutableFloat32) Intersect(other *ImmutableFloat32) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: s.delegate.Intersect(other.delegate)}
 }
 
 // Difference returns a new immutable set with elements in this but not other.
-func (s *ImmutableFloat32HashSet) Difference(other *ImmutableFloat32HashSet) *ImmutableFloat32HashSet {
-	return &ImmutableFloat32HashSet{delegate: s.delegate.Difference(other.delegate)}
+func (s *ImmutableFloat32) Difference(other *ImmutableFloat32) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: s.delegate.Difference(other.delegate)}
 }
 
 // ToSlice returns all elements as a slice.
-func (s *ImmutableFloat32HashSet) ToSlice() []float32 {
+func (s *ImmutableFloat32) ToSlice() []float32 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableFloat32HashSet) String() string {
+func (s *ImmutableFloat32) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable set has the same elements.
-func (s *ImmutableFloat32HashSet) Equals(other *ImmutableFloat32HashSet) bool {
+func (s *ImmutableFloat32) Equals(other *ImmutableFloat32) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this set.
-func (s *ImmutableFloat32HashSet) ToMutable() *Float32HashSet {
-	return Float32HashSetOf(s.ToSlice()...)
+func (s *ImmutableFloat32) ToMutable() *Float32 {
+	return Float32Of(s.ToSlice()...)
 }

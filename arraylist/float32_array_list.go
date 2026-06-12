@@ -6,79 +6,83 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// Float32ArrayList is a resizable array-backed list of float32 values.
+// Float32 is a resizable array-backed list of float32 values.
 // Length is always len(l.items); there is no separate size counter.
-type Float32ArrayList struct {
+//
+// The zero value is an empty, ready-to-use list.
+type Float32 struct {
 	items []float32
 }
 
-// NewFloat32ArrayList creates a new empty Float32ArrayList.
-func NewFloat32ArrayList() *Float32ArrayList {
-	return &Float32ArrayList{items: make([]float32, 0, 16)}
+// NewFloat32 creates a new empty Float32.
+func NewFloat32() *Float32 {
+	return &Float32{items: make([]float32, 0, 16)}
 }
 
-// NewFloat32ArrayListWithCapacity creates a new empty Float32ArrayList with the given initial capacity.
-func NewFloat32ArrayListWithCapacity(capacity int) *Float32ArrayList {
-	return &Float32ArrayList{items: make([]float32, 0, capacity)}
+// NewFloat32WithCapacity creates a new empty Float32 with the given initial capacity.
+func NewFloat32WithCapacity(capacity int) *Float32 {
+	return &Float32{items: make([]float32, 0, capacity)}
 }
 
-// Float32ArrayListOf creates a new Float32ArrayList from the given values.
-func Float32ArrayListOf(values ...float32) *Float32ArrayList {
-	l := &Float32ArrayList{items: make([]float32, len(values))}
+// Float32Of creates a new Float32 from the given values.
+func Float32Of(values ...float32) *Float32 {
+	l := &Float32{items: make([]float32, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
-func (l *Float32ArrayList) Add(value float32) {
+func (l *Float32) Add(value float32) {
 	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
-func (l *Float32ArrayList) AddAll(values ...float32) {
+func (l *Float32) AddAll(values ...float32) {
 	l.items = append(l.items, values...)
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *Float32ArrayList) Get(index int) (float32, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *Float32) Get(index int) float32 {
 	if index < 0 || index >= len(l.items) {
-		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Float32: index out of range [%d] with length %d", index, len(l.items)))
 	}
-	return l.items[index], nil
+	return l.items[index]
 }
 
-// Set sets the value at the given index, returning the previous value.
-// Returns an error if the index is out of bounds.
-func (l *Float32ArrayList) Set(index int, value float32) (float32, error) {
+// Set sets the value at the given index, returning the previous value. It
+// panics if the index is out of bounds, matching the semantics of a native
+// Go slice.
+func (l *Float32) Set(index int, value float32) float32 {
 	if index < 0 || index >= len(l.items) {
-		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Float32: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	l.items[index] = value
-	return old, nil
+	return old
 }
 
-// RemoveAtIndex removes the value at the given index and returns it.
-// Returns an error if the index is out of bounds.
-func (l *Float32ArrayList) RemoveAtIndex(index int) (float32, error) {
+// RemoveAtIndex removes the value at the given index and returns it. It panics
+// if the index is out of bounds, matching the semantics of a native Go slice.
+func (l *Float32) RemoveAtIndex(index int) float32 {
 	if index < 0 || index >= len(l.items) {
-		return 0.0, fmt.Errorf("Float32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Float32: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	copy(l.items[index:], l.items[index+1:])
 	l.items = l.items[:len(l.items)-1]
-	return old, nil
+	return old
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
-func (l *Float32ArrayList) Remove(value float32) bool {
+func (l *Float32) Remove(value float32) bool {
 	for i, v := range l.items {
 		if math.Float32bits(v) == math.Float32bits(value) {
-			_, _ = l.RemoveAtIndex(i)
+			l.RemoveAtIndex(i)
 			return true
 		}
 	}
@@ -86,7 +90,7 @@ func (l *Float32ArrayList) Remove(value float32) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *Float32ArrayList) Contains(value float32) bool {
+func (l *Float32) Contains(value float32) bool {
 	for _, v := range l.items {
 		if math.Float32bits(v) == math.Float32bits(value) {
 			return true
@@ -96,7 +100,7 @@ func (l *Float32ArrayList) Contains(value float32) bool {
 }
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
-func (l *Float32ArrayList) IndexOf(value float32) int {
+func (l *Float32) IndexOf(value float32) int {
 	for i, v := range l.items {
 		if math.Float32bits(v) == math.Float32bits(value) {
 			return i
@@ -105,21 +109,16 @@ func (l *Float32ArrayList) IndexOf(value float32) int {
 	return -1
 }
 
-// Size returns the number of elements in the list.
-func (l *Float32ArrayList) Size() int { return len(l.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *Float32ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *Float32ArrayList) IsEmpty() bool { return len(l.items) == 0 }
+// Len returns the number of elements in the list, matching the Go
+// convention (sort.Interface, container/list, bytes.Buffer). Use
+// l.Len() == 0 to test for emptiness.
+func (l *Float32) Len() int { return len(l.items) }
 
 // Clear removes all elements from the list.
-func (l *Float32ArrayList) Clear() { l.items = l.items[:0] }
+func (l *Float32) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *Float32ArrayList) All() iter.Seq[float32] {
+func (l *Float32) All() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for _, v := range l.items {
 			if !yield(v) {
@@ -130,7 +129,7 @@ func (l *Float32ArrayList) All() iter.Seq[float32] {
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *Float32ArrayList) AllWithIndex() iter.Seq2[int, float32] {
+func (l *Float32) AllWithIndex() iter.Seq2[int, float32] {
 	return func(yield func(int, float32) bool) {
 		for i, v := range l.items {
 			if !yield(i, v) {
@@ -141,22 +140,22 @@ func (l *Float32ArrayList) AllWithIndex() iter.Seq2[int, float32] {
 }
 
 // ForEach calls the given function for each element.
-func (l *Float32ArrayList) ForEach(f func(float32)) {
+func (l *Float32) ForEach(f func(float32)) {
 	for _, v := range l.items {
 		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
-func (l *Float32ArrayList) ForEachWithIndex(f func(float32, int)) {
+func (l *Float32) ForEachWithIndex(f func(float32, int)) {
 	for i, v := range l.items {
 		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
-func (l *Float32ArrayList) Select(predicate func(float32) bool) *Float32ArrayList {
-	result := NewFloat32ArrayList()
+func (l *Float32) Select(predicate func(float32) bool) *Float32 {
+	result := NewFloat32()
 	for _, v := range l.items {
 		if predicate(v) {
 			result.Add(v)
@@ -166,8 +165,8 @@ func (l *Float32ArrayList) Select(predicate func(float32) bool) *Float32ArrayLis
 }
 
 // Reject returns a new list containing only elements that do not satisfy the predicate.
-func (l *Float32ArrayList) Reject(predicate func(float32) bool) *Float32ArrayList {
-	result := NewFloat32ArrayList()
+func (l *Float32) Reject(predicate func(float32) bool) *Float32 {
+	result := NewFloat32()
 	for _, v := range l.items {
 		if !predicate(v) {
 			result.Add(v)
@@ -177,7 +176,7 @@ func (l *Float32ArrayList) Reject(predicate func(float32) bool) *Float32ArrayLis
 }
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
-func (l *Float32ArrayList) Detect(predicate func(float32) bool) (float32, bool) {
+func (l *Float32) Detect(predicate func(float32) bool) (float32, bool) {
 	for _, v := range l.items {
 		if predicate(v) {
 			return v, true
@@ -187,7 +186,7 @@ func (l *Float32ArrayList) Detect(predicate func(float32) bool) (float32, bool) 
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *Float32ArrayList) AnySatisfy(predicate func(float32) bool) bool {
+func (l *Float32) AnySatisfy(predicate func(float32) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return true
@@ -197,7 +196,7 @@ func (l *Float32ArrayList) AnySatisfy(predicate func(float32) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *Float32ArrayList) AllSatisfy(predicate func(float32) bool) bool {
+func (l *Float32) AllSatisfy(predicate func(float32) bool) bool {
 	for _, v := range l.items {
 		if !predicate(v) {
 			return false
@@ -207,7 +206,7 @@ func (l *Float32ArrayList) AllSatisfy(predicate func(float32) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *Float32ArrayList) NoneSatisfy(predicate func(float32) bool) bool {
+func (l *Float32) NoneSatisfy(predicate func(float32) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return false
@@ -217,7 +216,7 @@ func (l *Float32ArrayList) NoneSatisfy(predicate func(float32) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *Float32ArrayList) Count(predicate func(float32) bool) int {
+func (l *Float32) Count(predicate func(float32) bool) int {
 	count := 0
 	for _, v := range l.items {
 		if predicate(v) {
@@ -228,7 +227,7 @@ func (l *Float32ArrayList) Count(predicate func(float32) bool) int {
 }
 
 // InjectInto performs a left fold over the list.
-func (l *Float32ArrayList) InjectInto(initial float32, f func(float32, float32) float32) float32 {
+func (l *Float32) InjectInto(initial float32, f func(float32, float32) float32) float32 {
 	result := initial
 	for _, v := range l.items {
 		result = f(result, v)
@@ -237,7 +236,7 @@ func (l *Float32ArrayList) InjectInto(initial float32, f func(float32, float32) 
 }
 
 // Sum returns the sum of all elements.
-func (l *Float32ArrayList) Sum() float32 {
+func (l *Float32) Sum() float32 {
 	var sum float32
 	for _, v := range l.items {
 		sum += v
@@ -246,7 +245,7 @@ func (l *Float32ArrayList) Sum() float32 {
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
-func (l *Float32ArrayList) Min() (float32, bool) {
+func (l *Float32) Min() (float32, bool) {
 	if len(l.items) == 0 {
 		return 0.0, false
 	}
@@ -260,7 +259,7 @@ func (l *Float32ArrayList) Min() (float32, bool) {
 }
 
 // Max returns the maximum element, or the zero value and false if empty.
-func (l *Float32ArrayList) Max() (float32, bool) {
+func (l *Float32) Max() (float32, bool) {
 	if len(l.items) == 0 {
 		return 0.0, false
 	}
@@ -274,21 +273,28 @@ func (l *Float32ArrayList) Max() (float32, bool) {
 }
 
 // Sort sorts the list in ascending order.
-func (l *Float32ArrayList) Sort() {
-	sort.Slice(l.items, func(i, j int) bool {
-		return cmpFloat32(l.items[i], l.items[j]) < 0
+func (l *Float32) Sort() {
+	slices.SortFunc(l.items, func(a, b float32) int {
+		return cmpFloat32(a, b)
 	})
 }
 
-// SortWithComparator sorts the list using the given comparison function.
-func (l *Float32ArrayList) SortWithComparator(less func(float32, float32) bool) {
-	sort.Slice(l.items, func(i, j int) bool {
-		return less(l.items[i], l.items[j])
+// SortWithComparator sorts the list using the given less function.
+func (l *Float32) SortWithComparator(less func(float32, float32) bool) {
+	slices.SortFunc(l.items, func(a, b float32) int {
+		switch {
+		case less(a, b):
+			return -1
+		case less(b, a):
+			return 1
+		default:
+			return 0
+		}
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
-func (l *Float32ArrayList) BinarySearch(value float32) (int, bool) {
+func (l *Float32) BinarySearch(value float32) (int, bool) {
 	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
@@ -305,9 +311,9 @@ func (l *Float32ArrayList) BinarySearch(value float32) (int, bool) {
 }
 
 // Reversed returns a new list with elements in reverse order.
-func (l *Float32ArrayList) Reversed() *Float32ArrayList {
+func (l *Float32) Reversed() *Float32 {
 	n := len(l.items)
-	result := NewFloat32ArrayListWithCapacity(n)
+	result := NewFloat32WithCapacity(n)
 	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
@@ -315,12 +321,12 @@ func (l *Float32ArrayList) Reversed() *Float32ArrayList {
 }
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
-func (l *Float32ArrayList) Distinct() *Float32ArrayList {
+func (l *Float32) Distinct() *Float32 {
 	// Key by bit pattern so NaN dedupes against itself and -0 stays distinct
 	// from +0 (a plain map[float32] would never match NaN and would collapse
 	// the two zeroes together).
 	seen := make(map[uint32]struct{})
-	result := NewFloat32ArrayList()
+	result := NewFloat32()
 	for _, v := range l.items {
 		bits := math.Float32bits(v)
 		if _, ok := seen[bits]; !ok {
@@ -332,26 +338,26 @@ func (l *Float32ArrayList) Distinct() *Float32ArrayList {
 }
 
 // ToSlice returns a copy of the list elements as a slice.
-func (l *Float32ArrayList) ToSlice() []float32 {
+func (l *Float32) ToSlice() []float32 {
 	result := make([]float32, len(l.items))
 	copy(result, l.items)
 	return result
 }
 
 // With returns the list after adding the value (fluent API).
-func (l *Float32ArrayList) With(value float32) *Float32ArrayList {
+func (l *Float32) AddReturning(value float32) *Float32 {
 	l.Add(value)
 	return l
 }
 
-// Without returns the list after removing the first occurrence of value (fluent API).
-func (l *Float32ArrayList) Without(value float32) *Float32ArrayList {
+// RemoveReturning removes the first occurrence of value and returns the receiver (mutating, fluent).
+func (l *Float32) RemoveReturning(value float32) *Float32 {
 	l.Remove(value)
 	return l
 }
 
 // String returns a string representation of the list.
-func (l *Float32ArrayList) String() string {
+func (l *Float32) String() string {
 	if len(l.items) == 0 {
 		return "[]"
 	}
@@ -368,7 +374,7 @@ func (l *Float32ArrayList) String() string {
 }
 
 // Equals returns true if the other list has the same elements in the same order.
-func (l *Float32ArrayList) Equals(other *Float32ArrayList) bool {
+func (l *Float32) Equals(other *Float32) bool {
 	if len(l.items) != len(other.items) {
 		return false
 	}
@@ -380,16 +386,16 @@ func (l *Float32ArrayList) Equals(other *Float32ArrayList) bool {
 	return true
 }
 
-// WithAll returns the list after adding all values (fluent API).
-func (l *Float32ArrayList) WithAll(values ...float32) *Float32ArrayList {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (l *Float32) AddAllReturning(values ...float32) *Float32 {
 	l.AddAll(values...)
 	return l
 }
 
-// WithoutAll removes every occurrence of any of the given values.
+// RemoveAllReturning removes every occurrence of any of the given values.
 // Compacts in place — keeps the existing backing storage and avoids
 // the temporary-list allocation the previous implementation made.
-func (l *Float32ArrayList) WithoutAll(values ...float32) *Float32ArrayList {
+func (l *Float32) RemoveAllReturning(values ...float32) *Float32 {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
@@ -421,6 +427,6 @@ func (l *Float32ArrayList) WithoutAll(values ...float32) *Float32ArrayList {
 }
 
 // ToImmutable returns an immutable copy of this list.
-func (l *Float32ArrayList) ToImmutable() *ImmutableFloat32ArrayList {
-	return ImmutableFloat32ArrayListFrom(l)
+func (l *Float32) ToImmutable() *ImmutableFloat32 {
+	return ImmutableFloat32From(l)
 }

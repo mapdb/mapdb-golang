@@ -50,12 +50,8 @@ func (b *HashBiMap[K, V]) ContainsKey(key K) bool {
 	return ok
 }
 
-func (b *HashBiMap[K, V]) Size() int { return len(b.forward) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *HashBiMap[K, V]) Len() int      { return b.Size() }
-func (b *HashBiMap[K, V]) IsEmpty() bool { return len(b.forward) == 0 }
+// Len returns the number of entries. Use b.Len() == 0 to test for emptiness.
+func (b *HashBiMap[K, V]) Len() int { return len(b.forward) }
 
 func (b *HashBiMap[K, V]) All() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {

@@ -7,82 +7,73 @@ import (
 	"sync"
 )
 
-// SynchronizedFloat64ArrayDeque is a thread-safe wrapper around Float64ArrayDeque.
-type SynchronizedFloat64ArrayDeque struct {
-	delegate *Float64ArrayDeque
+// SynchronizedFloat64 is a thread-safe wrapper around Float64.
+type SynchronizedFloat64 struct {
+	delegate *Float64
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedFloat64ArrayDeque creates a new thread-safe empty deque.
-func NewSynchronizedFloat64ArrayDeque() *SynchronizedFloat64ArrayDeque {
-	return &SynchronizedFloat64ArrayDeque{delegate: NewFloat64ArrayDeque()}
+// NewSynchronizedFloat64 creates a new thread-safe empty deque.
+func NewSynchronizedFloat64() *SynchronizedFloat64 {
+	return &SynchronizedFloat64{delegate: NewFloat64()}
 }
 
-func (d *SynchronizedFloat64ArrayDeque) AddFirst(value float64) {
+func (d *SynchronizedFloat64) AddFirst(value float64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddFirst(value)
 }
 
-func (d *SynchronizedFloat64ArrayDeque) AddLast(value float64) {
+func (d *SynchronizedFloat64) AddLast(value float64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddLast(value)
 }
 
-func (d *SynchronizedFloat64ArrayDeque) RemoveFirst() (float64, error) {
+func (d *SynchronizedFloat64) RemoveFirst() (float64, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveFirst()
 }
 
-func (d *SynchronizedFloat64ArrayDeque) RemoveLast() (float64, error) {
+func (d *SynchronizedFloat64) RemoveLast() (float64, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveLast()
 }
 
-func (d *SynchronizedFloat64ArrayDeque) PeekFirst() (float64, error) {
+func (d *SynchronizedFloat64) PeekFirst() (float64, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekFirst()
 }
 
-func (d *SynchronizedFloat64ArrayDeque) PeekLast() (float64, error) {
+func (d *SynchronizedFloat64) PeekLast() (float64, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekLast()
 }
 
-func (d *SynchronizedFloat64ArrayDeque) Size() int {
+// Len returns the number of elements. Use d.Len() == 0 to test for emptiness.
+func (d *SynchronizedFloat64) Len() int {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.delegate.Size()
+	return d.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *SynchronizedFloat64ArrayDeque) Len() int { return d.Size() }
-
-func (d *SynchronizedFloat64ArrayDeque) IsEmpty() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.delegate.IsEmpty()
-}
-
-func (d *SynchronizedFloat64ArrayDeque) Clear() {
+func (d *SynchronizedFloat64) Clear() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.Clear()
 }
 
-func (d *SynchronizedFloat64ArrayDeque) Contains(value float64) bool {
+func (d *SynchronizedFloat64) Contains(value float64) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.Contains(value)
 }
 
-func (d *SynchronizedFloat64ArrayDeque) ForEach(f func(float64)) {
+func (d *SynchronizedFloat64) ForEach(f func(float64)) {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -91,7 +82,7 @@ func (d *SynchronizedFloat64ArrayDeque) ForEach(f func(float64)) {
 	}
 }
 
-func (d *SynchronizedFloat64ArrayDeque) AnySatisfy(predicate func(float64) bool) bool {
+func (d *SynchronizedFloat64) AnySatisfy(predicate func(float64) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -103,7 +94,7 @@ func (d *SynchronizedFloat64ArrayDeque) AnySatisfy(predicate func(float64) bool)
 	return false
 }
 
-func (d *SynchronizedFloat64ArrayDeque) AllSatisfy(predicate func(float64) bool) bool {
+func (d *SynchronizedFloat64) AllSatisfy(predicate func(float64) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -115,13 +106,13 @@ func (d *SynchronizedFloat64ArrayDeque) AllSatisfy(predicate func(float64) bool)
 	return true
 }
 
-func (d *SynchronizedFloat64ArrayDeque) ToSlice() []float64 {
+func (d *SynchronizedFloat64) ToSlice() []float64 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
 }
 
-func (d *SynchronizedFloat64ArrayDeque) Equals(other *SynchronizedFloat64ArrayDeque) bool {
+func (d *SynchronizedFloat64) Equals(other *SynchronizedFloat64) bool {
 	d.mu.RLock()
 	thisSlice := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -139,7 +130,7 @@ func (d *SynchronizedFloat64ArrayDeque) Equals(other *SynchronizedFloat64ArrayDe
 	return true
 }
 
-func (d *SynchronizedFloat64ArrayDeque) String() string {
+func (d *SynchronizedFloat64) String() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.String()

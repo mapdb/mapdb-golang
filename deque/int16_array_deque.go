@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Int16ArrayDeque is a double-ended queue of int16 values, backed by a
+// Int16 is a double-ended queue of int16 values, backed by a
 // power-of-two ring buffer. AddFirst, AddLast, RemoveFirst, RemoveLast,
 // PeekFirst and PeekLast are all O(1) amortised.
 //
@@ -15,7 +15,7 @@ import (
 // that preceded it: callers that iterate via ToSlice or ForEach see
 // elements in logical front-to-back order regardless of where head
 // happens to sit in the underlying buffer.
-type Int16ArrayDeque struct {
+type Int16 struct {
 	items []int16 // len == capacity, always a power of two; indexed modulo cap
 	head  int     // index of the front element (0 when empty)
 	size  int     // number of logical elements
@@ -29,7 +29,7 @@ const initialInt16DequeCap = 16
 
 // ceilPow2 rounds n up to the next power of two, with a floor of
 // initialInt16DequeCap. Used when sizing the buffer to fit a
-// caller-supplied slice in Int16ArrayDequeOf.
+// caller-supplied slice in Int16Of.
 func ceilPow2Int16Deque(n int) int {
 	cap := initialInt16DequeCap
 	for cap < n {
@@ -38,15 +38,15 @@ func ceilPow2Int16Deque(n int) int {
 	return cap
 }
 
-// NewInt16ArrayDeque creates a new empty Int16ArrayDeque.
-func NewInt16ArrayDeque() *Int16ArrayDeque {
-	return &Int16ArrayDeque{items: make([]int16, initialInt16DequeCap)}
+// NewInt16 creates a new empty Int16.
+func NewInt16() *Int16 {
+	return &Int16{items: make([]int16, initialInt16DequeCap)}
 }
 
-// Int16ArrayDequeOf creates a new Int16ArrayDeque from the given values in
+// Int16Of creates a new Int16 from the given values in
 // front-to-back order.
-func Int16ArrayDequeOf(values ...int16) *Int16ArrayDeque {
-	d := &Int16ArrayDeque{
+func Int16Of(values ...int16) *Int16 {
+	d := &Int16{
 		items: make([]int16, ceilPow2Int16Deque(len(values))),
 		size:  len(values),
 	}
@@ -56,7 +56,7 @@ func Int16ArrayDequeOf(values ...int16) *Int16ArrayDeque {
 
 // grow doubles the backing buffer and repacks elements so that head is at 0.
 // Called lazily when size would exceed capacity.
-func (d *Int16ArrayDeque) grow() {
+func (d *Int16) grow() {
 	newCap := len(d.items) * 2
 	if newCap == 0 {
 		newCap = initialInt16DequeCap
@@ -71,7 +71,7 @@ func (d *Int16ArrayDeque) grow() {
 }
 
 // AddFirst prepends a value to the front of the deque. O(1) amortised.
-func (d *Int16ArrayDeque) AddFirst(value int16) {
+func (d *Int16) AddFirst(value int16) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -82,7 +82,7 @@ func (d *Int16ArrayDeque) AddFirst(value int16) {
 }
 
 // AddLast appends a value to the back of the deque. O(1) amortised.
-func (d *Int16ArrayDeque) AddLast(value int16) {
+func (d *Int16) AddLast(value int16) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -91,61 +91,55 @@ func (d *Int16ArrayDeque) AddLast(value int16) {
 	d.size++
 }
 
-// RemoveFirst removes and returns the front element, or an error if empty. O(1).
-func (d *Int16ArrayDeque) RemoveFirst() (int16, error) {
+// RemoveFirst removes and returns the front element. The bool is false if empty. O(1).
+func (d *Int16) RemoveFirst() (int16, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int16ArrayDeque: RemoveFirst on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	v := d.items[d.head]
 	d.items[d.head] = 0 // let GC reclaim references if int16 ever carries them
 	d.head = (d.head + 1) & mask
 	d.size--
-	return v, nil
+	return v, true
 }
 
-// RemoveLast removes and returns the back element, or an error if empty. O(1).
-func (d *Int16ArrayDeque) RemoveLast() (int16, error) {
+// RemoveLast removes and returns the back element. The bool is false if empty. O(1).
+func (d *Int16) RemoveLast() (int16, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int16ArrayDeque: RemoveLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	d.size--
 	idx := (d.head + d.size) & mask
 	v := d.items[idx]
 	d.items[idx] = 0
-	return v, nil
+	return v, true
 }
 
-// PeekFirst returns the front element without removing it, or an error if empty.
-func (d *Int16ArrayDeque) PeekFirst() (int16, error) {
+// PeekFirst returns the front element without removing it. The bool is false if empty.
+func (d *Int16) PeekFirst() (int16, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int16ArrayDeque: PeekFirst on empty deque")
+		return 0, false
 	}
-	return d.items[d.head], nil
+	return d.items[d.head], true
 }
 
-// PeekLast returns the back element without removing it, or an error if empty.
-func (d *Int16ArrayDeque) PeekLast() (int16, error) {
+// PeekLast returns the back element without removing it. The bool is false if empty.
+func (d *Int16) PeekLast() (int16, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int16ArrayDeque: PeekLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
-	return d.items[(d.head+d.size-1)&mask], nil
+	return d.items[(d.head+d.size-1)&mask], true
 }
 
-// Size returns the number of elements in the deque.
-func (d *Int16ArrayDeque) Size() int { return d.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *Int16ArrayDeque) Len() int { return d.Size() }
-
-// IsEmpty returns true if the deque contains no elements.
-func (d *Int16ArrayDeque) IsEmpty() bool { return d.size == 0 }
+// Len returns the number of elements in the deque. Use d.Len() == 0 to test
+// for emptiness.
+func (d *Int16) Len() int { return d.size }
 
 // Clear removes all elements. The backing buffer is retained.
-func (d *Int16ArrayDeque) Clear() {
+func (d *Int16) Clear() {
 	// Wipe slots so retained references are released. Cheap for value types.
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
@@ -156,7 +150,7 @@ func (d *Int16ArrayDeque) Clear() {
 }
 
 // Contains returns true if the deque contains the given value.
-func (d *Int16ArrayDeque) Contains(value int16) bool {
+func (d *Int16) Contains(value int16) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		v := d.items[(d.head+i)&mask]
@@ -168,7 +162,7 @@ func (d *Int16ArrayDeque) Contains(value int16) bool {
 }
 
 // ForEach applies the function to each element from front to back.
-func (d *Int16ArrayDeque) ForEach(f func(int16)) {
+func (d *Int16) ForEach(f func(int16)) {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		f(d.items[(d.head+i)&mask])
@@ -176,7 +170,7 @@ func (d *Int16ArrayDeque) ForEach(f func(int16)) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (d *Int16ArrayDeque) AnySatisfy(predicate func(int16) bool) bool {
+func (d *Int16) AnySatisfy(predicate func(int16) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if predicate(d.items[(d.head+i)&mask]) {
@@ -187,7 +181,7 @@ func (d *Int16ArrayDeque) AnySatisfy(predicate func(int16) bool) bool {
 }
 
 // AllSatisfy returns true if every element satisfies the predicate.
-func (d *Int16ArrayDeque) AllSatisfy(predicate func(int16) bool) bool {
+func (d *Int16) AllSatisfy(predicate func(int16) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if !predicate(d.items[(d.head+i)&mask]) {
@@ -198,7 +192,7 @@ func (d *Int16ArrayDeque) AllSatisfy(predicate func(int16) bool) bool {
 }
 
 // ToSlice returns a copy of the elements in front-to-back order.
-func (d *Int16ArrayDeque) ToSlice() []int16 {
+func (d *Int16) ToSlice() []int16 {
 	out := make([]int16, d.size)
 	if d.size == 0 {
 		return out
@@ -215,7 +209,7 @@ func (d *Int16ArrayDeque) ToSlice() []int16 {
 }
 
 // Equals returns true if the other deque has the same elements in the same order.
-func (d *Int16ArrayDeque) Equals(other *Int16ArrayDeque) bool {
+func (d *Int16) Equals(other *Int16) bool {
 	if d.size != other.size {
 		return false
 	}
@@ -232,7 +226,7 @@ func (d *Int16ArrayDeque) Equals(other *Int16ArrayDeque) bool {
 }
 
 // String returns a string representation in front-to-back order.
-func (d *Int16ArrayDeque) String() string {
+func (d *Int16) String() string {
 	if d.size == 0 {
 		return "[]"
 	}

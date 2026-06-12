@@ -23,8 +23,8 @@ func TestHashMultimap_PutAndGet(t *testing.T) {
 	if !slices.Equal(m.Get("b"), []int{3}) {
 		t.Errorf("Get(b) = %v, want [3]", m.Get("b"))
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size = %d, want 3", m.Len())
 	}
 	if m.SizeDistinct() != 2 {
 		t.Errorf("SizeDistinct = %d, want 2", m.SizeDistinct())
@@ -38,8 +38,8 @@ func TestHashMultimap_PutAll(t *testing.T) {
 	if !slices.Equal(m.Get("a"), []int{1, 2, 3, 4}) {
 		t.Errorf("got %v", m.Get("a"))
 	}
-	if m.Size() != 4 {
-		t.Errorf("Size = %d, want 4", m.Size())
+	if m.Len() != 4 {
+		t.Errorf("Size = %d, want 4", m.Len())
 	}
 }
 
@@ -66,8 +66,8 @@ func TestHashMultimap_RemoveKey(t *testing.T) {
 	if m.ContainsKey("a") {
 		t.Error("ContainsKey(a) after RemoveKey should be false")
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size = %d, want 1", m.Len())
 	}
 }
 
@@ -99,7 +99,7 @@ func TestHashMultimap_Clear(t *testing.T) {
 	m := NewHashMultimap[string, int]()
 	m.Put("a", 1)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Error("should be empty after Clear")
 	}
 }
@@ -225,8 +225,8 @@ func TestTreeMultimap_Size(t *testing.T) {
 	m := NewTreeMultimap[int, int](NaturalComparator[int]())
 	m.PutAll(1, 10, 20, 30)
 	m.PutAll(2, 40)
-	if m.Size() != 4 {
-		t.Errorf("Size = %d, want 4", m.Size())
+	if m.Len() != 4 {
+		t.Errorf("Size = %d, want 4", m.Len())
 	}
 	if m.SizeDistinct() != 2 {
 		t.Errorf("SizeDistinct = %d, want 2", m.SizeDistinct())
@@ -241,8 +241,8 @@ func TestTreeMultimap_RemoveKey(t *testing.T) {
 	if !slices.Equal(removed, []int{10, 20}) {
 		t.Errorf("RemoveKey(1) = %v", removed)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size after = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size after = %d, want 1", m.Len())
 	}
 }
 

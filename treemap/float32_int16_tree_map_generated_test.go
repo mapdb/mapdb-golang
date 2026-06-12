@@ -1,15 +1,14 @@
-
 package treemap
 
 import "testing"
 
-func TestFloat32Int16TreeMap_Generated_PutGet(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_PutGet(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(3.0, 3)
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
-	if m.Size() != 3 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size = %d", m.Len())
 	}
 	if v, ok := m.Get(2.0); !ok || v != 2 {
 		t.Errorf("Get = (%v,%v)", v, ok)
@@ -18,20 +17,20 @@ func TestFloat32Int16TreeMap_Generated_PutGet(t *testing.T) {
 		t.Error("Get missing should be false")
 	}
 }
-func TestFloat32Int16TreeMap_Generated_Remove(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_Remove(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
 	old, ok := m.Remove(1.0)
 	if !ok || old != 1 {
 		t.Errorf("Remove = (%v,%v)", old, ok)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size = %d", m.Len())
 	}
 }
-func TestFloat32Int16TreeMap_Generated_ContainsKey(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_ContainsKey(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	if !m.ContainsKey(1.0) {
 		t.Error("Should contain")
@@ -40,8 +39,8 @@ func TestFloat32Int16TreeMap_Generated_ContainsKey(t *testing.T) {
 		t.Error("Should not contain")
 	}
 }
-func TestFloat32Int16TreeMap_Generated_MinMax(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_MinMax(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(3.0, 3)
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
@@ -52,8 +51,8 @@ func TestFloat32Int16TreeMap_Generated_MinMax(t *testing.T) {
 		t.Errorf("Max key = %v", k)
 	}
 }
-func TestFloat32Int16TreeMap_Generated_FloorCeiling(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_FloorCeiling(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Put(3.0, 3)
 	if k, _, ok := m.Floor(2.0); !ok || k != 1.0 {
@@ -63,16 +62,16 @@ func TestFloat32Int16TreeMap_Generated_FloorCeiling(t *testing.T) {
 		t.Errorf("Ceiling = %v", k)
 	}
 }
-func TestFloat32Int16TreeMap_Generated_Clear(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_Clear(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestFloat32Int16TreeMap_Generated_All(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_All(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
 	count := 0
@@ -83,8 +82,8 @@ func TestFloat32Int16TreeMap_Generated_All(t *testing.T) {
 		t.Errorf("All count = %d", count)
 	}
 }
-func TestFloat32Int16TreeMap_Generated_SortedOrder(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_SortedOrder(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(3.0, 3)
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
@@ -98,25 +97,25 @@ func TestFloat32Int16TreeMap_Generated_SortedOrder(t *testing.T) {
 		}
 	}
 }
-func TestFloat32Int16TreeMap_Generated_Select(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_Select(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
 	m.Put(3.0, 3)
 	sel := m.Select(func(k float32, v int16) bool { return v > 1 })
-	if sel.Size() != 2 {
-		t.Errorf("Select size = %d", sel.Size())
+	if sel.Len() != 2 {
+		t.Errorf("Select size = %d", sel.Len())
 	}
 }
-func TestFloat32Int16TreeMap_Generated_String(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_String(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	if m.String() == "" {
 		t.Error("empty")
 	}
 }
-func TestFloat32Int16TreeMap_Generated_HigherLower(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_HigherLower(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Put(3.0, 3)
 	m.Put(5.0, 5)
@@ -136,8 +135,8 @@ func TestFloat32Int16TreeMap_Generated_HigherLower(t *testing.T) {
 		t.Error("Lower of min should be false")
 	}
 }
-func TestFloat32Int16TreeMap_Generated_HeadTailSubMap(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_HeadTailSubMap(t *testing.T) {
+	m := NewFloat32Int16()
 	for i, k := range []float32{1.0, 2.0, 3.0, 4.0, 5.0} {
 		v := []int16{1, 2, 3, 4, 5}[i]
 		m.Put(k, v)
@@ -167,8 +166,8 @@ func TestFloat32Int16TreeMap_Generated_HeadTailSubMap(t *testing.T) {
 		t.Errorf("SubMap count = %d, want 2", subCount)
 	}
 }
-func TestFloat32Int16TreeMap_Generated_FirstLastEntry(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_FirstLastEntry(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(2.0, 2)
 	m.Put(1.0, 1)
 	m.Put(3.0, 3)
@@ -179,26 +178,26 @@ func TestFloat32Int16TreeMap_Generated_FirstLastEntry(t *testing.T) {
 		t.Errorf("LastEntry key = %v, want 3.0", k)
 	}
 }
-func TestFloat32Int16TreeMap_Generated_PollFirstLastEntry(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_PollFirstLastEntry(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
 	m.Put(3.0, 3)
 	if k, _, ok := m.PollFirstEntry(); !ok || k != 1.0 {
 		t.Errorf("PollFirstEntry key = %v", k)
 	}
-	if m.Size() != 2 {
-		t.Errorf("Size after PollFirst = %d", m.Size())
+	if m.Len() != 2 {
+		t.Errorf("Size after PollFirst = %d", m.Len())
 	}
 	if k, _, ok := m.PollLastEntry(); !ok || k != 3.0 {
 		t.Errorf("PollLastEntry key = %v", k)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size after PollLast = %d", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size after PollLast = %d", m.Len())
 	}
 }
-func TestFloat32Int16TreeMap_Generated_DescendingOrder(t *testing.T) {
-	m := NewFloat32Int16TreeMap()
+func TestFloat32Int16_Generated_DescendingOrder(t *testing.T) {
+	m := NewFloat32Int16()
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
 	m.Put(3.0, 3)

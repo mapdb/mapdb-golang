@@ -22,20 +22,20 @@ type int64Int8TreeNode struct {
 	color  bool
 }
 
-// Int64Int8TreeMap is a sorted map with int64 keys and int8 values, backed by a red-black tree.
+// Int64Int8 is a sorted map with int64 keys and int8 values, backed by a red-black tree.
 // Keys are maintained in ascending order.
-type Int64Int8TreeMap struct {
+type Int64Int8 struct {
 	root *int64Int8TreeNode
 	size int
 }
 
-// NewInt64Int8TreeMap creates a new empty sorted map.
-func NewInt64Int8TreeMap() *Int64Int8TreeMap {
-	return &Int64Int8TreeMap{}
+// NewInt64Int8 creates a new empty sorted map.
+func NewInt64Int8() *Int64Int8 {
+	return &Int64Int8{}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Int64Int8TreeMap) Put(key int64, value int8) (int8, bool) {
+func (m *Int64Int8) Put(key int64, value int8) (int8, bool) {
 	if m.root == nil {
 		m.root = &int64Int8TreeNode{key: key, value: value, color: int64Int8TreeNodeBlack}
 		m.size++
@@ -68,7 +68,7 @@ func (m *Int64Int8TreeMap) Put(key int64, value int8) (int8, bool) {
 }
 
 // Get returns the value for the key, or the zero value and false if not found.
-func (m *Int64Int8TreeMap) Get(key int64) (int8, bool) {
+func (m *Int64Int8) Get(key int64) (int8, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return 0, false
@@ -77,7 +77,7 @@ func (m *Int64Int8TreeMap) Get(key int64) (int8, bool) {
 }
 
 // GetOrDefault returns the value for the key if present, or the default value otherwise.
-func (m *Int64Int8TreeMap) GetOrDefault(key int64, defaultValue int8) int8 {
+func (m *Int64Int8) GetOrDefault(key int64, defaultValue int8) int8 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -85,12 +85,12 @@ func (m *Int64Int8TreeMap) GetOrDefault(key int64, defaultValue int8) int8 {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int64Int8TreeMap) ContainsKey(key int64) bool {
+func (m *Int64Int8) ContainsKey(key int64) bool {
 	return m.findNode(key) != nil
 }
 
 // Remove removes the entry for the given key. Returns the previous value and true if found.
-func (m *Int64Int8TreeMap) Remove(key int64) (int8, bool) {
+func (m *Int64Int8) Remove(key int64) (int8, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return 0, false
@@ -101,28 +101,19 @@ func (m *Int64Int8TreeMap) Remove(key int64) (int8, bool) {
 	return old, true
 }
 
-// Size returns the number of entries.
-func (m *Int64Int8TreeMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int64Int8) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int64Int8TreeMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map is empty.
-func (m *Int64Int8TreeMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries.
-func (m *Int64Int8TreeMap) Clear() {
+func (m *Int64Int8) Clear() {
 	m.root = nil
 	m.size = 0
 }
 
 // Min returns the smallest key and its value, or zero values and false if empty.
-func (m *Int64Int8TreeMap) Min() (int64, int8, bool) {
+func (m *Int64Int8) Min() (int64, int8, bool) {
 	if m.root == nil {
 		return 0, 0, false
 	}
@@ -131,7 +122,7 @@ func (m *Int64Int8TreeMap) Min() (int64, int8, bool) {
 }
 
 // Max returns the largest key and its value, or zero values and false if empty.
-func (m *Int64Int8TreeMap) Max() (int64, int8, bool) {
+func (m *Int64Int8) Max() (int64, int8, bool) {
 	if m.root == nil {
 		return 0, 0, false
 	}
@@ -140,7 +131,7 @@ func (m *Int64Int8TreeMap) Max() (int64, int8, bool) {
 }
 
 // Floor returns the largest key <= the given key, or zero values and false.
-func (m *Int64Int8TreeMap) Floor(key int64) (int64, int8, bool) {
+func (m *Int64Int8) Floor(key int64) (int64, int8, bool) {
 	var result *int64Int8TreeNode
 	node := m.root
 	for node != nil {
@@ -161,7 +152,7 @@ func (m *Int64Int8TreeMap) Floor(key int64) (int64, int8, bool) {
 }
 
 // Ceiling returns the smallest key >= the given key, or zero values and false.
-func (m *Int64Int8TreeMap) Ceiling(key int64) (int64, int8, bool) {
+func (m *Int64Int8) Ceiling(key int64) (int64, int8, bool) {
 	var result *int64Int8TreeNode
 	node := m.root
 	for node != nil {
@@ -182,7 +173,7 @@ func (m *Int64Int8TreeMap) Ceiling(key int64) (int64, int8, bool) {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs in ascending key order.
-func (m *Int64Int8TreeMap) All() iter.Seq2[int64, int8] {
+func (m *Int64Int8) All() iter.Seq2[int64, int8] {
 	return func(yield func(int64, int8) bool) {
 		var inorder func(node *int64Int8TreeNode) bool
 		inorder = func(node *int64Int8TreeNode) bool {
@@ -202,7 +193,7 @@ func (m *Int64Int8TreeMap) All() iter.Seq2[int64, int8] {
 }
 
 // Keys returns an iter.Seq that yields all keys in ascending order.
-func (m *Int64Int8TreeMap) Keys() iter.Seq[int64] {
+func (m *Int64Int8) Keys() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for k, _ := range m.All() {
 			if !yield(k) {
@@ -213,7 +204,7 @@ func (m *Int64Int8TreeMap) Keys() iter.Seq[int64] {
 }
 
 // Values returns an iter.Seq that yields all values in key order.
-func (m *Int64Int8TreeMap) Values() iter.Seq[int8] {
+func (m *Int64Int8) Values() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for _, v := range m.All() {
 			if !yield(v) {
@@ -224,7 +215,7 @@ func (m *Int64Int8TreeMap) Values() iter.Seq[int8] {
 }
 
 // RangeKeys returns an iter.Seq2 that yields entries with keys in [fromKey, toKey).
-func (m *Int64Int8TreeMap) RangeKeys(fromKey, toKey int64) iter.Seq2[int64, int8] {
+func (m *Int64Int8) RangeKeys(fromKey, toKey int64) iter.Seq2[int64, int8] {
 	return func(yield func(int64, int8) bool) {
 		for k, v := range m.All() {
 			if k < fromKey {
@@ -242,7 +233,7 @@ func (m *Int64Int8TreeMap) RangeKeys(fromKey, toKey int64) iter.Seq2[int64, int8
 
 // Higher returns the smallest key strictly greater than `key` (and its value),
 // or zero values and false. Unlike Ceiling, never returns `key` itself.
-func (m *Int64Int8TreeMap) Higher(key int64) (int64, int8, bool) {
+func (m *Int64Int8) Higher(key int64) (int64, int8, bool) {
 	var result *int64Int8TreeNode
 	node := m.root
 	for node != nil {
@@ -261,7 +252,7 @@ func (m *Int64Int8TreeMap) Higher(key int64) (int64, int8, bool) {
 
 // Lower returns the largest key strictly less than `key` (and its value),
 // or zero values and false. Unlike Floor, never returns `key` itself.
-func (m *Int64Int8TreeMap) Lower(key int64) (int64, int8, bool) {
+func (m *Int64Int8) Lower(key int64) (int64, int8, bool) {
 	var result *int64Int8TreeNode
 	node := m.root
 	for node != nil {
@@ -280,7 +271,7 @@ func (m *Int64Int8TreeMap) Lower(key int64) (int64, int8, bool) {
 
 // HeadMap returns an iter.Seq2 over entries with keys strictly less than toKey.
 // Matches Java NavigableMap.headMap(toKey) (exclusive by default).
-func (m *Int64Int8TreeMap) HeadMap(toKey int64) iter.Seq2[int64, int8] {
+func (m *Int64Int8) HeadMap(toKey int64) iter.Seq2[int64, int8] {
 	return func(yield func(int64, int8) bool) {
 		for k, v := range m.All() {
 			if k >= toKey {
@@ -295,7 +286,7 @@ func (m *Int64Int8TreeMap) HeadMap(toKey int64) iter.Seq2[int64, int8] {
 
 // TailMap returns an iter.Seq2 over entries with keys >= fromKey.
 // Matches Java NavigableMap.tailMap(fromKey) (inclusive by default).
-func (m *Int64Int8TreeMap) TailMap(fromKey int64) iter.Seq2[int64, int8] {
+func (m *Int64Int8) TailMap(fromKey int64) iter.Seq2[int64, int8] {
 	return func(yield func(int64, int8) bool) {
 		for k, v := range m.All() {
 			if k < fromKey {
@@ -310,18 +301,18 @@ func (m *Int64Int8TreeMap) TailMap(fromKey int64) iter.Seq2[int64, int8] {
 
 // SubMap returns an iter.Seq2 over entries with keys in [fromKey, toKey).
 // Alias for RangeKeys; exists for Java-NavigableMap API parity.
-func (m *Int64Int8TreeMap) SubMap(fromKey, toKey int64) iter.Seq2[int64, int8] {
+func (m *Int64Int8) SubMap(fromKey, toKey int64) iter.Seq2[int64, int8] {
 	return m.RangeKeys(fromKey, toKey)
 }
 
 // FirstEntry is an alias of Min — the smallest key and its value, or zero/false.
-func (m *Int64Int8TreeMap) FirstEntry() (int64, int8, bool) { return m.Min() }
+func (m *Int64Int8) FirstEntry() (int64, int8, bool) { return m.Min() }
 
 // LastEntry is an alias of Max — the largest key and its value, or zero/false.
-func (m *Int64Int8TreeMap) LastEntry() (int64, int8, bool) { return m.Max() }
+func (m *Int64Int8) LastEntry() (int64, int8, bool) { return m.Max() }
 
 // PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
-func (m *Int64Int8TreeMap) PollFirstEntry() (int64, int8, bool) {
+func (m *Int64Int8) PollFirstEntry() (int64, int8, bool) {
 	k, v, ok := m.Min()
 	if !ok {
 		return 0, 0, false
@@ -331,7 +322,7 @@ func (m *Int64Int8TreeMap) PollFirstEntry() (int64, int8, bool) {
 }
 
 // PollLastEntry removes and returns the largest entry, or zero/false if empty.
-func (m *Int64Int8TreeMap) PollLastEntry() (int64, int8, bool) {
+func (m *Int64Int8) PollLastEntry() (int64, int8, bool) {
 	k, v, ok := m.Max()
 	if !ok {
 		return 0, 0, false
@@ -341,7 +332,7 @@ func (m *Int64Int8TreeMap) PollLastEntry() (int64, int8, bool) {
 }
 
 // DescendingMap returns an iter.Seq2 over entries in descending key order.
-func (m *Int64Int8TreeMap) DescendingMap() iter.Seq2[int64, int8] {
+func (m *Int64Int8) DescendingMap() iter.Seq2[int64, int8] {
 	return func(yield func(int64, int8) bool) {
 		var reverse func(node *int64Int8TreeNode) bool
 		reverse = func(node *int64Int8TreeNode) bool {
@@ -361,7 +352,7 @@ func (m *Int64Int8TreeMap) DescendingMap() iter.Seq2[int64, int8] {
 }
 
 // DescendingKeys returns an iter.Seq over keys in descending order.
-func (m *Int64Int8TreeMap) DescendingKeys() iter.Seq[int64] {
+func (m *Int64Int8) DescendingKeys() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for k := range m.DescendingMap() {
 			if !yield(k) {
@@ -372,15 +363,15 @@ func (m *Int64Int8TreeMap) DescendingKeys() iter.Seq[int64] {
 }
 
 // ForEach calls the function for each key-value pair in ascending order.
-func (m *Int64Int8TreeMap) ForEach(f func(int64, int8)) {
+func (m *Int64Int8) ForEach(f func(int64, int8)) {
 	for k, v := range m.All() {
 		f(k, v)
 	}
 }
 
-// Select returns a new TreeMap with entries satisfying the predicate.
-func (m *Int64Int8TreeMap) Select(predicate func(int64, int8) bool) *Int64Int8TreeMap {
-	result := NewInt64Int8TreeMap()
+// Select returns a new map with entries satisfying the predicate.
+func (m *Int64Int8) Select(predicate func(int64, int8) bool) *Int64Int8 {
+	result := NewInt64Int8()
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			result.Put(k, v)
@@ -389,9 +380,9 @@ func (m *Int64Int8TreeMap) Select(predicate func(int64, int8) bool) *Int64Int8Tr
 	return result
 }
 
-// Reject returns a new TreeMap with entries NOT satisfying the predicate.
-func (m *Int64Int8TreeMap) Reject(predicate func(int64, int8) bool) *Int64Int8TreeMap {
-	result := NewInt64Int8TreeMap()
+// Reject returns a new map with entries NOT satisfying the predicate.
+func (m *Int64Int8) Reject(predicate func(int64, int8) bool) *Int64Int8 {
+	result := NewInt64Int8()
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			result.Put(k, v)
@@ -401,7 +392,7 @@ func (m *Int64Int8TreeMap) Reject(predicate func(int64, int8) bool) *Int64Int8Tr
 }
 
 // Detect returns the first entry satisfying the predicate (in key order), or (zero, zero, false).
-func (m *Int64Int8TreeMap) Detect(predicate func(int64, int8) bool) (int64, int8, bool) {
+func (m *Int64Int8) Detect(predicate func(int64, int8) bool) (int64, int8, bool) {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return k, v, true
@@ -413,7 +404,7 @@ func (m *Int64Int8TreeMap) Detect(predicate func(int64, int8) bool) (int64, int8
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *Int64Int8TreeMap) AnySatisfy(predicate func(int64, int8) bool) bool {
+func (m *Int64Int8) AnySatisfy(predicate func(int64, int8) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return true
@@ -423,7 +414,7 @@ func (m *Int64Int8TreeMap) AnySatisfy(predicate func(int64, int8) bool) bool {
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *Int64Int8TreeMap) AllSatisfy(predicate func(int64, int8) bool) bool {
+func (m *Int64Int8) AllSatisfy(predicate func(int64, int8) bool) bool {
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			return false
@@ -433,7 +424,7 @@ func (m *Int64Int8TreeMap) AllSatisfy(predicate func(int64, int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *Int64Int8TreeMap) NoneSatisfy(predicate func(int64, int8) bool) bool {
+func (m *Int64Int8) NoneSatisfy(predicate func(int64, int8) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return false
@@ -443,7 +434,7 @@ func (m *Int64Int8TreeMap) NoneSatisfy(predicate func(int64, int8) bool) bool {
 }
 
 // Count returns the number of entries satisfying the predicate.
-func (m *Int64Int8TreeMap) Count(predicate func(int64, int8) bool) int {
+func (m *Int64Int8) Count(predicate func(int64, int8) bool) int {
 	c := 0
 	for k, v := range m.All() {
 		if predicate(k, v) {
@@ -454,7 +445,7 @@ func (m *Int64Int8TreeMap) Count(predicate func(int64, int8) bool) int {
 }
 
 // String returns a string representation with entries in sorted key order.
-func (m *Int64Int8TreeMap) String() string {
+func (m *Int64Int8) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -474,7 +465,7 @@ func (m *Int64Int8TreeMap) String() string {
 
 // --- Red-black tree internals ---
 
-func (m *Int64Int8TreeMap) findNode(key int64) *int64Int8TreeNode {
+func (m *Int64Int8) findNode(key int64) *int64Int8TreeNode {
 	node := m.root
 	for node != nil {
 		if key < node.key {
@@ -488,21 +479,21 @@ func (m *Int64Int8TreeMap) findNode(key int64) *int64Int8TreeNode {
 	return nil
 }
 
-func (m *Int64Int8TreeMap) minNode(node *int64Int8TreeNode) *int64Int8TreeNode {
+func (m *Int64Int8) minNode(node *int64Int8TreeNode) *int64Int8TreeNode {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
 
-func (m *Int64Int8TreeMap) maxNode(node *int64Int8TreeNode) *int64Int8TreeNode {
+func (m *Int64Int8) maxNode(node *int64Int8TreeNode) *int64Int8TreeNode {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (m *Int64Int8TreeMap) rotateLeft(x *int64Int8TreeNode) {
+func (m *Int64Int8) rotateLeft(x *int64Int8TreeNode) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -520,7 +511,7 @@ func (m *Int64Int8TreeMap) rotateLeft(x *int64Int8TreeNode) {
 	x.parent = y
 }
 
-func (m *Int64Int8TreeMap) rotateRight(x *int64Int8TreeNode) {
+func (m *Int64Int8) rotateRight(x *int64Int8TreeNode) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -538,7 +529,7 @@ func (m *Int64Int8TreeMap) rotateRight(x *int64Int8TreeNode) {
 	x.parent = y
 }
 
-func (m *Int64Int8TreeMap) fixAfterInsert(z *int64Int8TreeNode) {
+func (m *Int64Int8) fixAfterInsert(z *int64Int8TreeNode) {
 	for z.parent != nil && z.parent.color == int64Int8TreeNodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
@@ -577,7 +568,7 @@ func (m *Int64Int8TreeMap) fixAfterInsert(z *int64Int8TreeNode) {
 	m.root.color = int64Int8TreeNodeBlack
 }
 
-func (m *Int64Int8TreeMap) deleteNode(z *int64Int8TreeNode) {
+func (m *Int64Int8) deleteNode(z *int64Int8TreeNode) {
 	if z.left != nil && z.right != nil {
 		succ := m.minNode(z.right)
 		z.key = succ.key
@@ -618,7 +609,7 @@ func (m *Int64Int8TreeMap) deleteNode(z *int64Int8TreeNode) {
 	}
 }
 
-func (m *Int64Int8TreeMap) fixAfterDelete(x *int64Int8TreeNode) {
+func (m *Int64Int8) fixAfterDelete(x *int64Int8TreeNode) {
 	for x != m.root && x.color == int64Int8TreeNodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right

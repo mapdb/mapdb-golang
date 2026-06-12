@@ -111,7 +111,7 @@ import (
 	"strings"
 )
 
-// {{.Name}}ArrayDeque is a double-ended queue of {{.GoType}} values, backed by a
+// {{.Name}} is a double-ended queue of {{.GoType}} values, backed by a
 // power-of-two ring buffer. AddFirst, AddLast, RemoveFirst, RemoveLast,
 // PeekFirst and PeekLast are all O(1) amortised.
 //
@@ -119,7 +119,7 @@ import (
 // that preceded it: callers that iterate via ToSlice or ForEach see
 // elements in logical front-to-back order regardless of where head
 // happens to sit in the underlying buffer.
-type {{.Name}}ArrayDeque struct {
+type {{.Name}} struct {
 	items []{{.GoType}} // len == capacity, always a power of two; indexed modulo cap
 	head  int // index of the front element (0 when empty)
 	size  int // number of logical elements
@@ -133,7 +133,7 @@ const initial{{.Name}}DequeCap = 16
 
 // ceilPow2 rounds n up to the next power of two, with a floor of
 // initial{{.Name}}DequeCap. Used when sizing the buffer to fit a
-// caller-supplied slice in {{.Name}}ArrayDequeOf.
+// caller-supplied slice in {{.Name}}Of.
 func ceilPow2{{.Name}}Deque(n int) int {
 	cap := initial{{.Name}}DequeCap
 	for cap < n {
@@ -142,15 +142,15 @@ func ceilPow2{{.Name}}Deque(n int) int {
 	return cap
 }
 
-// New{{.Name}}ArrayDeque creates a new empty {{.Name}}ArrayDeque.
-func New{{.Name}}ArrayDeque() *{{.Name}}ArrayDeque {
-	return &{{.Name}}ArrayDeque{items: make([]{{.GoType}}, initial{{.Name}}DequeCap)}
+// New{{.Name}} creates a new empty {{.Name}}.
+func New{{.Name}}() *{{.Name}} {
+	return &{{.Name}}{items: make([]{{.GoType}}, initial{{.Name}}DequeCap)}
 }
 
-// {{.Name}}ArrayDequeOf creates a new {{.Name}}ArrayDeque from the given values in
+// {{.Name}}Of creates a new {{.Name}} from the given values in
 // front-to-back order.
-func {{.Name}}ArrayDequeOf(values ...{{.GoType}}) *{{.Name}}ArrayDeque {
-	d := &{{.Name}}ArrayDeque{
+func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
+	d := &{{.Name}}{
 		items: make([]{{.GoType}}, ceilPow2{{.Name}}Deque(len(values))),
 		size:  len(values),
 	}
@@ -160,7 +160,7 @@ func {{.Name}}ArrayDequeOf(values ...{{.GoType}}) *{{.Name}}ArrayDeque {
 
 // grow doubles the backing buffer and repacks elements so that head is at 0.
 // Called lazily when size would exceed capacity.
-func (d *{{.Name}}ArrayDeque) grow() {
+func (d *{{.Name}}) grow() {
 	newCap := len(d.items) * 2
 	if newCap == 0 {
 		newCap = initial{{.Name}}DequeCap
@@ -175,7 +175,7 @@ func (d *{{.Name}}ArrayDeque) grow() {
 }
 
 // AddFirst prepends a value to the front of the deque. O(1) amortised.
-func (d *{{.Name}}ArrayDeque) AddFirst(value {{.GoType}}) {
+func (d *{{.Name}}) AddFirst(value {{.GoType}}) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -186,7 +186,7 @@ func (d *{{.Name}}ArrayDeque) AddFirst(value {{.GoType}}) {
 }
 
 // AddLast appends a value to the back of the deque. O(1) amortised.
-func (d *{{.Name}}ArrayDeque) AddLast(value {{.GoType}}) {
+func (d *{{.Name}}) AddLast(value {{.GoType}}) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -195,61 +195,55 @@ func (d *{{.Name}}ArrayDeque) AddLast(value {{.GoType}}) {
 	d.size++
 }
 
-// RemoveFirst removes and returns the front element, or an error if empty. O(1).
-func (d *{{.Name}}ArrayDeque) RemoveFirst() ({{.GoType}}, error) {
+// RemoveFirst removes and returns the front element. The bool is false if empty. O(1).
+func (d *{{.Name}}) RemoveFirst() ({{.GoType}}, bool) {
 	if d.size == 0 {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayDeque: RemoveFirst on empty deque")
+		return {{.Zero}}, false
 	}
 	mask := len(d.items) - 1
 	v := d.items[d.head]
 	d.items[d.head] = {{.Zero}} // let GC reclaim references if {{.GoType}} ever carries them
 	d.head = (d.head + 1) & mask
 	d.size--
-	return v, nil
+	return v, true
 }
 
-// RemoveLast removes and returns the back element, or an error if empty. O(1).
-func (d *{{.Name}}ArrayDeque) RemoveLast() ({{.GoType}}, error) {
+// RemoveLast removes and returns the back element. The bool is false if empty. O(1).
+func (d *{{.Name}}) RemoveLast() ({{.GoType}}, bool) {
 	if d.size == 0 {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayDeque: RemoveLast on empty deque")
+		return {{.Zero}}, false
 	}
 	mask := len(d.items) - 1
 	d.size--
 	idx := (d.head + d.size) & mask
 	v := d.items[idx]
 	d.items[idx] = {{.Zero}}
-	return v, nil
+	return v, true
 }
 
-// PeekFirst returns the front element without removing it, or an error if empty.
-func (d *{{.Name}}ArrayDeque) PeekFirst() ({{.GoType}}, error) {
+// PeekFirst returns the front element without removing it. The bool is false if empty.
+func (d *{{.Name}}) PeekFirst() ({{.GoType}}, bool) {
 	if d.size == 0 {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayDeque: PeekFirst on empty deque")
+		return {{.Zero}}, false
 	}
-	return d.items[d.head], nil
+	return d.items[d.head], true
 }
 
-// PeekLast returns the back element without removing it, or an error if empty.
-func (d *{{.Name}}ArrayDeque) PeekLast() ({{.GoType}}, error) {
+// PeekLast returns the back element without removing it. The bool is false if empty.
+func (d *{{.Name}}) PeekLast() ({{.GoType}}, bool) {
 	if d.size == 0 {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayDeque: PeekLast on empty deque")
+		return {{.Zero}}, false
 	}
 	mask := len(d.items) - 1
-	return d.items[(d.head+d.size-1)&mask], nil
+	return d.items[(d.head+d.size-1)&mask], true
 }
 
-// Size returns the number of elements in the deque.
-func (d *{{.Name}}ArrayDeque) Size() int { return d.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *{{.Name}}ArrayDeque) Len() int { return d.Size() }
-
-// IsEmpty returns true if the deque contains no elements.
-func (d *{{.Name}}ArrayDeque) IsEmpty() bool { return d.size == 0 }
+// Len returns the number of elements in the deque. Use d.Len() == 0 to test
+// for emptiness.
+func (d *{{.Name}}) Len() int { return d.size }
 
 // Clear removes all elements. The backing buffer is retained.
-func (d *{{.Name}}ArrayDeque) Clear() {
+func (d *{{.Name}}) Clear() {
 	// Wipe slots so retained references are released. Cheap for value types.
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
@@ -260,7 +254,7 @@ func (d *{{.Name}}ArrayDeque) Clear() {
 }
 
 // Contains returns true if the deque contains the given value.
-func (d *{{.Name}}ArrayDeque) Contains(value {{.GoType}}) bool {
+func (d *{{.Name}}) Contains(value {{.GoType}}) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		v := d.items[(d.head+i)&mask]
@@ -272,7 +266,7 @@ func (d *{{.Name}}ArrayDeque) Contains(value {{.GoType}}) bool {
 }
 
 // ForEach applies the function to each element from front to back.
-func (d *{{.Name}}ArrayDeque) ForEach(f func({{.GoType}})) {
+func (d *{{.Name}}) ForEach(f func({{.GoType}})) {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		f(d.items[(d.head+i)&mask])
@@ -280,7 +274,7 @@ func (d *{{.Name}}ArrayDeque) ForEach(f func({{.GoType}})) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (d *{{.Name}}ArrayDeque) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (d *{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if predicate(d.items[(d.head+i)&mask]) {
@@ -291,7 +285,7 @@ func (d *{{.Name}}ArrayDeque) AnySatisfy(predicate func({{.GoType}}) bool) bool 
 }
 
 // AllSatisfy returns true if every element satisfies the predicate.
-func (d *{{.Name}}ArrayDeque) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (d *{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if !predicate(d.items[(d.head+i)&mask]) {
@@ -302,7 +296,7 @@ func (d *{{.Name}}ArrayDeque) AllSatisfy(predicate func({{.GoType}}) bool) bool 
 }
 
 // ToSlice returns a copy of the elements in front-to-back order.
-func (d *{{.Name}}ArrayDeque) ToSlice() []{{.GoType}} {
+func (d *{{.Name}}) ToSlice() []{{.GoType}} {
 	out := make([]{{.GoType}}, d.size)
 	if d.size == 0 {
 		return out
@@ -319,7 +313,7 @@ func (d *{{.Name}}ArrayDeque) ToSlice() []{{.GoType}} {
 }
 
 // Equals returns true if the other deque has the same elements in the same order.
-func (d *{{.Name}}ArrayDeque) Equals(other *{{.Name}}ArrayDeque) bool {
+func (d *{{.Name}}) Equals(other *{{.Name}}) bool {
 	if d.size != other.size {
 		return false
 	}
@@ -336,7 +330,7 @@ func (d *{{.Name}}ArrayDeque) Equals(other *{{.Name}}ArrayDeque) bool {
 }
 
 // String returns a string representation in front-to-back order.
-func (d *{{.Name}}ArrayDeque) String() string {
+func (d *{{.Name}}) String() string {
 	if d.size == 0 {
 		return "[]"
 	}
@@ -363,82 +357,73 @@ import (
 	"sync"
 )
 
-// Synchronized{{.Name}}ArrayDeque is a thread-safe wrapper around {{.Name}}ArrayDeque.
-type Synchronized{{.Name}}ArrayDeque struct {
-	delegate *{{.Name}}ArrayDeque
+// Synchronized{{.Name}} is a thread-safe wrapper around {{.Name}}.
+type Synchronized{{.Name}} struct {
+	delegate *{{.Name}}
 	mu       sync.RWMutex
 }
 
-// NewSynchronized{{.Name}}ArrayDeque creates a new thread-safe empty deque.
-func NewSynchronized{{.Name}}ArrayDeque() *Synchronized{{.Name}}ArrayDeque {
-	return &Synchronized{{.Name}}ArrayDeque{delegate: New{{.Name}}ArrayDeque()}
+// NewSynchronized{{.Name}} creates a new thread-safe empty deque.
+func NewSynchronized{{.Name}}() *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: New{{.Name}}()}
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) AddFirst(value {{.GoType}}) {
+func (d *Synchronized{{.Name}}) AddFirst(value {{.GoType}}) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddFirst(value)
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) AddLast(value {{.GoType}}) {
+func (d *Synchronized{{.Name}}) AddLast(value {{.GoType}}) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddLast(value)
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) RemoveFirst() ({{.GoType}}, error) {
+func (d *Synchronized{{.Name}}) RemoveFirst() ({{.GoType}}, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveFirst()
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) RemoveLast() ({{.GoType}}, error) {
+func (d *Synchronized{{.Name}}) RemoveLast() ({{.GoType}}, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveLast()
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) PeekFirst() ({{.GoType}}, error) {
+func (d *Synchronized{{.Name}}) PeekFirst() ({{.GoType}}, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekFirst()
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) PeekLast() ({{.GoType}}, error) {
+func (d *Synchronized{{.Name}}) PeekLast() ({{.GoType}}, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekLast()
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) Size() int {
+// Len returns the number of elements. Use d.Len() == 0 to test for emptiness.
+func (d *Synchronized{{.Name}}) Len() int {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.delegate.Size()
+	return d.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *Synchronized{{.Name}}ArrayDeque) Len() int { return d.Size() }
-
-func (d *Synchronized{{.Name}}ArrayDeque) IsEmpty() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.delegate.IsEmpty()
-}
-
-func (d *Synchronized{{.Name}}ArrayDeque) Clear() {
+func (d *Synchronized{{.Name}}) Clear() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.Clear()
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) Contains(value {{.GoType}}) bool {
+func (d *Synchronized{{.Name}}) Contains(value {{.GoType}}) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.Contains(value)
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) ForEach(f func({{.GoType}})) {
+func (d *Synchronized{{.Name}}) ForEach(f func({{.GoType}})) {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -447,7 +432,7 @@ func (d *Synchronized{{.Name}}ArrayDeque) ForEach(f func({{.GoType}})) {
 	}
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (d *Synchronized{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -459,7 +444,7 @@ func (d *Synchronized{{.Name}}ArrayDeque) AnySatisfy(predicate func({{.GoType}})
 	return false
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (d *Synchronized{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -471,13 +456,13 @@ func (d *Synchronized{{.Name}}ArrayDeque) AllSatisfy(predicate func({{.GoType}})
 	return true
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) ToSlice() []{{.GoType}} {
+func (d *Synchronized{{.Name}}) ToSlice() []{{.GoType}} {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) Equals(other *Synchronized{{.Name}}ArrayDeque) bool {
+func (d *Synchronized{{.Name}}) Equals(other *Synchronized{{.Name}}) bool {
 	d.mu.RLock()
 	thisSlice := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -495,7 +480,7 @@ func (d *Synchronized{{.Name}}ArrayDeque) Equals(other *Synchronized{{.Name}}Arr
 	return true
 }
 
-func (d *Synchronized{{.Name}}ArrayDeque) String() string {
+func (d *Synchronized{{.Name}}) String() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.String()

@@ -407,7 +407,7 @@ func unknown(key string) string {
 // ---- HashMap<i32, i32> ---------------------------------------------------
 
 func runHashMap(s scenario) {
-	m := hashmap.NewInt32Int32HashMap()
+	m := hashmap.NewInt32Int32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "put":
@@ -427,12 +427,12 @@ func runHashMap(s scenario) {
 	}
 }
 
-func evalMapAssertion(key string, m *hashmap.Int32Int32HashMap) string {
+func evalMapAssertion(key string, m *hashmap.Int32Int32) string {
 	switch key {
 	case "size":
-		return strconv.Itoa(m.Size())
+		return strconv.Itoa(m.Len())
 	case "is_empty":
-		return strconv.FormatBool(m.IsEmpty())
+		return strconv.FormatBool(m.Len() == 0)
 	case "sorted_keys":
 		keys := m.KeysToSlice()
 		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
@@ -501,7 +501,7 @@ func parseI64Operand(v any) int64 {
 // runI64HashMap routes through the PRODUCTION Int64Int32HashMap (real i64 hash
 // spread + key identity).
 func runI64HashMap(s scenario) {
-	m := hashmap.NewInt64Int32HashMap()
+	m := hashmap.NewInt64Int32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "put":
@@ -519,12 +519,12 @@ func runI64HashMap(s scenario) {
 	}
 }
 
-func evalI64MapAssertion(key string, m *hashmap.Int64Int32HashMap) string {
+func evalI64MapAssertion(key string, m *hashmap.Int64Int32) string {
 	switch key {
 	case "size":
-		return strconv.Itoa(m.Size())
+		return strconv.Itoa(m.Len())
 	case "is_empty":
-		return strconv.FormatBool(m.IsEmpty())
+		return strconv.FormatBool(m.Len() == 0)
 	case "sorted_keys":
 		// i64 keys exceed 2^53: serialize each as a plain decimal STRING in a
 		// quoted array, sorted numerically as i64 ascending.
@@ -574,8 +574,8 @@ type i64Multimap interface {
 	Keys() []int64
 }
 
-func runI64ListMultimap(s scenario) { runI64Multimap(s, multimap.NewInt64Int32ListMultimap()) }
-func runI64SetMultimap(s scenario)  { runI64Multimap(s, multimap.NewInt64Int32SetMultimap()) }
+func runI64ListMultimap(s scenario) { runI64Multimap(s, multimap.NewInt64Int32List()) }
+func runI64SetMultimap(s scenario)  { runI64Multimap(s, multimap.NewInt64Int32Set()) }
 
 func runI64Multimap(s scenario, m i64Multimap) {
 	for _, op := range s.Operations {
@@ -632,7 +632,7 @@ func evalI64MultimapAssertion(key string, m i64Multimap) string {
 // ---- ArrayList<i32> ------------------------------------------------------
 
 func runArrayList(s scenario) {
-	l := arraylist.NewInt32ArrayList()
+	l := arraylist.NewInt32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -667,13 +667,13 @@ func runArrayList(s scenario) {
 func addInt32Wrapping(acc, v int32) int32 { return acc + v }
 func mulInt32Wrapping(acc, v int32) int32 { return acc * v }
 
-func snapshotList(l *arraylist.Int32ArrayList) []int32 {
-	out := make([]int32, 0, l.Size())
+func snapshotList(l *arraylist.Int32) []int32 {
+	out := make([]int32, 0, l.Len())
 	l.ForEach(func(v int32) { out = append(out, v) })
 	return out
 }
 
-func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
+func evalListAssertion(key string, l *arraylist.Int32) string {
 	values := snapshotList(l)
 	switch key {
 	case "size":
@@ -688,7 +688,7 @@ func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
 	case "inject_into_wrapping_product", "product":
 		return strconv.FormatInt(int64(l.InjectInto(1, mulInt32Wrapping)), 10)
 	case "max_minus_min":
-		if l.IsEmpty() {
+		if l.Len() == 0 {
 			return "null"
 		}
 		mn, _ := l.Min()
@@ -708,7 +708,7 @@ func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
 		// Sort a COPY so this assertion never mutates the production list --
 		// otherwise a later order-sensitive assertion on the same list would
 		// see the reordered elements. We still exercise the production Sort().
-		sorted := arraylist.NewInt32ArrayList()
+		sorted := arraylist.NewInt32()
 		sorted.AddAll(values...)
 		sorted.Sort()
 		return formatArray(snapshotList(sorted))
@@ -869,7 +869,7 @@ func evalListAssertion(key string, l *arraylist.Int32ArrayList) string {
 // ---- HashSet<i32> --------------------------------------------------------
 
 func runHashSet(s scenario) {
-	set := hashset.NewInt32HashSet()
+	set := hashset.NewInt32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -882,9 +882,9 @@ func runHashSet(s scenario) {
 			fatalf("unknown hashset op: %v", op["op"])
 		}
 	}
-	var other *hashset.Int32HashSet
+	var other *hashset.Int32
 	if s.Other != nil {
-		other = hashset.NewInt32HashSet()
+		other = hashset.NewInt32()
 		for _, op := range s.Other.Operations {
 			if op["op"] == "add" {
 				other.Add(asInt32(op["value"]))
@@ -896,19 +896,19 @@ func runHashSet(s scenario) {
 	}
 }
 
-func setToSorted(set *hashset.Int32HashSet) []int32 {
-	out := make([]int32, 0, set.Size())
+func setToSorted(set *hashset.Int32) []int32 {
+	out := make([]int32, 0, set.Len())
 	set.ForEach(func(v int32) { out = append(out, v) })
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 
-func evalSetAssertion(key string, set, other *hashset.Int32HashSet) string {
+func evalSetAssertion(key string, set, other *hashset.Int32) string {
 	switch key {
 	case "size":
-		return strconv.Itoa(set.Size())
+		return strconv.Itoa(set.Len())
 	case "is_empty":
-		return strconv.FormatBool(set.IsEmpty())
+		return strconv.FormatBool(set.Len() == 0)
 	case "to_sorted_array":
 		return formatArray(setToSorted(set))
 	}
@@ -991,7 +991,7 @@ func evalSetAssertion(key string, set, other *hashset.Int32HashSet) string {
 			})
 			return strconv.Itoa(len(seen))
 		case "other_size":
-			return strconv.Itoa(other.Size())
+			return strconv.Itoa(other.Len())
 		}
 	}
 	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
@@ -1004,7 +1004,7 @@ func evalSetAssertion(key string, set, other *hashset.Int32HashSet) string {
 // ---- HashBag<i32> --------------------------------------------------------
 
 func runHashBag(s scenario) {
-	b := bag.NewInt32HashBag()
+	b := bag.NewHashInt32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -1022,14 +1022,14 @@ func runHashBag(s scenario) {
 	}
 }
 
-func evalBagAssertion(key string, b *bag.Int32HashBag) string {
+func evalBagAssertion(key string, b *bag.HashInt32) string {
 	switch key {
 	case "size":
-		return strconv.Itoa(b.Size())
+		return strconv.Itoa(b.Len())
 	case "size_distinct":
 		return strconv.Itoa(b.SizeDistinct())
 	case "is_empty":
-		return strconv.FormatBool(b.IsEmpty())
+		return strconv.FormatBool(b.Len() == 0)
 	case "sorted_distinct":
 		seen := map[int32]struct{}{}
 		b.ForEach(func(v int32) { seen[v] = struct{}{} })
@@ -1040,7 +1040,7 @@ func evalBagAssertion(key string, b *bag.Int32HashBag) string {
 		sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
 		return formatArray(v)
 	case "to_sorted_array":
-		flat := make([]int32, 0, b.Size())
+		flat := make([]int32, 0, b.Len())
 		b.ForEachWithOccurrences(func(value int32, count int) {
 			for i := 0; i < count; i++ {
 				flat = append(flat, value)
@@ -1063,7 +1063,7 @@ func evalBagAssertion(key string, b *bag.Int32HashBag) string {
 // ---- TreeSet<i32> --------------------------------------------------------
 
 func runTreeSet(s scenario) {
-	set := treeset.NewInt32TreeSet()
+	set := treeset.NewInt32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -1080,9 +1080,9 @@ func runTreeSet(s scenario) {
 		val := func() string {
 			switch key {
 			case "size":
-				return strconv.Itoa(set.Size())
+				return strconv.Itoa(set.Len())
 			case "is_empty":
-				return strconv.FormatBool(set.IsEmpty())
+				return strconv.FormatBool(set.Len() == 0)
 			case "min":
 				if v, ok := set.Min(); ok {
 					return strconv.FormatInt(int64(v), 10)
@@ -1094,7 +1094,7 @@ func runTreeSet(s scenario) {
 				}
 				return "null"
 			case "to_sorted_array":
-				out := make([]int32, 0, set.Size())
+				out := make([]int32, 0, set.Len())
 				set.ForEach(func(v int32) { out = append(out, v) })
 				// Int32TreeSet already iterates in order.
 				return formatArray(out)
@@ -1112,7 +1112,7 @@ func runTreeSet(s scenario) {
 // ---- TreeMap<i32, i32> ---------------------------------------------------
 
 func runTreeMap(s scenario) {
-	m := treemap.NewInt32Int32TreeMap()
+	m := treemap.NewInt32Int32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "put":
@@ -1129,9 +1129,9 @@ func runTreeMap(s scenario) {
 		val := func() string {
 			switch key {
 			case "size":
-				return strconv.Itoa(m.Size())
+				return strconv.Itoa(m.Len())
 			case "is_empty":
-				return strconv.FormatBool(m.IsEmpty())
+				return strconv.FormatBool(m.Len() == 0)
 			case "min":
 				if k, _, ok := m.Min(); ok {
 					return strconv.FormatInt(int64(k), 10)
@@ -1178,7 +1178,7 @@ func runTreeMap(s scenario) {
 // ---- HashMap<f32, i32> ---------------------------------------------------
 
 func runF32HashMap(s scenario) {
-	m := hashmap.NewFloat32Int32HashMap()
+	m := hashmap.NewFloat32Int32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "put":
@@ -1195,9 +1195,9 @@ func runF32HashMap(s scenario) {
 		val := func() string {
 			switch key {
 			case "size":
-				return strconv.Itoa(m.Size())
+				return strconv.Itoa(m.Len())
 			case "is_empty":
-				return strconv.FormatBool(m.IsEmpty())
+				return strconv.FormatBool(m.Len() == 0)
 			case "sorted_keys":
 				var keys []float32
 				for k := range m.Keys() {
@@ -1229,7 +1229,7 @@ func runF32HashMap(s scenario) {
 // ---- HashSet<f32> --------------------------------------------------------
 
 func runF32HashSet(s scenario) {
-	set := hashset.NewFloat32HashSet()
+	set := hashset.NewFloat32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -1246,11 +1246,11 @@ func runF32HashSet(s scenario) {
 		val := func() string {
 			switch key {
 			case "size":
-				return strconv.Itoa(set.Size())
+				return strconv.Itoa(set.Len())
 			case "is_empty":
-				return strconv.FormatBool(set.IsEmpty())
+				return strconv.FormatBool(set.Len() == 0)
 			case "sorted_values", "to_sorted_array":
-				vals := make([]float32, 0, set.Size())
+				vals := make([]float32, 0, set.Len())
 				set.ForEach(func(v float32) { vals = append(vals, v) })
 				sortFloat32Total(vals)
 				parts := make([]string, len(vals))
@@ -1270,12 +1270,12 @@ func runF32HashSet(s scenario) {
 
 // ---- TreeSet<f32> --------------------------------------------------------
 
-// runF32TreeSet routes through the PRODUCTION treeset.Float32TreeSet, whose
+// runF32TreeSet routes through the PRODUCTION treeset.Float32, whose
 // node ordering is the cmpFloat32 sign-flip total order. The sorted output is
 // the tree's in-order traversal (All()) -- NEVER sorted in the runner -- so
 // this exercises the production float total-order comparator directly.
 func runF32TreeSet(s scenario) {
-	set := treeset.NewFloat32TreeSet()
+	set := treeset.NewFloat32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -1292,9 +1292,9 @@ func runF32TreeSet(s scenario) {
 		val := func() string {
 			switch key {
 			case "size":
-				return strconv.Itoa(set.Size())
+				return strconv.Itoa(set.Len())
 			case "is_empty":
-				return strconv.FormatBool(set.IsEmpty())
+				return strconv.FormatBool(set.Len() == 0)
 			case "min":
 				if mn, ok := set.Min(); ok {
 					return formatF32(mn)
@@ -1325,7 +1325,7 @@ func runF32TreeSet(s scenario) {
 // ---- ArrayList<f32> ------------------------------------------------------
 
 func runF32ArrayList(s scenario) {
-	l := arraylist.NewFloat32ArrayList()
+	l := arraylist.NewFloat32()
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -1336,7 +1336,7 @@ func runF32ArrayList(s scenario) {
 			fatalf("unknown f32-arraylist op: %v", op["op"])
 		}
 	}
-	values := make([]float32, 0, l.Size())
+	values := make([]float32, 0, l.Len())
 	l.ForEach(func(v float32) { values = append(values, v) })
 	for _, key := range sortedAssertionKeys(s.Assertions) {
 		val := func() string {
@@ -1364,10 +1364,10 @@ func runF32ArrayList(s scenario) {
 			case "sorted", "to_sorted_array":
 				// Sort a COPY through the production total-order Sort() so the
 				// assertion proves conformance without mutating the live list.
-				sorted := arraylist.NewFloat32ArrayList()
+				sorted := arraylist.NewFloat32()
 				sorted.AddAll(values...)
 				sorted.Sort()
-				parts := make([]string, 0, sorted.Size())
+				parts := make([]string, 0, sorted.Len())
 				sorted.ForEach(func(x float32) { parts = append(parts, formatF32(x)) })
 				return "[" + strings.Join(parts, ",") + "]"
 			}

@@ -1,4 +1,3 @@
-
 package collection
 
 import (
@@ -14,11 +13,9 @@ import (
 
 // Int8Sized exposes the element count of a collection.
 type Int8Sized interface {
-	// Size returns the number of elements.
-	Size() int
-
-	// IsEmpty returns true if the collection contains no elements.
-	IsEmpty() bool
+	// Len returns the number of elements. Use x.Len() == 0 to test for
+	// emptiness.
+	Len() int
 }
 
 // Int8Iterable provides element-by-element traversal.
@@ -92,8 +89,8 @@ type Int8MutableCollection interface {
 type Int8List interface {
 	Int8Collection
 
-	// Get returns the element at the given index, or an error if out of bounds.
-	Get(index int) (int8, error)
+	// Get returns the element at the given index. It panics on out-of-range index.
+	Get(index int) int8
 
 	// IndexOf returns the index of the first occurrence of value, or -1 if absent.
 	IndexOf(value int8) int
@@ -108,8 +105,9 @@ type Int8MutableList interface {
 	// Add appends a value to the end of the list.
 	Add(value int8)
 
-	// Set replaces the element at the given index. Returns the previous value or an error.
-	Set(index int, value int8) (int8, error)
+	// Set sets the value at the given index, returning the previous value.
+	// It panics on out-of-range index.
+	Set(index int, value int8) int8
 }
 
 // Int8Set marker interface for set-like collections (uniqueness implied).
@@ -155,8 +153,8 @@ type Int8MutableBag interface {
 type Int8Stack interface {
 	Int8Collection
 
-	// Peek returns the top of the stack without removing it.
-	Peek() (int8, error)
+	// Peek returns the top element without removing it. The bool is false if empty.
+	Peek() (int8, bool)
 }
 
 // Int8MutableStack mutable LIFO stack with Push and Pop.
@@ -168,6 +166,6 @@ type Int8MutableStack interface {
 	// Push pushes a value onto the top of the stack.
 	Push(value int8)
 
-	// Pop pops and returns the top of the stack, or an error if empty.
-	Pop() (int8, error)
+	// Pop removes and returns the top element. The bool is false if empty.
+	Pop() (int8, bool)
 }

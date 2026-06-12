@@ -6,87 +6,78 @@ import (
 	"iter"
 )
 
-// ImmutableInt32ObjectHashMap is an immutable view of a Int32ObjectHashMap.
-type ImmutableInt32ObjectHashMap[V any] struct {
-	delegate *Int32ObjectHashMap[V]
+// ImmutableInt32Object is an immutable view of a Int32Object.
+type ImmutableInt32Object[V any] struct {
+	delegate *Int32Object[V]
 }
 
-// NewImmutableInt32ObjectHashMapFrom creates an immutable int32-object map by copying entries from a mutable map.
-func NewImmutableInt32ObjectHashMapFrom[V any](m *Int32ObjectHashMap[V]) *ImmutableInt32ObjectHashMap[V] {
-	copy := NewInt32ObjectHashMapWithCapacity[V](m.Size() * 2)
+// NewImmutableInt32ObjectFrom creates an immutable int32-object map by copying entries from a mutable map.
+func NewImmutableInt32ObjectFrom[V any](m *Int32Object[V]) *ImmutableInt32Object[V] {
+	copy := NewInt32ObjectWithCapacity[V](m.Len() * 2)
 	m.ForEach(func(k int32, v V) {
 		copy.Put(k, v)
 	})
-	return &ImmutableInt32ObjectHashMap[V]{delegate: copy}
+	return &ImmutableInt32Object[V]{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableInt32ObjectHashMap[V]) Get(key int32) (V, bool) {
+func (m *ImmutableInt32Object[V]) Get(key int32) (V, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableInt32ObjectHashMap[V]) GetOrDefault(key int32, defaultValue V) V {
+func (m *ImmutableInt32Object[V]) GetOrDefault(key int32, defaultValue V) V {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableInt32ObjectHashMap[V]) ContainsKey(key int32) bool {
+func (m *ImmutableInt32Object[V]) ContainsKey(key int32) bool {
 	return m.delegate.ContainsKey(key)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableInt32ObjectHashMap[V]) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableInt32ObjectHashMap[V]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableInt32ObjectHashMap[V]) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableInt32Object[V]) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableInt32ObjectHashMap[V]) All() iter.Seq2[int32, V] {
+func (m *ImmutableInt32Object[V]) All() iter.Seq2[int32, V] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableInt32ObjectHashMap[V]) Keys() iter.Seq[int32] {
+func (m *ImmutableInt32Object[V]) Keys() iter.Seq[int32] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableInt32ObjectHashMap[V]) Values() iter.Seq[V] {
+func (m *ImmutableInt32Object[V]) Values() iter.Seq[V] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableInt32ObjectHashMap[V]) ForEach(f func(int32, V)) {
+func (m *ImmutableInt32Object[V]) ForEach(f func(int32, V)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries satisfying the predicate.
-func (m *ImmutableInt32ObjectHashMap[V]) Select(predicate func(int32, V) bool) *ImmutableInt32ObjectHashMap[V] {
-	return &ImmutableInt32ObjectHashMap[V]{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableInt32Object[V]) Select(predicate func(int32, V) bool) *ImmutableInt32Object[V] {
+	return &ImmutableInt32Object[V]{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries not satisfying the predicate.
-func (m *ImmutableInt32ObjectHashMap[V]) Reject(predicate func(int32, V) bool) *ImmutableInt32ObjectHashMap[V] {
-	return &ImmutableInt32ObjectHashMap[V]{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableInt32Object[V]) Reject(predicate func(int32, V) bool) *ImmutableInt32Object[V] {
+	return &ImmutableInt32Object[V]{delegate: m.delegate.Reject(predicate)}
 }
 
 // String returns a string representation.
-func (m *ImmutableInt32ObjectHashMap[V]) String() string {
+func (m *ImmutableInt32Object[V]) String() string {
 	return m.delegate.String()
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableInt32ObjectHashMap[V]) ToMutable() *Int32ObjectHashMap[V] {
-	copy := NewInt32ObjectHashMapWithCapacity[V](m.Size() * 2)
+func (m *ImmutableInt32Object[V]) ToMutable() *Int32Object[V] {
+	copy := NewInt32ObjectWithCapacity[V](m.Len() * 2)
 	m.ForEach(func(k int32, v V) {
 		copy.Put(k, v)
 	})

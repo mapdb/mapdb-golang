@@ -20,14 +20,14 @@ func TestCaseInsensitiveHashSet(t *testing.T) {
 	s.Add("Hello")
 	s.Add("hello") // should be duplicate
 	s.Add("HELLO") // should be duplicate
-	if s.Size() != 1 {
-		t.Fatalf("expected 1, got %d", s.Size())
+	if s.Len() != 1 {
+		t.Fatalf("expected 1, got %d", s.Len())
 	}
 	if !s.Contains("hElLo") {
 		t.Fatal("expected case-insensitive contains")
 	}
 	s.Remove("HELLO")
-	if s.Size() != 0 {
+	if s.Len() != 0 {
 		t.Fatal("expected empty after remove")
 	}
 }
@@ -36,8 +36,8 @@ func TestCaseInsensitiveHashMap(t *testing.T) {
 	m := NewHashMapWithStrategy[string, int](CaseInsensitiveHashingStrategy())
 	m.Put("Content-Type", 1)
 	m.Put("content-type", 2) // should overwrite
-	if m.Size() != 1 {
-		t.Fatalf("expected 1, got %d", m.Size())
+	if m.Len() != 1 {
+		t.Fatalf("expected 1, got %d", m.Len())
 	}
 	v, ok := m.Get("CONTENT-TYPE")
 	if !ok || v != 2 {
@@ -58,8 +58,8 @@ func TestByFieldHashSet(t *testing.T) {
 	s.Add(Person{"Alice", 25, "LA"}) // same name → duplicate
 	s.Add(Person{"Bob", 30, "NYC"})
 
-	if s.Size() != 2 {
-		t.Fatalf("expected 2 (by name), got %d", s.Size())
+	if s.Len() != 2 {
+		t.Fatalf("expected 2 (by name), got %d", s.Len())
 	}
 	if !s.Contains(Person{"Alice", 99, "Mars"}) {
 		t.Fatal("should find Alice by name regardless of other fields")
@@ -71,8 +71,8 @@ func TestByFieldHashMap(t *testing.T) {
 	m := NewHashMapWithStrategy[Person, string](strategy)
 	m.Put(Person{"Alice", 30, "NYC"}, "first")
 	m.Put(Person{"Alice", 25, "LA"}, "second") // overwrites by name
-	if m.Size() != 1 {
-		t.Fatalf("expected 1, got %d", m.Size())
+	if m.Len() != 1 {
+		t.Fatalf("expected 1, got %d", m.Len())
 	}
 	v, _ := m.Get(Person{"Alice", 0, ""})
 	if v != "second" {
@@ -107,8 +107,8 @@ func TestByField_StringContent(t *testing.T) {
 	}
 
 	m.Put(p2, "second") // should overwrite
-	if m.Size() != 1 {
-		t.Fatalf("expected overwrite, size=%d", m.Size())
+	if m.Len() != 1 {
+		t.Fatalf("expected overwrite, size=%d", m.Len())
 	}
 }
 
@@ -154,8 +154,8 @@ func TestByField_NumericRoundTrip(t *testing.T) {
 	if !ok || v != "twenty" {
 		t.Fatalf("expected 'twenty', got (%q, %v)", v, ok)
 	}
-	if m.Size() != 2 {
-		t.Fatalf("expected 2 entries, got %d", m.Size())
+	if m.Len() != 2 {
+		t.Fatalf("expected 2 entries, got %d", m.Len())
 	}
 }
 
@@ -166,13 +166,13 @@ func TestHashSetWithStrategyOperations(t *testing.T) {
 	s.Add("c")
 
 	sel := s.Select(func(v string) bool { return v != "b" })
-	if sel.Size() != 2 {
-		t.Fatalf("select: expected 2, got %d", sel.Size())
+	if sel.Len() != 2 {
+		t.Fatalf("select: expected 2, got %d", sel.Len())
 	}
 
 	rej := s.Reject(func(v string) bool { return v == "a" })
-	if rej.Size() != 2 {
-		t.Fatalf("reject: expected 2, got %d", rej.Size())
+	if rej.Len() != 2 {
+		t.Fatalf("reject: expected 2, got %d", rej.Len())
 	}
 }
 
@@ -181,8 +181,8 @@ func TestHashSetWithStrategyResize(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		s.Add(string(rune('a'+i%26)) + string(rune('0'+i/26)))
 	}
-	if s.Size() < 100 { // many collisions but should still work
-		t.Fatalf("expected many elements, got %d", s.Size())
+	if s.Len() < 100 { // many collisions but should still work
+		t.Fatalf("expected many elements, got %d", s.Len())
 	}
 }
 
@@ -205,8 +205,8 @@ func TestTreeMapBasic(t *testing.T) {
 	m.Put("apple", 1)
 	m.Put("cherry", 3)
 
-	if m.Size() != 3 {
-		t.Fatalf("expected 3, got %d", m.Size())
+	if m.Len() != 3 {
+		t.Fatalf("expected 3, got %d", m.Len())
 	}
 	v, ok := m.Get("apple")
 	if !ok || v != 1 {
@@ -228,8 +228,8 @@ func TestTreeMapOverwrite(t *testing.T) {
 	if !existed || old != "one" {
 		t.Fatalf("expected overwrite, got %v/%v", old, existed)
 	}
-	if m.Size() != 1 {
-		t.Fatalf("expected 1, got %d", m.Size())
+	if m.Len() != 1 {
+		t.Fatalf("expected 1, got %d", m.Len())
 	}
 }
 
@@ -241,8 +241,8 @@ func TestTreeMapRemove(t *testing.T) {
 	for i := 0; i < 100; i += 2 {
 		m.Remove(i)
 	}
-	if m.Size() != 50 {
-		t.Fatalf("expected 50, got %d", m.Size())
+	if m.Len() != 50 {
+		t.Fatalf("expected 50, got %d", m.Len())
 	}
 	// Check remaining are odd
 	m.ForEach(func(k, v int) {
@@ -301,8 +301,8 @@ func TestTreeSetBasic(t *testing.T) {
 	s.Add(2)
 	s.Add(1) // duplicate
 
-	if s.Size() != 3 {
-		t.Fatalf("expected 3, got %d", s.Size())
+	if s.Len() != 3 {
+		t.Fatalf("expected 3, got %d", s.Len())
 	}
 
 	got := s.ToSlice()
@@ -335,8 +335,8 @@ func TestTreeSetRemove(t *testing.T) {
 	for i := 0; i < 50; i += 2 {
 		s.Remove(i)
 	}
-	if s.Size() != 25 {
-		t.Fatalf("expected 25, got %d", s.Size())
+	if s.Len() != 25 {
+		t.Fatalf("expected 25, got %d", s.Len())
 	}
 	if s.Contains(0) || s.Contains(2) {
 		t.Fatal("even values should be removed")
@@ -422,7 +422,7 @@ func TestTreeMapClear(t *testing.T) {
 	m.Put(1, 1)
 	m.Put(2, 2)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Fatal("expected empty after clear")
 	}
 }
@@ -432,8 +432,8 @@ func TestTreeSetStress(t *testing.T) {
 	for i := 999; i >= 0; i-- {
 		s.Add(i)
 	}
-	if s.Size() != 1000 {
-		t.Fatalf("expected 1000, got %d", s.Size())
+	if s.Len() != 1000 {
+		t.Fatalf("expected 1000, got %d", s.Len())
 	}
 	// Verify sorted
 	prev := -1
@@ -447,7 +447,7 @@ func TestTreeSetStress(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		s.Remove(i)
 	}
-	if !s.IsEmpty() {
-		t.Fatalf("expected empty, got %d", s.Size())
+	if s.Len() != 0 {
+		t.Fatalf("expected empty, got %d", s.Len())
 	}
 }

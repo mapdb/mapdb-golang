@@ -8,9 +8,9 @@ import (
 // Regression for the intransitive-comparator bug: the old comparator placed
 // NaN between negative and positive floats (raw bit compare), so a tree's
 // binary search lost keys when NaN coexisted with negatives.
-func TestFloat32TreeMap_NaNWithNegativesFindable(t *testing.T) {
+func TestFloat32_NaNWithNegativesFindable(t *testing.T) {
 	nan := float32(math.NaN())
-	m := NewFloat32Int32TreeMap()
+	m := NewFloat32Int32()
 	m.Put(nan, 1)
 	m.Put(2.0, 2)
 	m.Put(-0.5, 3)
@@ -25,18 +25,18 @@ func TestFloat32TreeMap_NaNWithNegativesFindable(t *testing.T) {
 			t.Fatalf("Get(%v) = (%v, %v), want (%v, true) — key lost by intransitive comparator", tc.k, got, ok, tc.v)
 		}
 	}
-	if m.Size() != 4 {
-		t.Fatalf("Size() = %d, want 4", m.Size())
+	if m.Len() != 4 {
+		t.Fatalf("Size() = %d, want 4", m.Len())
 	}
 }
 
 // +0.0 and -0.0 must be distinct keys (total order places -0.0 < +0.0).
-func TestFloat32TreeMap_SignedZeroDistinct(t *testing.T) {
-	m := NewFloat32Int32TreeMap()
+func TestFloat32_SignedZeroDistinct(t *testing.T) {
+	m := NewFloat32Int32()
 	m.Put(float32(math.Copysign(0, 1)), 10)  // +0.0
 	m.Put(float32(math.Copysign(0, -1)), 20) // -0.0
-	if m.Size() != 2 {
-		t.Fatalf("Size() = %d, want 2 (+0.0 and -0.0 distinct)", m.Size())
+	if m.Len() != 2 {
+		t.Fatalf("Size() = %d, want 2 (+0.0 and -0.0 distinct)", m.Len())
 	}
 	if v, _ := m.Get(float32(math.Copysign(0, 1))); v != 10 {
 		t.Fatalf("Get(+0.0) = %d, want 10", v)

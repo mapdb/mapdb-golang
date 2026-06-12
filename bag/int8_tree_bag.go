@@ -3,36 +3,37 @@
 package bag
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// Int8TreeBagEntry holds a value and its occurrence count in a Int8TreeBag.
-type Int8TreeBagEntry struct {
+// TreeInt8Entry holds a value and its occurrence count in a TreeInt8.
+type TreeInt8Entry struct {
 	value int8
 	count int
 }
 
-// Int8TreeBag is a sorted bag (multiset) that counts occurrences of int8 values.
+// TreeInt8 is a sorted bag (multiset) that counts occurrences of int8 values.
 // Backed by a sorted slice of entries with binary search for O(log n) lookup.
-type Int8TreeBag struct {
-	entries []Int8TreeBagEntry
+type TreeInt8 struct {
+	entries []TreeInt8Entry
 	size    int // total count including duplicates
 }
 
-// NewInt8TreeBag creates a new empty Int8TreeBag.
-func NewInt8TreeBag() *Int8TreeBag {
-	return &Int8TreeBag{
+// NewTreeInt8 creates a new empty TreeInt8.
+func NewTreeInt8() *TreeInt8 {
+	return &TreeInt8{
 		entries: nil,
 		size:    0,
 	}
 }
 
-// Int8TreeBagOf creates a new Int8TreeBag from the given values.
-func Int8TreeBagOf(values ...int8) *Int8TreeBag {
-	b := NewInt8TreeBag()
+// TreeInt8Of creates a new TreeInt8 from the given values.
+func TreeInt8Of(values ...int8) *TreeInt8 {
+	b := NewTreeInt8()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -41,7 +42,7 @@ func Int8TreeBagOf(values ...int8) *Int8TreeBag {
 
 // search returns the index where value is or would be inserted.
 // Returns (index, found).
-func (b *Int8TreeBag) search(value int8) (int, bool) {
+func (b *TreeInt8) search(value int8) (int, bool) {
 	lo, hi := 0, len(b.entries)
 	for lo < hi {
 		mid := lo + (hi-lo)/2
@@ -57,7 +58,7 @@ func (b *Int8TreeBag) search(value int8) (int, bool) {
 }
 
 // Add adds one occurrence of the value.
-func (b *Int8TreeBag) Add(value int8) {
+func (b *TreeInt8) Add(value int8) {
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
@@ -65,17 +66,17 @@ func (b *Int8TreeBag) Add(value int8) {
 		return
 	}
 	// Insert at idx to keep sorted order
-	b.entries = append(b.entries, Int8TreeBagEntry{})
+	b.entries = append(b.entries, TreeInt8Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = Int8TreeBagEntry{value: value, count: 1}
+	b.entries[idx] = TreeInt8Entry{value: value, count: 1}
 	b.size++
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *Int8TreeBag) AddOccurrences(value int8, occurrences int) int {
+func (b *TreeInt8) AddOccurrences(value int8, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("Int8TreeBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("TreeInt8: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		idx, found := b.search(value)
@@ -90,15 +91,15 @@ func (b *Int8TreeBag) AddOccurrences(value int8, occurrences int) int {
 		b.size += occurrences
 		return b.entries[idx].count
 	}
-	b.entries = append(b.entries, Int8TreeBagEntry{})
+	b.entries = append(b.entries, TreeInt8Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = Int8TreeBagEntry{value: value, count: occurrences}
+	b.entries[idx] = TreeInt8Entry{value: value, count: occurrences}
 	b.size += occurrences
 	return occurrences
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *Int8TreeBag) Remove(value int8) bool {
+func (b *TreeInt8) Remove(value int8) bool {
 	idx, found := b.search(value)
 	if !found {
 		return false
@@ -113,7 +114,7 @@ func (b *Int8TreeBag) Remove(value int8) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *Int8TreeBag) RemoveOccurrences(value int8, occurrences int) bool {
+func (b *TreeInt8) RemoveOccurrences(value int8, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -132,7 +133,7 @@ func (b *Int8TreeBag) RemoveOccurrences(value int8, occurrences int) bool {
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *Int8TreeBag) RemoveAll(value int8) int {
+func (b *TreeInt8) RemoveAll(value int8) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -144,7 +145,7 @@ func (b *Int8TreeBag) RemoveAll(value int8) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *Int8TreeBag) OccurrencesOf(value int8) int {
+func (b *TreeInt8) OccurrencesOf(value int8) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -153,38 +154,32 @@ func (b *Int8TreeBag) OccurrencesOf(value int8) int {
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *Int8TreeBag) Contains(value int8) bool {
+func (b *TreeInt8) Contains(value int8) bool {
 	_, found := b.search(value)
 	return found
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *Int8TreeBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *TreeInt8) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Int8TreeBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *Int8TreeBag) SizeDistinct() int {
+func (b *TreeInt8) SizeDistinct() int {
 	return len(b.entries)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *Int8TreeBag) IsEmpty() bool {
-	return b.size == 0
-}
-
 // Clear removes all elements from the bag.
-func (b *Int8TreeBag) Clear() {
+func (b *TreeInt8) Clear() {
 	b.entries = nil
 	b.size = 0
 }
 
 // Min returns the smallest element, or zero value and false if empty.
-func (b *Int8TreeBag) Min() (int8, bool) {
+func (b *TreeInt8) Min() (int8, bool) {
 	if len(b.entries) == 0 {
 		return 0, false
 	}
@@ -192,7 +187,7 @@ func (b *Int8TreeBag) Min() (int8, bool) {
 }
 
 // Max returns the largest element, or zero value and false if empty.
-func (b *Int8TreeBag) Max() (int8, bool) {
+func (b *TreeInt8) Max() (int8, bool) {
 	if len(b.entries) == 0 {
 		return 0, false
 	}
@@ -200,7 +195,7 @@ func (b *Int8TreeBag) Max() (int8, bool) {
 }
 
 // All returns an iter.Seq that yields each element once per occurrence, in sorted order.
-func (b *Int8TreeBag) All() iter.Seq[int8] {
+func (b *TreeInt8) All() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for _, entry := range b.entries {
 			for i := 0; i < entry.count; i++ {
@@ -213,7 +208,7 @@ func (b *Int8TreeBag) All() iter.Seq[int8] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once, in sorted order.
-func (b *Int8TreeBag) AllDistinct() iter.Seq[int8] {
+func (b *TreeInt8) AllDistinct() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value) {
@@ -224,7 +219,7 @@ func (b *Int8TreeBag) AllDistinct() iter.Seq[int8] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs in sorted order.
-func (b *Int8TreeBag) AllWithOccurrences() iter.Seq2[int8, int] {
+func (b *TreeInt8) AllWithOccurrences() iter.Seq2[int8, int] {
 	return func(yield func(int8, int) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value, entry.count) {
@@ -235,7 +230,7 @@ func (b *Int8TreeBag) AllWithOccurrences() iter.Seq2[int8, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence), in sorted order.
-func (b *Int8TreeBag) ForEach(f func(int8)) {
+func (b *TreeInt8) ForEach(f func(int8)) {
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
 			f(entry.value)
@@ -244,15 +239,15 @@ func (b *Int8TreeBag) ForEach(f func(int8)) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count, in sorted order.
-func (b *Int8TreeBag) ForEachWithOccurrences(f func(int8, int)) {
+func (b *TreeInt8) ForEachWithOccurrences(f func(int8, int)) {
 	for _, entry := range b.entries {
 		f(entry.value, entry.count)
 	}
 }
 
 // Select returns a new tree bag containing only elements that satisfy the predicate.
-func (b *Int8TreeBag) Select(predicate func(int8) bool) *Int8TreeBag {
-	result := NewInt8TreeBag()
+func (b *TreeInt8) Select(predicate func(int8) bool) *TreeInt8 {
+	result := NewTreeInt8()
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -262,8 +257,8 @@ func (b *Int8TreeBag) Select(predicate func(int8) bool) *Int8TreeBag {
 }
 
 // Reject returns a new tree bag containing only elements that do not satisfy the predicate.
-func (b *Int8TreeBag) Reject(predicate func(int8) bool) *Int8TreeBag {
-	result := NewInt8TreeBag()
+func (b *TreeInt8) Reject(predicate func(int8) bool) *TreeInt8 {
+	result := NewTreeInt8()
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -273,7 +268,7 @@ func (b *Int8TreeBag) Reject(predicate func(int8) bool) *Int8TreeBag {
 }
 
 // Detect returns the first distinct element (in sorted order) that satisfies the predicate, or zero value and false.
-func (b *Int8TreeBag) Detect(predicate func(int8) bool) (int8, bool) {
+func (b *TreeInt8) Detect(predicate func(int8) bool) (int8, bool) {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return entry.value, true
@@ -283,7 +278,7 @@ func (b *Int8TreeBag) Detect(predicate func(int8) bool) (int8, bool) {
 }
 
 // AnySatisfy returns true if any distinct element satisfies the predicate.
-func (b *Int8TreeBag) AnySatisfy(predicate func(int8) bool) bool {
+func (b *TreeInt8) AnySatisfy(predicate func(int8) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return true
@@ -293,7 +288,7 @@ func (b *Int8TreeBag) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *Int8TreeBag) AllSatisfy(predicate func(int8) bool) bool {
+func (b *TreeInt8) AllSatisfy(predicate func(int8) bool) bool {
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			return false
@@ -303,7 +298,7 @@ func (b *Int8TreeBag) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no distinct element satisfies the predicate.
-func (b *Int8TreeBag) NoneSatisfy(predicate func(int8) bool) bool {
+func (b *TreeInt8) NoneSatisfy(predicate func(int8) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return false
@@ -313,15 +308,15 @@ func (b *Int8TreeBag) NoneSatisfy(predicate func(int8) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *Int8TreeBag) TopOccurrences(n int) []struct {
+func (b *TreeInt8) TopOccurrences(n int) []struct {
 	Value int8
 	Count int
 } {
 	// Copy entries and sort by count descending
-	sorted := make([]Int8TreeBagEntry, len(b.entries))
+	sorted := make([]TreeInt8Entry, len(b.entries))
 	copy(sorted, b.entries)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].count > sorted[j].count
+	slices.SortFunc(sorted, func(a, b TreeInt8Entry) int {
+		return cmp.Compare(b.count, a.count)
 	})
 	if n > len(sorted) {
 		n = len(sorted)
@@ -338,7 +333,7 @@ func (b *Int8TreeBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count), in sorted order.
-func (b *Int8TreeBag) ToSlice() []int8 {
+func (b *TreeInt8) ToSlice() []int8 {
 	result := make([]int8, 0, b.size)
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
@@ -349,7 +344,7 @@ func (b *Int8TreeBag) ToSlice() []int8 {
 }
 
 // ToSortedSlice returns all distinct elements as a sorted slice.
-func (b *Int8TreeBag) ToSortedSlice() []int8 {
+func (b *TreeInt8) ToSortedSlice() []int8 {
 	result := make([]int8, 0, len(b.entries))
 	for _, entry := range b.entries {
 		result = append(result, entry.value)
@@ -358,19 +353,19 @@ func (b *Int8TreeBag) ToSortedSlice() []int8 {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *Int8TreeBag) With(value int8) *Int8TreeBag {
+func (b *TreeInt8) AddReturning(value int8) *TreeInt8 {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *Int8TreeBag) Without(value int8) *Int8TreeBag {
+func (b *TreeInt8) RemoveReturning(value int8) *TreeInt8 {
 	b.RemoveAll(value)
 	return b
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *Int8TreeBag) WithAll(values ...int8) *Int8TreeBag {
+func (b *TreeInt8) AddAllReturning(values ...int8) *TreeInt8 {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -378,7 +373,7 @@ func (b *Int8TreeBag) WithAll(values ...int8) *Int8TreeBag {
 }
 
 // WithoutAll removes all occurrences of the given values (fluent API).
-func (b *Int8TreeBag) WithoutAll(values ...int8) *Int8TreeBag {
+func (b *TreeInt8) RemoveAllReturning(values ...int8) *TreeInt8 {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -386,7 +381,7 @@ func (b *Int8TreeBag) WithoutAll(values ...int8) *Int8TreeBag {
 }
 
 // String returns a string representation of the bag in sorted order.
-func (b *Int8TreeBag) String() string {
+func (b *TreeInt8) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -405,7 +400,7 @@ func (b *Int8TreeBag) String() string {
 }
 
 // Equals returns true if the other tree bag has the same elements with the same counts.
-func (b *Int8TreeBag) Equals(other *Int8TreeBag) bool {
+func (b *TreeInt8) Equals(other *TreeInt8) bool {
 	if b.size != other.size || len(b.entries) != len(other.entries) {
 		return false
 	}

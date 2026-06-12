@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-func TestInt32Int64HashMap_PutGet(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_PutGet(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 100)
 	m.Put(2, 200)
 	m.Put(3, 300)
@@ -16,13 +16,13 @@ func TestInt32Int64HashMap_PutGet(t *testing.T) {
 	if v, ok := m.Get(99); ok || v != 0 {
 		t.Errorf("Get(99) = (%d, %v), want (0, false)", v, ok)
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
 }
 
-func TestInt32Int64HashMap_PutOverwrite(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_PutOverwrite(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 100)
 	old, existed := m.Put(1, 200)
 	if !existed || old != 100 {
@@ -33,8 +33,8 @@ func TestInt32Int64HashMap_PutOverwrite(t *testing.T) {
 	}
 }
 
-func TestInt32Int64HashMap_Remove(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_Remove(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 100)
 	m.Put(2, 200)
 
@@ -42,16 +42,16 @@ func TestInt32Int64HashMap_Remove(t *testing.T) {
 	if !ok || old != 100 {
 		t.Errorf("Remove(1) = (%d, %v), want (100, true)", old, ok)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size after remove = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size after remove = %d, want 1", m.Len())
 	}
 	if m.ContainsKey(1) {
 		t.Error("ContainsKey(1) should be false after remove")
 	}
 }
 
-func TestInt32Int64HashMap_All(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_All(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 10)
 	m.Put(2, 20)
 
@@ -66,25 +66,25 @@ func TestInt32Int64HashMap_All(t *testing.T) {
 	}
 }
 
-func TestInt32Int64HashMap_SelectReject(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_SelectReject(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 10)
 	m.Put(2, 20)
 	m.Put(3, 30)
 
 	selected := m.Select(func(k int32, v int64) bool { return v > 15 })
-	if selected.Size() != 2 {
-		t.Errorf("Select size = %d, want 2", selected.Size())
+	if selected.Len() != 2 {
+		t.Errorf("Select size = %d, want 2", selected.Len())
 	}
 
 	rejected := m.Reject(func(k int32, v int64) bool { return v > 15 })
-	if rejected.Size() != 1 {
-		t.Errorf("Reject size = %d, want 1", rejected.Size())
+	if rejected.Len() != 1 {
+		t.Errorf("Reject size = %d, want 1", rejected.Len())
 	}
 }
 
-func TestInt32Int64HashMap_Entry(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_Entry(t *testing.T) {
+	m := NewInt32Int64()
 	v := m.Entry(1).OrInsert(100)
 	if v != 100 {
 		t.Errorf("OrInsert = %d, want 100", v)
@@ -95,13 +95,13 @@ func TestInt32Int64HashMap_Entry(t *testing.T) {
 	}
 }
 
-func TestInt32Int64HashMap_Resize(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_Resize(t *testing.T) {
+	m := NewInt32Int64()
 	for i := int32(0); i < 1000; i++ {
 		m.Put(i, int64(i*10))
 	}
-	if m.Size() != 1000 {
-		t.Errorf("Size = %d, want 1000", m.Size())
+	if m.Len() != 1000 {
+		t.Errorf("Size = %d, want 1000", m.Len())
 	}
 	for i := int32(0); i < 1000; i++ {
 		v, ok := m.Get(i)
@@ -111,8 +111,8 @@ func TestInt32Int64HashMap_Resize(t *testing.T) {
 	}
 }
 
-func TestInt32Int64HashMap_GetOrDefault(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_GetOrDefault(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 100)
 	if v := m.GetOrDefault(1, -1); v != 100 {
 		t.Errorf("GetOrDefault(1, -1) = %d, want 100", v)
@@ -122,18 +122,18 @@ func TestInt32Int64HashMap_GetOrDefault(t *testing.T) {
 	}
 }
 
-func TestInt32Int64HashMap_Clear(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_Clear(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 100)
 	m.Put(2, 200)
 	m.Clear()
-	if m.Size() != 0 || !m.IsEmpty() {
-		t.Errorf("After Clear: size=%d, empty=%v", m.Size(), m.IsEmpty())
+	if m.Len() != 0 {
+		t.Errorf("After Clear: size=%d, empty=%v", m.Len(), m.Len() == 0)
 	}
 }
 
-func TestInt32Int64HashMap_Predicates(t *testing.T) {
-	m := NewInt32Int64HashMap()
+func TestInt32Int64_Predicates(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(1, 10)
 	m.Put(2, 20)
 

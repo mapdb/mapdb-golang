@@ -3,36 +3,37 @@
 package bag
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// Int16TreeBagEntry holds a value and its occurrence count in a Int16TreeBag.
-type Int16TreeBagEntry struct {
+// TreeInt16Entry holds a value and its occurrence count in a TreeInt16.
+type TreeInt16Entry struct {
 	value int16
 	count int
 }
 
-// Int16TreeBag is a sorted bag (multiset) that counts occurrences of int16 values.
+// TreeInt16 is a sorted bag (multiset) that counts occurrences of int16 values.
 // Backed by a sorted slice of entries with binary search for O(log n) lookup.
-type Int16TreeBag struct {
-	entries []Int16TreeBagEntry
+type TreeInt16 struct {
+	entries []TreeInt16Entry
 	size    int // total count including duplicates
 }
 
-// NewInt16TreeBag creates a new empty Int16TreeBag.
-func NewInt16TreeBag() *Int16TreeBag {
-	return &Int16TreeBag{
+// NewTreeInt16 creates a new empty TreeInt16.
+func NewTreeInt16() *TreeInt16 {
+	return &TreeInt16{
 		entries: nil,
 		size:    0,
 	}
 }
 
-// Int16TreeBagOf creates a new Int16TreeBag from the given values.
-func Int16TreeBagOf(values ...int16) *Int16TreeBag {
-	b := NewInt16TreeBag()
+// TreeInt16Of creates a new TreeInt16 from the given values.
+func TreeInt16Of(values ...int16) *TreeInt16 {
+	b := NewTreeInt16()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -41,7 +42,7 @@ func Int16TreeBagOf(values ...int16) *Int16TreeBag {
 
 // search returns the index where value is or would be inserted.
 // Returns (index, found).
-func (b *Int16TreeBag) search(value int16) (int, bool) {
+func (b *TreeInt16) search(value int16) (int, bool) {
 	lo, hi := 0, len(b.entries)
 	for lo < hi {
 		mid := lo + (hi-lo)/2
@@ -57,7 +58,7 @@ func (b *Int16TreeBag) search(value int16) (int, bool) {
 }
 
 // Add adds one occurrence of the value.
-func (b *Int16TreeBag) Add(value int16) {
+func (b *TreeInt16) Add(value int16) {
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
@@ -65,17 +66,17 @@ func (b *Int16TreeBag) Add(value int16) {
 		return
 	}
 	// Insert at idx to keep sorted order
-	b.entries = append(b.entries, Int16TreeBagEntry{})
+	b.entries = append(b.entries, TreeInt16Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = Int16TreeBagEntry{value: value, count: 1}
+	b.entries[idx] = TreeInt16Entry{value: value, count: 1}
 	b.size++
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *Int16TreeBag) AddOccurrences(value int16, occurrences int) int {
+func (b *TreeInt16) AddOccurrences(value int16, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("Int16TreeBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("TreeInt16: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		idx, found := b.search(value)
@@ -90,15 +91,15 @@ func (b *Int16TreeBag) AddOccurrences(value int16, occurrences int) int {
 		b.size += occurrences
 		return b.entries[idx].count
 	}
-	b.entries = append(b.entries, Int16TreeBagEntry{})
+	b.entries = append(b.entries, TreeInt16Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = Int16TreeBagEntry{value: value, count: occurrences}
+	b.entries[idx] = TreeInt16Entry{value: value, count: occurrences}
 	b.size += occurrences
 	return occurrences
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *Int16TreeBag) Remove(value int16) bool {
+func (b *TreeInt16) Remove(value int16) bool {
 	idx, found := b.search(value)
 	if !found {
 		return false
@@ -113,7 +114,7 @@ func (b *Int16TreeBag) Remove(value int16) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *Int16TreeBag) RemoveOccurrences(value int16, occurrences int) bool {
+func (b *TreeInt16) RemoveOccurrences(value int16, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -132,7 +133,7 @@ func (b *Int16TreeBag) RemoveOccurrences(value int16, occurrences int) bool {
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *Int16TreeBag) RemoveAll(value int16) int {
+func (b *TreeInt16) RemoveAll(value int16) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -144,7 +145,7 @@ func (b *Int16TreeBag) RemoveAll(value int16) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *Int16TreeBag) OccurrencesOf(value int16) int {
+func (b *TreeInt16) OccurrencesOf(value int16) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -153,38 +154,32 @@ func (b *Int16TreeBag) OccurrencesOf(value int16) int {
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *Int16TreeBag) Contains(value int16) bool {
+func (b *TreeInt16) Contains(value int16) bool {
 	_, found := b.search(value)
 	return found
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *Int16TreeBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *TreeInt16) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Int16TreeBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *Int16TreeBag) SizeDistinct() int {
+func (b *TreeInt16) SizeDistinct() int {
 	return len(b.entries)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *Int16TreeBag) IsEmpty() bool {
-	return b.size == 0
-}
-
 // Clear removes all elements from the bag.
-func (b *Int16TreeBag) Clear() {
+func (b *TreeInt16) Clear() {
 	b.entries = nil
 	b.size = 0
 }
 
 // Min returns the smallest element, or zero value and false if empty.
-func (b *Int16TreeBag) Min() (int16, bool) {
+func (b *TreeInt16) Min() (int16, bool) {
 	if len(b.entries) == 0 {
 		return 0, false
 	}
@@ -192,7 +187,7 @@ func (b *Int16TreeBag) Min() (int16, bool) {
 }
 
 // Max returns the largest element, or zero value and false if empty.
-func (b *Int16TreeBag) Max() (int16, bool) {
+func (b *TreeInt16) Max() (int16, bool) {
 	if len(b.entries) == 0 {
 		return 0, false
 	}
@@ -200,7 +195,7 @@ func (b *Int16TreeBag) Max() (int16, bool) {
 }
 
 // All returns an iter.Seq that yields each element once per occurrence, in sorted order.
-func (b *Int16TreeBag) All() iter.Seq[int16] {
+func (b *TreeInt16) All() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for _, entry := range b.entries {
 			for i := 0; i < entry.count; i++ {
@@ -213,7 +208,7 @@ func (b *Int16TreeBag) All() iter.Seq[int16] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once, in sorted order.
-func (b *Int16TreeBag) AllDistinct() iter.Seq[int16] {
+func (b *TreeInt16) AllDistinct() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value) {
@@ -224,7 +219,7 @@ func (b *Int16TreeBag) AllDistinct() iter.Seq[int16] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs in sorted order.
-func (b *Int16TreeBag) AllWithOccurrences() iter.Seq2[int16, int] {
+func (b *TreeInt16) AllWithOccurrences() iter.Seq2[int16, int] {
 	return func(yield func(int16, int) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value, entry.count) {
@@ -235,7 +230,7 @@ func (b *Int16TreeBag) AllWithOccurrences() iter.Seq2[int16, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence), in sorted order.
-func (b *Int16TreeBag) ForEach(f func(int16)) {
+func (b *TreeInt16) ForEach(f func(int16)) {
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
 			f(entry.value)
@@ -244,15 +239,15 @@ func (b *Int16TreeBag) ForEach(f func(int16)) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count, in sorted order.
-func (b *Int16TreeBag) ForEachWithOccurrences(f func(int16, int)) {
+func (b *TreeInt16) ForEachWithOccurrences(f func(int16, int)) {
 	for _, entry := range b.entries {
 		f(entry.value, entry.count)
 	}
 }
 
 // Select returns a new tree bag containing only elements that satisfy the predicate.
-func (b *Int16TreeBag) Select(predicate func(int16) bool) *Int16TreeBag {
-	result := NewInt16TreeBag()
+func (b *TreeInt16) Select(predicate func(int16) bool) *TreeInt16 {
+	result := NewTreeInt16()
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -262,8 +257,8 @@ func (b *Int16TreeBag) Select(predicate func(int16) bool) *Int16TreeBag {
 }
 
 // Reject returns a new tree bag containing only elements that do not satisfy the predicate.
-func (b *Int16TreeBag) Reject(predicate func(int16) bool) *Int16TreeBag {
-	result := NewInt16TreeBag()
+func (b *TreeInt16) Reject(predicate func(int16) bool) *TreeInt16 {
+	result := NewTreeInt16()
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -273,7 +268,7 @@ func (b *Int16TreeBag) Reject(predicate func(int16) bool) *Int16TreeBag {
 }
 
 // Detect returns the first distinct element (in sorted order) that satisfies the predicate, or zero value and false.
-func (b *Int16TreeBag) Detect(predicate func(int16) bool) (int16, bool) {
+func (b *TreeInt16) Detect(predicate func(int16) bool) (int16, bool) {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return entry.value, true
@@ -283,7 +278,7 @@ func (b *Int16TreeBag) Detect(predicate func(int16) bool) (int16, bool) {
 }
 
 // AnySatisfy returns true if any distinct element satisfies the predicate.
-func (b *Int16TreeBag) AnySatisfy(predicate func(int16) bool) bool {
+func (b *TreeInt16) AnySatisfy(predicate func(int16) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return true
@@ -293,7 +288,7 @@ func (b *Int16TreeBag) AnySatisfy(predicate func(int16) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *Int16TreeBag) AllSatisfy(predicate func(int16) bool) bool {
+func (b *TreeInt16) AllSatisfy(predicate func(int16) bool) bool {
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			return false
@@ -303,7 +298,7 @@ func (b *Int16TreeBag) AllSatisfy(predicate func(int16) bool) bool {
 }
 
 // NoneSatisfy returns true if no distinct element satisfies the predicate.
-func (b *Int16TreeBag) NoneSatisfy(predicate func(int16) bool) bool {
+func (b *TreeInt16) NoneSatisfy(predicate func(int16) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return false
@@ -313,15 +308,15 @@ func (b *Int16TreeBag) NoneSatisfy(predicate func(int16) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *Int16TreeBag) TopOccurrences(n int) []struct {
+func (b *TreeInt16) TopOccurrences(n int) []struct {
 	Value int16
 	Count int
 } {
 	// Copy entries and sort by count descending
-	sorted := make([]Int16TreeBagEntry, len(b.entries))
+	sorted := make([]TreeInt16Entry, len(b.entries))
 	copy(sorted, b.entries)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].count > sorted[j].count
+	slices.SortFunc(sorted, func(a, b TreeInt16Entry) int {
+		return cmp.Compare(b.count, a.count)
 	})
 	if n > len(sorted) {
 		n = len(sorted)
@@ -338,7 +333,7 @@ func (b *Int16TreeBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count), in sorted order.
-func (b *Int16TreeBag) ToSlice() []int16 {
+func (b *TreeInt16) ToSlice() []int16 {
 	result := make([]int16, 0, b.size)
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
@@ -349,7 +344,7 @@ func (b *Int16TreeBag) ToSlice() []int16 {
 }
 
 // ToSortedSlice returns all distinct elements as a sorted slice.
-func (b *Int16TreeBag) ToSortedSlice() []int16 {
+func (b *TreeInt16) ToSortedSlice() []int16 {
 	result := make([]int16, 0, len(b.entries))
 	for _, entry := range b.entries {
 		result = append(result, entry.value)
@@ -358,19 +353,19 @@ func (b *Int16TreeBag) ToSortedSlice() []int16 {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *Int16TreeBag) With(value int16) *Int16TreeBag {
+func (b *TreeInt16) AddReturning(value int16) *TreeInt16 {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *Int16TreeBag) Without(value int16) *Int16TreeBag {
+func (b *TreeInt16) RemoveReturning(value int16) *TreeInt16 {
 	b.RemoveAll(value)
 	return b
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *Int16TreeBag) WithAll(values ...int16) *Int16TreeBag {
+func (b *TreeInt16) AddAllReturning(values ...int16) *TreeInt16 {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -378,7 +373,7 @@ func (b *Int16TreeBag) WithAll(values ...int16) *Int16TreeBag {
 }
 
 // WithoutAll removes all occurrences of the given values (fluent API).
-func (b *Int16TreeBag) WithoutAll(values ...int16) *Int16TreeBag {
+func (b *TreeInt16) RemoveAllReturning(values ...int16) *TreeInt16 {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -386,7 +381,7 @@ func (b *Int16TreeBag) WithoutAll(values ...int16) *Int16TreeBag {
 }
 
 // String returns a string representation of the bag in sorted order.
-func (b *Int16TreeBag) String() string {
+func (b *TreeInt16) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -405,7 +400,7 @@ func (b *Int16TreeBag) String() string {
 }
 
 // Equals returns true if the other tree bag has the same elements with the same counts.
-func (b *Int16TreeBag) Equals(other *Int16TreeBag) bool {
+func (b *TreeInt16) Equals(other *TreeInt16) bool {
 	if b.size != other.size || len(b.entries) != len(other.entries) {
 		return false
 	}

@@ -34,13 +34,10 @@ func (s *TreeSet[T]) Remove(value T) bool {
 }
 
 func (s *TreeSet[T]) Contains(value T) bool { return s.tree.ContainsKey(value) }
-func (s *TreeSet[T]) Size() int             { return s.tree.Size() }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *TreeSet[T]) Len() int      { return s.Size() }
-func (s *TreeSet[T]) IsEmpty() bool { return s.tree.IsEmpty() }
-func (s *TreeSet[T]) Clear()        { s.tree.Clear() }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *TreeSet[T]) Len() int { return s.tree.Len() }
+func (s *TreeSet[T]) Clear()   { s.tree.Clear() }
 
 // Min returns the smallest element.
 func (s *TreeSet[T]) Min() (T, bool) {
@@ -62,7 +59,7 @@ func (s *TreeSet[T]) ForEach(f func(T)) {
 }
 
 func (s *TreeSet[T]) ToSlice() []T {
-	result := make([]T, 0, s.tree.Size())
+	result := make([]T, 0, s.tree.Len())
 	s.tree.ForEach(func(k T, _ struct{}) { result = append(result, k) })
 	return result
 }

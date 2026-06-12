@@ -86,32 +86,32 @@ import (
 )
 
 const (
-	{{.SnakeName}}TreeSetNodeRed   = false
-	{{.SnakeName}}TreeSetNodeBlack = true
+	{{.SnakeName}}NodeRed   = false
+	{{.SnakeName}}NodeBlack = true
 )
 
-type {{.SnakeName}}TreeSetNode struct {
+type {{.SnakeName}}Node struct {
 	key    {{.GoType}}
-	left   *{{.SnakeName}}TreeSetNode
-	right  *{{.SnakeName}}TreeSetNode
-	parent *{{.SnakeName}}TreeSetNode
+	left   *{{.SnakeName}}Node
+	right  *{{.SnakeName}}Node
+	parent *{{.SnakeName}}Node
 	color  bool
 }
 
-// {{.Name}}TreeSet is a sorted set of {{.GoType}} values, backed by a red-black tree.
-type {{.Name}}TreeSet struct {
-	root *{{.SnakeName}}TreeSetNode
+// {{.Name}} is a sorted set of {{.GoType}} values, backed by a red-black tree.
+type {{.Name}} struct {
+	root *{{.SnakeName}}Node
 	size int
 }
 
-// New{{.Name}}TreeSet creates a new empty sorted set.
-func New{{.Name}}TreeSet() *{{.Name}}TreeSet {
-	return &{{.Name}}TreeSet{}
+// New{{.Name}} creates a new empty sorted set.
+func New{{.Name}}() *{{.Name}} {
+	return &{{.Name}}{}
 }
 
-// {{.Name}}TreeSetOf creates a new sorted set from the given values.
-func {{.Name}}TreeSetOf(values ...{{.GoType}}) *{{.Name}}TreeSet {
-	s := New{{.Name}}TreeSet()
+// {{.Name}}Of creates a new sorted set from the given values.
+func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
+	s := New{{.Name}}()
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -119,9 +119,9 @@ func {{.Name}}TreeSetOf(values ...{{.GoType}}) *{{.Name}}TreeSet {
 }
 
 // Add inserts a value. Returns true if added (not already present).
-func (s *{{.Name}}TreeSet) Add(value {{.GoType}}) bool {
+func (s *{{.Name}}) Add(value {{.GoType}}) bool {
 	if s.root == nil {
-		s.root = &{{.SnakeName}}TreeSetNode{key: value, color: {{.SnakeName}}TreeSetNodeBlack}
+		s.root = &{{.SnakeName}}Node{key: value, color: {{.SnakeName}}NodeBlack}
 		s.size++
 		return true
 	}
@@ -129,7 +129,7 @@ func (s *{{.Name}}TreeSet) Add(value {{.GoType}}) bool {
 	for {
 		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) < 0{{else}}value < node.key{{end}} {
 			if node.left == nil {
-				node.left = &{{.SnakeName}}TreeSetNode{key: value, parent: node, color: {{.SnakeName}}TreeSetNodeRed}
+				node.left = &{{.SnakeName}}Node{key: value, parent: node, color: {{.SnakeName}}NodeRed}
 				s.fixAfterInsert(node.left)
 				s.size++
 				return true
@@ -137,7 +137,7 @@ func (s *{{.Name}}TreeSet) Add(value {{.GoType}}) bool {
 			node = node.left
 		} else if {{if .IsFloat}}{{.CmpFn}}(value, node.key) > 0{{else}}value > node.key{{end}} {
 			if node.right == nil {
-				node.right = &{{.SnakeName}}TreeSetNode{key: value, parent: node, color: {{.SnakeName}}TreeSetNodeRed}
+				node.right = &{{.SnakeName}}Node{key: value, parent: node, color: {{.SnakeName}}NodeRed}
 				s.fixAfterInsert(node.right)
 				s.size++
 				return true
@@ -150,7 +150,7 @@ func (s *{{.Name}}TreeSet) Add(value {{.GoType}}) bool {
 }
 
 // Remove removes a value. Returns true if found and removed.
-func (s *{{.Name}}TreeSet) Remove(value {{.GoType}}) bool {
+func (s *{{.Name}}) Remove(value {{.GoType}}) bool {
 	node := s.findNode(value)
 	if node == nil {
 		return false
@@ -161,25 +161,18 @@ func (s *{{.Name}}TreeSet) Remove(value {{.GoType}}) bool {
 }
 
 // Contains returns true if the set contains the value.
-func (s *{{.Name}}TreeSet) Contains(value {{.GoType}}) bool {
+func (s *{{.Name}}) Contains(value {{.GoType}}) bool {
 	return s.findNode(value) != nil
 }
 
-// Size returns the number of elements.
-func (s *{{.Name}}TreeSet) Size() int { return s.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *{{.Name}}TreeSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set is empty.
-func (s *{{.Name}}TreeSet) IsEmpty() bool { return s.size == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *{{.Name}}) Len() int { return s.size }
 
 // Clear removes all elements.
-func (s *{{.Name}}TreeSet) Clear() { s.root = nil; s.size = 0 }
+func (s *{{.Name}}) Clear() { s.root = nil; s.size = 0 }
 
 // Min returns the smallest element, or zero and false if empty.
-func (s *{{.Name}}TreeSet) Min() ({{.GoType}}, bool) {
+func (s *{{.Name}}) Min() ({{.GoType}}, bool) {
 	if s.root == nil {
 		return {{.Zero}}, false
 	}
@@ -187,7 +180,7 @@ func (s *{{.Name}}TreeSet) Min() ({{.GoType}}, bool) {
 }
 
 // Max returns the largest element, or zero and false if empty.
-func (s *{{.Name}}TreeSet) Max() ({{.GoType}}, bool) {
+func (s *{{.Name}}) Max() ({{.GoType}}, bool) {
 	if s.root == nil {
 		return {{.Zero}}, false
 	}
@@ -195,8 +188,8 @@ func (s *{{.Name}}TreeSet) Max() ({{.GoType}}, bool) {
 }
 
 // Floor returns the largest element <= value, or zero and false.
-func (s *{{.Name}}TreeSet) Floor(value {{.GoType}}) ({{.GoType}}, bool) {
-	var result *{{.SnakeName}}TreeSetNode
+func (s *{{.Name}}) Floor(value {{.GoType}}) ({{.GoType}}, bool) {
+	var result *{{.SnakeName}}Node
 	node := s.root
 	for node != nil {
 		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) == 0{{else}}value == node.key{{end}} {
@@ -216,8 +209,8 @@ func (s *{{.Name}}TreeSet) Floor(value {{.GoType}}) ({{.GoType}}, bool) {
 }
 
 // Ceiling returns the smallest element >= value, or zero and false.
-func (s *{{.Name}}TreeSet) Ceiling(value {{.GoType}}) ({{.GoType}}, bool) {
-	var result *{{.SnakeName}}TreeSetNode
+func (s *{{.Name}}) Ceiling(value {{.GoType}}) ({{.GoType}}, bool) {
+	var result *{{.SnakeName}}Node
 	node := s.root
 	for node != nil {
 		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) == 0{{else}}value == node.key{{end}} {
@@ -237,10 +230,10 @@ func (s *{{.Name}}TreeSet) Ceiling(value {{.GoType}}) ({{.GoType}}, bool) {
 }
 
 // All returns an iter.Seq that yields elements in ascending order.
-func (s *{{.Name}}TreeSet) All() iter.Seq[{{.GoType}}] {
+func (s *{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
-		var inorder func(node *{{.SnakeName}}TreeSetNode) bool
-		inorder = func(node *{{.SnakeName}}TreeSetNode) bool {
+		var inorder func(node *{{.SnakeName}}Node) bool
+		inorder = func(node *{{.SnakeName}}Node) bool {
 			if node == nil {
 				return true
 			}
@@ -257,7 +250,7 @@ func (s *{{.Name}}TreeSet) All() iter.Seq[{{.GoType}}] {
 }
 
 // RangeValues returns an iter.Seq that yields elements in [from, to).
-func (s *{{.Name}}TreeSet) RangeValues(from, to {{.GoType}}) iter.Seq[{{.GoType}}] {
+func (s *{{.Name}}) RangeValues(from, to {{.GoType}}) iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 		for v := range s.All() {
 			if {{if .IsFloat}}{{.CmpFn}}(v, from) < 0{{else}}v < from{{end}} {
@@ -274,15 +267,15 @@ func (s *{{.Name}}TreeSet) RangeValues(from, to {{.GoType}}) iter.Seq[{{.GoType}
 }
 
 // ForEach calls the function for each element in ascending order.
-func (s *{{.Name}}TreeSet) ForEach(f func({{.GoType}})) {
+func (s *{{.Name}}) ForEach(f func({{.GoType}})) {
 	for v := range s.All() {
 		f(v)
 	}
 }
 
 // Select returns a new sorted set with elements satisfying the predicate.
-func (s *{{.Name}}TreeSet) Select(predicate func({{.GoType}}) bool) *{{.Name}}TreeSet {
-	result := New{{.Name}}TreeSet()
+func (s *{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for v := range s.All() {
 		if predicate(v) {
 			result.Add(v)
@@ -292,8 +285,8 @@ func (s *{{.Name}}TreeSet) Select(predicate func({{.GoType}}) bool) *{{.Name}}Tr
 }
 
 // Reject returns a new sorted set with elements NOT satisfying the predicate.
-func (s *{{.Name}}TreeSet) Reject(predicate func({{.GoType}}) bool) *{{.Name}}TreeSet {
-	result := New{{.Name}}TreeSet()
+func (s *{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for v := range s.All() {
 		if !predicate(v) {
 			result.Add(v)
@@ -303,7 +296,7 @@ func (s *{{.Name}}TreeSet) Reject(predicate func({{.GoType}}) bool) *{{.Name}}Tr
 }
 
 // Detect returns the first element satisfying the predicate, or (zero, false) if none.
-func (s *{{.Name}}TreeSet) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (s *{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for v := range s.All() {
 		if predicate(v) {
 			return v, true
@@ -314,7 +307,7 @@ func (s *{{.Name}}TreeSet) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *{{.Name}}TreeSet) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return true
@@ -324,7 +317,7 @@ func (s *{{.Name}}TreeSet) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *{{.Name}}TreeSet) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for v := range s.All() {
 		if !predicate(v) {
 			return false
@@ -334,7 +327,7 @@ func (s *{{.Name}}TreeSet) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *{{.Name}}TreeSet) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return false
@@ -344,7 +337,7 @@ func (s *{{.Name}}TreeSet) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *{{.Name}}TreeSet) Count(predicate func({{.GoType}}) bool) int {
+func (s *{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
 	c := 0
 	for v := range s.All() {
 		if predicate(v) {
@@ -355,8 +348,8 @@ func (s *{{.Name}}TreeSet) Count(predicate func({{.GoType}}) bool) int {
 }
 
 // Union returns a new sorted set with elements from both sets.
-func (s *{{.Name}}TreeSet) Union(other *{{.Name}}TreeSet) *{{.Name}}TreeSet {
-	result := New{{.Name}}TreeSet()
+func (s *{{.Name}}) Union(other *{{.Name}}) *{{.Name}} {
+	result := New{{.Name}}()
 	for v := range s.All() {
 		result.Add(v)
 	}
@@ -367,8 +360,8 @@ func (s *{{.Name}}TreeSet) Union(other *{{.Name}}TreeSet) *{{.Name}}TreeSet {
 }
 
 // Intersect returns a new sorted set with elements in both sets.
-func (s *{{.Name}}TreeSet) Intersect(other *{{.Name}}TreeSet) *{{.Name}}TreeSet {
-	result := New{{.Name}}TreeSet()
+func (s *{{.Name}}) Intersect(other *{{.Name}}) *{{.Name}} {
+	result := New{{.Name}}()
 	for v := range s.All() {
 		if other.Contains(v) {
 			result.Add(v)
@@ -378,8 +371,8 @@ func (s *{{.Name}}TreeSet) Intersect(other *{{.Name}}TreeSet) *{{.Name}}TreeSet 
 }
 
 // Difference returns a new sorted set with elements in this but not other.
-func (s *{{.Name}}TreeSet) Difference(other *{{.Name}}TreeSet) *{{.Name}}TreeSet {
-	result := New{{.Name}}TreeSet()
+func (s *{{.Name}}) Difference(other *{{.Name}}) *{{.Name}} {
+	result := New{{.Name}}()
 	for v := range s.All() {
 		if !other.Contains(v) {
 			result.Add(v)
@@ -389,7 +382,7 @@ func (s *{{.Name}}TreeSet) Difference(other *{{.Name}}TreeSet) *{{.Name}}TreeSet
 }
 
 // ToSlice returns elements as a sorted slice.
-func (s *{{.Name}}TreeSet) ToSlice() []{{.GoType}} {
+func (s *{{.Name}}) ToSlice() []{{.GoType}} {
 	result := make([]{{.GoType}}, 0, s.size)
 	for v := range s.All() {
 		result = append(result, v)
@@ -397,14 +390,14 @@ func (s *{{.Name}}TreeSet) ToSlice() []{{.GoType}} {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *{{.Name}}TreeSet) With(value {{.GoType}}) *{{.Name}}TreeSet { s.Add(value); return s }
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) AddReturning(value {{.GoType}}) *{{.Name}} { s.Add(value); return s }
 
-// Without returns the set after removing the value (fluent API).
-func (s *{{.Name}}TreeSet) Without(value {{.GoType}}) *{{.Name}}TreeSet { s.Remove(value); return s }
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) RemoveReturning(value {{.GoType}}) *{{.Name}} { s.Remove(value); return s }
 
 // String returns a string representation in sorted order.
-func (s *{{.Name}}TreeSet) String() string {
+func (s *{{.Name}}) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -424,7 +417,7 @@ func (s *{{.Name}}TreeSet) String() string {
 
 // --- Red-black tree internals (same as TreeMap) ---
 
-func (s *{{.Name}}TreeSet) findNode(key {{.GoType}}) *{{.SnakeName}}TreeSetNode {
+func (s *{{.Name}}) findNode(key {{.GoType}}) *{{.SnakeName}}Node {
 	node := s.root
 	for node != nil {
 		if {{if .IsFloat}}{{.CmpFn}}(key, node.key) < 0{{else}}key < node.key{{end}} {
@@ -437,20 +430,20 @@ func (s *{{.Name}}TreeSet) findNode(key {{.GoType}}) *{{.SnakeName}}TreeSetNode 
 	}
 	return nil
 }
-func (s *{{.Name}}TreeSet) minNode(node *{{.SnakeName}}TreeSetNode) *{{.SnakeName}}TreeSetNode {
+func (s *{{.Name}}) minNode(node *{{.SnakeName}}Node) *{{.SnakeName}}Node {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
-func (s *{{.Name}}TreeSet) maxNode(node *{{.SnakeName}}TreeSetNode) *{{.SnakeName}}TreeSetNode {
+func (s *{{.Name}}) maxNode(node *{{.SnakeName}}Node) *{{.SnakeName}}Node {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (s *{{.Name}}TreeSet) rotateLeft(x *{{.SnakeName}}TreeSetNode) {
+func (s *{{.Name}}) rotateLeft(x *{{.SnakeName}}Node) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -467,7 +460,7 @@ func (s *{{.Name}}TreeSet) rotateLeft(x *{{.SnakeName}}TreeSetNode) {
 	y.left = x
 	x.parent = y
 }
-func (s *{{.Name}}TreeSet) rotateRight(x *{{.SnakeName}}TreeSetNode) {
+func (s *{{.Name}}) rotateRight(x *{{.SnakeName}}Node) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -485,52 +478,52 @@ func (s *{{.Name}}TreeSet) rotateRight(x *{{.SnakeName}}TreeSetNode) {
 	x.parent = y
 }
 
-func (s *{{.Name}}TreeSet) fixAfterInsert(z *{{.SnakeName}}TreeSetNode) {
-	for z.parent != nil && z.parent.color == {{.SnakeName}}TreeSetNodeRed {
+func (s *{{.Name}}) fixAfterInsert(z *{{.SnakeName}}Node) {
+	for z.parent != nil && z.parent.color == {{.SnakeName}}NodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
-			if y != nil && y.color == {{.SnakeName}}TreeSetNodeRed {
-				z.parent.color = {{.SnakeName}}TreeSetNodeBlack
-				y.color = {{.SnakeName}}TreeSetNodeBlack
-				z.parent.parent.color = {{.SnakeName}}TreeSetNodeRed
+			if y != nil && y.color == {{.SnakeName}}NodeRed {
+				z.parent.color = {{.SnakeName}}NodeBlack
+				y.color = {{.SnakeName}}NodeBlack
+				z.parent.parent.color = {{.SnakeName}}NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.right {
 					z = z.parent
 					s.rotateLeft(z)
 				}
-				z.parent.color = {{.SnakeName}}TreeSetNodeBlack
-				z.parent.parent.color = {{.SnakeName}}TreeSetNodeRed
+				z.parent.color = {{.SnakeName}}NodeBlack
+				z.parent.parent.color = {{.SnakeName}}NodeRed
 				s.rotateRight(z.parent.parent)
 			}
 		} else {
 			y := z.parent.parent.left
-			if y != nil && y.color == {{.SnakeName}}TreeSetNodeRed {
-				z.parent.color = {{.SnakeName}}TreeSetNodeBlack
-				y.color = {{.SnakeName}}TreeSetNodeBlack
-				z.parent.parent.color = {{.SnakeName}}TreeSetNodeRed
+			if y != nil && y.color == {{.SnakeName}}NodeRed {
+				z.parent.color = {{.SnakeName}}NodeBlack
+				y.color = {{.SnakeName}}NodeBlack
+				z.parent.parent.color = {{.SnakeName}}NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.left {
 					z = z.parent
 					s.rotateRight(z)
 				}
-				z.parent.color = {{.SnakeName}}TreeSetNodeBlack
-				z.parent.parent.color = {{.SnakeName}}TreeSetNodeRed
+				z.parent.color = {{.SnakeName}}NodeBlack
+				z.parent.parent.color = {{.SnakeName}}NodeRed
 				s.rotateLeft(z.parent.parent)
 			}
 		}
 	}
-	s.root.color = {{.SnakeName}}TreeSetNodeBlack
+	s.root.color = {{.SnakeName}}NodeBlack
 }
 
-func (s *{{.Name}}TreeSet) deleteNode(z *{{.SnakeName}}TreeSetNode) {
+func (s *{{.Name}}) deleteNode(z *{{.SnakeName}}Node) {
 	if z.left != nil && z.right != nil {
 		succ := s.minNode(z.right)
 		z.key = succ.key
 		z = succ
 	}
-	var child *{{.SnakeName}}TreeSetNode
+	var child *{{.SnakeName}}Node
 	if z.left != nil {
 		child = z.left
 	} else {
@@ -545,13 +538,13 @@ func (s *{{.Name}}TreeSet) deleteNode(z *{{.SnakeName}}TreeSetNode) {
 		} else {
 			z.parent.right = child
 		}
-		if z.color == {{.SnakeName}}TreeSetNodeBlack {
+		if z.color == {{.SnakeName}}NodeBlack {
 			s.fixAfterDelete(child)
 		}
 	} else if z.parent == nil {
 		s.root = nil
 	} else {
-		if z.color == {{.SnakeName}}TreeSetNodeBlack {
+		if z.color == {{.SnakeName}}NodeBlack {
 			s.fixAfterDelete(z)
 		}
 		if z.parent != nil {
@@ -564,17 +557,17 @@ func (s *{{.Name}}TreeSet) deleteNode(z *{{.SnakeName}}TreeSetNode) {
 	}
 }
 
-func (s *{{.Name}}TreeSet) fixAfterDelete(x *{{.SnakeName}}TreeSetNode) {
-	for x != s.root && x.color == {{.SnakeName}}TreeSetNodeBlack {
+func (s *{{.Name}}) fixAfterDelete(x *{{.SnakeName}}Node) {
+	for x != s.root && x.color == {{.SnakeName}}NodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right
 			if w == nil {
 				x = x.parent
 				continue
 			}
-			if w.color == {{.SnakeName}}TreeSetNodeRed {
-				w.color = {{.SnakeName}}TreeSetNodeBlack
-				x.parent.color = {{.SnakeName}}TreeSetNodeRed
+			if w.color == {{.SnakeName}}NodeRed {
+				w.color = {{.SnakeName}}NodeBlack
+				x.parent.color = {{.SnakeName}}NodeRed
 				s.rotateLeft(x.parent)
 				w = x.parent.right
 			}
@@ -582,24 +575,24 @@ func (s *{{.Name}}TreeSet) fixAfterDelete(x *{{.SnakeName}}TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == {{.SnakeName}}TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == {{.SnakeName}}TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == {{.SnakeName}}NodeBlack
+			rb := w.right == nil || w.right.color == {{.SnakeName}}NodeBlack
 			if lb && rb {
-				w.color = {{.SnakeName}}TreeSetNodeRed
+				w.color = {{.SnakeName}}NodeRed
 				x = x.parent
 			} else {
 				if rb {
 					if w.left != nil {
-						w.left.color = {{.SnakeName}}TreeSetNodeBlack
+						w.left.color = {{.SnakeName}}NodeBlack
 					}
-					w.color = {{.SnakeName}}TreeSetNodeRed
+					w.color = {{.SnakeName}}NodeRed
 					s.rotateRight(w)
 					w = x.parent.right
 				}
 				w.color = x.parent.color
-				x.parent.color = {{.SnakeName}}TreeSetNodeBlack
+				x.parent.color = {{.SnakeName}}NodeBlack
 				if w.right != nil {
-					w.right.color = {{.SnakeName}}TreeSetNodeBlack
+					w.right.color = {{.SnakeName}}NodeBlack
 				}
 				s.rotateLeft(x.parent)
 				x = s.root
@@ -610,9 +603,9 @@ func (s *{{.Name}}TreeSet) fixAfterDelete(x *{{.SnakeName}}TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			if w.color == {{.SnakeName}}TreeSetNodeRed {
-				w.color = {{.SnakeName}}TreeSetNodeBlack
-				x.parent.color = {{.SnakeName}}TreeSetNodeRed
+			if w.color == {{.SnakeName}}NodeRed {
+				w.color = {{.SnakeName}}NodeBlack
+				x.parent.color = {{.SnakeName}}NodeRed
 				s.rotateRight(x.parent)
 				w = x.parent.left
 			}
@@ -620,30 +613,30 @@ func (s *{{.Name}}TreeSet) fixAfterDelete(x *{{.SnakeName}}TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == {{.SnakeName}}TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == {{.SnakeName}}TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == {{.SnakeName}}NodeBlack
+			rb := w.right == nil || w.right.color == {{.SnakeName}}NodeBlack
 			if lb && rb {
-				w.color = {{.SnakeName}}TreeSetNodeRed
+				w.color = {{.SnakeName}}NodeRed
 				x = x.parent
 			} else {
 				if lb {
 					if w.right != nil {
-						w.right.color = {{.SnakeName}}TreeSetNodeBlack
+						w.right.color = {{.SnakeName}}NodeBlack
 					}
-					w.color = {{.SnakeName}}TreeSetNodeRed
+					w.color = {{.SnakeName}}NodeRed
 					s.rotateLeft(w)
 					w = x.parent.left
 				}
 				w.color = x.parent.color
-				x.parent.color = {{.SnakeName}}TreeSetNodeBlack
+				x.parent.color = {{.SnakeName}}NodeBlack
 				if w.left != nil {
-					w.left.color = {{.SnakeName}}TreeSetNodeBlack
+					w.left.color = {{.SnakeName}}NodeBlack
 				}
 				s.rotateRight(x.parent)
 				x = s.root
 			}
 		}
 	}
-	x.color = {{.SnakeName}}TreeSetNodeBlack
+	x.color = {{.SnakeName}}NodeBlack
 }
 `

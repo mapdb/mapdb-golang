@@ -9,16 +9,16 @@ import (
 )
 
 const (
-	int32Int32SentinelHashMapDefaultCapacity = 16
+	int32Int32DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
-	int32Int32SentinelHashMapEmptyKey   = int32(0)
-	int32Int32SentinelHashMapRemovedKey = int32(1)
+	int32Int32EmptyKey   = int32(0)
+	int32Int32RemovedKey = int32(1)
 )
 
-// Int32Int32SentinelHashMap is a sentinel-based open-addressing hash map with int32 keys and int32 values.
+// Int32Int32 is a sentinel-based open-addressing hash map with int32 keys and int32 values.
 // It uses sentinel values (0=empty, 1=removed) to track slot state.
 // Keys 0 and 1 are stored separately in dedicated fields.
-type Int32Int32SentinelHashMap struct {
+type Int32Int32 struct {
 	keys   []int32
 	values []int32
 	size   int
@@ -31,15 +31,15 @@ type Int32Int32SentinelHashMap struct {
 	oneKeyValue    int32
 }
 
-// NewInt32Int32SentinelHashMap creates a new empty Int32Int32SentinelHashMap with default capacity.
-func NewInt32Int32SentinelHashMap() *Int32Int32SentinelHashMap {
-	return NewInt32Int32SentinelHashMapWithCapacity(int32Int32SentinelHashMapDefaultCapacity)
+// NewInt32Int32 creates a new empty Int32Int32 with default capacity.
+func NewInt32Int32() *Int32Int32 {
+	return NewInt32Int32WithCapacity(int32Int32DefaultCapacity)
 }
 
-// NewInt32Int32SentinelHashMapWithCapacity creates a new empty Int32Int32SentinelHashMap with the given initial capacity.
-func NewInt32Int32SentinelHashMapWithCapacity(capacity int) *Int32Int32SentinelHashMap {
-	cap := nextPowerOfTwoInt32Int32SentinelHashMap(capacity)
-	return &Int32Int32SentinelHashMap{
+// NewInt32Int32WithCapacity creates a new empty Int32Int32 with the given initial capacity.
+func NewInt32Int32WithCapacity(capacity int) *Int32Int32 {
+	cap := nextPowerOfTwoInt32Int32(capacity)
+	return &Int32Int32{
 		keys:   make([]int32, cap),
 		values: make([]int32, cap),
 		size:   0,
@@ -47,8 +47,8 @@ func NewInt32Int32SentinelHashMapWithCapacity(capacity int) *Int32Int32SentinelH
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Int32Int32SentinelHashMap) Put(key int32, value int32) (int32, bool) {
-	if key == int32Int32SentinelHashMapEmptyKey {
+func (m *Int32Int32) Put(key int32, value int32) (int32, bool) {
+	if key == int32Int32EmptyKey {
 		old := m.zeroKeyValue
 		existed := m.zeroKeyPresent
 		m.zeroKeyValue = value
@@ -58,7 +58,7 @@ func (m *Int32Int32SentinelHashMap) Put(key int32, value int32) (int32, bool) {
 		}
 		return old, existed
 	}
-	if key == int32Int32SentinelHashMapRemovedKey {
+	if key == int32Int32RemovedKey {
 		old := m.oneKeyValue
 		existed := m.oneKeyPresent
 		m.oneKeyValue = value
@@ -71,15 +71,15 @@ func (m *Int32Int32SentinelHashMap) Put(key int32, value int32) (int32, bool) {
 	return m.putRegular(key, value)
 }
 
-func (m *Int32Int32SentinelHashMap) putRegular(key int32, value int32) (int32, bool) {
+func (m *Int32Int32) putRegular(key int32, value int32) (int32, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
 	cap := len(m.keys)
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := int32Int32SentinelHashMapEmptyKey
-	removed := int32Int32SentinelHashMapRemovedKey
+	empty := int32Int32EmptyKey
+	removed := int32Int32RemovedKey
 	firstRemoved := -1
 
 	for {
@@ -110,14 +110,14 @@ func (m *Int32Int32SentinelHashMap) putRegular(key int32, value int32) (int32, b
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Int32Int32SentinelHashMap) Get(key int32) (int32, bool) {
-	if key == int32Int32SentinelHashMapEmptyKey {
+func (m *Int32Int32) Get(key int32) (int32, bool) {
+	if key == int32Int32EmptyKey {
 		if m.zeroKeyPresent {
 			return m.zeroKeyValue, true
 		}
 		return 0, false
 	}
-	if key == int32Int32SentinelHashMapRemovedKey {
+	if key == int32Int32RemovedKey {
 		if m.oneKeyPresent {
 			return m.oneKeyValue, true
 		}
@@ -129,7 +129,7 @@ func (m *Int32Int32SentinelHashMap) Get(key int32) (int32, bool) {
 	}
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := int32Int32SentinelHashMapEmptyKey
+	empty := int32Int32EmptyKey
 
 	for {
 		k := m.keys[idx]
@@ -144,7 +144,7 @@ func (m *Int32Int32SentinelHashMap) Get(key int32) (int32, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Int32Int32SentinelHashMap) GetOrDefault(key int32, defaultValue int32) int32 {
+func (m *Int32Int32) GetOrDefault(key int32, defaultValue int32) int32 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -152,8 +152,8 @@ func (m *Int32Int32SentinelHashMap) GetOrDefault(key int32, defaultValue int32) 
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Int32Int32SentinelHashMap) Remove(key int32) (int32, bool) {
-	if key == int32Int32SentinelHashMapEmptyKey {
+func (m *Int32Int32) Remove(key int32) (int32, bool) {
+	if key == int32Int32EmptyKey {
 		if m.zeroKeyPresent {
 			old := m.zeroKeyValue
 			m.zeroKeyPresent = false
@@ -163,7 +163,7 @@ func (m *Int32Int32SentinelHashMap) Remove(key int32) (int32, bool) {
 		}
 		return 0, false
 	}
-	if key == int32Int32SentinelHashMapRemovedKey {
+	if key == int32Int32RemovedKey {
 		if m.oneKeyPresent {
 			old := m.oneKeyValue
 			m.oneKeyPresent = false
@@ -176,14 +176,14 @@ func (m *Int32Int32SentinelHashMap) Remove(key int32) (int32, bool) {
 	return m.removeRegular(key)
 }
 
-func (m *Int32Int32SentinelHashMap) removeRegular(key int32) (int32, bool) {
+func (m *Int32Int32) removeRegular(key int32) (int32, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0, false
 	}
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := int32Int32SentinelHashMapEmptyKey
+	empty := int32Int32EmptyKey
 
 	for {
 		k := m.keys[idx]
@@ -192,7 +192,7 @@ func (m *Int32Int32SentinelHashMap) removeRegular(key int32) (int32, bool) {
 		}
 		if k == key {
 			old := m.values[idx]
-			m.keys[idx] = int32Int32SentinelHashMapRemovedKey
+			m.keys[idx] = int32Int32RemovedKey
 			m.values[idx] = 0
 			m.size--
 			return old, true
@@ -202,15 +202,15 @@ func (m *Int32Int32SentinelHashMap) removeRegular(key int32) (int32, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int32Int32SentinelHashMap) ContainsKey(key int32) bool {
+func (m *Int32Int32) ContainsKey(key int32) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Int32Int32SentinelHashMap) ContainsValue(value int32) bool {
-	empty := int32Int32SentinelHashMapEmptyKey
-	removed := int32Int32SentinelHashMapRemovedKey
+func (m *Int32Int32) ContainsValue(value int32) bool {
+	empty := int32Int32EmptyKey
+	removed := int32Int32RemovedKey
 	if m.zeroKeyPresent && m.zeroKeyValue == value {
 		return true
 	}
@@ -225,22 +225,13 @@ func (m *Int32Int32SentinelHashMap) ContainsValue(value int32) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Int32Int32SentinelHashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int32Int32) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int32Int32SentinelHashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Int32Int32SentinelHashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Int32Int32SentinelHashMap) Clear() {
+func (m *Int32Int32) Clear() {
 	for i := range m.keys {
 		m.keys[i] = 0
 		m.values[i] = 0
@@ -253,7 +244,7 @@ func (m *Int32Int32SentinelHashMap) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Int32Int32SentinelHashMap) All() iter.Seq2[int32, int32] {
+func (m *Int32Int32) All() iter.Seq2[int32, int32] {
 	return func(yield func(int32, int32) bool) {
 		if m.zeroKeyPresent {
 			if !yield(0, m.zeroKeyValue) {
@@ -261,12 +252,12 @@ func (m *Int32Int32SentinelHashMap) All() iter.Seq2[int32, int32] {
 			}
 		}
 		if m.oneKeyPresent {
-			if !yield(int32Int32SentinelHashMapRemovedKey, m.oneKeyValue) {
+			if !yield(int32Int32RemovedKey, m.oneKeyValue) {
 				return
 			}
 		}
-		empty := int32Int32SentinelHashMapEmptyKey
-		removed := int32Int32SentinelHashMapRemovedKey
+		empty := int32Int32EmptyKey
+		removed := int32Int32RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.keys[i], m.values[i]) {
@@ -278,7 +269,7 @@ func (m *Int32Int32SentinelHashMap) All() iter.Seq2[int32, int32] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Int32Int32SentinelHashMap) Keys() iter.Seq[int32] {
+func (m *Int32Int32) Keys() iter.Seq[int32] {
 	return func(yield func(int32) bool) {
 		if m.zeroKeyPresent {
 			if !yield(0) {
@@ -286,12 +277,12 @@ func (m *Int32Int32SentinelHashMap) Keys() iter.Seq[int32] {
 			}
 		}
 		if m.oneKeyPresent {
-			if !yield(int32Int32SentinelHashMapRemovedKey) {
+			if !yield(int32Int32RemovedKey) {
 				return
 			}
 		}
-		empty := int32Int32SentinelHashMapEmptyKey
-		removed := int32Int32SentinelHashMapRemovedKey
+		empty := int32Int32EmptyKey
+		removed := int32Int32RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.keys[i]) {
@@ -303,7 +294,7 @@ func (m *Int32Int32SentinelHashMap) Keys() iter.Seq[int32] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Int32Int32SentinelHashMap) Values() iter.Seq[int32] {
+func (m *Int32Int32) Values() iter.Seq[int32] {
 	return func(yield func(int32) bool) {
 		if m.zeroKeyPresent {
 			if !yield(m.zeroKeyValue) {
@@ -315,8 +306,8 @@ func (m *Int32Int32SentinelHashMap) Values() iter.Seq[int32] {
 				return
 			}
 		}
-		empty := int32Int32SentinelHashMapEmptyKey
-		removed := int32Int32SentinelHashMapRemovedKey
+		empty := int32Int32EmptyKey
+		removed := int32Int32RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.values[i]) {
@@ -328,15 +319,15 @@ func (m *Int32Int32SentinelHashMap) Values() iter.Seq[int32] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int32Int32SentinelHashMap) ForEach(f func(int32, int32)) {
+func (m *Int32Int32) ForEach(f func(int32, int32)) {
 	for k, v := range m.All() {
 		f(k, v)
 	}
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *Int32Int32SentinelHashMap) Select(predicate func(int32, int32) bool) *Int32Int32SentinelHashMap {
-	result := NewInt32Int32SentinelHashMap()
+func (m *Int32Int32) Select(predicate func(int32, int32) bool) *Int32Int32 {
+	result := NewInt32Int32()
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			result.Put(k, v)
@@ -346,8 +337,8 @@ func (m *Int32Int32SentinelHashMap) Select(predicate func(int32, int32) bool) *I
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *Int32Int32SentinelHashMap) Reject(predicate func(int32, int32) bool) *Int32Int32SentinelHashMap {
-	result := NewInt32Int32SentinelHashMap()
+func (m *Int32Int32) Reject(predicate func(int32, int32) bool) *Int32Int32 {
+	result := NewInt32Int32()
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			result.Put(k, v)
@@ -357,7 +348,7 @@ func (m *Int32Int32SentinelHashMap) Reject(predicate func(int32, int32) bool) *I
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *Int32Int32SentinelHashMap) AnySatisfy(predicate func(int32, int32) bool) bool {
+func (m *Int32Int32) AnySatisfy(predicate func(int32, int32) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return true
@@ -367,7 +358,7 @@ func (m *Int32Int32SentinelHashMap) AnySatisfy(predicate func(int32, int32) bool
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *Int32Int32SentinelHashMap) AllSatisfy(predicate func(int32, int32) bool) bool {
+func (m *Int32Int32) AllSatisfy(predicate func(int32, int32) bool) bool {
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			return false
@@ -377,12 +368,12 @@ func (m *Int32Int32SentinelHashMap) AllSatisfy(predicate func(int32, int32) bool
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *Int32Int32SentinelHashMap) NoneSatisfy(predicate func(int32, int32) bool) bool {
+func (m *Int32Int32) NoneSatisfy(predicate func(int32, int32) bool) bool {
 	return !m.AnySatisfy(predicate)
 }
 
 // String returns a string representation of the map.
-func (m *Int32Int32SentinelHashMap) String() string {
+func (m *Int32Int32) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -400,12 +391,12 @@ func (m *Int32Int32SentinelHashMap) String() string {
 	return sb.String()
 }
 
-func (m *Int32Int32SentinelHashMap) hashKey(key int32) uint64 {
+func (m *Int32Int32) hashKey(key int32) uint64 {
 	h := uint64(uint32(key)) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Int32Int32SentinelHashMap) needsResize() bool {
+func (m *Int32Int32) needsResize() bool {
 	// Count only regular entries (not sentinel entries) for load factor
 	regularEntries := m.size
 	if m.zeroKeyPresent {
@@ -417,16 +408,15 @@ func (m *Int32Int32SentinelHashMap) needsResize() bool {
 	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *Int32Int32SentinelHashMap) resize() {
+func (m *Int32Int32) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = int32Int32SentinelHashMapDefaultCapacity
+		newCap = int32Int32DefaultCapacity
 	}
 
 	// Save sentinel state
-	savedSize := m.size
 	savedZeroPresent := m.zeroKeyPresent
 	savedZeroValue := m.zeroKeyValue
 	savedOnePresent := m.oneKeyPresent
@@ -443,21 +433,20 @@ func (m *Int32Int32SentinelHashMap) resize() {
 		m.Put(0, savedZeroValue)
 	}
 	if savedOnePresent {
-		m.Put(int32Int32SentinelHashMapRemovedKey, savedOneValue)
+		m.Put(int32Int32RemovedKey, savedOneValue)
 	}
 
 	// Re-insert regular entries
-	empty := int32Int32SentinelHashMapEmptyKey
-	removed := int32Int32SentinelHashMapRemovedKey
+	empty := int32Int32EmptyKey
+	removed := int32Int32RemovedKey
 	for i := range oldKeys {
 		if oldKeys[i] != empty && oldKeys[i] != removed {
 			m.Put(oldKeys[i], oldValues[i])
 		}
 	}
-	_ = savedSize
 }
 
-func nextPowerOfTwoInt32Int32SentinelHashMap(n int) int {
+func nextPowerOfTwoInt32Int32(n int) int {
 	if n <= 0 {
 		return 16
 	}

@@ -3,81 +3,86 @@
 package arraylist
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// Int32ArrayList is a resizable array-backed list of int32 values.
+// Int32 is a resizable array-backed list of int32 values.
 // Length is always len(l.items); there is no separate size counter.
-type Int32ArrayList struct {
+//
+// The zero value is an empty, ready-to-use list.
+type Int32 struct {
 	items []int32
 }
 
-// NewInt32ArrayList creates a new empty Int32ArrayList.
-func NewInt32ArrayList() *Int32ArrayList {
-	return &Int32ArrayList{items: make([]int32, 0, 16)}
+// NewInt32 creates a new empty Int32.
+func NewInt32() *Int32 {
+	return &Int32{items: make([]int32, 0, 16)}
 }
 
-// NewInt32ArrayListWithCapacity creates a new empty Int32ArrayList with the given initial capacity.
-func NewInt32ArrayListWithCapacity(capacity int) *Int32ArrayList {
-	return &Int32ArrayList{items: make([]int32, 0, capacity)}
+// NewInt32WithCapacity creates a new empty Int32 with the given initial capacity.
+func NewInt32WithCapacity(capacity int) *Int32 {
+	return &Int32{items: make([]int32, 0, capacity)}
 }
 
-// Int32ArrayListOf creates a new Int32ArrayList from the given values.
-func Int32ArrayListOf(values ...int32) *Int32ArrayList {
-	l := &Int32ArrayList{items: make([]int32, len(values))}
+// Int32Of creates a new Int32 from the given values.
+func Int32Of(values ...int32) *Int32 {
+	l := &Int32{items: make([]int32, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
-func (l *Int32ArrayList) Add(value int32) {
+func (l *Int32) Add(value int32) {
 	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
-func (l *Int32ArrayList) AddAll(values ...int32) {
+func (l *Int32) AddAll(values ...int32) {
 	l.items = append(l.items, values...)
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *Int32ArrayList) Get(index int) (int32, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *Int32) Get(index int) int32 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int32: index out of range [%d] with length %d", index, len(l.items)))
 	}
-	return l.items[index], nil
+	return l.items[index]
 }
 
-// Set sets the value at the given index, returning the previous value.
-// Returns an error if the index is out of bounds.
-func (l *Int32ArrayList) Set(index int, value int32) (int32, error) {
+// Set sets the value at the given index, returning the previous value. It
+// panics if the index is out of bounds, matching the semantics of a native
+// Go slice.
+func (l *Int32) Set(index int, value int32) int32 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int32: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	l.items[index] = value
-	return old, nil
+	return old
 }
 
-// RemoveAtIndex removes the value at the given index and returns it.
-// Returns an error if the index is out of bounds.
-func (l *Int32ArrayList) RemoveAtIndex(index int) (int32, error) {
+// RemoveAtIndex removes the value at the given index and returns it. It panics
+// if the index is out of bounds, matching the semantics of a native Go slice.
+func (l *Int32) RemoveAtIndex(index int) int32 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int32ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int32: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	copy(l.items[index:], l.items[index+1:])
 	l.items = l.items[:len(l.items)-1]
-	return old, nil
+	return old
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
-func (l *Int32ArrayList) Remove(value int32) bool {
+func (l *Int32) Remove(value int32) bool {
 	for i, v := range l.items {
 		if v == value {
-			_, _ = l.RemoveAtIndex(i)
+			l.RemoveAtIndex(i)
 			return true
 		}
 	}
@@ -85,7 +90,7 @@ func (l *Int32ArrayList) Remove(value int32) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *Int32ArrayList) Contains(value int32) bool {
+func (l *Int32) Contains(value int32) bool {
 	for _, v := range l.items {
 		if v == value {
 			return true
@@ -95,7 +100,7 @@ func (l *Int32ArrayList) Contains(value int32) bool {
 }
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
-func (l *Int32ArrayList) IndexOf(value int32) int {
+func (l *Int32) IndexOf(value int32) int {
 	for i, v := range l.items {
 		if v == value {
 			return i
@@ -104,21 +109,16 @@ func (l *Int32ArrayList) IndexOf(value int32) int {
 	return -1
 }
 
-// Size returns the number of elements in the list.
-func (l *Int32ArrayList) Size() int { return len(l.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *Int32ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *Int32ArrayList) IsEmpty() bool { return len(l.items) == 0 }
+// Len returns the number of elements in the list, matching the Go
+// convention (sort.Interface, container/list, bytes.Buffer). Use
+// l.Len() == 0 to test for emptiness.
+func (l *Int32) Len() int { return len(l.items) }
 
 // Clear removes all elements from the list.
-func (l *Int32ArrayList) Clear() { l.items = l.items[:0] }
+func (l *Int32) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *Int32ArrayList) All() iter.Seq[int32] {
+func (l *Int32) All() iter.Seq[int32] {
 	return func(yield func(int32) bool) {
 		for _, v := range l.items {
 			if !yield(v) {
@@ -129,7 +129,7 @@ func (l *Int32ArrayList) All() iter.Seq[int32] {
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *Int32ArrayList) AllWithIndex() iter.Seq2[int, int32] {
+func (l *Int32) AllWithIndex() iter.Seq2[int, int32] {
 	return func(yield func(int, int32) bool) {
 		for i, v := range l.items {
 			if !yield(i, v) {
@@ -140,22 +140,22 @@ func (l *Int32ArrayList) AllWithIndex() iter.Seq2[int, int32] {
 }
 
 // ForEach calls the given function for each element.
-func (l *Int32ArrayList) ForEach(f func(int32)) {
+func (l *Int32) ForEach(f func(int32)) {
 	for _, v := range l.items {
 		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
-func (l *Int32ArrayList) ForEachWithIndex(f func(int32, int)) {
+func (l *Int32) ForEachWithIndex(f func(int32, int)) {
 	for i, v := range l.items {
 		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
-func (l *Int32ArrayList) Select(predicate func(int32) bool) *Int32ArrayList {
-	result := NewInt32ArrayList()
+func (l *Int32) Select(predicate func(int32) bool) *Int32 {
+	result := NewInt32()
 	for _, v := range l.items {
 		if predicate(v) {
 			result.Add(v)
@@ -165,8 +165,8 @@ func (l *Int32ArrayList) Select(predicate func(int32) bool) *Int32ArrayList {
 }
 
 // Reject returns a new list containing only elements that do not satisfy the predicate.
-func (l *Int32ArrayList) Reject(predicate func(int32) bool) *Int32ArrayList {
-	result := NewInt32ArrayList()
+func (l *Int32) Reject(predicate func(int32) bool) *Int32 {
+	result := NewInt32()
 	for _, v := range l.items {
 		if !predicate(v) {
 			result.Add(v)
@@ -176,7 +176,7 @@ func (l *Int32ArrayList) Reject(predicate func(int32) bool) *Int32ArrayList {
 }
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
-func (l *Int32ArrayList) Detect(predicate func(int32) bool) (int32, bool) {
+func (l *Int32) Detect(predicate func(int32) bool) (int32, bool) {
 	for _, v := range l.items {
 		if predicate(v) {
 			return v, true
@@ -186,7 +186,7 @@ func (l *Int32ArrayList) Detect(predicate func(int32) bool) (int32, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *Int32ArrayList) AnySatisfy(predicate func(int32) bool) bool {
+func (l *Int32) AnySatisfy(predicate func(int32) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return true
@@ -196,7 +196,7 @@ func (l *Int32ArrayList) AnySatisfy(predicate func(int32) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *Int32ArrayList) AllSatisfy(predicate func(int32) bool) bool {
+func (l *Int32) AllSatisfy(predicate func(int32) bool) bool {
 	for _, v := range l.items {
 		if !predicate(v) {
 			return false
@@ -206,7 +206,7 @@ func (l *Int32ArrayList) AllSatisfy(predicate func(int32) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *Int32ArrayList) NoneSatisfy(predicate func(int32) bool) bool {
+func (l *Int32) NoneSatisfy(predicate func(int32) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return false
@@ -216,7 +216,7 @@ func (l *Int32ArrayList) NoneSatisfy(predicate func(int32) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *Int32ArrayList) Count(predicate func(int32) bool) int {
+func (l *Int32) Count(predicate func(int32) bool) int {
 	count := 0
 	for _, v := range l.items {
 		if predicate(v) {
@@ -227,7 +227,7 @@ func (l *Int32ArrayList) Count(predicate func(int32) bool) int {
 }
 
 // InjectInto performs a left fold over the list.
-func (l *Int32ArrayList) InjectInto(initial int32, f func(int32, int32) int32) int32 {
+func (l *Int32) InjectInto(initial int32, f func(int32, int32) int32) int32 {
 	result := initial
 	for _, v := range l.items {
 		result = f(result, v)
@@ -236,7 +236,7 @@ func (l *Int32ArrayList) InjectInto(initial int32, f func(int32, int32) int32) i
 }
 
 // Sum returns the sum of all elements as int64 to avoid overflow.
-func (l *Int32ArrayList) Sum() int64 {
+func (l *Int32) Sum() int64 {
 	var sum int64
 	for _, v := range l.items {
 		sum += int64(v)
@@ -245,7 +245,7 @@ func (l *Int32ArrayList) Sum() int64 {
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
-func (l *Int32ArrayList) Min() (int32, bool) {
+func (l *Int32) Min() (int32, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -259,7 +259,7 @@ func (l *Int32ArrayList) Min() (int32, bool) {
 }
 
 // Max returns the maximum element, or the zero value and false if empty.
-func (l *Int32ArrayList) Max() (int32, bool) {
+func (l *Int32) Max() (int32, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -273,21 +273,28 @@ func (l *Int32ArrayList) Max() (int32, bool) {
 }
 
 // Sort sorts the list in ascending order.
-func (l *Int32ArrayList) Sort() {
-	sort.Slice(l.items, func(i, j int) bool {
-		return l.items[i] < l.items[j]
+func (l *Int32) Sort() {
+	slices.SortFunc(l.items, func(a, b int32) int {
+		return cmp.Compare(a, b)
 	})
 }
 
-// SortWithComparator sorts the list using the given comparison function.
-func (l *Int32ArrayList) SortWithComparator(less func(int32, int32) bool) {
-	sort.Slice(l.items, func(i, j int) bool {
-		return less(l.items[i], l.items[j])
+// SortWithComparator sorts the list using the given less function.
+func (l *Int32) SortWithComparator(less func(int32, int32) bool) {
+	slices.SortFunc(l.items, func(a, b int32) int {
+		switch {
+		case less(a, b):
+			return -1
+		case less(b, a):
+			return 1
+		default:
+			return 0
+		}
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
-func (l *Int32ArrayList) BinarySearch(value int32) (int, bool) {
+func (l *Int32) BinarySearch(value int32) (int, bool) {
 	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
@@ -304,9 +311,9 @@ func (l *Int32ArrayList) BinarySearch(value int32) (int, bool) {
 }
 
 // Reversed returns a new list with elements in reverse order.
-func (l *Int32ArrayList) Reversed() *Int32ArrayList {
+func (l *Int32) Reversed() *Int32 {
 	n := len(l.items)
-	result := NewInt32ArrayListWithCapacity(n)
+	result := NewInt32WithCapacity(n)
 	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
@@ -314,9 +321,9 @@ func (l *Int32ArrayList) Reversed() *Int32ArrayList {
 }
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
-func (l *Int32ArrayList) Distinct() *Int32ArrayList {
+func (l *Int32) Distinct() *Int32 {
 	seen := make(map[int32]struct{})
-	result := NewInt32ArrayList()
+	result := NewInt32()
 	for _, v := range l.items {
 		if _, ok := seen[v]; !ok {
 			seen[v] = struct{}{}
@@ -327,26 +334,26 @@ func (l *Int32ArrayList) Distinct() *Int32ArrayList {
 }
 
 // ToSlice returns a copy of the list elements as a slice.
-func (l *Int32ArrayList) ToSlice() []int32 {
+func (l *Int32) ToSlice() []int32 {
 	result := make([]int32, len(l.items))
 	copy(result, l.items)
 	return result
 }
 
 // With returns the list after adding the value (fluent API).
-func (l *Int32ArrayList) With(value int32) *Int32ArrayList {
+func (l *Int32) AddReturning(value int32) *Int32 {
 	l.Add(value)
 	return l
 }
 
-// Without returns the list after removing the first occurrence of value (fluent API).
-func (l *Int32ArrayList) Without(value int32) *Int32ArrayList {
+// RemoveReturning removes the first occurrence of value and returns the receiver (mutating, fluent).
+func (l *Int32) RemoveReturning(value int32) *Int32 {
 	l.Remove(value)
 	return l
 }
 
 // String returns a string representation of the list.
-func (l *Int32ArrayList) String() string {
+func (l *Int32) String() string {
 	if len(l.items) == 0 {
 		return "[]"
 	}
@@ -363,7 +370,7 @@ func (l *Int32ArrayList) String() string {
 }
 
 // Equals returns true if the other list has the same elements in the same order.
-func (l *Int32ArrayList) Equals(other *Int32ArrayList) bool {
+func (l *Int32) Equals(other *Int32) bool {
 	if len(l.items) != len(other.items) {
 		return false
 	}
@@ -375,16 +382,16 @@ func (l *Int32ArrayList) Equals(other *Int32ArrayList) bool {
 	return true
 }
 
-// WithAll returns the list after adding all values (fluent API).
-func (l *Int32ArrayList) WithAll(values ...int32) *Int32ArrayList {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (l *Int32) AddAllReturning(values ...int32) *Int32 {
 	l.AddAll(values...)
 	return l
 }
 
-// WithoutAll removes every occurrence of any of the given values.
+// RemoveAllReturning removes every occurrence of any of the given values.
 // Compacts in place — keeps the existing backing storage and avoids
 // the temporary-list allocation the previous implementation made.
-func (l *Int32ArrayList) WithoutAll(values ...int32) *Int32ArrayList {
+func (l *Int32) RemoveAllReturning(values ...int32) *Int32 {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
@@ -413,6 +420,6 @@ func (l *Int32ArrayList) WithoutAll(values ...int32) *Int32ArrayList {
 }
 
 // ToImmutable returns an immutable copy of this list.
-func (l *Int32ArrayList) ToImmutable() *ImmutableInt32ArrayList {
-	return ImmutableInt32ArrayListFrom(l)
+func (l *Int32) ToImmutable() *ImmutableInt32 {
+	return ImmutableInt32From(l)
 }

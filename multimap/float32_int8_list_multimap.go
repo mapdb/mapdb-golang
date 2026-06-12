@@ -8,17 +8,17 @@ import (
 	"strings"
 )
 
-// Float32Int8ListMultimap is a list multimap from float32 keys to int8 values.
+// Float32Int8List is a list multimap from float32 keys to int8 values.
 // Each key maps to a slice of values, preserving insertion order per key.
-type Float32Int8ListMultimap struct {
+type Float32Int8List struct {
 	data map[uint32][]int8
 	keys map[uint32]float32
 	size int
 }
 
-// NewFloat32Int8ListMultimap creates a new empty Float32Int8ListMultimap.
-func NewFloat32Int8ListMultimap() *Float32Int8ListMultimap {
-	return &Float32Int8ListMultimap{
+// NewFloat32Int8List creates a new empty Float32Int8List.
+func NewFloat32Int8List() *Float32Int8List {
+	return &Float32Int8List{
 		data: make(map[uint32][]int8),
 		keys: make(map[uint32]float32),
 		size: 0,
@@ -26,7 +26,7 @@ func NewFloat32Int8ListMultimap() *Float32Int8ListMultimap {
 }
 
 // Put adds a value to the list for the given key.
-func (m *Float32Int8ListMultimap) Put(key float32, value int8) {
+func (m *Float32Int8List) Put(key float32, value int8) {
 	if m.data == nil {
 		m.data = make(map[uint32][]int8)
 		m.keys = make(map[uint32]float32)
@@ -38,12 +38,12 @@ func (m *Float32Int8ListMultimap) Put(key float32, value int8) {
 }
 
 // Get returns a copy of the values for the given key. Returns nil if the key is absent.
-func (m *Float32Int8ListMultimap) Get(key float32) []int8 {
+func (m *Float32Int8List) Get(key float32) []int8 {
 	return m.GetAll(key)
 }
 
 // GetAll returns a copy of the values for the given key.
-func (m *Float32Int8ListMultimap) GetAll(key float32) []int8 {
+func (m *Float32Int8List) GetAll(key float32) []int8 {
 	vals := m.data[math.Float32bits(key)]
 	if vals == nil {
 		return nil
@@ -54,7 +54,7 @@ func (m *Float32Int8ListMultimap) GetAll(key float32) []int8 {
 }
 
 // RemoveAll removes all values for the given key and returns them.
-func (m *Float32Int8ListMultimap) RemoveAll(key float32) []int8 {
+func (m *Float32Int8List) RemoveAll(key float32) []int8 {
 	kb := math.Float32bits(key)
 	vals, ok := m.data[kb]
 	if !ok {
@@ -67,13 +67,13 @@ func (m *Float32Int8ListMultimap) RemoveAll(key float32) []int8 {
 }
 
 // ContainsKey returns true if the multimap contains the given key.
-func (m *Float32Int8ListMultimap) ContainsKey(key float32) bool {
+func (m *Float32Int8List) ContainsKey(key float32) bool {
 	_, ok := m.data[math.Float32bits(key)]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
-func (m *Float32Int8ListMultimap) ContainsKeyValue(key float32, value int8) bool {
+func (m *Float32Int8List) ContainsKeyValue(key float32, value int8) bool {
 	vals, ok := m.data[math.Float32bits(key)]
 	if !ok {
 		return false
@@ -87,33 +87,24 @@ func (m *Float32Int8ListMultimap) ContainsKeyValue(key float32, value int8) bool
 }
 
 // KeysCount returns the number of distinct keys.
-func (m *Float32Int8ListMultimap) KeysCount() int {
+func (m *Float32Int8List) KeysCount() int {
 	return len(m.data)
 }
 
-// Size returns the total number of values across all keys.
-func (m *Float32Int8ListMultimap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float32Int8List) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float32Int8ListMultimap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the multimap contains no values.
-func (m *Float32Int8ListMultimap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the multimap.
-func (m *Float32Int8ListMultimap) Clear() {
+func (m *Float32Int8List) Clear() {
 	m.data = make(map[uint32][]int8)
 	m.keys = make(map[uint32]float32)
 	m.size = 0
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Float32Int8ListMultimap) ForEach(f func(float32, int8)) {
+func (m *Float32Int8List) ForEach(f func(float32, int8)) {
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		for _, val := range vals {
@@ -123,7 +114,7 @@ func (m *Float32Int8ListMultimap) ForEach(f func(float32, int8)) {
 }
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
-func (m *Float32Int8ListMultimap) ForEachKeyValues(f func(float32, []int8)) {
+func (m *Float32Int8List) ForEachKeyValues(f func(float32, []int8)) {
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		copied := make([]int8, len(vals))
@@ -133,7 +124,7 @@ func (m *Float32Int8ListMultimap) ForEachKeyValues(f func(float32, []int8)) {
 }
 
 // Keys returns a slice of all distinct keys.
-func (m *Float32Int8ListMultimap) Keys() []float32 {
+func (m *Float32Int8List) Keys() []float32 {
 	result := make([]float32, 0, len(m.data))
 	for _, key := range m.keys {
 		result = append(result, key)
@@ -142,7 +133,7 @@ func (m *Float32Int8ListMultimap) Keys() []float32 {
 }
 
 // Values returns a slice of all values across all keys.
-func (m *Float32Int8ListMultimap) Values() []int8 {
+func (m *Float32Int8List) Values() []int8 {
 	result := make([]int8, 0, m.size)
 	for _, vals := range m.data {
 		result = append(result, vals...)
@@ -151,8 +142,8 @@ func (m *Float32Int8ListMultimap) Values() []int8 {
 }
 
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
-func (m *Float32Int8ListMultimap) Select(predicate func(float32, int8) bool) *Float32Int8ListMultimap {
-	result := NewFloat32Int8ListMultimap()
+func (m *Float32Int8List) Select(predicate func(float32, int8) bool) *Float32Int8List {
+	result := NewFloat32Int8List()
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		for _, val := range vals {
@@ -165,8 +156,8 @@ func (m *Float32Int8ListMultimap) Select(predicate func(float32, int8) bool) *Fl
 }
 
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
-func (m *Float32Int8ListMultimap) Reject(predicate func(float32, int8) bool) *Float32Int8ListMultimap {
-	result := NewFloat32Int8ListMultimap()
+func (m *Float32Int8List) Reject(predicate func(float32, int8) bool) *Float32Int8List {
+	result := NewFloat32Int8List()
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		for _, val := range vals {
@@ -179,7 +170,7 @@ func (m *Float32Int8ListMultimap) Reject(predicate func(float32, int8) bool) *Fl
 }
 
 // String returns a string representation of the multimap.
-func (m *Float32Int8ListMultimap) String() string {
+func (m *Float32Int8List) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -206,7 +197,7 @@ func (m *Float32Int8ListMultimap) String() string {
 }
 
 // Equals returns true if the other multimap has the same key-value pairs in the same order per key.
-func (m *Float32Int8ListMultimap) Equals(other *Float32Int8ListMultimap) bool {
+func (m *Float32Int8List) Equals(other *Float32Int8List) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -228,23 +219,23 @@ func (m *Float32Int8ListMultimap) Equals(other *Float32Int8ListMultimap) bool {
 }
 
 // KeysToSlice returns all distinct keys as a slice.
-func (m *Float32Int8ListMultimap) KeysToSlice() []float32 {
+func (m *Float32Int8List) KeysToSlice() []float32 {
 	return m.Keys()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Float32Int8ListMultimap) ValuesToSlice() []int8 {
+func (m *Float32Int8List) ValuesToSlice() []int8 {
 	return m.Values()
 }
 
-// WithKeyValue adds a key-value pair and returns the multimap (fluent API).
-func (m *Float32Int8ListMultimap) WithKeyValue(key float32, value int8) *Float32Int8ListMultimap {
+// PutReturning adds a key-value pair and returns the multimap (fluent API).
+func (m *Float32Int8List) PutReturning(key float32, value int8) *Float32Int8List {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey removes all values for the key and returns the multimap (fluent API).
-func (m *Float32Int8ListMultimap) WithoutKey(key float32) *Float32Int8ListMultimap {
+// RemoveKeyReturning removes all values for the key and returns the multimap (fluent API).
+func (m *Float32Int8List) RemoveKeyReturning(key float32) *Float32Int8List {
 	m.RemoveAll(key)
 	return m
 }

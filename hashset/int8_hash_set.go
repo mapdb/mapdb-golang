@@ -9,38 +9,38 @@ import (
 )
 
 const (
-	int8HashSetDefaultCapacity = 16
+	int8DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-type int8HashSetEntry struct {
+type int8Entry struct {
 	key      int8
 	occupied bool
 }
 
-// Int8HashSet is an open-addressing hash set for int8 values.
-type Int8HashSet struct {
-	entries []int8HashSetEntry
+// Int8 is an open-addressing hash set for int8 values.
+type Int8 struct {
+	entries []int8Entry
 	size    int
 }
 
-// NewInt8HashSet creates a new empty Int8HashSet.
-func NewInt8HashSet() *Int8HashSet {
-	return NewInt8HashSetWithCapacity(int8HashSetDefaultCapacity)
+// NewInt8 creates a new empty Int8.
+func NewInt8() *Int8 {
+	return NewInt8WithCapacity(int8DefaultCapacity)
 }
 
-// NewInt8HashSetWithCapacity creates a new empty Int8HashSet with the given initial capacity.
-func NewInt8HashSetWithCapacity(capacity int) *Int8HashSet {
-	cap := nextPowerOfTwoInt8HashSet(capacity)
-	return &Int8HashSet{
-		entries: make([]int8HashSetEntry, cap),
+// NewInt8WithCapacity creates a new empty Int8 with the given initial capacity.
+func NewInt8WithCapacity(capacity int) *Int8 {
+	cap := nextPowerOfTwoInt8(capacity)
+	return &Int8{
+		entries: make([]int8Entry, cap),
 		size:    0,
 	}
 }
 
-// Int8HashSetOf creates a new Int8HashSet from the given values.
-func Int8HashSetOf(values ...int8) *Int8HashSet {
-	s := NewInt8HashSetWithCapacity(len(values) * 2)
+// Int8Of creates a new Int8 from the given values.
+func Int8Of(values ...int8) *Int8 {
+	s := NewInt8WithCapacity(len(values) * 2)
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -48,7 +48,7 @@ func Int8HashSetOf(values ...int8) *Int8HashSet {
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).
-func (s *Int8HashSet) Add(value int8) bool {
+func (s *Int8) Add(value int8) bool {
 	if s.needsResize() {
 		s.resize()
 	}
@@ -71,14 +71,14 @@ func (s *Int8HashSet) Add(value int8) bool {
 }
 
 // AddAll inserts all values into the set.
-func (s *Int8HashSet) AddAll(values ...int8) {
+func (s *Int8) AddAll(values ...int8) {
 	for _, v := range values {
 		s.Add(v)
 	}
 }
 
 // Remove removes a value from the set. Returns true if the value was found and removed.
-func (s *Int8HashSet) Remove(value int8) bool {
+func (s *Int8) Remove(value int8) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -91,7 +91,7 @@ func (s *Int8HashSet) Remove(value int8) bool {
 			return false
 		}
 		if s.entries[idx].key == value {
-			s.entries[idx] = int8HashSetEntry{}
+			s.entries[idx] = int8Entry{}
 			s.size--
 			s.rehashFrom(idx, mask)
 			return true
@@ -101,7 +101,7 @@ func (s *Int8HashSet) Remove(value int8) bool {
 }
 
 // Contains returns true if the set contains the given value.
-func (s *Int8HashSet) Contains(value int8) bool {
+func (s *Int8) Contains(value int8) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -120,30 +120,21 @@ func (s *Int8HashSet) Contains(value int8) bool {
 	}
 }
 
-// Size returns the number of elements in the set.
-func (s *Int8HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Int8) Len() int {
 	return s.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int8HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *Int8HashSet) IsEmpty() bool {
-	return s.size == 0
-}
-
 // Clear removes all elements from the set.
-func (s *Int8HashSet) Clear() {
+func (s *Int8) Clear() {
 	for i := range s.entries {
-		s.entries[i] = int8HashSetEntry{}
+		s.entries[i] = int8Entry{}
 	}
 	s.size = 0
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *Int8HashSet) All() iter.Seq[int8] {
+func (s *Int8) All() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for i := range s.entries {
 			if s.entries[i].occupied {
@@ -156,7 +147,7 @@ func (s *Int8HashSet) All() iter.Seq[int8] {
 }
 
 // ForEach calls the given function for each element.
-func (s *Int8HashSet) ForEach(f func(int8)) {
+func (s *Int8) ForEach(f func(int8)) {
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			f(s.entries[i].key)
@@ -165,8 +156,8 @@ func (s *Int8HashSet) ForEach(f func(int8)) {
 }
 
 // Select returns a new set containing only elements that satisfy the predicate.
-func (s *Int8HashSet) Select(predicate func(int8) bool) *Int8HashSet {
-	result := NewInt8HashSet()
+func (s *Int8) Select(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -176,8 +167,8 @@ func (s *Int8HashSet) Select(predicate func(int8) bool) *Int8HashSet {
 }
 
 // Reject returns a new set containing only elements that do not satisfy the predicate.
-func (s *Int8HashSet) Reject(predicate func(int8) bool) *Int8HashSet {
-	result := NewInt8HashSet()
+func (s *Int8) Reject(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -187,7 +178,7 @@ func (s *Int8HashSet) Reject(predicate func(int8) bool) *Int8HashSet {
 }
 
 // Detect returns the first element that satisfies the predicate, or zero value and false.
-func (s *Int8HashSet) Detect(predicate func(int8) bool) (int8, bool) {
+func (s *Int8) Detect(predicate func(int8) bool) (int8, bool) {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return s.entries[i].key, true
@@ -197,7 +188,7 @@ func (s *Int8HashSet) Detect(predicate func(int8) bool) (int8, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int8HashSet) AnySatisfy(predicate func(int8) bool) bool {
+func (s *Int8) AnySatisfy(predicate func(int8) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return true
@@ -207,7 +198,7 @@ func (s *Int8HashSet) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int8HashSet) AllSatisfy(predicate func(int8) bool) bool {
+func (s *Int8) AllSatisfy(predicate func(int8) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			return false
@@ -217,7 +208,7 @@ func (s *Int8HashSet) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int8HashSet) NoneSatisfy(predicate func(int8) bool) bool {
+func (s *Int8) NoneSatisfy(predicate func(int8) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return false
@@ -227,8 +218,8 @@ func (s *Int8HashSet) NoneSatisfy(predicate func(int8) bool) bool {
 }
 
 // Union returns a new set containing all elements from both sets.
-func (s *Int8HashSet) Union(other *Int8HashSet) *Int8HashSet {
-	result := NewInt8HashSetWithCapacity((s.size + other.size) * 2)
+func (s *Int8) Union(other *Int8) *Int8 {
+	result := NewInt8WithCapacity((s.size + other.size) * 2)
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			result.Add(s.entries[i].key)
@@ -243,8 +234,8 @@ func (s *Int8HashSet) Union(other *Int8HashSet) *Int8HashSet {
 }
 
 // Intersect returns a new set containing only elements present in both sets.
-func (s *Int8HashSet) Intersect(other *Int8HashSet) *Int8HashSet {
-	result := NewInt8HashSet()
+func (s *Int8) Intersect(other *Int8) *Int8 {
+	result := NewInt8()
 	smaller, larger := s, other
 	if s.size > other.size {
 		smaller, larger = other, s
@@ -258,8 +249,8 @@ func (s *Int8HashSet) Intersect(other *Int8HashSet) *Int8HashSet {
 }
 
 // Difference returns a new set containing elements in this set but not in the other.
-func (s *Int8HashSet) Difference(other *Int8HashSet) *Int8HashSet {
-	result := NewInt8HashSet()
+func (s *Int8) Difference(other *Int8) *Int8 {
+	result := NewInt8()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -269,8 +260,8 @@ func (s *Int8HashSet) Difference(other *Int8HashSet) *Int8HashSet {
 }
 
 // SymmetricDifference returns a new set containing elements in either set but not both.
-func (s *Int8HashSet) SymmetricDifference(other *Int8HashSet) *Int8HashSet {
-	result := NewInt8HashSet()
+func (s *Int8) SymmetricDifference(other *Int8) *Int8 {
+	result := NewInt8()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -285,7 +276,7 @@ func (s *Int8HashSet) SymmetricDifference(other *Int8HashSet) *Int8HashSet {
 }
 
 // ToSlice returns all elements as a slice.
-func (s *Int8HashSet) ToSlice() []int8 {
+func (s *Int8) ToSlice() []int8 {
 	result := make([]int8, 0, s.size)
 	for i := range s.entries {
 		if s.entries[i].occupied {
@@ -295,26 +286,26 @@ func (s *Int8HashSet) ToSlice() []int8 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *Int8HashSet) With(value int8) *Int8HashSet {
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Int8) AddReturning(value int8) *Int8 {
 	s.Add(value)
 	return s
 }
 
-// Without returns the set after removing the value (fluent API).
-func (s *Int8HashSet) Without(value int8) *Int8HashSet {
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Int8) RemoveReturning(value int8) *Int8 {
 	s.Remove(value)
 	return s
 }
 
-// WithAll returns the set after adding all values (fluent API).
-func (s *Int8HashSet) WithAll(values ...int8) *Int8HashSet {
+// AddAllReturning adds all values to the set and returns the receiver (mutating, fluent).
+func (s *Int8) AddAllReturning(values ...int8) *Int8 {
 	s.AddAll(values...)
 	return s
 }
 
-// WithoutAll returns the set after removing all given values (fluent API).
-func (s *Int8HashSet) WithoutAll(values ...int8) *Int8HashSet {
+// RemoveAllReturning removes all given values from the set and returns the receiver (mutating, fluent).
+func (s *Int8) RemoveAllReturning(values ...int8) *Int8 {
 	for _, v := range values {
 		s.Remove(v)
 	}
@@ -322,12 +313,12 @@ func (s *Int8HashSet) WithoutAll(values ...int8) *Int8HashSet {
 }
 
 // ToImmutable returns an immutable copy of this set.
-func (s *Int8HashSet) ToImmutable() *ImmutableInt8HashSet {
-	return ImmutableInt8HashSetFrom(s)
+func (s *Int8) ToImmutable() *ImmutableInt8 {
+	return ImmutableInt8From(s)
 }
 
 // String returns a string representation of the set.
-func (s *Int8HashSet) String() string {
+func (s *Int8) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -348,7 +339,7 @@ func (s *Int8HashSet) String() string {
 }
 
 // Equals returns true if the other set has the same elements.
-func (s *Int8HashSet) Equals(other *Int8HashSet) bool {
+func (s *Int8) Equals(other *Int8) bool {
 	if s.size != other.size {
 		return false
 	}
@@ -360,22 +351,22 @@ func (s *Int8HashSet) Equals(other *Int8HashSet) bool {
 	return true
 }
 
-func (s *Int8HashSet) hash(value int8) uint64 {
+func (s *Int8) hash(value int8) uint64 {
 	h := uint64(value) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (s *Int8HashSet) needsResize() bool {
+func (s *Int8) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
 
-func (s *Int8HashSet) resize() {
+func (s *Int8) resize() {
 	oldEntries := s.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = int8HashSetDefaultCapacity
+		newCap = int8DefaultCapacity
 	}
-	s.entries = make([]int8HashSetEntry, newCap)
+	s.entries = make([]int8Entry, newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -385,7 +376,7 @@ func (s *Int8HashSet) resize() {
 	}
 }
 
-func (s *Int8HashSet) rehashFrom(deleted int, mask int) {
+func (s *Int8) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
@@ -394,7 +385,7 @@ func (s *Int8HashSet) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			s.entries[deleted] = s.entries[idx]
-			s.entries[idx] = int8HashSetEntry{}
+			s.entries[idx] = int8Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -404,7 +395,7 @@ func (s *Int8HashSet) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoInt8HashSet(n int) int {
+func nextPowerOfTwoInt8(n int) int {
 	if n <= 0 {
 		return 16
 	}

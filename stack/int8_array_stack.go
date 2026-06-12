@@ -8,22 +8,22 @@ import (
 	"strings"
 )
 
-// Int8ArrayStack is a LIFO (last-in, first-out) stack backed by a int8 slice.
-type Int8ArrayStack struct {
+// Int8 is a LIFO (last-in, first-out) stack backed by a int8 slice.
+type Int8 struct {
 	items []int8
 }
 
-// NewInt8ArrayStack creates a new empty Int8ArrayStack.
-func NewInt8ArrayStack() *Int8ArrayStack {
-	return &Int8ArrayStack{
+// NewInt8 creates a new empty Int8.
+func NewInt8() *Int8 {
+	return &Int8{
 		items: make([]int8, 0, 16),
 	}
 }
 
-// Int8ArrayStackOf creates a new Int8ArrayStack from the given values.
+// Int8Of creates a new Int8 from the given values.
 // The last value becomes the top of the stack.
-func Int8ArrayStackOf(values ...int8) *Int8ArrayStack {
-	s := &Int8ArrayStack{
+func Int8Of(values ...int8) *Int8 {
+	s := &Int8{
 		items: make([]int8, len(values)),
 	}
 	copy(s.items, values)
@@ -31,58 +31,50 @@ func Int8ArrayStackOf(values ...int8) *Int8ArrayStack {
 }
 
 // Push adds a value to the top of the stack.
-func (s *Int8ArrayStack) Push(value int8) {
+func (s *Int8) Push(value int8) {
 	s.items = append(s.items, value)
 }
 
-// Pop removes and returns the top value, or an error if the stack is empty.
-func (s *Int8ArrayStack) Pop() (int8, error) {
+// Pop removes and returns the top value. The bool is false if the stack is empty.
+func (s *Int8) Pop() (int8, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int8ArrayStack: Pop on empty stack")
+		return 0, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *Int8ArrayStack) Peek() (int8, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *Int8) Peek() (int8, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int8ArrayStack: Peek on empty stack")
+		return 0, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
-// PeekAt returns the element at the given distance from the top (0 = top),
-// or an error if the index is out of bounds.
-func (s *Int8ArrayStack) PeekAt(index int) (int8, error) {
+// PeekAt returns the element at the given distance from the top (0 = top).
+// It panics if the index is out of range, like a native Go slice.
+func (s *Int8) PeekAt(index int) int8 {
 	if index < 0 || index >= len(s.items) {
-		return 0, fmt.Errorf("Int8ArrayStack: PeekAt index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("stack.Int8: index out of range [%d] with length %d", index, len(s.items)))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
-// Size returns the number of elements in the stack.
-func (s *Int8ArrayStack) Size() int {
+// Len returns the number of elements in the stack. Use s.Len() == 0 to test
+// for emptiness.
+func (s *Int8) Len() int {
 	return len(s.items)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int8ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *Int8ArrayStack) IsEmpty() bool {
-	return len(s.items) == 0
-}
-
 // Clear removes all elements from the stack.
-func (s *Int8ArrayStack) Clear() {
+func (s *Int8) Clear() {
 	s.items = s.items[:0]
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *Int8ArrayStack) Contains(value int8) bool {
+func (s *Int8) Contains(value int8) bool {
 	for _, v := range s.items {
 		if v == value {
 			return true
@@ -92,7 +84,7 @@ func (s *Int8ArrayStack) Contains(value int8) bool {
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *Int8ArrayStack) All() iter.Seq[int8] {
+func (s *Int8) All() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for i := len(s.items) - 1; i >= 0; i-- {
 			if !yield(s.items[i]) {
@@ -103,7 +95,7 @@ func (s *Int8ArrayStack) All() iter.Seq[int8] {
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *Int8ArrayStack) ForEach(f func(int8)) {
+func (s *Int8) ForEach(f func(int8)) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		f(s.items[i])
 	}
@@ -111,8 +103,8 @@ func (s *Int8ArrayStack) ForEach(f func(int8)) {
 
 // Select returns a new stack containing only elements that satisfy the predicate.
 // Order is preserved (top of result corresponds to top of original that passed).
-func (s *Int8ArrayStack) Select(predicate func(int8) bool) *Int8ArrayStack {
-	result := NewInt8ArrayStack()
+func (s *Int8) Select(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for _, v := range s.items {
 		if predicate(v) {
 			result.Push(v)
@@ -122,8 +114,8 @@ func (s *Int8ArrayStack) Select(predicate func(int8) bool) *Int8ArrayStack {
 }
 
 // Reject returns a new stack containing only elements that do not satisfy the predicate.
-func (s *Int8ArrayStack) Reject(predicate func(int8) bool) *Int8ArrayStack {
-	result := NewInt8ArrayStack()
+func (s *Int8) Reject(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for _, v := range s.items {
 		if !predicate(v) {
 			result.Push(v)
@@ -133,7 +125,7 @@ func (s *Int8ArrayStack) Reject(predicate func(int8) bool) *Int8ArrayStack {
 }
 
 // Detect returns the first element from the top that satisfies the predicate, or zero and false.
-func (s *Int8ArrayStack) Detect(predicate func(int8) bool) (int8, bool) {
+func (s *Int8) Detect(predicate func(int8) bool) (int8, bool) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		if predicate(s.items[i]) {
 			return s.items[i], true
@@ -143,7 +135,7 @@ func (s *Int8ArrayStack) Detect(predicate func(int8) bool) (int8, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int8ArrayStack) AnySatisfy(predicate func(int8) bool) bool {
+func (s *Int8) AnySatisfy(predicate func(int8) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return true
@@ -153,7 +145,7 @@ func (s *Int8ArrayStack) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int8ArrayStack) AllSatisfy(predicate func(int8) bool) bool {
+func (s *Int8) AllSatisfy(predicate func(int8) bool) bool {
 	for _, v := range s.items {
 		if !predicate(v) {
 			return false
@@ -163,7 +155,7 @@ func (s *Int8ArrayStack) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int8ArrayStack) NoneSatisfy(predicate func(int8) bool) bool {
+func (s *Int8) NoneSatisfy(predicate func(int8) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return false
@@ -173,7 +165,7 @@ func (s *Int8ArrayStack) NoneSatisfy(predicate func(int8) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (s *Int8ArrayStack) Count(predicate func(int8) bool) int {
+func (s *Int8) Count(predicate func(int8) bool) int {
 	count := 0
 	for _, v := range s.items {
 		if predicate(v) {
@@ -184,7 +176,7 @@ func (s *Int8ArrayStack) Count(predicate func(int8) bool) int {
 }
 
 // InjectInto performs a left fold from bottom to top.
-func (s *Int8ArrayStack) InjectInto(initial int8, f func(int8, int8) int8) int8 {
+func (s *Int8) InjectInto(initial int8, f func(int8, int8) int8) int8 {
 	result := initial
 	for _, v := range s.items {
 		result = f(result, v)
@@ -193,7 +185,7 @@ func (s *Int8ArrayStack) InjectInto(initial int8, f func(int8, int8) int8) int8 
 }
 
 // ToSlice returns all elements as a slice (top element first).
-func (s *Int8ArrayStack) ToSlice() []int8 {
+func (s *Int8) ToSlice() []int8 {
 	result := make([]int8, len(s.items))
 	for i, j := len(s.items)-1, 0; i >= 0; i, j = i-1, j+1 {
 		result[j] = s.items[i]
@@ -202,20 +194,20 @@ func (s *Int8ArrayStack) ToSlice() []int8 {
 }
 
 // ToList returns the elements as a slice in stack order (bottom first, for internal use).
-func (s *Int8ArrayStack) toList() []int8 {
+func (s *Int8) toList() []int8 {
 	result := make([]int8, len(s.items))
 	copy(result, s.items)
 	return result
 }
 
-// With returns the stack after pushing the value (fluent API).
-func (s *Int8ArrayStack) With(value int8) *Int8ArrayStack {
+// AddReturning pushes the value and returns the receiver (mutating, fluent).
+func (s *Int8) AddReturning(value int8) *Int8 {
 	s.Push(value)
 	return s
 }
 
-// WithAll returns the stack after pushing all values (fluent API).
-func (s *Int8ArrayStack) WithAll(values ...int8) *Int8ArrayStack {
+// AddAllReturning pushes all values and returns the receiver (mutating, fluent).
+func (s *Int8) AddAllReturning(values ...int8) *Int8 {
 	for _, v := range values {
 		s.Push(v)
 	}
@@ -223,12 +215,12 @@ func (s *Int8ArrayStack) WithAll(values ...int8) *Int8ArrayStack {
 }
 
 // ToImmutable returns an immutable copy of this stack.
-func (s *Int8ArrayStack) ToImmutable() *ImmutableInt8ArrayStack {
-	return ImmutableInt8ArrayStackFrom(s)
+func (s *Int8) ToImmutable() *ImmutableInt8 {
+	return ImmutableInt8From(s)
 }
 
 // String returns a string representation of the stack (top element first).
-func (s *Int8ArrayStack) String() string {
+func (s *Int8) String() string {
 	if len(s.items) == 0 {
 		return "[]"
 	}
@@ -245,7 +237,7 @@ func (s *Int8ArrayStack) String() string {
 }
 
 // Equals returns true if the other stack has the same elements in the same order.
-func (s *Int8ArrayStack) Equals(other *Int8ArrayStack) bool {
+func (s *Int8) Equals(other *Int8) bool {
 	if len(s.items) != len(other.items) {
 		return false
 	}

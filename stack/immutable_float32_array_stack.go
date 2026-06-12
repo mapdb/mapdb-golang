@@ -3,123 +3,111 @@
 package stack
 
 import (
-	"fmt"
 	"iter"
 )
 
-// ImmutableFloat32ArrayStack is an immutable LIFO stack of float32 values.
-type ImmutableFloat32ArrayStack struct {
-	delegate *Float32ArrayStack
+// ImmutableFloat32 is an immutable LIFO stack of float32 values.
+type ImmutableFloat32 struct {
+	delegate *Float32
 }
 
-// NewImmutableFloat32ArrayStack creates an immutable stack from the given values.
+// NewImmutableFloat32 creates an immutable stack from the given values.
 // The last value becomes the top of the stack.
-func NewImmutableFloat32ArrayStack(values ...float32) *ImmutableFloat32ArrayStack {
-	return &ImmutableFloat32ArrayStack{delegate: Float32ArrayStackOf(values...)}
+func NewImmutableFloat32(values ...float32) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: Float32Of(values...)}
 }
 
-// ImmutableFloat32ArrayStackFrom creates an immutable copy of a mutable stack.
-func ImmutableFloat32ArrayStackFrom(s *Float32ArrayStack) *ImmutableFloat32ArrayStack {
-	copy := &Float32ArrayStack{items: make([]float32, len(s.items))}
+// ImmutableFloat32From creates an immutable copy of a mutable stack.
+func ImmutableFloat32From(s *Float32) *ImmutableFloat32 {
+	copy := &Float32{items: make([]float32, len(s.items))}
 	for i := range s.items {
 		copy.items[i] = s.items[i]
 	}
-	return &ImmutableFloat32ArrayStack{delegate: copy}
+	return &ImmutableFloat32{delegate: copy}
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *ImmutableFloat32ArrayStack) Peek() (float32, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *ImmutableFloat32) Peek() (float32, bool) {
 	return s.delegate.Peek()
 }
 
-// PeekAt returns the element at the given distance from the top,
-// or an error if the index is out of bounds.
-func (s *ImmutableFloat32ArrayStack) PeekAt(index int) (float32, error) {
+// PeekAt returns the element at the given distance from the top.
+// It panics if the index is out of range, like a native Go slice.
+func (s *ImmutableFloat32) PeekAt(index int) float32 {
 	return s.delegate.PeekAt(index)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableFloat32ArrayStack) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableFloat32ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *ImmutableFloat32ArrayStack) IsEmpty() bool {
-	return s.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableFloat32) Len() int { return s.delegate.Len() }
 
 // Contains returns true if the stack contains the given value.
-func (s *ImmutableFloat32ArrayStack) Contains(value float32) bool {
+func (s *ImmutableFloat32) Contains(value float32) bool {
 	return s.delegate.Contains(value)
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *ImmutableFloat32ArrayStack) All() iter.Seq[float32] {
+func (s *ImmutableFloat32) All() iter.Seq[float32] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *ImmutableFloat32ArrayStack) ForEach(f func(float32)) {
+func (s *ImmutableFloat32) ForEach(f func(float32)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable stack with elements satisfying the predicate.
-func (s *ImmutableFloat32ArrayStack) Select(predicate func(float32) bool) *ImmutableFloat32ArrayStack {
-	return &ImmutableFloat32ArrayStack{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableFloat32) Select(predicate func(float32) bool) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable stack with elements not satisfying the predicate.
-func (s *ImmutableFloat32ArrayStack) Reject(predicate func(float32) bool) *ImmutableFloat32ArrayStack {
-	return &ImmutableFloat32ArrayStack{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableFloat32) Reject(predicate func(float32) bool) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: s.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element from top satisfying the predicate, or zero and false.
-func (s *ImmutableFloat32ArrayStack) Detect(predicate func(float32) bool) (float32, bool) {
+func (s *ImmutableFloat32) Detect(predicate func(float32) bool) (float32, bool) {
 	return s.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableFloat32ArrayStack) AnySatisfy(predicate func(float32) bool) bool {
+func (s *ImmutableFloat32) AnySatisfy(predicate func(float32) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableFloat32ArrayStack) AllSatisfy(predicate func(float32) bool) bool {
+func (s *ImmutableFloat32) AllSatisfy(predicate func(float32) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableFloat32ArrayStack) NoneSatisfy(predicate func(float32) bool) bool {
+func (s *ImmutableFloat32) NoneSatisfy(predicate func(float32) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *ImmutableFloat32ArrayStack) Count(predicate func(float32) bool) int {
+func (s *ImmutableFloat32) Count(predicate func(float32) bool) int {
 	return s.delegate.Count(predicate)
 }
 
 // ToSlice returns all elements as a slice (top first).
-func (s *ImmutableFloat32ArrayStack) ToSlice() []float32 {
+func (s *ImmutableFloat32) ToSlice() []float32 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableFloat32ArrayStack) String() string {
+func (s *ImmutableFloat32) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable stack has the same elements.
-func (s *ImmutableFloat32ArrayStack) Equals(other *ImmutableFloat32ArrayStack) bool {
+func (s *ImmutableFloat32) Equals(other *ImmutableFloat32) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this stack.
-func (s *ImmutableFloat32ArrayStack) ToMutable() *Float32ArrayStack {
-	copy := &Float32ArrayStack{items: make([]float32, len(s.delegate.items))}
+func (s *ImmutableFloat32) ToMutable() *Float32 {
+	copy := &Float32{items: make([]float32, len(s.delegate.items))}
 	for i := range s.delegate.items {
 		copy.items[i] = s.delegate.items[i]
 	}
@@ -128,21 +116,21 @@ func (s *ImmutableFloat32ArrayStack) ToMutable() *Float32ArrayStack {
 
 // Push returns a NEW immutable stack with the value pushed on top.
 // The original stack is not modified.
-func (s *ImmutableFloat32ArrayStack) Push(value float32) *ImmutableFloat32ArrayStack {
+func (s *ImmutableFloat32) Push(value float32) *ImmutableFloat32 {
 	newItems := make([]float32, len(s.delegate.items)+1)
 	copy(newItems, s.delegate.items)
 	newItems[len(s.delegate.items)] = value
-	return &ImmutableFloat32ArrayStack{delegate: &Float32ArrayStack{items: newItems}}
+	return &ImmutableFloat32{delegate: &Float32{items: newItems}}
 }
 
 // Pop returns a NEW immutable stack with the top element removed, and the removed value.
-// The original stack is not modified. Returns an error if the stack is empty.
-func (s *ImmutableFloat32ArrayStack) Pop() (*ImmutableFloat32ArrayStack, float32, error) {
-	if s.delegate.IsEmpty() {
-		return nil, 0.0, fmt.Errorf("ImmutableFloat32ArrayStack: Pop on empty stack")
+// The original stack is not modified. The bool is false if the stack is empty.
+func (s *ImmutableFloat32) Pop() (*ImmutableFloat32, float32, bool) {
+	if s.delegate.Len() == 0 {
+		return nil, 0.0, false
 	}
 	top := s.delegate.items[len(s.delegate.items)-1]
 	newItems := make([]float32, len(s.delegate.items)-1)
 	copy(newItems, s.delegate.items[:len(s.delegate.items)-1])
-	return &ImmutableFloat32ArrayStack{delegate: &Float32ArrayStack{items: newItems}}, top, nil
+	return &ImmutableFloat32{delegate: &Float32{items: newItems}}, top, true
 }

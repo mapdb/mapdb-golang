@@ -8,31 +8,31 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt64HashBag is a thread-safe wrapper around Int64HashBag.
+// SynchronizedHashInt64 is a thread-safe wrapper around HashInt64.
 //
 // Read methods hold an RLock; writes hold a Lock. Functional methods
 // (ForEach/Select/Reject/AnySatisfy/…) snapshot (value, count) pairs
 // under RLock, release, and run the callback against the snapshot so
 // the callback may safely re-enter the wrapper.
-type SynchronizedInt64HashBag struct {
-	delegate *Int64HashBag
+type SynchronizedHashInt64 struct {
+	delegate *HashInt64
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt64HashBag creates a new thread-safe empty bag.
-func NewSynchronizedInt64HashBag() *SynchronizedInt64HashBag {
-	return &SynchronizedInt64HashBag{delegate: NewInt64HashBag()}
+// NewSynchronizedHashInt64 creates a new thread-safe empty bag.
+func NewSynchronizedHashInt64() *SynchronizedHashInt64 {
+	return &SynchronizedHashInt64{delegate: NewHashInt64()}
 }
 
-// NewSynchronizedInt64HashBagFrom wraps an existing bag. The
+// NewSynchronizedHashInt64From wraps an existing bag. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedInt64HashBagFrom(b *Int64HashBag) *SynchronizedInt64HashBag {
-	return &SynchronizedInt64HashBag{delegate: b}
+func NewSynchronizedHashInt64From(b *HashInt64) *SynchronizedHashInt64 {
+	return &SynchronizedHashInt64{delegate: b}
 }
 
 // snapshotDistinct returns (values, counts) for every distinct element,
 // held only briefly under RLock.
-func (b *SynchronizedInt64HashBag) snapshotDistinct() (values []int64, counts []int) {
+func (b *SynchronizedHashInt64) snapshotDistinct() (values []int64, counts []int) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	for v, c := range b.delegate.AllWithOccurrences() {
@@ -44,37 +44,37 @@ func (b *SynchronizedInt64HashBag) snapshotDistinct() (values []int64, counts []
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (b *SynchronizedInt64HashBag) Add(value int64) {
+func (b *SynchronizedHashInt64) Add(value int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.delegate.Add(value)
 }
 
-func (b *SynchronizedInt64HashBag) AddOccurrences(value int64, occurrences int) int {
+func (b *SynchronizedHashInt64) AddOccurrences(value int64, occurrences int) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.AddOccurrences(value, occurrences)
 }
 
-func (b *SynchronizedInt64HashBag) Remove(value int64) bool {
+func (b *SynchronizedHashInt64) Remove(value int64) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.Remove(value)
 }
 
-func (b *SynchronizedInt64HashBag) RemoveOccurrences(value int64, occurrences int) bool {
+func (b *SynchronizedHashInt64) RemoveOccurrences(value int64, occurrences int) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.RemoveOccurrences(value, occurrences)
 }
 
-func (b *SynchronizedInt64HashBag) RemoveAll(value int64) int {
+func (b *SynchronizedHashInt64) RemoveAll(value int64) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.RemoveAll(value)
 }
 
-func (b *SynchronizedInt64HashBag) Clear() {
+func (b *SynchronizedHashInt64) Clear() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.delegate.Clear()
@@ -82,47 +82,40 @@ func (b *SynchronizedInt64HashBag) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (b *SynchronizedInt64HashBag) OccurrencesOf(value int64) int {
+func (b *SynchronizedHashInt64) OccurrencesOf(value int64) int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.OccurrencesOf(value)
 }
 
-func (b *SynchronizedInt64HashBag) Contains(value int64) bool {
+func (b *SynchronizedHashInt64) Contains(value int64) bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.Contains(value)
 }
 
-func (b *SynchronizedInt64HashBag) Size() int {
+func (b *SynchronizedHashInt64) Len() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.delegate.Size()
+	return b.delegate.Len()
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *SynchronizedInt64HashBag) Len() int { return b.Size() }
 
-func (b *SynchronizedInt64HashBag) SizeDistinct() int {
+func (b *SynchronizedHashInt64) SizeDistinct() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.SizeDistinct()
 }
 
-func (b *SynchronizedInt64HashBag) IsEmpty() bool {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return b.delegate.IsEmpty()
-}
-
-func (b *SynchronizedInt64HashBag) ToSlice() []int64 {
+func (b *SynchronizedHashInt64) ToSlice() []int64 {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.ToSlice()
 }
 
-func (b *SynchronizedInt64HashBag) String() string {
+func (b *SynchronizedHashInt64) String() string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.String()
@@ -131,7 +124,7 @@ func (b *SynchronizedInt64HashBag) String() string {
 // ── iteration (snapshot-based) ────────────────────────────────────────
 
 // All yields every occurrence (multiplicity preserved).
-func (b *SynchronizedInt64HashBag) All() iter.Seq[int64] {
+func (b *SynchronizedHashInt64) All() iter.Seq[int64] {
 	values, counts := b.snapshotDistinct()
 	return func(yield func(int64) bool) {
 		for i, v := range values {
@@ -145,7 +138,7 @@ func (b *SynchronizedInt64HashBag) All() iter.Seq[int64] {
 }
 
 // AllDistinct yields each distinct value exactly once.
-func (b *SynchronizedInt64HashBag) AllDistinct() iter.Seq[int64] {
+func (b *SynchronizedHashInt64) AllDistinct() iter.Seq[int64] {
 	values, _ := b.snapshotDistinct()
 	return func(yield func(int64) bool) {
 		for _, v := range values {
@@ -157,7 +150,7 @@ func (b *SynchronizedInt64HashBag) AllDistinct() iter.Seq[int64] {
 }
 
 // AllWithOccurrences yields (value, count) pairs for each distinct value.
-func (b *SynchronizedInt64HashBag) AllWithOccurrences() iter.Seq2[int64, int] {
+func (b *SynchronizedHashInt64) AllWithOccurrences() iter.Seq2[int64, int] {
 	values, counts := b.snapshotDistinct()
 	return func(yield func(int64, int) bool) {
 		for i, v := range values {
@@ -170,7 +163,7 @@ func (b *SynchronizedInt64HashBag) AllWithOccurrences() iter.Seq2[int64, int] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (b *SynchronizedInt64HashBag) ForEach(f func(int64)) {
+func (b *SynchronizedHashInt64) ForEach(f func(int64)) {
 	values, counts := b.snapshotDistinct()
 	for i, v := range values {
 		for j := 0; j < counts[i]; j++ {
@@ -179,14 +172,14 @@ func (b *SynchronizedInt64HashBag) ForEach(f func(int64)) {
 	}
 }
 
-func (b *SynchronizedInt64HashBag) ForEachWithOccurrences(f func(int64, int)) {
+func (b *SynchronizedHashInt64) ForEachWithOccurrences(f func(int64, int)) {
 	values, counts := b.snapshotDistinct()
 	for i, v := range values {
 		f(v, counts[i])
 	}
 }
 
-func (b *SynchronizedInt64HashBag) AnySatisfy(predicate func(int64) bool) bool {
+func (b *SynchronizedHashInt64) AnySatisfy(predicate func(int64) bool) bool {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if predicate(v) {
@@ -196,7 +189,7 @@ func (b *SynchronizedInt64HashBag) AnySatisfy(predicate func(int64) bool) bool {
 	return false
 }
 
-func (b *SynchronizedInt64HashBag) AllSatisfy(predicate func(int64) bool) bool {
+func (b *SynchronizedHashInt64) AllSatisfy(predicate func(int64) bool) bool {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if !predicate(v) {
@@ -206,7 +199,7 @@ func (b *SynchronizedInt64HashBag) AllSatisfy(predicate func(int64) bool) bool {
 	return true
 }
 
-func (b *SynchronizedInt64HashBag) NoneSatisfy(predicate func(int64) bool) bool {
+func (b *SynchronizedHashInt64) NoneSatisfy(predicate func(int64) bool) bool {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if predicate(v) {
@@ -216,7 +209,7 @@ func (b *SynchronizedInt64HashBag) NoneSatisfy(predicate func(int64) bool) bool 
 	return true
 }
 
-func (b *SynchronizedInt64HashBag) Detect(predicate func(int64) bool) (int64, bool) {
+func (b *SynchronizedHashInt64) Detect(predicate func(int64) bool) (int64, bool) {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if predicate(v) {
@@ -229,9 +222,9 @@ func (b *SynchronizedInt64HashBag) Detect(predicate func(int64) bool) (int64, bo
 
 // ── functional that return new bags ──────────────────────────────────
 
-func (b *SynchronizedInt64HashBag) Select(predicate func(int64) bool) *Int64HashBag {
+func (b *SynchronizedHashInt64) Select(predicate func(int64) bool) *HashInt64 {
 	values, counts := b.snapshotDistinct()
-	result := NewInt64HashBag()
+	result := NewHashInt64()
 	for i, v := range values {
 		if predicate(v) {
 			result.AddOccurrences(v, counts[i])
@@ -240,9 +233,9 @@ func (b *SynchronizedInt64HashBag) Select(predicate func(int64) bool) *Int64Hash
 	return result
 }
 
-func (b *SynchronizedInt64HashBag) Reject(predicate func(int64) bool) *Int64HashBag {
+func (b *SynchronizedHashInt64) Reject(predicate func(int64) bool) *HashInt64 {
 	values, counts := b.snapshotDistinct()
-	result := NewInt64HashBag()
+	result := NewHashInt64()
 	for i, v := range values {
 		if !predicate(v) {
 			result.AddOccurrences(v, counts[i])
@@ -253,7 +246,7 @@ func (b *SynchronizedInt64HashBag) Reject(predicate func(int64) bool) *Int64Hash
 
 // TopOccurrences returns the n most frequent elements. Returns the
 // exact same shape as the underlying bag.
-func (b *SynchronizedInt64HashBag) TopOccurrences(n int) []struct {
+func (b *SynchronizedHashInt64) TopOccurrences(n int) []struct {
 	Value int64
 	Count int
 } {
@@ -264,37 +257,37 @@ func (b *SynchronizedInt64HashBag) TopOccurrences(n int) []struct {
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (b *SynchronizedInt64HashBag) With(value int64) *SynchronizedInt64HashBag {
+func (b *SynchronizedHashInt64) AddReturning(value int64) *SynchronizedHashInt64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.With(value)
+	b.delegate.AddReturning(value)
 	return b
 }
 
-func (b *SynchronizedInt64HashBag) WithAll(values ...int64) *SynchronizedInt64HashBag {
+func (b *SynchronizedHashInt64) AddAllReturning(values ...int64) *SynchronizedHashInt64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.WithAll(values...)
+	b.delegate.AddAllReturning(values...)
 	return b
 }
 
-func (b *SynchronizedInt64HashBag) Without(value int64) *SynchronizedInt64HashBag {
+func (b *SynchronizedHashInt64) RemoveReturning(value int64) *SynchronizedHashInt64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.Without(value)
+	b.delegate.RemoveReturning(value)
 	return b
 }
 
-func (b *SynchronizedInt64HashBag) WithoutAll(values ...int64) *SynchronizedInt64HashBag {
+func (b *SynchronizedHashInt64) RemoveAllReturning(values ...int64) *SynchronizedHashInt64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.WithoutAll(values...)
+	b.delegate.RemoveAllReturning(values...)
 	return b
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (b *SynchronizedInt64HashBag) ToImmutable() *ImmutableInt64HashBag {
+func (b *SynchronizedHashInt64) ToImmutable() *ImmutableHashInt64 {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.ToImmutable()
@@ -302,7 +295,7 @@ func (b *SynchronizedInt64HashBag) ToImmutable() *ImmutableInt64HashBag {
 
 // Equals compares by contents. Locks acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (b *SynchronizedInt64HashBag) Equals(other *SynchronizedInt64HashBag) bool {
+func (b *SynchronizedHashInt64) Equals(other *SynchronizedHashInt64) bool {
 	if b == other {
 		b.mu.RLock()
 		defer b.mu.RUnlock()

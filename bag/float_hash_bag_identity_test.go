@@ -11,8 +11,8 @@ import (
 // map[float64]int backing (Go float map equality makes every NaN a fresh
 // unreachable key and collapses signed zero).
 
-func TestFloat32HashBagNaNFindable(t *testing.T) {
-	b := NewFloat32HashBag()
+func TestHashFloat32NaNFindable(t *testing.T) {
+	b := NewHashFloat32()
 	nan := float32(math.NaN())
 	b.Add(nan)
 	b.Add(nan)
@@ -22,7 +22,7 @@ func TestFloat32HashBagNaNFindable(t *testing.T) {
 	if got := b.OccurrencesOf(nan); got != 2 {
 		t.Fatalf("OccurrencesOf(NaN) = %d, want 2", got)
 	}
-	if got := b.Size(); got != 2 {
+	if got := b.Len(); got != 2 {
 		t.Fatalf("Size() = %d, want 2 (no unreachable NaN entries)", got)
 	}
 	if got := b.SizeDistinct(); got != 1 {
@@ -30,8 +30,8 @@ func TestFloat32HashBagNaNFindable(t *testing.T) {
 	}
 }
 
-func TestFloat32HashBagSignedZeroDistinct(t *testing.T) {
-	b := NewFloat32HashBag()
+func TestHashFloat32SignedZeroDistinct(t *testing.T) {
+	b := NewHashFloat32()
 	pz := float32(0)
 	nz := float32(math.Copysign(0, -1))
 	b.Add(pz)
@@ -45,19 +45,19 @@ func TestFloat32HashBagSignedZeroDistinct(t *testing.T) {
 	if got := b.SizeDistinct(); got != 2 {
 		t.Fatalf("SizeDistinct() = %d, want 2 (+0 and -0 distinct)", got)
 	}
-	if got := b.Size(); got != 4 {
+	if got := b.Len(); got != 4 {
 		t.Fatalf("Size() = %d, want 4", got)
 	}
 }
 
-func TestFloat32HashBagSizeAfterRemove(t *testing.T) {
-	b := NewFloat32HashBag()
+func TestHashFloat32SizeAfterRemove(t *testing.T) {
+	b := NewHashFloat32()
 	nan := float32(math.NaN())
 	b.Add(nan)
 	if !b.Remove(nan) {
 		t.Fatal("Remove(NaN) = false, want true")
 	}
-	if got := b.Size(); got != 0 {
+	if got := b.Len(); got != 0 {
 		t.Fatalf("Size() after remove = %d, want 0", got)
 	}
 	if b.Contains(nan) {
@@ -65,10 +65,10 @@ func TestFloat32HashBagSizeAfterRemove(t *testing.T) {
 	}
 }
 
-func TestImmutableFloat32HashBagDelegatesIdentity(t *testing.T) {
+func TestImmutableHashFloat32DelegatesIdentity(t *testing.T) {
 	nan := float32(math.NaN())
 	nz := float32(math.Copysign(0, -1))
-	b := NewFloat32HashBag()
+	b := NewHashFloat32()
 	b.Add(nan)
 	b.Add(float32(0))
 	b.Add(nz)
@@ -79,13 +79,13 @@ func TestImmutableFloat32HashBagDelegatesIdentity(t *testing.T) {
 	if im.SizeDistinct() != 3 {
 		t.Fatalf("immutable SizeDistinct() = %d, want 3", im.SizeDistinct())
 	}
-	if im.Size() != 3 {
-		t.Fatalf("immutable Size() = %d, want 3", im.Size())
+	if im.Len() != 3 {
+		t.Fatalf("immutable Size() = %d, want 3", im.Len())
 	}
 }
 
-func TestFloat64HashBagNaNFindable(t *testing.T) {
-	b := NewFloat64HashBag()
+func TestHashFloat64NaNFindable(t *testing.T) {
+	b := NewHashFloat64()
 	nan := math.NaN()
 	b.Add(nan)
 	b.Add(nan)
@@ -95,13 +95,13 @@ func TestFloat64HashBagNaNFindable(t *testing.T) {
 	if got := b.OccurrencesOf(nan); got != 2 {
 		t.Fatalf("OccurrencesOf(NaN) = %d, want 2", got)
 	}
-	if got := b.Size(); got != 2 {
+	if got := b.Len(); got != 2 {
 		t.Fatalf("Size() = %d, want 2", got)
 	}
 }
 
-func TestFloat64HashBagSignedZeroDistinct(t *testing.T) {
-	b := NewFloat64HashBag()
+func TestHashFloat64SignedZeroDistinct(t *testing.T) {
+	b := NewHashFloat64()
 	pz := 0.0
 	nz := math.Copysign(0, -1)
 	b.Add(pz)

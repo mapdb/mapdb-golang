@@ -8,26 +8,26 @@ import (
 	"strings"
 )
 
-// CharFloat64HashBiMap is a bidirectional map with uint16 keys and float64 values.
+// CharFloat64BiMap is a bidirectional map with uint16 keys and float64 values.
 // Both key-to-value and value-to-key lookups are O(1).
-type CharFloat64HashBiMap struct {
-	forward *CharFloat64HashMap
-	reverse *Float64CharHashMap
+type CharFloat64BiMap struct {
+	forward *CharFloat64
+	reverse *Float64Char
 }
 
-// NewCharFloat64HashBiMap creates a new empty CharFloat64HashBiMap with default capacity.
-func NewCharFloat64HashBiMap() *CharFloat64HashBiMap {
-	return &CharFloat64HashBiMap{
-		forward: NewCharFloat64HashMap(),
-		reverse: NewFloat64CharHashMap(),
+// NewCharFloat64BiMap creates a new empty CharFloat64BiMap with default capacity.
+func NewCharFloat64BiMap() *CharFloat64BiMap {
+	return &CharFloat64BiMap{
+		forward: NewCharFloat64(),
+		reverse: NewFloat64Char(),
 	}
 }
 
-// NewCharFloat64HashBiMapWithCapacity creates a new empty CharFloat64HashBiMap with the given initial capacity.
-func NewCharFloat64HashBiMapWithCapacity(capacity int) *CharFloat64HashBiMap {
-	return &CharFloat64HashBiMap{
-		forward: NewCharFloat64HashMapWithCapacity(capacity),
-		reverse: NewFloat64CharHashMapWithCapacity(capacity),
+// NewCharFloat64BiMapWithCapacity creates a new empty CharFloat64BiMap with the given initial capacity.
+func NewCharFloat64BiMapWithCapacity(capacity int) *CharFloat64BiMap {
+	return &CharFloat64BiMap{
+		forward: NewCharFloat64WithCapacity(capacity),
+		reverse: NewFloat64CharWithCapacity(capacity),
 	}
 }
 
@@ -35,7 +35,7 @@ func NewCharFloat64HashBiMapWithCapacity(capacity int) *CharFloat64HashBiMap {
 // If the key already existed, the old value mapping is removed from the reverse map.
 // If the value already existed as a value for a different key, that old key mapping is removed.
 // Returns the previous value and true if the key existed.
-func (m *CharFloat64HashBiMap) Put(key uint16, value float64) (float64, bool) {
+func (m *CharFloat64BiMap) Put(key uint16, value float64) (float64, bool) {
 	// If this value is already mapped to a different key, remove that old key->value pair
 	if oldKey, ok := m.reverse.Get(value); ok {
 		if !(oldKey == key) {
@@ -55,18 +55,18 @@ func (m *CharFloat64HashBiMap) Put(key uint16, value float64) (float64, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *CharFloat64HashBiMap) Get(key uint16) (float64, bool) {
+func (m *CharFloat64BiMap) Get(key uint16) (float64, bool) {
 	return m.forward.Get(key)
 }
 
 // GetKey returns the key for the given value and true if found, or the zero value and false if not.
-func (m *CharFloat64HashBiMap) GetKey(value float64) (uint16, bool) {
+func (m *CharFloat64BiMap) GetKey(value float64) (uint16, bool) {
 	return m.reverse.Get(value)
 }
 
 // Remove deletes the entry for the given key from both directions.
 // Returns the previous value and true if the key existed.
-func (m *CharFloat64HashBiMap) Remove(key uint16) (float64, bool) {
+func (m *CharFloat64BiMap) Remove(key uint16) (float64, bool) {
 	oldVal, existed := m.forward.Remove(key)
 	if existed {
 		m.reverse.Remove(oldVal)
@@ -76,7 +76,7 @@ func (m *CharFloat64HashBiMap) Remove(key uint16) (float64, bool) {
 
 // RemoveValue deletes the entry for the given value from both directions.
 // Returns the previous key and true if the value existed.
-func (m *CharFloat64HashBiMap) RemoveValue(value float64) (uint16, bool) {
+func (m *CharFloat64BiMap) RemoveValue(value float64) (uint16, bool) {
 	oldKey, existed := m.reverse.Remove(value)
 	if existed {
 		m.forward.Remove(oldKey)
@@ -85,53 +85,44 @@ func (m *CharFloat64HashBiMap) RemoveValue(value float64) (uint16, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *CharFloat64HashBiMap) ContainsKey(key uint16) bool {
+func (m *CharFloat64BiMap) ContainsKey(key uint16) bool {
 	return m.forward.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *CharFloat64HashBiMap) ContainsValue(value float64) bool {
+func (m *CharFloat64BiMap) ContainsValue(value float64) bool {
 	return m.reverse.ContainsKey(value)
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *CharFloat64HashBiMap) Size() int {
-	return m.forward.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *CharFloat64HashBiMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *CharFloat64HashBiMap) IsEmpty() bool {
-	return m.forward.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *CharFloat64BiMap) Len() int {
+	return m.forward.Len()
 }
 
 // Clear removes all entries from both directions.
-func (m *CharFloat64HashBiMap) Clear() {
+func (m *CharFloat64BiMap) Clear() {
 	m.forward.Clear()
 	m.reverse.Clear()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *CharFloat64HashBiMap) ForEach(f func(uint16, float64)) {
+func (m *CharFloat64BiMap) ForEach(f func(uint16, float64)) {
 	m.forward.ForEach(f)
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *CharFloat64HashBiMap) Keys() iter.Seq[uint16] {
+func (m *CharFloat64BiMap) Keys() iter.Seq[uint16] {
 	return m.forward.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *CharFloat64HashBiMap) Values() iter.Seq[float64] {
+func (m *CharFloat64BiMap) Values() iter.Seq[float64] {
 	return m.forward.Values()
 }
 
-// Inverse returns a new Float64CharHashBiMap with keys and values swapped.
-func (m *CharFloat64HashBiMap) Inverse() *Float64CharHashBiMap {
-	result := NewFloat64CharHashBiMap()
+// Inverse returns a new Float64CharBiMap with keys and values swapped.
+func (m *CharFloat64BiMap) Inverse() *Float64CharBiMap {
+	result := NewFloat64CharBiMap()
 	m.forward.ForEach(func(k uint16, v float64) {
 		result.Put(v, k)
 	})
@@ -139,8 +130,8 @@ func (m *CharFloat64HashBiMap) Inverse() *Float64CharHashBiMap {
 }
 
 // String returns a string representation of the bi-map.
-func (m *CharFloat64HashBiMap) String() string {
-	if m.forward.Size() == 0 {
+func (m *CharFloat64BiMap) String() string {
+	if m.forward.Len() == 0 {
 		return "{}"
 	}
 	var sb strings.Builder
@@ -158,6 +149,6 @@ func (m *CharFloat64HashBiMap) String() string {
 }
 
 // Equals returns true if the other bi-map has the same key-value pairs.
-func (m *CharFloat64HashBiMap) Equals(other *CharFloat64HashBiMap) bool {
+func (m *CharFloat64BiMap) Equals(other *CharFloat64BiMap) bool {
 	return m.forward.Equals(other.forward)
 }

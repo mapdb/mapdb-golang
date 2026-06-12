@@ -3,123 +3,111 @@
 package stack
 
 import (
-	"fmt"
 	"iter"
 )
 
-// ImmutableInt32ArrayStack is an immutable LIFO stack of int32 values.
-type ImmutableInt32ArrayStack struct {
-	delegate *Int32ArrayStack
+// ImmutableInt32 is an immutable LIFO stack of int32 values.
+type ImmutableInt32 struct {
+	delegate *Int32
 }
 
-// NewImmutableInt32ArrayStack creates an immutable stack from the given values.
+// NewImmutableInt32 creates an immutable stack from the given values.
 // The last value becomes the top of the stack.
-func NewImmutableInt32ArrayStack(values ...int32) *ImmutableInt32ArrayStack {
-	return &ImmutableInt32ArrayStack{delegate: Int32ArrayStackOf(values...)}
+func NewImmutableInt32(values ...int32) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: Int32Of(values...)}
 }
 
-// ImmutableInt32ArrayStackFrom creates an immutable copy of a mutable stack.
-func ImmutableInt32ArrayStackFrom(s *Int32ArrayStack) *ImmutableInt32ArrayStack {
-	copy := &Int32ArrayStack{items: make([]int32, len(s.items))}
+// ImmutableInt32From creates an immutable copy of a mutable stack.
+func ImmutableInt32From(s *Int32) *ImmutableInt32 {
+	copy := &Int32{items: make([]int32, len(s.items))}
 	for i := range s.items {
 		copy.items[i] = s.items[i]
 	}
-	return &ImmutableInt32ArrayStack{delegate: copy}
+	return &ImmutableInt32{delegate: copy}
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *ImmutableInt32ArrayStack) Peek() (int32, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *ImmutableInt32) Peek() (int32, bool) {
 	return s.delegate.Peek()
 }
 
-// PeekAt returns the element at the given distance from the top,
-// or an error if the index is out of bounds.
-func (s *ImmutableInt32ArrayStack) PeekAt(index int) (int32, error) {
+// PeekAt returns the element at the given distance from the top.
+// It panics if the index is out of range, like a native Go slice.
+func (s *ImmutableInt32) PeekAt(index int) int32 {
 	return s.delegate.PeekAt(index)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableInt32ArrayStack) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableInt32ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *ImmutableInt32ArrayStack) IsEmpty() bool {
-	return s.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableInt32) Len() int { return s.delegate.Len() }
 
 // Contains returns true if the stack contains the given value.
-func (s *ImmutableInt32ArrayStack) Contains(value int32) bool {
+func (s *ImmutableInt32) Contains(value int32) bool {
 	return s.delegate.Contains(value)
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *ImmutableInt32ArrayStack) All() iter.Seq[int32] {
+func (s *ImmutableInt32) All() iter.Seq[int32] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *ImmutableInt32ArrayStack) ForEach(f func(int32)) {
+func (s *ImmutableInt32) ForEach(f func(int32)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable stack with elements satisfying the predicate.
-func (s *ImmutableInt32ArrayStack) Select(predicate func(int32) bool) *ImmutableInt32ArrayStack {
-	return &ImmutableInt32ArrayStack{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableInt32) Select(predicate func(int32) bool) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable stack with elements not satisfying the predicate.
-func (s *ImmutableInt32ArrayStack) Reject(predicate func(int32) bool) *ImmutableInt32ArrayStack {
-	return &ImmutableInt32ArrayStack{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableInt32) Reject(predicate func(int32) bool) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: s.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element from top satisfying the predicate, or zero and false.
-func (s *ImmutableInt32ArrayStack) Detect(predicate func(int32) bool) (int32, bool) {
+func (s *ImmutableInt32) Detect(predicate func(int32) bool) (int32, bool) {
 	return s.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableInt32ArrayStack) AnySatisfy(predicate func(int32) bool) bool {
+func (s *ImmutableInt32) AnySatisfy(predicate func(int32) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableInt32ArrayStack) AllSatisfy(predicate func(int32) bool) bool {
+func (s *ImmutableInt32) AllSatisfy(predicate func(int32) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableInt32ArrayStack) NoneSatisfy(predicate func(int32) bool) bool {
+func (s *ImmutableInt32) NoneSatisfy(predicate func(int32) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *ImmutableInt32ArrayStack) Count(predicate func(int32) bool) int {
+func (s *ImmutableInt32) Count(predicate func(int32) bool) int {
 	return s.delegate.Count(predicate)
 }
 
 // ToSlice returns all elements as a slice (top first).
-func (s *ImmutableInt32ArrayStack) ToSlice() []int32 {
+func (s *ImmutableInt32) ToSlice() []int32 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableInt32ArrayStack) String() string {
+func (s *ImmutableInt32) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable stack has the same elements.
-func (s *ImmutableInt32ArrayStack) Equals(other *ImmutableInt32ArrayStack) bool {
+func (s *ImmutableInt32) Equals(other *ImmutableInt32) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this stack.
-func (s *ImmutableInt32ArrayStack) ToMutable() *Int32ArrayStack {
-	copy := &Int32ArrayStack{items: make([]int32, len(s.delegate.items))}
+func (s *ImmutableInt32) ToMutable() *Int32 {
+	copy := &Int32{items: make([]int32, len(s.delegate.items))}
 	for i := range s.delegate.items {
 		copy.items[i] = s.delegate.items[i]
 	}
@@ -128,21 +116,21 @@ func (s *ImmutableInt32ArrayStack) ToMutable() *Int32ArrayStack {
 
 // Push returns a NEW immutable stack with the value pushed on top.
 // The original stack is not modified.
-func (s *ImmutableInt32ArrayStack) Push(value int32) *ImmutableInt32ArrayStack {
+func (s *ImmutableInt32) Push(value int32) *ImmutableInt32 {
 	newItems := make([]int32, len(s.delegate.items)+1)
 	copy(newItems, s.delegate.items)
 	newItems[len(s.delegate.items)] = value
-	return &ImmutableInt32ArrayStack{delegate: &Int32ArrayStack{items: newItems}}
+	return &ImmutableInt32{delegate: &Int32{items: newItems}}
 }
 
 // Pop returns a NEW immutable stack with the top element removed, and the removed value.
-// The original stack is not modified. Returns an error if the stack is empty.
-func (s *ImmutableInt32ArrayStack) Pop() (*ImmutableInt32ArrayStack, int32, error) {
-	if s.delegate.IsEmpty() {
-		return nil, 0, fmt.Errorf("ImmutableInt32ArrayStack: Pop on empty stack")
+// The original stack is not modified. The bool is false if the stack is empty.
+func (s *ImmutableInt32) Pop() (*ImmutableInt32, int32, bool) {
+	if s.delegate.Len() == 0 {
+		return nil, 0, false
 	}
 	top := s.delegate.items[len(s.delegate.items)-1]
 	newItems := make([]int32, len(s.delegate.items)-1)
 	copy(newItems, s.delegate.items[:len(s.delegate.items)-1])
-	return &ImmutableInt32ArrayStack{delegate: &Int32ArrayStack{items: newItems}}, top, nil
+	return &ImmutableInt32{delegate: &Int32{items: newItems}}, top, true
 }

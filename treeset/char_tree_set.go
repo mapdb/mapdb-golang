@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	charTreeSetNodeRed   = false
-	charTreeSetNodeBlack = true
+	charNodeRed   = false
+	charNodeBlack = true
 )
 
-type charTreeSetNode struct {
+type charNode struct {
 	key    uint16
-	left   *charTreeSetNode
-	right  *charTreeSetNode
-	parent *charTreeSetNode
+	left   *charNode
+	right  *charNode
+	parent *charNode
 	color  bool
 }
 
-// CharTreeSet is a sorted set of uint16 values, backed by a red-black tree.
-type CharTreeSet struct {
-	root *charTreeSetNode
+// Char is a sorted set of uint16 values, backed by a red-black tree.
+type Char struct {
+	root *charNode
 	size int
 }
 
-// NewCharTreeSet creates a new empty sorted set.
-func NewCharTreeSet() *CharTreeSet {
-	return &CharTreeSet{}
+// NewChar creates a new empty sorted set.
+func NewChar() *Char {
+	return &Char{}
 }
 
-// CharTreeSetOf creates a new sorted set from the given values.
-func CharTreeSetOf(values ...uint16) *CharTreeSet {
-	s := NewCharTreeSet()
+// CharOf creates a new sorted set from the given values.
+func CharOf(values ...uint16) *Char {
+	s := NewChar()
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -42,9 +42,9 @@ func CharTreeSetOf(values ...uint16) *CharTreeSet {
 }
 
 // Add inserts a value. Returns true if added (not already present).
-func (s *CharTreeSet) Add(value uint16) bool {
+func (s *Char) Add(value uint16) bool {
 	if s.root == nil {
-		s.root = &charTreeSetNode{key: value, color: charTreeSetNodeBlack}
+		s.root = &charNode{key: value, color: charNodeBlack}
 		s.size++
 		return true
 	}
@@ -52,7 +52,7 @@ func (s *CharTreeSet) Add(value uint16) bool {
 	for {
 		if value < node.key {
 			if node.left == nil {
-				node.left = &charTreeSetNode{key: value, parent: node, color: charTreeSetNodeRed}
+				node.left = &charNode{key: value, parent: node, color: charNodeRed}
 				s.fixAfterInsert(node.left)
 				s.size++
 				return true
@@ -60,7 +60,7 @@ func (s *CharTreeSet) Add(value uint16) bool {
 			node = node.left
 		} else if value > node.key {
 			if node.right == nil {
-				node.right = &charTreeSetNode{key: value, parent: node, color: charTreeSetNodeRed}
+				node.right = &charNode{key: value, parent: node, color: charNodeRed}
 				s.fixAfterInsert(node.right)
 				s.size++
 				return true
@@ -73,7 +73,7 @@ func (s *CharTreeSet) Add(value uint16) bool {
 }
 
 // Remove removes a value. Returns true if found and removed.
-func (s *CharTreeSet) Remove(value uint16) bool {
+func (s *Char) Remove(value uint16) bool {
 	node := s.findNode(value)
 	if node == nil {
 		return false
@@ -84,25 +84,18 @@ func (s *CharTreeSet) Remove(value uint16) bool {
 }
 
 // Contains returns true if the set contains the value.
-func (s *CharTreeSet) Contains(value uint16) bool {
+func (s *Char) Contains(value uint16) bool {
 	return s.findNode(value) != nil
 }
 
-// Size returns the number of elements.
-func (s *CharTreeSet) Size() int { return s.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *CharTreeSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set is empty.
-func (s *CharTreeSet) IsEmpty() bool { return s.size == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Char) Len() int { return s.size }
 
 // Clear removes all elements.
-func (s *CharTreeSet) Clear() { s.root = nil; s.size = 0 }
+func (s *Char) Clear() { s.root = nil; s.size = 0 }
 
 // Min returns the smallest element, or zero and false if empty.
-func (s *CharTreeSet) Min() (uint16, bool) {
+func (s *Char) Min() (uint16, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -110,7 +103,7 @@ func (s *CharTreeSet) Min() (uint16, bool) {
 }
 
 // Max returns the largest element, or zero and false if empty.
-func (s *CharTreeSet) Max() (uint16, bool) {
+func (s *Char) Max() (uint16, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -118,8 +111,8 @@ func (s *CharTreeSet) Max() (uint16, bool) {
 }
 
 // Floor returns the largest element <= value, or zero and false.
-func (s *CharTreeSet) Floor(value uint16) (uint16, bool) {
-	var result *charTreeSetNode
+func (s *Char) Floor(value uint16) (uint16, bool) {
+	var result *charNode
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -139,8 +132,8 @@ func (s *CharTreeSet) Floor(value uint16) (uint16, bool) {
 }
 
 // Ceiling returns the smallest element >= value, or zero and false.
-func (s *CharTreeSet) Ceiling(value uint16) (uint16, bool) {
-	var result *charTreeSetNode
+func (s *Char) Ceiling(value uint16) (uint16, bool) {
+	var result *charNode
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -160,10 +153,10 @@ func (s *CharTreeSet) Ceiling(value uint16) (uint16, bool) {
 }
 
 // All returns an iter.Seq that yields elements in ascending order.
-func (s *CharTreeSet) All() iter.Seq[uint16] {
+func (s *Char) All() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
-		var inorder func(node *charTreeSetNode) bool
-		inorder = func(node *charTreeSetNode) bool {
+		var inorder func(node *charNode) bool
+		inorder = func(node *charNode) bool {
 			if node == nil {
 				return true
 			}
@@ -180,7 +173,7 @@ func (s *CharTreeSet) All() iter.Seq[uint16] {
 }
 
 // RangeValues returns an iter.Seq that yields elements in [from, to).
-func (s *CharTreeSet) RangeValues(from, to uint16) iter.Seq[uint16] {
+func (s *Char) RangeValues(from, to uint16) iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for v := range s.All() {
 			if v < from {
@@ -197,15 +190,15 @@ func (s *CharTreeSet) RangeValues(from, to uint16) iter.Seq[uint16] {
 }
 
 // ForEach calls the function for each element in ascending order.
-func (s *CharTreeSet) ForEach(f func(uint16)) {
+func (s *Char) ForEach(f func(uint16)) {
 	for v := range s.All() {
 		f(v)
 	}
 }
 
 // Select returns a new sorted set with elements satisfying the predicate.
-func (s *CharTreeSet) Select(predicate func(uint16) bool) *CharTreeSet {
-	result := NewCharTreeSet()
+func (s *Char) Select(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for v := range s.All() {
 		if predicate(v) {
 			result.Add(v)
@@ -215,8 +208,8 @@ func (s *CharTreeSet) Select(predicate func(uint16) bool) *CharTreeSet {
 }
 
 // Reject returns a new sorted set with elements NOT satisfying the predicate.
-func (s *CharTreeSet) Reject(predicate func(uint16) bool) *CharTreeSet {
-	result := NewCharTreeSet()
+func (s *Char) Reject(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for v := range s.All() {
 		if !predicate(v) {
 			result.Add(v)
@@ -226,7 +219,7 @@ func (s *CharTreeSet) Reject(predicate func(uint16) bool) *CharTreeSet {
 }
 
 // Detect returns the first element satisfying the predicate, or (zero, false) if none.
-func (s *CharTreeSet) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (s *Char) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for v := range s.All() {
 		if predicate(v) {
 			return v, true
@@ -237,7 +230,7 @@ func (s *CharTreeSet) Detect(predicate func(uint16) bool) (uint16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *CharTreeSet) AnySatisfy(predicate func(uint16) bool) bool {
+func (s *Char) AnySatisfy(predicate func(uint16) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return true
@@ -247,7 +240,7 @@ func (s *CharTreeSet) AnySatisfy(predicate func(uint16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *CharTreeSet) AllSatisfy(predicate func(uint16) bool) bool {
+func (s *Char) AllSatisfy(predicate func(uint16) bool) bool {
 	for v := range s.All() {
 		if !predicate(v) {
 			return false
@@ -257,7 +250,7 @@ func (s *CharTreeSet) AllSatisfy(predicate func(uint16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *CharTreeSet) NoneSatisfy(predicate func(uint16) bool) bool {
+func (s *Char) NoneSatisfy(predicate func(uint16) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return false
@@ -267,7 +260,7 @@ func (s *CharTreeSet) NoneSatisfy(predicate func(uint16) bool) bool {
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *CharTreeSet) Count(predicate func(uint16) bool) int {
+func (s *Char) Count(predicate func(uint16) bool) int {
 	c := 0
 	for v := range s.All() {
 		if predicate(v) {
@@ -278,8 +271,8 @@ func (s *CharTreeSet) Count(predicate func(uint16) bool) int {
 }
 
 // Union returns a new sorted set with elements from both sets.
-func (s *CharTreeSet) Union(other *CharTreeSet) *CharTreeSet {
-	result := NewCharTreeSet()
+func (s *Char) Union(other *Char) *Char {
+	result := NewChar()
 	for v := range s.All() {
 		result.Add(v)
 	}
@@ -290,8 +283,8 @@ func (s *CharTreeSet) Union(other *CharTreeSet) *CharTreeSet {
 }
 
 // Intersect returns a new sorted set with elements in both sets.
-func (s *CharTreeSet) Intersect(other *CharTreeSet) *CharTreeSet {
-	result := NewCharTreeSet()
+func (s *Char) Intersect(other *Char) *Char {
+	result := NewChar()
 	for v := range s.All() {
 		if other.Contains(v) {
 			result.Add(v)
@@ -301,8 +294,8 @@ func (s *CharTreeSet) Intersect(other *CharTreeSet) *CharTreeSet {
 }
 
 // Difference returns a new sorted set with elements in this but not other.
-func (s *CharTreeSet) Difference(other *CharTreeSet) *CharTreeSet {
-	result := NewCharTreeSet()
+func (s *Char) Difference(other *Char) *Char {
+	result := NewChar()
 	for v := range s.All() {
 		if !other.Contains(v) {
 			result.Add(v)
@@ -312,7 +305,7 @@ func (s *CharTreeSet) Difference(other *CharTreeSet) *CharTreeSet {
 }
 
 // ToSlice returns elements as a sorted slice.
-func (s *CharTreeSet) ToSlice() []uint16 {
+func (s *Char) ToSlice() []uint16 {
 	result := make([]uint16, 0, s.size)
 	for v := range s.All() {
 		result = append(result, v)
@@ -320,14 +313,14 @@ func (s *CharTreeSet) ToSlice() []uint16 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *CharTreeSet) With(value uint16) *CharTreeSet { s.Add(value); return s }
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Char) AddReturning(value uint16) *Char { s.Add(value); return s }
 
-// Without returns the set after removing the value (fluent API).
-func (s *CharTreeSet) Without(value uint16) *CharTreeSet { s.Remove(value); return s }
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Char) RemoveReturning(value uint16) *Char { s.Remove(value); return s }
 
 // String returns a string representation in sorted order.
-func (s *CharTreeSet) String() string {
+func (s *Char) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -347,7 +340,7 @@ func (s *CharTreeSet) String() string {
 
 // --- Red-black tree internals (same as TreeMap) ---
 
-func (s *CharTreeSet) findNode(key uint16) *charTreeSetNode {
+func (s *Char) findNode(key uint16) *charNode {
 	node := s.root
 	for node != nil {
 		if key < node.key {
@@ -360,20 +353,20 @@ func (s *CharTreeSet) findNode(key uint16) *charTreeSetNode {
 	}
 	return nil
 }
-func (s *CharTreeSet) minNode(node *charTreeSetNode) *charTreeSetNode {
+func (s *Char) minNode(node *charNode) *charNode {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
-func (s *CharTreeSet) maxNode(node *charTreeSetNode) *charTreeSetNode {
+func (s *Char) maxNode(node *charNode) *charNode {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (s *CharTreeSet) rotateLeft(x *charTreeSetNode) {
+func (s *Char) rotateLeft(x *charNode) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -390,7 +383,7 @@ func (s *CharTreeSet) rotateLeft(x *charTreeSetNode) {
 	y.left = x
 	x.parent = y
 }
-func (s *CharTreeSet) rotateRight(x *charTreeSetNode) {
+func (s *Char) rotateRight(x *charNode) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -408,52 +401,52 @@ func (s *CharTreeSet) rotateRight(x *charTreeSetNode) {
 	x.parent = y
 }
 
-func (s *CharTreeSet) fixAfterInsert(z *charTreeSetNode) {
-	for z.parent != nil && z.parent.color == charTreeSetNodeRed {
+func (s *Char) fixAfterInsert(z *charNode) {
+	for z.parent != nil && z.parent.color == charNodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
-			if y != nil && y.color == charTreeSetNodeRed {
-				z.parent.color = charTreeSetNodeBlack
-				y.color = charTreeSetNodeBlack
-				z.parent.parent.color = charTreeSetNodeRed
+			if y != nil && y.color == charNodeRed {
+				z.parent.color = charNodeBlack
+				y.color = charNodeBlack
+				z.parent.parent.color = charNodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.right {
 					z = z.parent
 					s.rotateLeft(z)
 				}
-				z.parent.color = charTreeSetNodeBlack
-				z.parent.parent.color = charTreeSetNodeRed
+				z.parent.color = charNodeBlack
+				z.parent.parent.color = charNodeRed
 				s.rotateRight(z.parent.parent)
 			}
 		} else {
 			y := z.parent.parent.left
-			if y != nil && y.color == charTreeSetNodeRed {
-				z.parent.color = charTreeSetNodeBlack
-				y.color = charTreeSetNodeBlack
-				z.parent.parent.color = charTreeSetNodeRed
+			if y != nil && y.color == charNodeRed {
+				z.parent.color = charNodeBlack
+				y.color = charNodeBlack
+				z.parent.parent.color = charNodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.left {
 					z = z.parent
 					s.rotateRight(z)
 				}
-				z.parent.color = charTreeSetNodeBlack
-				z.parent.parent.color = charTreeSetNodeRed
+				z.parent.color = charNodeBlack
+				z.parent.parent.color = charNodeRed
 				s.rotateLeft(z.parent.parent)
 			}
 		}
 	}
-	s.root.color = charTreeSetNodeBlack
+	s.root.color = charNodeBlack
 }
 
-func (s *CharTreeSet) deleteNode(z *charTreeSetNode) {
+func (s *Char) deleteNode(z *charNode) {
 	if z.left != nil && z.right != nil {
 		succ := s.minNode(z.right)
 		z.key = succ.key
 		z = succ
 	}
-	var child *charTreeSetNode
+	var child *charNode
 	if z.left != nil {
 		child = z.left
 	} else {
@@ -468,13 +461,13 @@ func (s *CharTreeSet) deleteNode(z *charTreeSetNode) {
 		} else {
 			z.parent.right = child
 		}
-		if z.color == charTreeSetNodeBlack {
+		if z.color == charNodeBlack {
 			s.fixAfterDelete(child)
 		}
 	} else if z.parent == nil {
 		s.root = nil
 	} else {
-		if z.color == charTreeSetNodeBlack {
+		if z.color == charNodeBlack {
 			s.fixAfterDelete(z)
 		}
 		if z.parent != nil {
@@ -487,17 +480,17 @@ func (s *CharTreeSet) deleteNode(z *charTreeSetNode) {
 	}
 }
 
-func (s *CharTreeSet) fixAfterDelete(x *charTreeSetNode) {
-	for x != s.root && x.color == charTreeSetNodeBlack {
+func (s *Char) fixAfterDelete(x *charNode) {
+	for x != s.root && x.color == charNodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right
 			if w == nil {
 				x = x.parent
 				continue
 			}
-			if w.color == charTreeSetNodeRed {
-				w.color = charTreeSetNodeBlack
-				x.parent.color = charTreeSetNodeRed
+			if w.color == charNodeRed {
+				w.color = charNodeBlack
+				x.parent.color = charNodeRed
 				s.rotateLeft(x.parent)
 				w = x.parent.right
 			}
@@ -505,24 +498,24 @@ func (s *CharTreeSet) fixAfterDelete(x *charTreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == charTreeSetNodeBlack
-			rb := w.right == nil || w.right.color == charTreeSetNodeBlack
+			lb := w.left == nil || w.left.color == charNodeBlack
+			rb := w.right == nil || w.right.color == charNodeBlack
 			if lb && rb {
-				w.color = charTreeSetNodeRed
+				w.color = charNodeRed
 				x = x.parent
 			} else {
 				if rb {
 					if w.left != nil {
-						w.left.color = charTreeSetNodeBlack
+						w.left.color = charNodeBlack
 					}
-					w.color = charTreeSetNodeRed
+					w.color = charNodeRed
 					s.rotateRight(w)
 					w = x.parent.right
 				}
 				w.color = x.parent.color
-				x.parent.color = charTreeSetNodeBlack
+				x.parent.color = charNodeBlack
 				if w.right != nil {
-					w.right.color = charTreeSetNodeBlack
+					w.right.color = charNodeBlack
 				}
 				s.rotateLeft(x.parent)
 				x = s.root
@@ -533,9 +526,9 @@ func (s *CharTreeSet) fixAfterDelete(x *charTreeSetNode) {
 				x = x.parent
 				continue
 			}
-			if w.color == charTreeSetNodeRed {
-				w.color = charTreeSetNodeBlack
-				x.parent.color = charTreeSetNodeRed
+			if w.color == charNodeRed {
+				w.color = charNodeBlack
+				x.parent.color = charNodeRed
 				s.rotateRight(x.parent)
 				w = x.parent.left
 			}
@@ -543,29 +536,29 @@ func (s *CharTreeSet) fixAfterDelete(x *charTreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == charTreeSetNodeBlack
-			rb := w.right == nil || w.right.color == charTreeSetNodeBlack
+			lb := w.left == nil || w.left.color == charNodeBlack
+			rb := w.right == nil || w.right.color == charNodeBlack
 			if lb && rb {
-				w.color = charTreeSetNodeRed
+				w.color = charNodeRed
 				x = x.parent
 			} else {
 				if lb {
 					if w.right != nil {
-						w.right.color = charTreeSetNodeBlack
+						w.right.color = charNodeBlack
 					}
-					w.color = charTreeSetNodeRed
+					w.color = charNodeRed
 					s.rotateLeft(w)
 					w = x.parent.left
 				}
 				w.color = x.parent.color
-				x.parent.color = charTreeSetNodeBlack
+				x.parent.color = charNodeBlack
 				if w.left != nil {
-					w.left.color = charTreeSetNodeBlack
+					w.left.color = charNodeBlack
 				}
 				s.rotateRight(x.parent)
 				x = s.root
 			}
 		}
 	}
-	x.color = charTreeSetNodeBlack
+	x.color = charNodeBlack
 }

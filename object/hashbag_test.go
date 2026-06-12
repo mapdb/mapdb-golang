@@ -12,10 +12,10 @@ import (
 
 func TestHashBag_NewEmpty(t *testing.T) {
 	b := NewHashBag[int]()
-	if b.Size() != 0 {
-		t.Errorf("Size() = %d, want 0", b.Size())
+	if b.Len() != 0 {
+		t.Errorf("Size() = %d, want 0", b.Len())
 	}
-	if !b.IsEmpty() {
+	if b.Len() != 0 {
 		t.Error("IsEmpty() = false, want true")
 	}
 	if b.SizeDistinct() != 0 {
@@ -25,8 +25,8 @@ func TestHashBag_NewEmpty(t *testing.T) {
 
 func TestHashBag_NewHashBagFrom(t *testing.T) {
 	b := NewHashBagFrom("a", "b", "a", "c", "a")
-	if b.Size() != 5 {
-		t.Errorf("Size() = %d, want 5", b.Size())
+	if b.Len() != 5 {
+		t.Errorf("Size() = %d, want 5", b.Len())
 	}
 	if b.SizeDistinct() != 3 {
 		t.Errorf("SizeDistinct() = %d, want 3", b.SizeDistinct())
@@ -41,8 +41,8 @@ func TestHashBag_Add(t *testing.T) {
 	b.Add(5)
 	b.Add(5)
 	b.Add(10)
-	if b.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", b.Size())
+	if b.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", b.Len())
 	}
 	if b.OccurrencesOf(5) != 2 {
 		t.Errorf("OccurrencesOf(5) = %d, want 2", b.OccurrencesOf(5))
@@ -58,8 +58,8 @@ func TestHashBag_AddOccurrences(t *testing.T) {
 	if b.OccurrencesOf("x") != 5 {
 		t.Errorf("OccurrencesOf(x) = %d, want 5", b.OccurrencesOf("x"))
 	}
-	if b.Size() != 5 {
-		t.Errorf("Size() = %d, want 5", b.Size())
+	if b.Len() != 5 {
+		t.Errorf("Size() = %d, want 5", b.Len())
 	}
 
 	// zero/negative occurrences should be ignored
@@ -94,8 +94,8 @@ func TestHashBag_Remove(t *testing.T) {
 		if b.OccurrencesOf(1) != 2 {
 			t.Errorf("OccurrencesOf(1) after remove = %d, want 2", b.OccurrencesOf(1))
 		}
-		if b.Size() != 3 {
-			t.Errorf("Size after remove = %d, want 3", b.Size())
+		if b.Len() != 3 {
+			t.Errorf("Size after remove = %d, want 3", b.Len())
 		}
 	})
 
@@ -184,8 +184,8 @@ func TestHashBag_Select(t *testing.T) {
 	if evens.SizeDistinct() != 1 {
 		t.Errorf("Select: SizeDistinct = %d, want 1", evens.SizeDistinct())
 	}
-	if evens.Size() != 3 {
-		t.Errorf("Select: Size = %d, want 3", evens.Size())
+	if evens.Len() != 3 {
+		t.Errorf("Select: Size = %d, want 3", evens.Len())
 	}
 }
 
@@ -203,13 +203,13 @@ func TestHashBag_Reject(t *testing.T) {
 func TestHashBag_Clear(t *testing.T) {
 	b := NewHashBagFrom(1, 2, 3)
 	b.Clear()
-	if b.Size() != 0 {
-		t.Errorf("Size after Clear = %d, want 0", b.Size())
+	if b.Len() != 0 {
+		t.Errorf("Size after Clear = %d, want 0", b.Len())
 	}
 	if b.SizeDistinct() != 0 {
 		t.Errorf("SizeDistinct after Clear = %d, want 0", b.SizeDistinct())
 	}
-	if !b.IsEmpty() {
+	if b.Len() != 0 {
 		t.Error("IsEmpty after Clear = false")
 	}
 }

@@ -9,22 +9,22 @@ import (
 	"strings"
 )
 
-// Float64ArrayStack is a LIFO (last-in, first-out) stack backed by a float64 slice.
-type Float64ArrayStack struct {
+// Float64 is a LIFO (last-in, first-out) stack backed by a float64 slice.
+type Float64 struct {
 	items []float64
 }
 
-// NewFloat64ArrayStack creates a new empty Float64ArrayStack.
-func NewFloat64ArrayStack() *Float64ArrayStack {
-	return &Float64ArrayStack{
+// NewFloat64 creates a new empty Float64.
+func NewFloat64() *Float64 {
+	return &Float64{
 		items: make([]float64, 0, 16),
 	}
 }
 
-// Float64ArrayStackOf creates a new Float64ArrayStack from the given values.
+// Float64Of creates a new Float64 from the given values.
 // The last value becomes the top of the stack.
-func Float64ArrayStackOf(values ...float64) *Float64ArrayStack {
-	s := &Float64ArrayStack{
+func Float64Of(values ...float64) *Float64 {
+	s := &Float64{
 		items: make([]float64, len(values)),
 	}
 	copy(s.items, values)
@@ -32,58 +32,50 @@ func Float64ArrayStackOf(values ...float64) *Float64ArrayStack {
 }
 
 // Push adds a value to the top of the stack.
-func (s *Float64ArrayStack) Push(value float64) {
+func (s *Float64) Push(value float64) {
 	s.items = append(s.items, value)
 }
 
-// Pop removes and returns the top value, or an error if the stack is empty.
-func (s *Float64ArrayStack) Pop() (float64, error) {
+// Pop removes and returns the top value. The bool is false if the stack is empty.
+func (s *Float64) Pop() (float64, bool) {
 	if len(s.items) == 0 {
-		return 0.0, fmt.Errorf("Float64ArrayStack: Pop on empty stack")
+		return 0.0, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *Float64ArrayStack) Peek() (float64, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *Float64) Peek() (float64, bool) {
 	if len(s.items) == 0 {
-		return 0.0, fmt.Errorf("Float64ArrayStack: Peek on empty stack")
+		return 0.0, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
-// PeekAt returns the element at the given distance from the top (0 = top),
-// or an error if the index is out of bounds.
-func (s *Float64ArrayStack) PeekAt(index int) (float64, error) {
+// PeekAt returns the element at the given distance from the top (0 = top).
+// It panics if the index is out of range, like a native Go slice.
+func (s *Float64) PeekAt(index int) float64 {
 	if index < 0 || index >= len(s.items) {
-		return 0.0, fmt.Errorf("Float64ArrayStack: PeekAt index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("stack.Float64: index out of range [%d] with length %d", index, len(s.items)))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
-// Size returns the number of elements in the stack.
-func (s *Float64ArrayStack) Size() int {
+// Len returns the number of elements in the stack. Use s.Len() == 0 to test
+// for emptiness.
+func (s *Float64) Len() int {
 	return len(s.items)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Float64ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *Float64ArrayStack) IsEmpty() bool {
-	return len(s.items) == 0
-}
-
 // Clear removes all elements from the stack.
-func (s *Float64ArrayStack) Clear() {
+func (s *Float64) Clear() {
 	s.items = s.items[:0]
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *Float64ArrayStack) Contains(value float64) bool {
+func (s *Float64) Contains(value float64) bool {
 	for _, v := range s.items {
 		if math.Float64bits(v) == math.Float64bits(value) {
 			return true
@@ -93,7 +85,7 @@ func (s *Float64ArrayStack) Contains(value float64) bool {
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *Float64ArrayStack) All() iter.Seq[float64] {
+func (s *Float64) All() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
 		for i := len(s.items) - 1; i >= 0; i-- {
 			if !yield(s.items[i]) {
@@ -104,7 +96,7 @@ func (s *Float64ArrayStack) All() iter.Seq[float64] {
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *Float64ArrayStack) ForEach(f func(float64)) {
+func (s *Float64) ForEach(f func(float64)) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		f(s.items[i])
 	}
@@ -112,8 +104,8 @@ func (s *Float64ArrayStack) ForEach(f func(float64)) {
 
 // Select returns a new stack containing only elements that satisfy the predicate.
 // Order is preserved (top of result corresponds to top of original that passed).
-func (s *Float64ArrayStack) Select(predicate func(float64) bool) *Float64ArrayStack {
-	result := NewFloat64ArrayStack()
+func (s *Float64) Select(predicate func(float64) bool) *Float64 {
+	result := NewFloat64()
 	for _, v := range s.items {
 		if predicate(v) {
 			result.Push(v)
@@ -123,8 +115,8 @@ func (s *Float64ArrayStack) Select(predicate func(float64) bool) *Float64ArraySt
 }
 
 // Reject returns a new stack containing only elements that do not satisfy the predicate.
-func (s *Float64ArrayStack) Reject(predicate func(float64) bool) *Float64ArrayStack {
-	result := NewFloat64ArrayStack()
+func (s *Float64) Reject(predicate func(float64) bool) *Float64 {
+	result := NewFloat64()
 	for _, v := range s.items {
 		if !predicate(v) {
 			result.Push(v)
@@ -134,7 +126,7 @@ func (s *Float64ArrayStack) Reject(predicate func(float64) bool) *Float64ArraySt
 }
 
 // Detect returns the first element from the top that satisfies the predicate, or zero and false.
-func (s *Float64ArrayStack) Detect(predicate func(float64) bool) (float64, bool) {
+func (s *Float64) Detect(predicate func(float64) bool) (float64, bool) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		if predicate(s.items[i]) {
 			return s.items[i], true
@@ -144,7 +136,7 @@ func (s *Float64ArrayStack) Detect(predicate func(float64) bool) (float64, bool)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Float64ArrayStack) AnySatisfy(predicate func(float64) bool) bool {
+func (s *Float64) AnySatisfy(predicate func(float64) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return true
@@ -154,7 +146,7 @@ func (s *Float64ArrayStack) AnySatisfy(predicate func(float64) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Float64ArrayStack) AllSatisfy(predicate func(float64) bool) bool {
+func (s *Float64) AllSatisfy(predicate func(float64) bool) bool {
 	for _, v := range s.items {
 		if !predicate(v) {
 			return false
@@ -164,7 +156,7 @@ func (s *Float64ArrayStack) AllSatisfy(predicate func(float64) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Float64ArrayStack) NoneSatisfy(predicate func(float64) bool) bool {
+func (s *Float64) NoneSatisfy(predicate func(float64) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return false
@@ -174,7 +166,7 @@ func (s *Float64ArrayStack) NoneSatisfy(predicate func(float64) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (s *Float64ArrayStack) Count(predicate func(float64) bool) int {
+func (s *Float64) Count(predicate func(float64) bool) int {
 	count := 0
 	for _, v := range s.items {
 		if predicate(v) {
@@ -185,7 +177,7 @@ func (s *Float64ArrayStack) Count(predicate func(float64) bool) int {
 }
 
 // InjectInto performs a left fold from bottom to top.
-func (s *Float64ArrayStack) InjectInto(initial float64, f func(float64, float64) float64) float64 {
+func (s *Float64) InjectInto(initial float64, f func(float64, float64) float64) float64 {
 	result := initial
 	for _, v := range s.items {
 		result = f(result, v)
@@ -194,7 +186,7 @@ func (s *Float64ArrayStack) InjectInto(initial float64, f func(float64, float64)
 }
 
 // ToSlice returns all elements as a slice (top element first).
-func (s *Float64ArrayStack) ToSlice() []float64 {
+func (s *Float64) ToSlice() []float64 {
 	result := make([]float64, len(s.items))
 	for i, j := len(s.items)-1, 0; i >= 0; i, j = i-1, j+1 {
 		result[j] = s.items[i]
@@ -203,20 +195,20 @@ func (s *Float64ArrayStack) ToSlice() []float64 {
 }
 
 // ToList returns the elements as a slice in stack order (bottom first, for internal use).
-func (s *Float64ArrayStack) toList() []float64 {
+func (s *Float64) toList() []float64 {
 	result := make([]float64, len(s.items))
 	copy(result, s.items)
 	return result
 }
 
-// With returns the stack after pushing the value (fluent API).
-func (s *Float64ArrayStack) With(value float64) *Float64ArrayStack {
+// AddReturning pushes the value and returns the receiver (mutating, fluent).
+func (s *Float64) AddReturning(value float64) *Float64 {
 	s.Push(value)
 	return s
 }
 
-// WithAll returns the stack after pushing all values (fluent API).
-func (s *Float64ArrayStack) WithAll(values ...float64) *Float64ArrayStack {
+// AddAllReturning pushes all values and returns the receiver (mutating, fluent).
+func (s *Float64) AddAllReturning(values ...float64) *Float64 {
 	for _, v := range values {
 		s.Push(v)
 	}
@@ -224,12 +216,12 @@ func (s *Float64ArrayStack) WithAll(values ...float64) *Float64ArrayStack {
 }
 
 // ToImmutable returns an immutable copy of this stack.
-func (s *Float64ArrayStack) ToImmutable() *ImmutableFloat64ArrayStack {
-	return ImmutableFloat64ArrayStackFrom(s)
+func (s *Float64) ToImmutable() *ImmutableFloat64 {
+	return ImmutableFloat64From(s)
 }
 
 // String returns a string representation of the stack (top element first).
-func (s *Float64ArrayStack) String() string {
+func (s *Float64) String() string {
 	if len(s.items) == 0 {
 		return "[]"
 	}
@@ -246,7 +238,7 @@ func (s *Float64ArrayStack) String() string {
 }
 
 // Equals returns true if the other stack has the same elements in the same order.
-func (s *Float64ArrayStack) Equals(other *Float64ArrayStack) bool {
+func (s *Float64) Equals(other *Float64) bool {
 	if len(s.items) != len(other.items) {
 		return false
 	}

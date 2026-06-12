@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedCharHashSet is a thread-safe wrapper around CharHashSet.
+// SynchronizedChar is a thread-safe wrapper around Char.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take a
 // caller-supplied function (Select, ForEach, AnySatisfy, …) snapshot
@@ -17,36 +17,36 @@ import (
 // without deadlocking.
 //
 // Methods that return a new set (Select, Reject, Union, Intersect,
-// Difference, SymmetricDifference) return an unwrapped *CharHashSet;
+// Difference, SymmetricDifference) return an unwrapped *Char;
 // the caller owns it.
-type SynchronizedCharHashSet struct {
-	delegate *CharHashSet
+type SynchronizedChar struct {
+	delegate *Char
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedCharHashSet creates a new thread-safe empty set.
-func NewSynchronizedCharHashSet() *SynchronizedCharHashSet {
-	return &SynchronizedCharHashSet{delegate: NewCharHashSet()}
+// NewSynchronizedChar creates a new thread-safe empty set.
+func NewSynchronizedChar() *SynchronizedChar {
+	return &SynchronizedChar{delegate: NewChar()}
 }
 
-// NewSynchronizedCharHashSetFrom wraps an existing set. The
+// NewSynchronizedCharFrom wraps an existing set. The
 // wrapper takes ownership — callers must not mutate the delegate
 // directly without locking.
-func NewSynchronizedCharHashSetFrom(s *CharHashSet) *SynchronizedCharHashSet {
-	return &SynchronizedCharHashSet{delegate: s}
+func NewSynchronizedCharFrom(s *Char) *SynchronizedChar {
+	return &SynchronizedChar{delegate: s}
 }
 
-// SynchronizedCharHashSetOf constructs a synchronized set from values.
-func SynchronizedCharHashSetOf(values ...uint16) *SynchronizedCharHashSet {
-	s := NewCharHashSet()
+// SynchronizedCharOf constructs a synchronized set from values.
+func SynchronizedCharOf(values ...uint16) *SynchronizedChar {
+	s := NewChar()
 	for _, v := range values {
 		s.Add(v)
 	}
-	return &SynchronizedCharHashSet{delegate: s}
+	return &SynchronizedChar{delegate: s}
 }
 
 // snapshot returns a defensive copy of the set's elements under RLock.
-func (s *SynchronizedCharHashSet) snapshot() []uint16 {
+func (s *SynchronizedChar) snapshot() []uint16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -54,25 +54,25 @@ func (s *SynchronizedCharHashSet) snapshot() []uint16 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedCharHashSet) Add(value uint16) bool {
+func (s *SynchronizedChar) Add(value uint16) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Add(value)
 }
 
-func (s *SynchronizedCharHashSet) AddAll(values ...uint16) {
+func (s *SynchronizedChar) AddAll(values ...uint16) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.AddAll(values...)
 }
 
-func (s *SynchronizedCharHashSet) Remove(value uint16) bool {
+func (s *SynchronizedChar) Remove(value uint16) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Remove(value)
 }
 
-func (s *SynchronizedCharHashSet) Clear() {
+func (s *SynchronizedChar) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -80,35 +80,26 @@ func (s *SynchronizedCharHashSet) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedCharHashSet) Contains(value uint16) bool {
+func (s *SynchronizedChar) Contains(value uint16) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedCharHashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedChar) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedCharHashSet) Len() int { return s.Size() }
-
-func (s *SynchronizedCharHashSet) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedCharHashSet) ToSlice() []uint16 {
+func (s *SynchronizedChar) ToSlice() []uint16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedCharHashSet) String() string {
+func (s *SynchronizedChar) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -117,7 +108,7 @@ func (s *SynchronizedCharHashSet) String() string {
 // ── iteration ────────────────────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (s *SynchronizedCharHashSet) All() iter.Seq[uint16] {
+func (s *SynchronizedChar) All() iter.Seq[uint16] {
 	snapshot := s.snapshot()
 	return func(yield func(uint16) bool) {
 		for _, v := range snapshot {
@@ -130,13 +121,13 @@ func (s *SynchronizedCharHashSet) All() iter.Seq[uint16] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedCharHashSet) ForEach(f func(uint16)) {
+func (s *SynchronizedChar) ForEach(f func(uint16)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedCharHashSet) AnySatisfy(predicate func(uint16) bool) bool {
+func (s *SynchronizedChar) AnySatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -145,7 +136,7 @@ func (s *SynchronizedCharHashSet) AnySatisfy(predicate func(uint16) bool) bool {
 	return false
 }
 
-func (s *SynchronizedCharHashSet) AllSatisfy(predicate func(uint16) bool) bool {
+func (s *SynchronizedChar) AllSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -154,7 +145,7 @@ func (s *SynchronizedCharHashSet) AllSatisfy(predicate func(uint16) bool) bool {
 	return true
 }
 
-func (s *SynchronizedCharHashSet) NoneSatisfy(predicate func(uint16) bool) bool {
+func (s *SynchronizedChar) NoneSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -163,7 +154,7 @@ func (s *SynchronizedCharHashSet) NoneSatisfy(predicate func(uint16) bool) bool 
 	return true
 }
 
-func (s *SynchronizedCharHashSet) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (s *SynchronizedChar) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -175,9 +166,9 @@ func (s *SynchronizedCharHashSet) Detect(predicate func(uint16) bool) (uint16, b
 
 // ── functional that return a new set ─────────────────────────────────
 
-func (s *SynchronizedCharHashSet) Select(predicate func(uint16) bool) *CharHashSet {
+func (s *SynchronizedChar) Select(predicate func(uint16) bool) *Char {
 	snapshot := s.snapshot()
-	result := NewCharHashSet()
+	result := NewChar()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -186,9 +177,9 @@ func (s *SynchronizedCharHashSet) Select(predicate func(uint16) bool) *CharHashS
 	return result
 }
 
-func (s *SynchronizedCharHashSet) Reject(predicate func(uint16) bool) *CharHashSet {
+func (s *SynchronizedChar) Reject(predicate func(uint16) bool) *Char {
 	snapshot := s.snapshot()
-	result := NewCharHashSet()
+	result := NewChar()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -201,7 +192,7 @@ func (s *SynchronizedCharHashSet) Reject(predicate func(uint16) bool) *CharHashS
 
 // lockPair acquires two RLocks in pointer-address order and returns
 // a release function. Guarantees no A.op(B) ⟷ B.op(A) deadlock.
-func (s *SynchronizedCharHashSet) lockPair(other *SynchronizedCharHashSet) func() {
+func (s *SynchronizedChar) lockPair(other *SynchronizedChar) func() {
 	if s == other {
 		s.mu.RLock()
 		return func() { s.mu.RUnlock() }
@@ -215,25 +206,25 @@ func (s *SynchronizedCharHashSet) lockPair(other *SynchronizedCharHashSet) func(
 	return func() { second.mu.RUnlock(); first.mu.RUnlock() }
 }
 
-func (s *SynchronizedCharHashSet) Union(other *SynchronizedCharHashSet) *CharHashSet {
+func (s *SynchronizedChar) Union(other *SynchronizedChar) *Char {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Union(other.delegate)
 }
 
-func (s *SynchronizedCharHashSet) Intersect(other *SynchronizedCharHashSet) *CharHashSet {
+func (s *SynchronizedChar) Intersect(other *SynchronizedChar) *Char {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Intersect(other.delegate)
 }
 
-func (s *SynchronizedCharHashSet) Difference(other *SynchronizedCharHashSet) *CharHashSet {
+func (s *SynchronizedChar) Difference(other *SynchronizedChar) *Char {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Difference(other.delegate)
 }
 
-func (s *SynchronizedCharHashSet) SymmetricDifference(other *SynchronizedCharHashSet) *CharHashSet {
+func (s *SynchronizedChar) SymmetricDifference(other *SynchronizedChar) *Char {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.SymmetricDifference(other.delegate)
@@ -241,37 +232,41 @@ func (s *SynchronizedCharHashSet) SymmetricDifference(other *SynchronizedCharHas
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedCharHashSet) With(value uint16) *SynchronizedCharHashSet {
+// AddReturning adds the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedChar) AddReturning(value uint16) *SynchronizedChar {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedCharHashSet) WithAll(values ...uint16) *SynchronizedCharHashSet {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (s *SynchronizedChar) AddAllReturning(values ...uint16) *SynchronizedChar {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
-func (s *SynchronizedCharHashSet) Without(value uint16) *SynchronizedCharHashSet {
+// RemoveReturning removes the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedChar) RemoveReturning(value uint16) *SynchronizedChar {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.Without(value)
+	s.delegate.RemoveReturning(value)
 	return s
 }
 
-func (s *SynchronizedCharHashSet) WithoutAll(values ...uint16) *SynchronizedCharHashSet {
+// RemoveAllReturning removes all given values and returns the receiver (mutating, fluent).
+func (s *SynchronizedChar) RemoveAllReturning(values ...uint16) *SynchronizedChar {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithoutAll(values...)
+	s.delegate.RemoveAllReturning(values...)
 	return s
 }
 
 // ── conversions ───────────────────────────────────────────────────────
 
-func (s *SynchronizedCharHashSet) ToImmutable() *ImmutableCharHashSet {
+func (s *SynchronizedChar) ToImmutable() *ImmutableChar {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -279,7 +274,7 @@ func (s *SynchronizedCharHashSet) ToImmutable() *ImmutableCharHashSet {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent deadlocks under concurrent A.Equals(B) / B.Equals(A).
-func (s *SynchronizedCharHashSet) Equals(other *SynchronizedCharHashSet) bool {
+func (s *SynchronizedChar) Equals(other *SynchronizedChar) bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Equals(other.delegate)

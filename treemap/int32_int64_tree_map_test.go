@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-func TestInt32Int64TreeMap_PutGet(t *testing.T) {
-	m := NewInt32Int64TreeMap()
+func TestInt32Int64_PutGet(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(3, 30)
 	m.Put(1, 10)
 	m.Put(2, 20)
@@ -13,13 +13,13 @@ func TestInt32Int64TreeMap_PutGet(t *testing.T) {
 	if v, ok := m.Get(2); !ok || v != 20 {
 		t.Errorf("Get(2) = (%d, %v), want (20, true)", v, ok)
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size = %d, want 3", m.Len())
 	}
 }
 
-func TestInt32Int64TreeMap_SortedIteration(t *testing.T) {
-	m := NewInt32Int64TreeMap()
+func TestInt32Int64_SortedIteration(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(50, 500)
 	m.Put(10, 100)
 	m.Put(30, 300)
@@ -37,8 +37,8 @@ func TestInt32Int64TreeMap_SortedIteration(t *testing.T) {
 	}
 }
 
-func TestInt32Int64TreeMap_MinMax(t *testing.T) {
-	m := NewInt32Int64TreeMap()
+func TestInt32Int64_MinMax(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(30, 300)
 	m.Put(10, 100)
 	m.Put(50, 500)
@@ -53,8 +53,8 @@ func TestInt32Int64TreeMap_MinMax(t *testing.T) {
 	}
 }
 
-func TestInt32Int64TreeMap_FloorCeiling(t *testing.T) {
-	m := NewInt32Int64TreeMap()
+func TestInt32Int64_FloorCeiling(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(10, 100)
 	m.Put(20, 200)
 	m.Put(30, 300)
@@ -69,16 +69,16 @@ func TestInt32Int64TreeMap_FloorCeiling(t *testing.T) {
 	}
 }
 
-func TestInt32Int64TreeMap_Remove(t *testing.T) {
-	m := NewInt32Int64TreeMap()
+func TestInt32Int64_Remove(t *testing.T) {
+	m := NewInt32Int64()
 	for i := int32(1); i <= 20; i++ {
 		m.Put(i, int64(i*10))
 	}
 	for i := int32(1); i <= 20; i += 2 {
 		m.Remove(i)
 	}
-	if m.Size() != 10 {
-		t.Errorf("Size after removes = %d, want 10", m.Size())
+	if m.Len() != 10 {
+		t.Errorf("Size after removes = %d, want 10", m.Len())
 	}
 	// Verify remaining keys are even and sorted
 	prev := int32(0)
@@ -93,8 +93,8 @@ func TestInt32Int64TreeMap_Remove(t *testing.T) {
 	}
 }
 
-func TestInt32Int64TreeMap_RangeKeys(t *testing.T) {
-	m := NewInt32Int64TreeMap()
+func TestInt32Int64_RangeKeys(t *testing.T) {
+	m := NewInt32Int64()
 	for i := int32(1); i <= 10; i++ {
 		m.Put(i, int64(i*10))
 	}
@@ -107,19 +107,19 @@ func TestInt32Int64TreeMap_RangeKeys(t *testing.T) {
 	}
 }
 
-func TestInt32Int64TreeMap_LargeInsertDelete(t *testing.T) {
-	m := NewInt32Int64TreeMap()
+func TestInt32Int64_LargeInsertDelete(t *testing.T) {
+	m := NewInt32Int64()
 	for i := int32(0); i < 1000; i++ {
 		m.Put(i, int64(i))
 	}
-	if m.Size() != 1000 {
-		t.Fatalf("Size = %d, want 1000", m.Size())
+	if m.Len() != 1000 {
+		t.Fatalf("Size = %d, want 1000", m.Len())
 	}
 	for i := int32(0); i < 500; i++ {
 		m.Remove(i)
 	}
-	if m.Size() != 500 {
-		t.Fatalf("Size after 500 removes = %d, want 500", m.Size())
+	if m.Len() != 500 {
+		t.Fatalf("Size after 500 removes = %d, want 500", m.Len())
 	}
 	// Verify sorted
 	prev := int32(-1)

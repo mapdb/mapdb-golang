@@ -32,30 +32,28 @@ func NewArrayStackFrom[T comparable](values ...T) *ArrayStack[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (s *ArrayStack[T]) Size() int { return len(s.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ArrayStack[T]) Len() int      { return s.Size() }
-func (s *ArrayStack[T]) IsEmpty() bool { return len(s.items) == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ArrayStack[T]) Len() int { return len(s.items) }
 
 // ── Stack ─────────────────────────────────────────────────────────────
 
-func (s *ArrayStack[T]) Peek() (T, error) {
+// Peek returns the top element without removing it. The boolean is false when
+// the stack is empty.
+func (s *ArrayStack[T]) Peek() (T, bool) {
 	if len(s.items) == 0 {
 		var zero T
-		return zero, fmt.Errorf("stack is empty")
+		return zero, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
 // PeekAt returns the element at distance from the top (0 = top).
-func (s *ArrayStack[T]) PeekAt(index int) (T, error) {
+// It panics if index is out of range.
+func (s *ArrayStack[T]) PeekAt(index int) T {
 	if index < 0 || index >= len(s.items) {
-		var zero T
-		return zero, fmt.Errorf("index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("object.ArrayStack: index out of range [%d] with length %d", index, s.Len()))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
 // ── MutableStack ──────────────────────────────────────────────────────
@@ -64,14 +62,16 @@ func (s *ArrayStack[T]) Push(value T) {
 	s.items = append(s.items, value)
 }
 
-func (s *ArrayStack[T]) Pop() (T, error) {
+// Pop removes and returns the top element. The boolean is false when the stack
+// is empty.
+func (s *ArrayStack[T]) Pop() (T, bool) {
 	if len(s.items) == 0 {
 		var zero T
-		return zero, fmt.Errorf("stack is empty")
+		return zero, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
 func (s *ArrayStack[T]) Clear() {

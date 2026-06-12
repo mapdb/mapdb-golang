@@ -10,43 +10,43 @@ import (
 )
 
 const (
-	float32CharHashMapDefaultCapacity = 16
+	float32CharDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// float32CharHashMapEntry holds a single slot in the hash map for cache locality.
-type float32CharHashMapEntry struct {
+// float32CharEntry holds a single slot in the hash map for cache locality.
+type float32CharEntry struct {
 	key      float32
 	value    uint16
 	occupied bool
 }
 
-// Float32CharHashMap is an open-addressing hash map with float32 keys and uint16 values.
-type Float32CharHashMap struct {
-	entries []float32CharHashMapEntry
+// Float32Char is an open-addressing hash map with float32 keys and uint16 values.
+type Float32Char struct {
+	entries []float32CharEntry
 	size    int
 }
 
-// NewFloat32CharHashMap creates a new empty Float32CharHashMap with default capacity.
-func NewFloat32CharHashMap() *Float32CharHashMap {
-	return NewFloat32CharHashMapWithCapacity(float32CharHashMapDefaultCapacity)
+// NewFloat32Char creates a new empty Float32Char with default capacity.
+func NewFloat32Char() *Float32Char {
+	return NewFloat32CharWithCapacity(float32CharDefaultCapacity)
 }
 
-// NewFloat32CharHashMapWithCapacity creates a new empty Float32CharHashMap with the given initial capacity.
-func NewFloat32CharHashMapWithCapacity(capacity int) *Float32CharHashMap {
-	cap := nextPowerOfTwoFloat32CharHashMap(capacity)
-	return &Float32CharHashMap{
-		entries: make([]float32CharHashMapEntry, cap),
+// NewFloat32CharWithCapacity creates a new empty Float32Char with the given initial capacity.
+func NewFloat32CharWithCapacity(capacity int) *Float32Char {
+	cap := nextPowerOfTwoFloat32Char(capacity)
+	return &Float32Char{
+		entries: make([]float32CharEntry, cap),
 		size:    0,
 	}
 }
 
-// Float32CharHashMapOf creates a new Float32CharHashMap from key-value pairs.
-func Float32CharHashMapOf(pairs ...struct {
+// Float32CharOf creates a new Float32Char from key-value pairs.
+func Float32CharOf(pairs ...struct {
 	Key   float32
 	Value uint16
-}) *Float32CharHashMap {
-	m := NewFloat32CharHashMapWithCapacity(len(pairs) * 2)
+}) *Float32Char {
+	m := NewFloat32CharWithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
@@ -54,7 +54,7 @@ func Float32CharHashMapOf(pairs ...struct {
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Float32CharHashMap) Put(key float32, value uint16) (uint16, bool) {
+func (m *Float32Char) Put(key float32, value uint16) (uint16, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -80,7 +80,7 @@ func (m *Float32CharHashMap) Put(key float32, value uint16) (uint16, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Float32CharHashMap) Get(key float32) (uint16, bool) {
+func (m *Float32Char) Get(key float32) (uint16, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -100,7 +100,7 @@ func (m *Float32CharHashMap) Get(key float32) (uint16, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Float32CharHashMap) GetOrDefault(key float32, defaultValue uint16) uint16 {
+func (m *Float32Char) GetOrDefault(key float32, defaultValue uint16) uint16 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -108,7 +108,7 @@ func (m *Float32CharHashMap) GetOrDefault(key float32, defaultValue uint16) uint
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Float32CharHashMap) Remove(key float32) (uint16, bool) {
+func (m *Float32Char) Remove(key float32) (uint16, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -139,13 +139,13 @@ func (m *Float32CharHashMap) Remove(key float32) (uint16, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Float32CharHashMap) ContainsKey(key float32) bool {
+func (m *Float32Char) ContainsKey(key float32) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Float32CharHashMap) ContainsValue(value uint16) bool {
+func (m *Float32Char) ContainsValue(value uint16) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && m.entries[i].value == value {
 			return true
@@ -154,30 +154,21 @@ func (m *Float32CharHashMap) ContainsValue(value uint16) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Float32CharHashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float32Char) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float32CharHashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Float32CharHashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Float32CharHashMap) Clear() {
+func (m *Float32Char) Clear() {
 	for i := range m.entries {
-		m.entries[i] = float32CharHashMapEntry{}
+		m.entries[i] = float32CharEntry{}
 	}
 	m.size = 0
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Float32CharHashMap) All() iter.Seq2[float32, uint16] {
+func (m *Float32Char) All() iter.Seq2[float32, uint16] {
 	return func(yield func(float32, uint16) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -190,7 +181,7 @@ func (m *Float32CharHashMap) All() iter.Seq2[float32, uint16] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Float32CharHashMap) Keys() iter.Seq[float32] {
+func (m *Float32Char) Keys() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -203,7 +194,7 @@ func (m *Float32CharHashMap) Keys() iter.Seq[float32] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Float32CharHashMap) Values() iter.Seq[uint16] {
+func (m *Float32Char) Values() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -216,7 +207,7 @@ func (m *Float32CharHashMap) Values() iter.Seq[uint16] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Float32CharHashMap) ForEach(f func(float32, uint16)) {
+func (m *Float32Char) ForEach(f func(float32, uint16)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key, m.entries[i].value)
@@ -225,7 +216,7 @@ func (m *Float32CharHashMap) ForEach(f func(float32, uint16)) {
 }
 
 // ForEachKey calls the given function for each key.
-func (m *Float32CharHashMap) ForEachKey(f func(float32)) {
+func (m *Float32Char) ForEachKey(f func(float32)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key)
@@ -234,7 +225,7 @@ func (m *Float32CharHashMap) ForEachKey(f func(float32)) {
 }
 
 // ForEachValue calls the given function for each value.
-func (m *Float32CharHashMap) ForEachValue(f func(uint16)) {
+func (m *Float32Char) ForEachValue(f func(uint16)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].value)
@@ -243,8 +234,8 @@ func (m *Float32CharHashMap) ForEachValue(f func(uint16)) {
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *Float32CharHashMap) Select(predicate func(float32, uint16) bool) *Float32CharHashMap {
-	result := NewFloat32CharHashMap()
+func (m *Float32Char) Select(predicate func(float32, uint16) bool) *Float32Char {
+	result := NewFloat32Char()
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -254,8 +245,8 @@ func (m *Float32CharHashMap) Select(predicate func(float32, uint16) bool) *Float
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *Float32CharHashMap) Reject(predicate func(float32, uint16) bool) *Float32CharHashMap {
-	result := NewFloat32CharHashMap()
+func (m *Float32Char) Reject(predicate func(float32, uint16) bool) *Float32Char {
+	result := NewFloat32Char()
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -265,7 +256,7 @@ func (m *Float32CharHashMap) Reject(predicate func(float32, uint16) bool) *Float
 }
 
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
-func (m *Float32CharHashMap) Detect(predicate func(float32, uint16) bool) (float32, uint16, bool) {
+func (m *Float32Char) Detect(predicate func(float32, uint16) bool) (float32, uint16, bool) {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
@@ -275,7 +266,7 @@ func (m *Float32CharHashMap) Detect(predicate func(float32, uint16) bool) (float
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *Float32CharHashMap) AnySatisfy(predicate func(float32, uint16) bool) bool {
+func (m *Float32Char) AnySatisfy(predicate func(float32, uint16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
@@ -285,7 +276,7 @@ func (m *Float32CharHashMap) AnySatisfy(predicate func(float32, uint16) bool) bo
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *Float32CharHashMap) AllSatisfy(predicate func(float32, uint16) bool) bool {
+func (m *Float32Char) AllSatisfy(predicate func(float32, uint16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -295,7 +286,7 @@ func (m *Float32CharHashMap) AllSatisfy(predicate func(float32, uint16) bool) bo
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *Float32CharHashMap) NoneSatisfy(predicate func(float32, uint16) bool) bool {
+func (m *Float32Char) NoneSatisfy(predicate func(float32, uint16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -305,7 +296,7 @@ func (m *Float32CharHashMap) NoneSatisfy(predicate func(float32, uint16) bool) b
 }
 
 // Count returns the number of key-value pairs that satisfy the predicate.
-func (m *Float32CharHashMap) Count(predicate func(float32, uint16) bool) int {
+func (m *Float32Char) Count(predicate func(float32, uint16) bool) int {
 	count := 0
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
@@ -316,7 +307,7 @@ func (m *Float32CharHashMap) Count(predicate func(float32, uint16) bool) int {
 }
 
 // String returns a string representation of the map.
-func (m *Float32CharHashMap) String() string {
+func (m *Float32Char) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -337,7 +328,7 @@ func (m *Float32CharHashMap) String() string {
 }
 
 // Equals returns true if the other map has the same key-value pairs.
-func (m *Float32CharHashMap) Equals(other *Float32CharHashMap) bool {
+func (m *Float32Char) Equals(other *Float32Char) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -353,7 +344,7 @@ func (m *Float32CharHashMap) Equals(other *Float32CharHashMap) bool {
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *Float32CharHashMap) KeysToSlice() []float32 {
+func (m *Float32Char) KeysToSlice() []float32 {
 	result := make([]float32, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -364,7 +355,7 @@ func (m *Float32CharHashMap) KeysToSlice() []float32 {
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Float32CharHashMap) ValuesToSlice() []uint16 {
+func (m *Float32Char) ValuesToSlice() []uint16 {
 	result := make([]uint16, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -375,12 +366,12 @@ func (m *Float32CharHashMap) ValuesToSlice() []uint16 {
 }
 
 // ToImmutable returns an immutable copy of this map.
-func (m *Float32CharHashMap) ToImmutable() *ImmutableFloat32CharHashMap {
-	return ImmutableFloat32CharHashMapFrom(m)
+func (m *Float32Char) ToImmutable() *ImmutableFloat32Char {
+	return ImmutableFloat32CharFrom(m)
 }
 
 // InjectInto performs a left fold over all key-value pairs.
-func (m *Float32CharHashMap) InjectInto(initial uint16, f func(uint16, float32, uint16) uint16) uint16 {
+func (m *Float32Char) InjectInto(initial uint16, f func(uint16, float32, uint16) uint16) uint16 {
 	result := initial
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -393,7 +384,7 @@ func (m *Float32CharHashMap) InjectInto(initial uint16, f func(uint16, float32, 
 // AddToValue adds the given amount to the value for the key.
 // If the key is not present, inserts it with the given amount as value.
 // Returns the new value.
-func (m *Float32CharHashMap) AddToValue(key float32, amount uint16) uint16 {
+func (m *Float32Char) AddToValue(key float32, amount uint16) uint16 {
 	if v, ok := m.Get(key); ok {
 		newVal := v + amount
 		m.Put(key, newVal)
@@ -406,7 +397,7 @@ func (m *Float32CharHashMap) AddToValue(key float32, amount uint16) uint16 {
 // UpdateValue updates the value for the key using the function.
 // If key is absent, inserts initialValue first then applies the function.
 // Returns the new value.
-func (m *Float32CharHashMap) UpdateValue(key float32, initialValue uint16, f func(uint16) uint16) uint16 {
+func (m *Float32Char) UpdateValue(key float32, initialValue uint16, f func(uint16) uint16) uint16 {
 	if v, ok := m.Get(key); ok {
 		newVal := f(v)
 		m.Put(key, newVal)
@@ -417,20 +408,20 @@ func (m *Float32CharHashMap) UpdateValue(key float32, initialValue uint16, f fun
 	return newVal
 }
 
-// WithKeyValue returns the map after putting the key-value pair (fluent API).
-func (m *Float32CharHashMap) WithKeyValue(key float32, value uint16) *Float32CharHashMap {
+// PutReturning returns the map after putting the key-value pair (fluent API).
+func (m *Float32Char) PutReturning(key float32, value uint16) *Float32Char {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey returns the map after removing the key (fluent API).
-func (m *Float32CharHashMap) WithoutKey(key float32) *Float32CharHashMap {
+// RemoveKeyReturning returns the map after removing the key (fluent API).
+func (m *Float32Char) RemoveKeyReturning(key float32) *Float32Char {
 	m.Remove(key)
 	return m
 }
 
 // WithoutAllKeys removes all given keys (fluent API).
-func (m *Float32CharHashMap) WithoutAllKeys(keys []float32) *Float32CharHashMap {
+func (m *Float32Char) WithoutAllKeys(keys []float32) *Float32Char {
 	for _, k := range keys {
 		m.Remove(k)
 	}
@@ -438,7 +429,7 @@ func (m *Float32CharHashMap) WithoutAllKeys(keys []float32) *Float32CharHashMap 
 }
 
 // SumOfValues returns the sum of all values.
-func (m *Float32CharHashMap) SumOfValues() uint16 {
+func (m *Float32Char) SumOfValues() uint16 {
 	var sum uint16
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -450,19 +441,19 @@ func (m *Float32CharHashMap) SumOfValues() uint16 {
 
 // Entry returns a handle for in-place check-and-modify operations on the
 // given key. The handle is not thread-safe: external synchronisation (the
-// SynchronizedFloat32CharHashMap wrapper's Lock / RLock, or your own mutex) is required
+// SynchronizedFloat32Char wrapper's Lock / RLock, or your own mutex) is required
 // when multiple goroutines share the same underlying map. The name is
 // modelled on Rust's std::collections::hash_map::Entry, not on Java's
 // ConcurrentMap.compute; there is no internal locking, no CAS, and no
 // atomicity guarantee across callback invocation.
-func (m *Float32CharHashMap) Entry(key float32) Float32CharEntry {
+func (m *Float32Char) Entry(key float32) Float32CharEntry {
 	return Float32CharEntry{m: m, key: key}
 }
 
 // Float32CharEntry provides in-place check-and-modify operations for a single
-// key. Not thread-safe — see Float32CharHashMap.Entry.
+// key. Not thread-safe — see Float32Char.Entry.
 type Float32CharEntry struct {
-	m   *Float32CharHashMap
+	m   *Float32Char
 	key float32
 }
 
@@ -523,22 +514,22 @@ func (e Float32CharEntry) AndModify(f func(*uint16)) Float32CharEntry {
 	}
 }
 
-func (m *Float32CharHashMap) hashKey(key float32) uint64 {
+func (m *Float32Char) hashKey(key float32) uint64 {
 	h := uint64(math.Float32bits(key)) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Float32CharHashMap) needsResize() bool {
+func (m *Float32Char) needsResize() bool {
 	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
 }
 
-func (m *Float32CharHashMap) resize() {
+func (m *Float32Char) resize() {
 	oldEntries := m.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = float32CharHashMapDefaultCapacity
+		newCap = float32CharDefaultCapacity
 	}
-	m.entries = make([]float32CharHashMapEntry, newCap)
+	m.entries = make([]float32CharEntry, newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -549,7 +540,7 @@ func (m *Float32CharHashMap) resize() {
 }
 
 // rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *Float32CharHashMap) rehashFrom(deleted int, mask int) {
+func (m *Float32Char) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
@@ -558,7 +549,7 @@ func (m *Float32CharHashMap) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = float32CharHashMapEntry{}
+			m.entries[idx] = float32CharEntry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -568,7 +559,7 @@ func (m *Float32CharHashMap) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoFloat32CharHashMap(n int) int {
+func nextPowerOfTwoFloat32Char(n int) int {
 	if n <= 0 {
 		return 16
 	}

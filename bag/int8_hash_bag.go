@@ -8,24 +8,24 @@ import (
 	"strings"
 )
 
-// Int8HashBag is a bag (multiset) that counts occurrences of int8 values.
+// HashInt8 is a bag (multiset) that counts occurrences of int8 values.
 // Backed by a map from value to count.
-type Int8HashBag struct {
+type HashInt8 struct {
 	counts map[int8]int
 	size   int // total count including duplicates
 }
 
-// NewInt8HashBag creates a new empty Int8HashBag.
-func NewInt8HashBag() *Int8HashBag {
-	return &Int8HashBag{
+// NewHashInt8 creates a new empty HashInt8.
+func NewHashInt8() *HashInt8 {
+	return &HashInt8{
 		counts: make(map[int8]int),
 		size:   0,
 	}
 }
 
-// Int8HashBagOf creates a new Int8HashBag from the given values.
-func Int8HashBagOf(values ...int8) *Int8HashBag {
-	b := NewInt8HashBag()
+// HashInt8Of creates a new HashInt8 from the given values.
+func HashInt8Of(values ...int8) *HashInt8 {
+	b := NewHashInt8()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -33,7 +33,7 @@ func Int8HashBagOf(values ...int8) *Int8HashBag {
 }
 
 // Add adds one occurrence of the value.
-func (b *Int8HashBag) Add(value int8) {
+func (b *HashInt8) Add(value int8) {
 	if b.counts == nil {
 		b.counts = make(map[int8]int)
 	}
@@ -43,9 +43,9 @@ func (b *Int8HashBag) Add(value int8) {
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *Int8HashBag) AddOccurrences(value int8, occurrences int) int {
+func (b *HashInt8) AddOccurrences(value int8, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("Int8HashBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("HashInt8: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		return b.counts[value]
@@ -59,7 +59,7 @@ func (b *Int8HashBag) AddOccurrences(value int8, occurrences int) int {
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *Int8HashBag) Remove(value int8) bool {
+func (b *HashInt8) Remove(value int8) bool {
 	count, ok := b.counts[value]
 	if !ok || count <= 0 {
 		return false
@@ -74,7 +74,7 @@ func (b *Int8HashBag) Remove(value int8) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *Int8HashBag) RemoveOccurrences(value int8, occurrences int) bool {
+func (b *HashInt8) RemoveOccurrences(value int8, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -93,7 +93,7 @@ func (b *Int8HashBag) RemoveOccurrences(value int8, occurrences int) bool {
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *Int8HashBag) RemoveAll(value int8) int {
+func (b *HashInt8) RemoveAll(value int8) int {
 	count, ok := b.counts[value]
 	if !ok {
 		return 0
@@ -104,42 +104,36 @@ func (b *Int8HashBag) RemoveAll(value int8) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *Int8HashBag) OccurrencesOf(value int8) int {
+func (b *HashInt8) OccurrencesOf(value int8) int {
 	return b.counts[value]
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *Int8HashBag) Contains(value int8) bool {
+func (b *HashInt8) Contains(value int8) bool {
 	return b.counts[value] > 0
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *Int8HashBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *HashInt8) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Int8HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *Int8HashBag) SizeDistinct() int {
+func (b *HashInt8) SizeDistinct() int {
 	return len(b.counts)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *Int8HashBag) IsEmpty() bool {
-	return b.size == 0
-}
-
 // Clear removes all elements from the bag.
-func (b *Int8HashBag) Clear() {
+func (b *HashInt8) Clear() {
 	b.counts = make(map[int8]int)
 	b.size = 0
 }
 
 // All returns an iter.Seq that yields each element once per occurrence.
-func (b *Int8HashBag) All() iter.Seq[int8] {
+func (b *HashInt8) All() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for value, count := range b.counts {
 			for i := 0; i < count; i++ {
@@ -152,7 +146,7 @@ func (b *Int8HashBag) All() iter.Seq[int8] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once.
-func (b *Int8HashBag) AllDistinct() iter.Seq[int8] {
+func (b *HashInt8) AllDistinct() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for value := range b.counts {
 			if !yield(value) {
@@ -163,7 +157,7 @@ func (b *Int8HashBag) AllDistinct() iter.Seq[int8] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs.
-func (b *Int8HashBag) AllWithOccurrences() iter.Seq2[int8, int] {
+func (b *HashInt8) AllWithOccurrences() iter.Seq2[int8, int] {
 	return func(yield func(int8, int) bool) {
 		for value, count := range b.counts {
 			if !yield(value, count) {
@@ -174,7 +168,7 @@ func (b *Int8HashBag) AllWithOccurrences() iter.Seq2[int8, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence).
-func (b *Int8HashBag) ForEach(f func(int8)) {
+func (b *HashInt8) ForEach(f func(int8)) {
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
 			f(value)
@@ -183,15 +177,15 @@ func (b *Int8HashBag) ForEach(f func(int8)) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count.
-func (b *Int8HashBag) ForEachWithOccurrences(f func(int8, int)) {
+func (b *HashInt8) ForEachWithOccurrences(f func(int8, int)) {
 	for value, count := range b.counts {
 		f(value, count)
 	}
 }
 
 // Select returns a new bag containing only elements that satisfy the predicate.
-func (b *Int8HashBag) Select(predicate func(int8) bool) *Int8HashBag {
-	result := NewInt8HashBag()
+func (b *HashInt8) Select(predicate func(int8) bool) *HashInt8 {
+	result := NewHashInt8()
 	for value, count := range b.counts {
 		if predicate(value) {
 			result.AddOccurrences(value, count)
@@ -201,8 +195,8 @@ func (b *Int8HashBag) Select(predicate func(int8) bool) *Int8HashBag {
 }
 
 // Reject returns a new bag containing only elements that do not satisfy the predicate.
-func (b *Int8HashBag) Reject(predicate func(int8) bool) *Int8HashBag {
-	result := NewInt8HashBag()
+func (b *HashInt8) Reject(predicate func(int8) bool) *HashInt8 {
+	result := NewHashInt8()
 	for value, count := range b.counts {
 		if !predicate(value) {
 			result.AddOccurrences(value, count)
@@ -212,7 +206,7 @@ func (b *Int8HashBag) Reject(predicate func(int8) bool) *Int8HashBag {
 }
 
 // Detect returns the first distinct element that satisfies the predicate, or zero value and false.
-func (b *Int8HashBag) Detect(predicate func(int8) bool) (int8, bool) {
+func (b *HashInt8) Detect(predicate func(int8) bool) (int8, bool) {
 	for value := range b.counts {
 		if predicate(value) {
 			return value, true
@@ -222,7 +216,7 @@ func (b *Int8HashBag) Detect(predicate func(int8) bool) (int8, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *Int8HashBag) AnySatisfy(predicate func(int8) bool) bool {
+func (b *HashInt8) AnySatisfy(predicate func(int8) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return true
@@ -232,7 +226,7 @@ func (b *Int8HashBag) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *Int8HashBag) AllSatisfy(predicate func(int8) bool) bool {
+func (b *HashInt8) AllSatisfy(predicate func(int8) bool) bool {
 	for value := range b.counts {
 		if !predicate(value) {
 			return false
@@ -242,7 +236,7 @@ func (b *Int8HashBag) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *Int8HashBag) NoneSatisfy(predicate func(int8) bool) bool {
+func (b *HashInt8) NoneSatisfy(predicate func(int8) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return false
@@ -252,7 +246,7 @@ func (b *Int8HashBag) NoneSatisfy(predicate func(int8) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *Int8HashBag) TopOccurrences(n int) []struct {
+func (b *HashInt8) TopOccurrences(n int) []struct {
 	Value int8
 	Count int
 } {
@@ -289,7 +283,7 @@ func (b *Int8HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count).
-func (b *Int8HashBag) ToSlice() []int8 {
+func (b *HashInt8) ToSlice() []int8 {
 	result := make([]int8, 0, b.size)
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
@@ -300,19 +294,19 @@ func (b *Int8HashBag) ToSlice() []int8 {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *Int8HashBag) With(value int8) *Int8HashBag {
+func (b *HashInt8) AddReturning(value int8) *HashInt8 {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *Int8HashBag) Without(value int8) *Int8HashBag {
+func (b *HashInt8) RemoveReturning(value int8) *HashInt8 {
 	b.RemoveAll(value)
 	return b
 }
 
 // String returns a string representation of the bag.
-func (b *Int8HashBag) String() string {
+func (b *HashInt8) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -331,7 +325,7 @@ func (b *Int8HashBag) String() string {
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *Int8HashBag) WithAll(values ...int8) *Int8HashBag {
+func (b *HashInt8) AddAllReturning(values ...int8) *HashInt8 {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -339,7 +333,7 @@ func (b *Int8HashBag) WithAll(values ...int8) *Int8HashBag {
 }
 
 // WithoutAll removes all occurrences of the given values.
-func (b *Int8HashBag) WithoutAll(values ...int8) *Int8HashBag {
+func (b *HashInt8) RemoveAllReturning(values ...int8) *HashInt8 {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -347,12 +341,12 @@ func (b *Int8HashBag) WithoutAll(values ...int8) *Int8HashBag {
 }
 
 // ToImmutable returns an immutable copy of this bag.
-func (b *Int8HashBag) ToImmutable() *ImmutableInt8HashBag {
-	return ImmutableInt8HashBagFrom(b)
+func (b *HashInt8) ToImmutable() *ImmutableHashInt8 {
+	return ImmutableHashInt8From(b)
 }
 
 // Equals returns true if the other bag has the same elements with the same counts.
-func (b *Int8HashBag) Equals(other *Int8HashBag) bool {
+func (b *HashInt8) Equals(other *HashInt8) bool {
 	if b.size != other.size || len(b.counts) != len(other.counts) {
 		return false
 	}

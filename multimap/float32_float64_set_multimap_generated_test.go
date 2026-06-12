@@ -1,12 +1,11 @@
-
 package multimap
 
 import (
 	"testing"
 )
 
-func TestFloat32Float64SetMultimap_Generated_PutGet(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_PutGet(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	m.Put(2.0, 3.0)
@@ -21,16 +20,16 @@ func TestFloat32Float64SetMultimap_Generated_PutGet(t *testing.T) {
 	if len(m.Get(99.0)) != 0 {
 		t.Errorf("Get(99.0) len = %d, want 0", len(m.Get(99.0)))
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
 	if m.KeysCount() != 2 {
 		t.Errorf("KeysCount() = %d, want 2", m.KeysCount())
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_GetAll(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_GetAll(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	vals := m.GetAll(1.0)
@@ -39,8 +38,8 @@ func TestFloat32Float64SetMultimap_Generated_GetAll(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_RemoveAll(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_RemoveAll(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	m.Put(2.0, 3.0)
@@ -48,8 +47,8 @@ func TestFloat32Float64SetMultimap_Generated_RemoveAll(t *testing.T) {
 	if len(removed) != 2 {
 		t.Errorf("RemoveAll returned %d values, want 2", len(removed))
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size() = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size() = %d, want 1", m.Len())
 	}
 	if m.KeysCount() != 1 {
 		t.Errorf("KeysCount() = %d, want 1", m.KeysCount())
@@ -59,8 +58,8 @@ func TestFloat32Float64SetMultimap_Generated_RemoveAll(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_ContainsKey(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_ContainsKey(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	if !m.ContainsKey(1.0) {
 		t.Errorf("ContainsKey(1.0) = false, want true")
@@ -70,8 +69,8 @@ func TestFloat32Float64SetMultimap_Generated_ContainsKey(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_ContainsKeyValue(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_ContainsKeyValue(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	if !m.ContainsKeyValue(1.0, 1.0) {
@@ -82,21 +81,21 @@ func TestFloat32Float64SetMultimap_Generated_ContainsKeyValue(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_Clear(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_Clear(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(2.0, 2.0)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Errorf("IsEmpty() = false after Clear, want true")
 	}
-	if m.Size() != 0 {
-		t.Errorf("Size() = %d after Clear, want 0", m.Size())
+	if m.Len() != 0 {
+		t.Errorf("Size() = %d after Clear, want 0", m.Len())
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_ForEach(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_ForEach(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	m.Put(2.0, 3.0)
@@ -109,8 +108,8 @@ func TestFloat32Float64SetMultimap_Generated_ForEach(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_ForEachKeyValues(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_ForEachKeyValues(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	m.Put(2.0, 3.0)
@@ -126,23 +125,23 @@ func TestFloat32Float64SetMultimap_Generated_ForEachKeyValues(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_SelectReject(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_SelectReject(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	m.Put(2.0, 3.0)
 	sel := m.Select(func(_ float32, v float64) bool { return v == 1.0 })
-	if sel.Size() != 1 {
-		t.Errorf("Select size = %d, want 1", sel.Size())
+	if sel.Len() != 1 {
+		t.Errorf("Select size = %d, want 1", sel.Len())
 	}
 	rej := m.Reject(func(_ float32, v float64) bool { return v == 1.0 })
-	if rej.Size() != 2 {
-		t.Errorf("Reject size = %d, want 2", rej.Size())
+	if rej.Len() != 2 {
+		t.Errorf("Reject size = %d, want 2", rej.Len())
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_KeysValues(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_KeysValues(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	m.Put(1.0, 2.0)
 	m.Put(2.0, 3.0)
@@ -156,11 +155,11 @@ func TestFloat32Float64SetMultimap_Generated_KeysValues(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_Equals(t *testing.T) {
-	m1 := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_Equals(t *testing.T) {
+	m1 := NewFloat32Float64Set()
 	m1.Put(1.0, 1.0)
 	m1.Put(1.0, 2.0)
-	m2 := NewFloat32Float64SetMultimap()
+	m2 := NewFloat32Float64Set()
 	m2.Put(1.0, 1.0)
 	m2.Put(1.0, 2.0)
 	if !m1.Equals(m2) {
@@ -168,8 +167,8 @@ func TestFloat32Float64SetMultimap_Generated_Equals(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_String(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
+func TestFloat32Float64Set_Generated_String(t *testing.T) {
+	m := NewFloat32Float64Set()
 	m.Put(1.0, 1.0)
 	s := m.String()
 	if len(s) == 0 {
@@ -177,14 +176,14 @@ func TestFloat32Float64SetMultimap_Generated_String(t *testing.T) {
 	}
 }
 
-func TestFloat32Float64SetMultimap_Generated_FluentAPI(t *testing.T) {
-	m := NewFloat32Float64SetMultimap()
-	m.WithKeyValue(1.0, 1.0).WithKeyValue(1.0, 2.0).WithKeyValue(2.0, 3.0)
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+func TestFloat32Float64Set_Generated_FluentAPI(t *testing.T) {
+	m := NewFloat32Float64Set()
+	m.PutReturning(1.0, 1.0).PutReturning(1.0, 2.0).PutReturning(2.0, 3.0)
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
-	m.WithoutKey(1.0)
-	if m.Size() != 1 {
-		t.Errorf("Size() = %d after WithoutKey, want 1", m.Size())
+	m.RemoveKeyReturning(1.0)
+	if m.Len() != 1 {
+		t.Errorf("Size() = %d after RemoveKeyReturning, want 1", m.Len())
 	}
 }

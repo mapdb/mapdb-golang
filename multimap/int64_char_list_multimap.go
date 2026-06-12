@@ -7,23 +7,23 @@ import (
 	"strings"
 )
 
-// Int64CharListMultimap is a list multimap from int64 keys to uint16 values.
+// Int64CharList is a list multimap from int64 keys to uint16 values.
 // Each key maps to a slice of values, preserving insertion order per key.
-type Int64CharListMultimap struct {
+type Int64CharList struct {
 	data map[int64][]uint16
 	size int
 }
 
-// NewInt64CharListMultimap creates a new empty Int64CharListMultimap.
-func NewInt64CharListMultimap() *Int64CharListMultimap {
-	return &Int64CharListMultimap{
+// NewInt64CharList creates a new empty Int64CharList.
+func NewInt64CharList() *Int64CharList {
+	return &Int64CharList{
 		data: make(map[int64][]uint16),
 		size: 0,
 	}
 }
 
 // Put adds a value to the list for the given key.
-func (m *Int64CharListMultimap) Put(key int64, value uint16) {
+func (m *Int64CharList) Put(key int64, value uint16) {
 	if m.data == nil {
 		m.data = make(map[int64][]uint16)
 	}
@@ -32,12 +32,12 @@ func (m *Int64CharListMultimap) Put(key int64, value uint16) {
 }
 
 // Get returns a copy of the values for the given key. Returns nil if the key is absent.
-func (m *Int64CharListMultimap) Get(key int64) []uint16 {
+func (m *Int64CharList) Get(key int64) []uint16 {
 	return m.GetAll(key)
 }
 
 // GetAll returns a copy of the values for the given key.
-func (m *Int64CharListMultimap) GetAll(key int64) []uint16 {
+func (m *Int64CharList) GetAll(key int64) []uint16 {
 	vals := m.data[key]
 	if vals == nil {
 		return nil
@@ -48,7 +48,7 @@ func (m *Int64CharListMultimap) GetAll(key int64) []uint16 {
 }
 
 // RemoveAll removes all values for the given key and returns them.
-func (m *Int64CharListMultimap) RemoveAll(key int64) []uint16 {
+func (m *Int64CharList) RemoveAll(key int64) []uint16 {
 	vals, ok := m.data[key]
 	if !ok {
 		return nil
@@ -59,13 +59,13 @@ func (m *Int64CharListMultimap) RemoveAll(key int64) []uint16 {
 }
 
 // ContainsKey returns true if the multimap contains the given key.
-func (m *Int64CharListMultimap) ContainsKey(key int64) bool {
+func (m *Int64CharList) ContainsKey(key int64) bool {
 	_, ok := m.data[key]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
-func (m *Int64CharListMultimap) ContainsKeyValue(key int64, value uint16) bool {
+func (m *Int64CharList) ContainsKeyValue(key int64, value uint16) bool {
 	vals, ok := m.data[key]
 	if !ok {
 		return false
@@ -79,32 +79,23 @@ func (m *Int64CharListMultimap) ContainsKeyValue(key int64, value uint16) bool {
 }
 
 // KeysCount returns the number of distinct keys.
-func (m *Int64CharListMultimap) KeysCount() int {
+func (m *Int64CharList) KeysCount() int {
 	return len(m.data)
 }
 
-// Size returns the total number of values across all keys.
-func (m *Int64CharListMultimap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int64CharList) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int64CharListMultimap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the multimap contains no values.
-func (m *Int64CharListMultimap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the multimap.
-func (m *Int64CharListMultimap) Clear() {
+func (m *Int64CharList) Clear() {
 	m.data = make(map[int64][]uint16)
 	m.size = 0
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int64CharListMultimap) ForEach(f func(int64, uint16)) {
+func (m *Int64CharList) ForEach(f func(int64, uint16)) {
 	for key, vals := range m.data {
 		for _, val := range vals {
 			f(key, val)
@@ -113,7 +104,7 @@ func (m *Int64CharListMultimap) ForEach(f func(int64, uint16)) {
 }
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
-func (m *Int64CharListMultimap) ForEachKeyValues(f func(int64, []uint16)) {
+func (m *Int64CharList) ForEachKeyValues(f func(int64, []uint16)) {
 	for key, vals := range m.data {
 		copied := make([]uint16, len(vals))
 		copy(copied, vals)
@@ -122,7 +113,7 @@ func (m *Int64CharListMultimap) ForEachKeyValues(f func(int64, []uint16)) {
 }
 
 // Keys returns a slice of all distinct keys.
-func (m *Int64CharListMultimap) Keys() []int64 {
+func (m *Int64CharList) Keys() []int64 {
 	result := make([]int64, 0, len(m.data))
 	for key := range m.data {
 		result = append(result, key)
@@ -131,7 +122,7 @@ func (m *Int64CharListMultimap) Keys() []int64 {
 }
 
 // Values returns a slice of all values across all keys.
-func (m *Int64CharListMultimap) Values() []uint16 {
+func (m *Int64CharList) Values() []uint16 {
 	result := make([]uint16, 0, m.size)
 	for _, vals := range m.data {
 		result = append(result, vals...)
@@ -140,8 +131,8 @@ func (m *Int64CharListMultimap) Values() []uint16 {
 }
 
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
-func (m *Int64CharListMultimap) Select(predicate func(int64, uint16) bool) *Int64CharListMultimap {
-	result := NewInt64CharListMultimap()
+func (m *Int64CharList) Select(predicate func(int64, uint16) bool) *Int64CharList {
+	result := NewInt64CharList()
 	for key, vals := range m.data {
 		for _, val := range vals {
 			if predicate(key, val) {
@@ -153,8 +144,8 @@ func (m *Int64CharListMultimap) Select(predicate func(int64, uint16) bool) *Int6
 }
 
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
-func (m *Int64CharListMultimap) Reject(predicate func(int64, uint16) bool) *Int64CharListMultimap {
-	result := NewInt64CharListMultimap()
+func (m *Int64CharList) Reject(predicate func(int64, uint16) bool) *Int64CharList {
+	result := NewInt64CharList()
 	for key, vals := range m.data {
 		for _, val := range vals {
 			if !predicate(key, val) {
@@ -166,7 +157,7 @@ func (m *Int64CharListMultimap) Reject(predicate func(int64, uint16) bool) *Int6
 }
 
 // String returns a string representation of the multimap.
-func (m *Int64CharListMultimap) String() string {
+func (m *Int64CharList) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -192,7 +183,7 @@ func (m *Int64CharListMultimap) String() string {
 }
 
 // Equals returns true if the other multimap has the same key-value pairs in the same order per key.
-func (m *Int64CharListMultimap) Equals(other *Int64CharListMultimap) bool {
+func (m *Int64CharList) Equals(other *Int64CharList) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -214,23 +205,23 @@ func (m *Int64CharListMultimap) Equals(other *Int64CharListMultimap) bool {
 }
 
 // KeysToSlice returns all distinct keys as a slice.
-func (m *Int64CharListMultimap) KeysToSlice() []int64 {
+func (m *Int64CharList) KeysToSlice() []int64 {
 	return m.Keys()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Int64CharListMultimap) ValuesToSlice() []uint16 {
+func (m *Int64CharList) ValuesToSlice() []uint16 {
 	return m.Values()
 }
 
-// WithKeyValue adds a key-value pair and returns the multimap (fluent API).
-func (m *Int64CharListMultimap) WithKeyValue(key int64, value uint16) *Int64CharListMultimap {
+// PutReturning adds a key-value pair and returns the multimap (fluent API).
+func (m *Int64CharList) PutReturning(key int64, value uint16) *Int64CharList {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey removes all values for the key and returns the multimap (fluent API).
-func (m *Int64CharListMultimap) WithoutKey(key int64) *Int64CharListMultimap {
+// RemoveKeyReturning removes all values for the key and returns the multimap (fluent API).
+func (m *Int64CharList) RemoveKeyReturning(key int64) *Int64CharList {
 	m.RemoveAll(key)
 	return m
 }

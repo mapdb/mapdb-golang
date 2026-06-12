@@ -7,16 +7,16 @@ import (
 	"strings"
 )
 
-// Int32Int8SetMultimap is a set multimap from int32 keys to int8 values.
+// Int32Int8Set is a set multimap from int32 keys to int8 values.
 // Each key maps to a set of unique values (duplicates on Put are silently dropped).
-type Int32Int8SetMultimap struct {
+type Int32Int8Set struct {
 	data map[int32][]int8
 	size int
 }
 
-// NewInt32Int8SetMultimap creates a new empty Int32Int8SetMultimap.
-func NewInt32Int8SetMultimap() *Int32Int8SetMultimap {
-	return &Int32Int8SetMultimap{
+// NewInt32Int8Set creates a new empty Int32Int8Set.
+func NewInt32Int8Set() *Int32Int8Set {
+	return &Int32Int8Set{
 		data: make(map[int32][]int8),
 		size: 0,
 	}
@@ -24,7 +24,7 @@ func NewInt32Int8SetMultimap() *Int32Int8SetMultimap {
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
-func (m *Int32Int8SetMultimap) Put(key int32, value int8) {
+func (m *Int32Int8Set) Put(key int32, value int8) {
 	if m.data == nil {
 		m.data = make(map[int32][]int8)
 	}
@@ -38,12 +38,12 @@ func (m *Int32Int8SetMultimap) Put(key int32, value int8) {
 }
 
 // Get returns a copy of the values for the given key. Returns nil if the key is absent.
-func (m *Int32Int8SetMultimap) Get(key int32) []int8 {
+func (m *Int32Int8Set) Get(key int32) []int8 {
 	return m.GetAll(key)
 }
 
 // GetAll returns a copy of the values for the given key.
-func (m *Int32Int8SetMultimap) GetAll(key int32) []int8 {
+func (m *Int32Int8Set) GetAll(key int32) []int8 {
 	vals := m.data[key]
 	if vals == nil {
 		return nil
@@ -54,7 +54,7 @@ func (m *Int32Int8SetMultimap) GetAll(key int32) []int8 {
 }
 
 // RemoveAll removes all values for the given key and returns them.
-func (m *Int32Int8SetMultimap) RemoveAll(key int32) []int8 {
+func (m *Int32Int8Set) RemoveAll(key int32) []int8 {
 	vals, ok := m.data[key]
 	if !ok {
 		return nil
@@ -65,13 +65,13 @@ func (m *Int32Int8SetMultimap) RemoveAll(key int32) []int8 {
 }
 
 // ContainsKey returns true if the multimap contains the given key.
-func (m *Int32Int8SetMultimap) ContainsKey(key int32) bool {
+func (m *Int32Int8Set) ContainsKey(key int32) bool {
 	_, ok := m.data[key]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
-func (m *Int32Int8SetMultimap) ContainsKeyValue(key int32, value int8) bool {
+func (m *Int32Int8Set) ContainsKeyValue(key int32, value int8) bool {
 	vals, ok := m.data[key]
 	if !ok {
 		return false
@@ -85,32 +85,23 @@ func (m *Int32Int8SetMultimap) ContainsKeyValue(key int32, value int8) bool {
 }
 
 // KeysCount returns the number of distinct keys.
-func (m *Int32Int8SetMultimap) KeysCount() int {
+func (m *Int32Int8Set) KeysCount() int {
 	return len(m.data)
 }
 
-// Size returns the total number of values across all keys.
-func (m *Int32Int8SetMultimap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int32Int8Set) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int32Int8SetMultimap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the multimap contains no values.
-func (m *Int32Int8SetMultimap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the multimap.
-func (m *Int32Int8SetMultimap) Clear() {
+func (m *Int32Int8Set) Clear() {
 	m.data = make(map[int32][]int8)
 	m.size = 0
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int32Int8SetMultimap) ForEach(f func(int32, int8)) {
+func (m *Int32Int8Set) ForEach(f func(int32, int8)) {
 	for key, vals := range m.data {
 		for _, val := range vals {
 			f(key, val)
@@ -119,7 +110,7 @@ func (m *Int32Int8SetMultimap) ForEach(f func(int32, int8)) {
 }
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
-func (m *Int32Int8SetMultimap) ForEachKeyValues(f func(int32, []int8)) {
+func (m *Int32Int8Set) ForEachKeyValues(f func(int32, []int8)) {
 	for key, vals := range m.data {
 		copied := make([]int8, len(vals))
 		copy(copied, vals)
@@ -128,7 +119,7 @@ func (m *Int32Int8SetMultimap) ForEachKeyValues(f func(int32, []int8)) {
 }
 
 // Keys returns a slice of all distinct keys.
-func (m *Int32Int8SetMultimap) Keys() []int32 {
+func (m *Int32Int8Set) Keys() []int32 {
 	result := make([]int32, 0, len(m.data))
 	for key := range m.data {
 		result = append(result, key)
@@ -137,7 +128,7 @@ func (m *Int32Int8SetMultimap) Keys() []int32 {
 }
 
 // Values returns a slice of all values across all keys.
-func (m *Int32Int8SetMultimap) Values() []int8 {
+func (m *Int32Int8Set) Values() []int8 {
 	result := make([]int8, 0, m.size)
 	for _, vals := range m.data {
 		result = append(result, vals...)
@@ -146,8 +137,8 @@ func (m *Int32Int8SetMultimap) Values() []int8 {
 }
 
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
-func (m *Int32Int8SetMultimap) Select(predicate func(int32, int8) bool) *Int32Int8SetMultimap {
-	result := NewInt32Int8SetMultimap()
+func (m *Int32Int8Set) Select(predicate func(int32, int8) bool) *Int32Int8Set {
+	result := NewInt32Int8Set()
 	for key, vals := range m.data {
 		for _, val := range vals {
 			if predicate(key, val) {
@@ -159,8 +150,8 @@ func (m *Int32Int8SetMultimap) Select(predicate func(int32, int8) bool) *Int32In
 }
 
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
-func (m *Int32Int8SetMultimap) Reject(predicate func(int32, int8) bool) *Int32Int8SetMultimap {
-	result := NewInt32Int8SetMultimap()
+func (m *Int32Int8Set) Reject(predicate func(int32, int8) bool) *Int32Int8Set {
+	result := NewInt32Int8Set()
 	for key, vals := range m.data {
 		for _, val := range vals {
 			if !predicate(key, val) {
@@ -172,7 +163,7 @@ func (m *Int32Int8SetMultimap) Reject(predicate func(int32, int8) bool) *Int32In
 }
 
 // String returns a string representation of the multimap.
-func (m *Int32Int8SetMultimap) String() string {
+func (m *Int32Int8Set) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -198,7 +189,7 @@ func (m *Int32Int8SetMultimap) String() string {
 }
 
 // Equals returns true if the other multimap has the same key-value pairs in the same order per key.
-func (m *Int32Int8SetMultimap) Equals(other *Int32Int8SetMultimap) bool {
+func (m *Int32Int8Set) Equals(other *Int32Int8Set) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -220,23 +211,23 @@ func (m *Int32Int8SetMultimap) Equals(other *Int32Int8SetMultimap) bool {
 }
 
 // KeysToSlice returns all distinct keys as a slice.
-func (m *Int32Int8SetMultimap) KeysToSlice() []int32 {
+func (m *Int32Int8Set) KeysToSlice() []int32 {
 	return m.Keys()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Int32Int8SetMultimap) ValuesToSlice() []int8 {
+func (m *Int32Int8Set) ValuesToSlice() []int8 {
 	return m.Values()
 }
 
-// WithKeyValue adds a key-value pair and returns the multimap (fluent API).
-func (m *Int32Int8SetMultimap) WithKeyValue(key int32, value int8) *Int32Int8SetMultimap {
+// PutReturning adds a key-value pair and returns the multimap (fluent API).
+func (m *Int32Int8Set) PutReturning(key int32, value int8) *Int32Int8Set {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey removes all values for the key and returns the multimap (fluent API).
-func (m *Int32Int8SetMultimap) WithoutKey(key int32) *Int32Int8SetMultimap {
+// RemoveKeyReturning removes all values for the key and returns the multimap (fluent API).
+func (m *Int32Int8Set) RemoveKeyReturning(key int32) *Int32Int8Set {
 	m.RemoveAll(key)
 	return m
 }

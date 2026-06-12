@@ -1,4 +1,3 @@
-
 package deque
 
 import (
@@ -6,51 +5,51 @@ import (
 	"testing"
 )
 
-func TestSynchronizedFloat64ArrayDeque_Generated_AddRemove(t *testing.T) {
-	d := NewSynchronizedFloat64ArrayDeque()
+func TestSynchronizedFloat64_Generated_AddRemove(t *testing.T) {
+	d := NewSynchronizedFloat64()
 	d.AddLast(1.0)
 	d.AddLast(2.0)
 	d.AddFirst(3.0)
-	if d.Size() != 3 {
-		t.Errorf("Size = %d", d.Size())
+	if d.Len() != 3 {
+		t.Errorf("Size = %d", d.Len())
 	}
-	v0, err := d.RemoveFirst()
-	if err != nil || v0 != 3.0 {
-		t.Errorf("RemoveFirst = (%v, %v)", v0, err)
+	v0, ok := d.RemoveFirst()
+	if !ok || v0 != 3.0 {
+		t.Errorf("RemoveFirst = (%v, %v)", v0, ok)
 	}
-	v1, err := d.RemoveLast()
-	if err != nil || v1 != 2.0 {
-		t.Errorf("RemoveLast = (%v, %v)", v1, err)
+	v1, ok := d.RemoveLast()
+	if !ok || v1 != 2.0 {
+		t.Errorf("RemoveLast = (%v, %v)", v1, ok)
 	}
 }
 
-func TestSynchronizedFloat64ArrayDeque_Generated_IsEmpty(t *testing.T) {
-	d := NewSynchronizedFloat64ArrayDeque()
-	if !d.IsEmpty() {
+func TestSynchronizedFloat64_Generated_IsEmpty(t *testing.T) {
+	d := NewSynchronizedFloat64()
+	if d.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
 
-func TestSynchronizedFloat64ArrayDeque_Generated_PeekContainsClear(t *testing.T) {
-	d := NewSynchronizedFloat64ArrayDeque()
+func TestSynchronizedFloat64_Generated_PeekContainsClear(t *testing.T) {
+	d := NewSynchronizedFloat64()
 	d.AddLast(1.0)
-	if p, err := d.PeekFirst(); err != nil || p != 1.0 {
-		t.Errorf("PeekFirst = (%v, %v)", p, err)
+	if p, ok := d.PeekFirst(); !ok || p != 1.0 {
+		t.Errorf("PeekFirst = (%v, %v)", p, ok)
 	}
-	if p, err := d.PeekLast(); err != nil || p != 1.0 {
-		t.Errorf("PeekLast = (%v, %v)", p, err)
+	if p, ok := d.PeekLast(); !ok || p != 1.0 {
+		t.Errorf("PeekLast = (%v, %v)", p, ok)
 	}
 	if !d.Contains(1.0) {
 		t.Error("Contains should be true")
 	}
 	d.Clear()
-	if !d.IsEmpty() {
+	if d.Len() != 0 {
 		t.Error("Should be empty after Clear")
 	}
 }
 
-func TestSynchronizedFloat64ArrayDeque_Generated_ForEach(t *testing.T) {
-	d := NewSynchronizedFloat64ArrayDeque()
+func TestSynchronizedFloat64_Generated_ForEach(t *testing.T) {
+	d := NewSynchronizedFloat64()
 	d.AddLast(1.0)
 	d.AddLast(2.0)
 	count := 0
@@ -60,8 +59,8 @@ func TestSynchronizedFloat64ArrayDeque_Generated_ForEach(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat64ArrayDeque_Generated_ConcurrentAccess(t *testing.T) {
-	d := NewSynchronizedFloat64ArrayDeque()
+func TestSynchronizedFloat64_Generated_ConcurrentAccess(t *testing.T) {
+	d := NewSynchronizedFloat64()
 	var wg sync.WaitGroup
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
@@ -69,7 +68,7 @@ func TestSynchronizedFloat64ArrayDeque_Generated_ConcurrentAccess(t *testing.T) 
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
 				d.AddLast(1.0)
-				_ = d.Size()
+				_ = d.Len()
 				_, _ = d.RemoveFirst()
 			}
 		}()
@@ -77,8 +76,8 @@ func TestSynchronizedFloat64ArrayDeque_Generated_ConcurrentAccess(t *testing.T) 
 	wg.Wait()
 }
 
-func TestSynchronizedFloat64ArrayDeque_Generated_String(t *testing.T) {
-	d := NewSynchronizedFloat64ArrayDeque()
+func TestSynchronizedFloat64_Generated_String(t *testing.T) {
+	d := NewSynchronizedFloat64()
 	d.AddLast(1.0)
 	if d.String() == "" {
 		t.Error("empty")

@@ -9,38 +9,38 @@ import (
 )
 
 const (
-	charHashSetDefaultCapacity = 16
+	charDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-type charHashSetEntry struct {
+type charEntry struct {
 	key      uint16
 	occupied bool
 }
 
-// CharHashSet is an open-addressing hash set for uint16 values.
-type CharHashSet struct {
-	entries []charHashSetEntry
+// Char is an open-addressing hash set for uint16 values.
+type Char struct {
+	entries []charEntry
 	size    int
 }
 
-// NewCharHashSet creates a new empty CharHashSet.
-func NewCharHashSet() *CharHashSet {
-	return NewCharHashSetWithCapacity(charHashSetDefaultCapacity)
+// NewChar creates a new empty Char.
+func NewChar() *Char {
+	return NewCharWithCapacity(charDefaultCapacity)
 }
 
-// NewCharHashSetWithCapacity creates a new empty CharHashSet with the given initial capacity.
-func NewCharHashSetWithCapacity(capacity int) *CharHashSet {
-	cap := nextPowerOfTwoCharHashSet(capacity)
-	return &CharHashSet{
-		entries: make([]charHashSetEntry, cap),
+// NewCharWithCapacity creates a new empty Char with the given initial capacity.
+func NewCharWithCapacity(capacity int) *Char {
+	cap := nextPowerOfTwoChar(capacity)
+	return &Char{
+		entries: make([]charEntry, cap),
 		size:    0,
 	}
 }
 
-// CharHashSetOf creates a new CharHashSet from the given values.
-func CharHashSetOf(values ...uint16) *CharHashSet {
-	s := NewCharHashSetWithCapacity(len(values) * 2)
+// CharOf creates a new Char from the given values.
+func CharOf(values ...uint16) *Char {
+	s := NewCharWithCapacity(len(values) * 2)
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -48,7 +48,7 @@ func CharHashSetOf(values ...uint16) *CharHashSet {
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).
-func (s *CharHashSet) Add(value uint16) bool {
+func (s *Char) Add(value uint16) bool {
 	if s.needsResize() {
 		s.resize()
 	}
@@ -71,14 +71,14 @@ func (s *CharHashSet) Add(value uint16) bool {
 }
 
 // AddAll inserts all values into the set.
-func (s *CharHashSet) AddAll(values ...uint16) {
+func (s *Char) AddAll(values ...uint16) {
 	for _, v := range values {
 		s.Add(v)
 	}
 }
 
 // Remove removes a value from the set. Returns true if the value was found and removed.
-func (s *CharHashSet) Remove(value uint16) bool {
+func (s *Char) Remove(value uint16) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -91,7 +91,7 @@ func (s *CharHashSet) Remove(value uint16) bool {
 			return false
 		}
 		if s.entries[idx].key == value {
-			s.entries[idx] = charHashSetEntry{}
+			s.entries[idx] = charEntry{}
 			s.size--
 			s.rehashFrom(idx, mask)
 			return true
@@ -101,7 +101,7 @@ func (s *CharHashSet) Remove(value uint16) bool {
 }
 
 // Contains returns true if the set contains the given value.
-func (s *CharHashSet) Contains(value uint16) bool {
+func (s *Char) Contains(value uint16) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -120,30 +120,21 @@ func (s *CharHashSet) Contains(value uint16) bool {
 	}
 }
 
-// Size returns the number of elements in the set.
-func (s *CharHashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Char) Len() int {
 	return s.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *CharHashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *CharHashSet) IsEmpty() bool {
-	return s.size == 0
-}
-
 // Clear removes all elements from the set.
-func (s *CharHashSet) Clear() {
+func (s *Char) Clear() {
 	for i := range s.entries {
-		s.entries[i] = charHashSetEntry{}
+		s.entries[i] = charEntry{}
 	}
 	s.size = 0
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *CharHashSet) All() iter.Seq[uint16] {
+func (s *Char) All() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := range s.entries {
 			if s.entries[i].occupied {
@@ -156,7 +147,7 @@ func (s *CharHashSet) All() iter.Seq[uint16] {
 }
 
 // ForEach calls the given function for each element.
-func (s *CharHashSet) ForEach(f func(uint16)) {
+func (s *Char) ForEach(f func(uint16)) {
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			f(s.entries[i].key)
@@ -165,8 +156,8 @@ func (s *CharHashSet) ForEach(f func(uint16)) {
 }
 
 // Select returns a new set containing only elements that satisfy the predicate.
-func (s *CharHashSet) Select(predicate func(uint16) bool) *CharHashSet {
-	result := NewCharHashSet()
+func (s *Char) Select(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -176,8 +167,8 @@ func (s *CharHashSet) Select(predicate func(uint16) bool) *CharHashSet {
 }
 
 // Reject returns a new set containing only elements that do not satisfy the predicate.
-func (s *CharHashSet) Reject(predicate func(uint16) bool) *CharHashSet {
-	result := NewCharHashSet()
+func (s *Char) Reject(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -187,7 +178,7 @@ func (s *CharHashSet) Reject(predicate func(uint16) bool) *CharHashSet {
 }
 
 // Detect returns the first element that satisfies the predicate, or zero value and false.
-func (s *CharHashSet) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (s *Char) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return s.entries[i].key, true
@@ -197,7 +188,7 @@ func (s *CharHashSet) Detect(predicate func(uint16) bool) (uint16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *CharHashSet) AnySatisfy(predicate func(uint16) bool) bool {
+func (s *Char) AnySatisfy(predicate func(uint16) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return true
@@ -207,7 +198,7 @@ func (s *CharHashSet) AnySatisfy(predicate func(uint16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *CharHashSet) AllSatisfy(predicate func(uint16) bool) bool {
+func (s *Char) AllSatisfy(predicate func(uint16) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			return false
@@ -217,7 +208,7 @@ func (s *CharHashSet) AllSatisfy(predicate func(uint16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *CharHashSet) NoneSatisfy(predicate func(uint16) bool) bool {
+func (s *Char) NoneSatisfy(predicate func(uint16) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return false
@@ -227,8 +218,8 @@ func (s *CharHashSet) NoneSatisfy(predicate func(uint16) bool) bool {
 }
 
 // Union returns a new set containing all elements from both sets.
-func (s *CharHashSet) Union(other *CharHashSet) *CharHashSet {
-	result := NewCharHashSetWithCapacity((s.size + other.size) * 2)
+func (s *Char) Union(other *Char) *Char {
+	result := NewCharWithCapacity((s.size + other.size) * 2)
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			result.Add(s.entries[i].key)
@@ -243,8 +234,8 @@ func (s *CharHashSet) Union(other *CharHashSet) *CharHashSet {
 }
 
 // Intersect returns a new set containing only elements present in both sets.
-func (s *CharHashSet) Intersect(other *CharHashSet) *CharHashSet {
-	result := NewCharHashSet()
+func (s *Char) Intersect(other *Char) *Char {
+	result := NewChar()
 	smaller, larger := s, other
 	if s.size > other.size {
 		smaller, larger = other, s
@@ -258,8 +249,8 @@ func (s *CharHashSet) Intersect(other *CharHashSet) *CharHashSet {
 }
 
 // Difference returns a new set containing elements in this set but not in the other.
-func (s *CharHashSet) Difference(other *CharHashSet) *CharHashSet {
-	result := NewCharHashSet()
+func (s *Char) Difference(other *Char) *Char {
+	result := NewChar()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -269,8 +260,8 @@ func (s *CharHashSet) Difference(other *CharHashSet) *CharHashSet {
 }
 
 // SymmetricDifference returns a new set containing elements in either set but not both.
-func (s *CharHashSet) SymmetricDifference(other *CharHashSet) *CharHashSet {
-	result := NewCharHashSet()
+func (s *Char) SymmetricDifference(other *Char) *Char {
+	result := NewChar()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -285,7 +276,7 @@ func (s *CharHashSet) SymmetricDifference(other *CharHashSet) *CharHashSet {
 }
 
 // ToSlice returns all elements as a slice.
-func (s *CharHashSet) ToSlice() []uint16 {
+func (s *Char) ToSlice() []uint16 {
 	result := make([]uint16, 0, s.size)
 	for i := range s.entries {
 		if s.entries[i].occupied {
@@ -295,26 +286,26 @@ func (s *CharHashSet) ToSlice() []uint16 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *CharHashSet) With(value uint16) *CharHashSet {
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Char) AddReturning(value uint16) *Char {
 	s.Add(value)
 	return s
 }
 
-// Without returns the set after removing the value (fluent API).
-func (s *CharHashSet) Without(value uint16) *CharHashSet {
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Char) RemoveReturning(value uint16) *Char {
 	s.Remove(value)
 	return s
 }
 
-// WithAll returns the set after adding all values (fluent API).
-func (s *CharHashSet) WithAll(values ...uint16) *CharHashSet {
+// AddAllReturning adds all values to the set and returns the receiver (mutating, fluent).
+func (s *Char) AddAllReturning(values ...uint16) *Char {
 	s.AddAll(values...)
 	return s
 }
 
-// WithoutAll returns the set after removing all given values (fluent API).
-func (s *CharHashSet) WithoutAll(values ...uint16) *CharHashSet {
+// RemoveAllReturning removes all given values from the set and returns the receiver (mutating, fluent).
+func (s *Char) RemoveAllReturning(values ...uint16) *Char {
 	for _, v := range values {
 		s.Remove(v)
 	}
@@ -322,12 +313,12 @@ func (s *CharHashSet) WithoutAll(values ...uint16) *CharHashSet {
 }
 
 // ToImmutable returns an immutable copy of this set.
-func (s *CharHashSet) ToImmutable() *ImmutableCharHashSet {
-	return ImmutableCharHashSetFrom(s)
+func (s *Char) ToImmutable() *ImmutableChar {
+	return ImmutableCharFrom(s)
 }
 
 // String returns a string representation of the set.
-func (s *CharHashSet) String() string {
+func (s *Char) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -348,7 +339,7 @@ func (s *CharHashSet) String() string {
 }
 
 // Equals returns true if the other set has the same elements.
-func (s *CharHashSet) Equals(other *CharHashSet) bool {
+func (s *Char) Equals(other *Char) bool {
 	if s.size != other.size {
 		return false
 	}
@@ -360,22 +351,22 @@ func (s *CharHashSet) Equals(other *CharHashSet) bool {
 	return true
 }
 
-func (s *CharHashSet) hash(value uint16) uint64 {
+func (s *Char) hash(value uint16) uint64 {
 	h := uint64(value) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (s *CharHashSet) needsResize() bool {
+func (s *Char) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
 
-func (s *CharHashSet) resize() {
+func (s *Char) resize() {
 	oldEntries := s.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = charHashSetDefaultCapacity
+		newCap = charDefaultCapacity
 	}
-	s.entries = make([]charHashSetEntry, newCap)
+	s.entries = make([]charEntry, newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -385,7 +376,7 @@ func (s *CharHashSet) resize() {
 	}
 }
 
-func (s *CharHashSet) rehashFrom(deleted int, mask int) {
+func (s *Char) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
@@ -394,7 +385,7 @@ func (s *CharHashSet) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			s.entries[deleted] = s.entries[idx]
-			s.entries[idx] = charHashSetEntry{}
+			s.entries[idx] = charEntry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -404,7 +395,7 @@ func (s *CharHashSet) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoCharHashSet(n int) int {
+func nextPowerOfTwoChar(n int) int {
 	if n <= 0 {
 		return 16
 	}

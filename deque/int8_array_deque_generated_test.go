@@ -1,47 +1,46 @@
-
 package deque
 
 import (
 	"testing"
 )
 
-func TestInt8ArrayDeque_Generated_AddLastRemoveFirst(t *testing.T) {
-	d := NewInt8ArrayDeque()
+func TestInt8_Generated_AddLastRemoveFirst(t *testing.T) {
+	d := NewInt8()
 	d.AddLast(1)
 	d.AddLast(2)
 	d.AddLast(3)
-	if d.Size() != 3 {
-		t.Errorf("Size = %d, want 3", d.Size())
+	if d.Len() != 3 {
+		t.Errorf("Size = %d, want 3", d.Len())
 	}
-	v0, err := d.RemoveFirst()
-	if err != nil || !(v0 == 1) {
-		t.Errorf("RemoveFirst = %v, err=%v, want 1", v0, err)
+	v0, ok := d.RemoveFirst()
+	if !ok || !(v0 == 1) {
+		t.Errorf("RemoveFirst = %v, ok=%v, want 1", v0, ok)
 	}
-	v1, err := d.RemoveFirst()
-	if err != nil || !(v1 == 2) {
-		t.Errorf("RemoveFirst = %v, err=%v, want 2", v1, err)
+	v1, ok := d.RemoveFirst()
+	if !ok || !(v1 == 2) {
+		t.Errorf("RemoveFirst = %v, ok=%v, want 2", v1, ok)
 	}
-	v2, err := d.RemoveFirst()
-	if err != nil || !(v2 == 3) {
-		t.Errorf("RemoveFirst = %v, err=%v, want 3", v2, err)
+	v2, ok := d.RemoveFirst()
+	if !ok || !(v2 == 3) {
+		t.Errorf("RemoveFirst = %v, ok=%v, want 3", v2, ok)
 	}
-	if !d.IsEmpty() {
+	if d.Len() != 0 {
 		t.Errorf("IsEmpty = false, want true")
 	}
 }
 
-func TestInt8ArrayDeque_Generated_AddFirstRemoveLast(t *testing.T) {
-	d := NewInt8ArrayDeque()
+func TestInt8_Generated_AddFirstRemoveLast(t *testing.T) {
+	d := NewInt8()
 	d.AddFirst(1)
 	d.AddFirst(2)
 	d.AddFirst(3)
-	got, err := d.PeekFirst()
-	if err != nil || !(got == 3) {
-		t.Errorf("PeekFirst = %v, err=%v, want 3", got, err)
+	got, ok := d.PeekFirst()
+	if !ok || !(got == 3) {
+		t.Errorf("PeekFirst = %v, ok=%v, want 3", got, ok)
 	}
-	got, err = d.PeekLast()
-	if err != nil || !(got == 1) {
-		t.Errorf("PeekLast = %v, err=%v, want 1", got, err)
+	got, ok = d.PeekLast()
+	if !ok || !(got == 1) {
+		t.Errorf("PeekLast = %v, ok=%v, want 1", got, ok)
 	}
 	got, _ = d.RemoveLast()
 	if !(got == 1) {
@@ -57,24 +56,24 @@ func TestInt8ArrayDeque_Generated_AddFirstRemoveLast(t *testing.T) {
 	}
 }
 
-func TestInt8ArrayDeque_Generated_RemoveEmpty(t *testing.T) {
-	d := NewInt8ArrayDeque()
-	if _, err := d.RemoveFirst(); err == nil {
-		t.Errorf("RemoveFirst on empty: want error")
+func TestInt8_Generated_RemoveEmpty(t *testing.T) {
+	d := NewInt8()
+	if _, ok := d.RemoveFirst(); ok {
+		t.Errorf("RemoveFirst on empty: want not-ok")
 	}
-	if _, err := d.RemoveLast(); err == nil {
-		t.Errorf("RemoveLast on empty: want error")
+	if _, ok := d.RemoveLast(); ok {
+		t.Errorf("RemoveLast on empty: want not-ok")
 	}
-	if _, err := d.PeekFirst(); err == nil {
-		t.Errorf("PeekFirst on empty: want error")
+	if _, ok := d.PeekFirst(); ok {
+		t.Errorf("PeekFirst on empty: want not-ok")
 	}
-	if _, err := d.PeekLast(); err == nil {
-		t.Errorf("PeekLast on empty: want error")
+	if _, ok := d.PeekLast(); ok {
+		t.Errorf("PeekLast on empty: want not-ok")
 	}
 }
 
-func TestInt8ArrayDeque_Generated_MixedOps(t *testing.T) {
-	d := NewInt8ArrayDeque()
+func TestInt8_Generated_MixedOps(t *testing.T) {
+	d := NewInt8()
 	d.AddLast(2)
 	d.AddFirst(1)
 	d.AddLast(3)
@@ -92,57 +91,57 @@ func TestInt8ArrayDeque_Generated_MixedOps(t *testing.T) {
 	}
 }
 
-func TestInt8ArrayDeque_Generated_ContainsAndClear(t *testing.T) {
-	d := NewInt8ArrayDeque()
+func TestInt8_Generated_ContainsAndClear(t *testing.T) {
+	d := NewInt8()
 	d.AddLast(1)
 	d.AddLast(2)
 	if !d.Contains(1) {
 		t.Errorf("Contains(1) = false, want true")
 	}
 	d.Clear()
-	if !d.IsEmpty() {
+	if d.Len() != 0 {
 		t.Errorf("IsEmpty after Clear = false, want true")
 	}
 }
 
-func TestInt8ArrayDeque_Generated_ToSlice(t *testing.T) {
-	d := Int8ArrayDequeOf(1, 2, 3)
+func TestInt8_Generated_ToSlice(t *testing.T) {
+	d := Int8Of(1, 2, 3)
 	out := d.ToSlice()
 	if len(out) != 3 {
 		t.Errorf("ToSlice len = %d, want 3", len(out))
 	}
 }
 
-func TestInt8ArrayDeque_Generated_Equals(t *testing.T) {
-	a := Int8ArrayDequeOf(1, 2)
-	b := Int8ArrayDequeOf(1, 2)
+func TestInt8_Generated_Equals(t *testing.T) {
+	a := Int8Of(1, 2)
+	b := Int8Of(1, 2)
 	if !a.Equals(b) {
 		t.Errorf("Equals = false, want true")
 	}
 }
 
-func TestInt8ArrayDeque_Generated_String(t *testing.T) {
-	d := NewInt8ArrayDeque()
+func TestInt8_Generated_String(t *testing.T) {
+	d := NewInt8()
 	d.AddLast(1)
 	if d.String() == "" {
 		t.Errorf("String is empty")
 	}
 }
 
-// TestInt8ArrayDeque_Generated_RingBufferWrapAround exercises the ring buffer's
+// TestInt8_Generated_RingBufferWrapAround exercises the ring buffer's
 // wrap-around logic: insert enough at the back, drain from the front,
 // then insert again so head+size straddles the end of the underlying
 // slice. ToSlice and iteration must still yield logical order.
-func TestInt8ArrayDeque_Generated_RingBufferWrapAround(t *testing.T) {
-	d := NewInt8ArrayDeque()
+func TestInt8_Generated_RingBufferWrapAround(t *testing.T) {
+	d := NewInt8()
 	// Initial capacity is 16. Fill past it to force a grow, then drain
 	// and refill in a pattern that leaves head deep inside the buffer.
 	for i := 0; i < 10; i++ {
 		d.AddLast(1)
 	}
 	for i := 0; i < 8; i++ {
-		if _, err := d.RemoveFirst(); err != nil {
-			t.Fatalf("RemoveFirst during setup: %v", err)
+		if _, ok := d.RemoveFirst(); !ok {
+			t.Fatalf("RemoveFirst during setup: %v", ok)
 		}
 	}
 	// Now head ~= 8, size == 2. Add 10 more via AddLast — this must
@@ -150,8 +149,8 @@ func TestInt8ArrayDeque_Generated_RingBufferWrapAround(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		d.AddLast(2)
 	}
-	if d.Size() != 12 {
-		t.Fatalf("Size after wrap = %d, want 12", d.Size())
+	if d.Len() != 12 {
+		t.Fatalf("Size after wrap = %d, want 12", d.Len())
 	}
 	// ToSlice must yield the 2 original tail elements followed by 10 new ones.
 	out := d.ToSlice()
@@ -170,35 +169,35 @@ func TestInt8ArrayDeque_Generated_RingBufferWrapAround(t *testing.T) {
 	}
 }
 
-// TestInt8ArrayDeque_Generated_AddFirstIsO1 is a complexity sanity check.
+// TestInt8_Generated_AddFirstIsO1 is a complexity sanity check.
 // Under the old shift-based implementation, N AddFirst calls cost
 // O(N^2) element moves; under the ring buffer it's O(N) amortised.
 // We don't measure time (flaky in CI) — we just assert the deque
 // stays functional at a size that would have been quadratic before.
-func TestInt8ArrayDeque_Generated_AddFirstIsO1(t *testing.T) {
+func TestInt8_Generated_AddFirstIsO1(t *testing.T) {
 	const N = 10000
-	d := NewInt8ArrayDeque()
+	d := NewInt8()
 	for i := 0; i < N; i++ {
 		d.AddFirst(1)
 	}
-	if d.Size() != N {
-		t.Fatalf("Size after %d AddFirst = %d", N, d.Size())
+	if d.Len() != N {
+		t.Fatalf("Size after %d AddFirst = %d", N, d.Len())
 	}
 	for i := 0; i < N; i++ {
-		if _, err := d.RemoveLast(); err != nil {
-			t.Fatalf("RemoveLast at %d: %v", i, err)
+		if _, ok := d.RemoveLast(); !ok {
+			t.Fatalf("RemoveLast at %d: %v", i, ok)
 		}
 	}
-	if !d.IsEmpty() {
-		t.Fatalf("not empty after full drain, size=%d", d.Size())
+	if d.Len() != 0 {
+		t.Fatalf("not empty after full drain, size=%d", d.Len())
 	}
 }
 
-// TestInt8ArrayDeque_Generated_AlternatingEndsGrow exercises the grow path while
+// TestInt8_Generated_AlternatingEndsGrow exercises the grow path while
 // head is non-zero: grow() must unwrap the logical order into a
 // contiguous prefix so that subsequent mask arithmetic stays correct.
-func TestInt8ArrayDeque_Generated_AlternatingEndsGrow(t *testing.T) {
-	d := NewInt8ArrayDeque()
+func TestInt8_Generated_AlternatingEndsGrow(t *testing.T) {
+	d := NewInt8()
 	// Drive head to a non-zero value via AddFirst.
 	for i := 0; i < 5; i++ {
 		d.AddFirst(3)
@@ -207,8 +206,8 @@ func TestInt8ArrayDeque_Generated_AlternatingEndsGrow(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		d.AddLast(2)
 	}
-	if d.Size() != 105 {
-		t.Fatalf("Size = %d, want 105", d.Size())
+	if d.Len() != 105 {
+		t.Fatalf("Size = %d, want 105", d.Len())
 	}
 	out := d.ToSlice()
 	for i := 0; i < 5; i++ {

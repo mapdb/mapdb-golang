@@ -12,10 +12,10 @@ import (
 
 func TestHashMap_NewEmpty(t *testing.T) {
 	m := NewHashMap[string, int]()
-	if m.Size() != 0 {
-		t.Errorf("Size() = %d, want 0", m.Size())
+	if m.Len() != 0 {
+		t.Errorf("Size() = %d, want 0", m.Len())
 	}
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Error("IsEmpty() = false, want true")
 	}
 }
@@ -30,8 +30,8 @@ func TestHashMap_Put(t *testing.T) {
 		if old != 0 {
 			t.Errorf("Put returned old=%d, want 0", old)
 		}
-		if m.Size() != 1 {
-			t.Errorf("Size() = %d, want 1", m.Size())
+		if m.Len() != 1 {
+			t.Errorf("Size() = %d, want 1", m.Len())
 		}
 	})
 
@@ -49,8 +49,8 @@ func TestHashMap_Put(t *testing.T) {
 		if v != 2 {
 			t.Errorf("Get(a) = %d, want 2", v)
 		}
-		if m.Size() != 1 {
-			t.Errorf("Size() = %d after overwrite, want 1", m.Size())
+		if m.Len() != 1 {
+			t.Errorf("Size() = %d after overwrite, want 1", m.Len())
 		}
 	})
 }
@@ -92,8 +92,8 @@ func TestHashMap_Remove(t *testing.T) {
 	if old != 1 {
 		t.Errorf("Remove(a) old = %d, want 1", old)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size after Remove = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size after Remove = %d, want 1", m.Len())
 	}
 
 	_, ok = m.Remove("missing")
@@ -160,7 +160,7 @@ func TestHashMap_Keys(t *testing.T) {
 	for k := range m.Keys() {
 		keys.Add(k)
 	}
-	if keys.Size() != 2 || !keys.Contains("a") || !keys.Contains("b") {
+	if keys.Len() != 2 || !keys.Contains("a") || !keys.Contains("b") {
 		t.Errorf("Keys = %v, want {a, b}", keys)
 	}
 }
@@ -222,8 +222,8 @@ func TestHashMap_Select(t *testing.T) {
 	m.Put("b", 2)
 	m.Put("c", 3)
 	evens := m.Select(func(k string, v int) bool { return v%2 == 0 })
-	if evens.Size() != 1 {
-		t.Errorf("Select size = %d, want 1", evens.Size())
+	if evens.Len() != 1 {
+		t.Errorf("Select size = %d, want 1", evens.Len())
 	}
 	v, ok := evens.Get("b")
 	if !ok || v != 2 {
@@ -237,8 +237,8 @@ func TestHashMap_Reject(t *testing.T) {
 	m.Put("b", 2)
 	m.Put("c", 3)
 	odds := m.Reject(func(k string, v int) bool { return v%2 == 0 })
-	if odds.Size() != 2 {
-		t.Errorf("Reject size = %d, want 2", odds.Size())
+	if odds.Len() != 2 {
+		t.Errorf("Reject size = %d, want 2", odds.Len())
 	}
 }
 
@@ -316,10 +316,10 @@ func TestHashMap_Clear(t *testing.T) {
 	m.Put("a", 1)
 	m.Put("b", 2)
 	m.Clear()
-	if m.Size() != 0 {
-		t.Errorf("Size after Clear = %d, want 0", m.Size())
+	if m.Len() != 0 {
+		t.Errorf("Size after Clear = %d, want 0", m.Len())
 	}
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Error("IsEmpty after Clear = false")
 	}
 }

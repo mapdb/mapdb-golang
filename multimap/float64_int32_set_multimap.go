@@ -8,17 +8,17 @@ import (
 	"strings"
 )
 
-// Float64Int32SetMultimap is a set multimap from float64 keys to int32 values.
+// Float64Int32Set is a set multimap from float64 keys to int32 values.
 // Each key maps to a set of unique values (duplicates on Put are silently dropped).
-type Float64Int32SetMultimap struct {
+type Float64Int32Set struct {
 	data map[uint64][]int32
 	keys map[uint64]float64
 	size int
 }
 
-// NewFloat64Int32SetMultimap creates a new empty Float64Int32SetMultimap.
-func NewFloat64Int32SetMultimap() *Float64Int32SetMultimap {
-	return &Float64Int32SetMultimap{
+// NewFloat64Int32Set creates a new empty Float64Int32Set.
+func NewFloat64Int32Set() *Float64Int32Set {
+	return &Float64Int32Set{
 		data: make(map[uint64][]int32),
 		keys: make(map[uint64]float64),
 		size: 0,
@@ -27,7 +27,7 @@ func NewFloat64Int32SetMultimap() *Float64Int32SetMultimap {
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
-func (m *Float64Int32SetMultimap) Put(key float64, value int32) {
+func (m *Float64Int32Set) Put(key float64, value int32) {
 	if m.data == nil {
 		m.data = make(map[uint64][]int32)
 		m.keys = make(map[uint64]float64)
@@ -44,12 +44,12 @@ func (m *Float64Int32SetMultimap) Put(key float64, value int32) {
 }
 
 // Get returns a copy of the values for the given key. Returns nil if the key is absent.
-func (m *Float64Int32SetMultimap) Get(key float64) []int32 {
+func (m *Float64Int32Set) Get(key float64) []int32 {
 	return m.GetAll(key)
 }
 
 // GetAll returns a copy of the values for the given key.
-func (m *Float64Int32SetMultimap) GetAll(key float64) []int32 {
+func (m *Float64Int32Set) GetAll(key float64) []int32 {
 	vals := m.data[math.Float64bits(key)]
 	if vals == nil {
 		return nil
@@ -60,7 +60,7 @@ func (m *Float64Int32SetMultimap) GetAll(key float64) []int32 {
 }
 
 // RemoveAll removes all values for the given key and returns them.
-func (m *Float64Int32SetMultimap) RemoveAll(key float64) []int32 {
+func (m *Float64Int32Set) RemoveAll(key float64) []int32 {
 	kb := math.Float64bits(key)
 	vals, ok := m.data[kb]
 	if !ok {
@@ -73,13 +73,13 @@ func (m *Float64Int32SetMultimap) RemoveAll(key float64) []int32 {
 }
 
 // ContainsKey returns true if the multimap contains the given key.
-func (m *Float64Int32SetMultimap) ContainsKey(key float64) bool {
+func (m *Float64Int32Set) ContainsKey(key float64) bool {
 	_, ok := m.data[math.Float64bits(key)]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
-func (m *Float64Int32SetMultimap) ContainsKeyValue(key float64, value int32) bool {
+func (m *Float64Int32Set) ContainsKeyValue(key float64, value int32) bool {
 	vals, ok := m.data[math.Float64bits(key)]
 	if !ok {
 		return false
@@ -93,33 +93,24 @@ func (m *Float64Int32SetMultimap) ContainsKeyValue(key float64, value int32) boo
 }
 
 // KeysCount returns the number of distinct keys.
-func (m *Float64Int32SetMultimap) KeysCount() int {
+func (m *Float64Int32Set) KeysCount() int {
 	return len(m.data)
 }
 
-// Size returns the total number of values across all keys.
-func (m *Float64Int32SetMultimap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float64Int32Set) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float64Int32SetMultimap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the multimap contains no values.
-func (m *Float64Int32SetMultimap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the multimap.
-func (m *Float64Int32SetMultimap) Clear() {
+func (m *Float64Int32Set) Clear() {
 	m.data = make(map[uint64][]int32)
 	m.keys = make(map[uint64]float64)
 	m.size = 0
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Float64Int32SetMultimap) ForEach(f func(float64, int32)) {
+func (m *Float64Int32Set) ForEach(f func(float64, int32)) {
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		for _, val := range vals {
@@ -129,7 +120,7 @@ func (m *Float64Int32SetMultimap) ForEach(f func(float64, int32)) {
 }
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
-func (m *Float64Int32SetMultimap) ForEachKeyValues(f func(float64, []int32)) {
+func (m *Float64Int32Set) ForEachKeyValues(f func(float64, []int32)) {
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		copied := make([]int32, len(vals))
@@ -139,7 +130,7 @@ func (m *Float64Int32SetMultimap) ForEachKeyValues(f func(float64, []int32)) {
 }
 
 // Keys returns a slice of all distinct keys.
-func (m *Float64Int32SetMultimap) Keys() []float64 {
+func (m *Float64Int32Set) Keys() []float64 {
 	result := make([]float64, 0, len(m.data))
 	for _, key := range m.keys {
 		result = append(result, key)
@@ -148,7 +139,7 @@ func (m *Float64Int32SetMultimap) Keys() []float64 {
 }
 
 // Values returns a slice of all values across all keys.
-func (m *Float64Int32SetMultimap) Values() []int32 {
+func (m *Float64Int32Set) Values() []int32 {
 	result := make([]int32, 0, m.size)
 	for _, vals := range m.data {
 		result = append(result, vals...)
@@ -157,8 +148,8 @@ func (m *Float64Int32SetMultimap) Values() []int32 {
 }
 
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
-func (m *Float64Int32SetMultimap) Select(predicate func(float64, int32) bool) *Float64Int32SetMultimap {
-	result := NewFloat64Int32SetMultimap()
+func (m *Float64Int32Set) Select(predicate func(float64, int32) bool) *Float64Int32Set {
+	result := NewFloat64Int32Set()
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		for _, val := range vals {
@@ -171,8 +162,8 @@ func (m *Float64Int32SetMultimap) Select(predicate func(float64, int32) bool) *F
 }
 
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
-func (m *Float64Int32SetMultimap) Reject(predicate func(float64, int32) bool) *Float64Int32SetMultimap {
-	result := NewFloat64Int32SetMultimap()
+func (m *Float64Int32Set) Reject(predicate func(float64, int32) bool) *Float64Int32Set {
+	result := NewFloat64Int32Set()
 	for kb, vals := range m.data {
 		key := m.keys[kb]
 		for _, val := range vals {
@@ -185,7 +176,7 @@ func (m *Float64Int32SetMultimap) Reject(predicate func(float64, int32) bool) *F
 }
 
 // String returns a string representation of the multimap.
-func (m *Float64Int32SetMultimap) String() string {
+func (m *Float64Int32Set) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -212,7 +203,7 @@ func (m *Float64Int32SetMultimap) String() string {
 }
 
 // Equals returns true if the other multimap has the same key-value pairs in the same order per key.
-func (m *Float64Int32SetMultimap) Equals(other *Float64Int32SetMultimap) bool {
+func (m *Float64Int32Set) Equals(other *Float64Int32Set) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -234,23 +225,23 @@ func (m *Float64Int32SetMultimap) Equals(other *Float64Int32SetMultimap) bool {
 }
 
 // KeysToSlice returns all distinct keys as a slice.
-func (m *Float64Int32SetMultimap) KeysToSlice() []float64 {
+func (m *Float64Int32Set) KeysToSlice() []float64 {
 	return m.Keys()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Float64Int32SetMultimap) ValuesToSlice() []int32 {
+func (m *Float64Int32Set) ValuesToSlice() []int32 {
 	return m.Values()
 }
 
-// WithKeyValue adds a key-value pair and returns the multimap (fluent API).
-func (m *Float64Int32SetMultimap) WithKeyValue(key float64, value int32) *Float64Int32SetMultimap {
+// PutReturning adds a key-value pair and returns the multimap (fluent API).
+func (m *Float64Int32Set) PutReturning(key float64, value int32) *Float64Int32Set {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey removes all values for the key and returns the multimap (fluent API).
-func (m *Float64Int32SetMultimap) WithoutKey(key float64) *Float64Int32SetMultimap {
+// RemoveKeyReturning removes all values for the key and returns the multimap (fluent API).
+func (m *Float64Int32Set) RemoveKeyReturning(key float64) *Float64Int32Set {
 	m.RemoveAll(key)
 	return m
 }

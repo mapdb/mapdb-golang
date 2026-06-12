@@ -1,35 +1,34 @@
-
 package stack
 
 import "testing"
 
-func TestSynchronizedFloat64ArrayStack_Generated_PushPopPeek(t *testing.T) {
-	s := NewSynchronizedFloat64ArrayStack()
+func TestSynchronizedFloat64_Generated_PushPopPeek(t *testing.T) {
+	s := NewSynchronizedFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	s.Push(3.0)
-	if s.Size() != 3 {
-		t.Errorf("Size = %d", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size = %d", s.Len())
 	}
-	if p, err := s.Peek(); err != nil || p != 3.0 {
-		t.Errorf("Peek = (%v, %v)", p, err)
+	if p, ok := s.Peek(); !ok || p != 3.0 {
+		t.Errorf("Peek = (%v, %v)", p, ok)
 	}
-	val, err := s.Pop()
-	if err != nil || val != 3.0 {
-		t.Errorf("Pop = (%v, %v)", val, err)
+	val, ok := s.Pop()
+	if !ok || val != 3.0 {
+		t.Errorf("Pop = (%v, %v)", val, ok)
 	}
-	if s.Size() != 2 {
-		t.Errorf("Size after pop = %d", s.Size())
+	if s.Len() != 2 {
+		t.Errorf("Size after pop = %d", s.Len())
 	}
 }
-func TestSynchronizedFloat64ArrayStack_Generated_IsEmpty(t *testing.T) {
-	s := NewSynchronizedFloat64ArrayStack()
-	if !s.IsEmpty() {
+func TestSynchronizedFloat64_Generated_IsEmpty(t *testing.T) {
+	s := NewSynchronizedFloat64()
+	if s.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestSynchronizedFloat64ArrayStack_Generated_Contains(t *testing.T) {
-	s := NewSynchronizedFloat64ArrayStack()
+func TestSynchronizedFloat64_Generated_Contains(t *testing.T) {
+	s := NewSynchronizedFloat64()
 	s.Push(1.0)
 	if !s.Contains(1.0) {
 		t.Error("Contains should be true")
@@ -38,16 +37,16 @@ func TestSynchronizedFloat64ArrayStack_Generated_Contains(t *testing.T) {
 		t.Error("Contains should be false")
 	}
 }
-func TestSynchronizedFloat64ArrayStack_Generated_Clear(t *testing.T) {
-	s := NewSynchronizedFloat64ArrayStack()
+func TestSynchronizedFloat64_Generated_Clear(t *testing.T) {
+	s := NewSynchronizedFloat64()
 	s.Push(1.0)
 	s.Clear()
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestSynchronizedFloat64ArrayStack_Generated_All(t *testing.T) {
-	s := NewSynchronizedFloat64ArrayStack()
+func TestSynchronizedFloat64_Generated_All(t *testing.T) {
+	s := NewSynchronizedFloat64()
 	s.Push(1.0)
 	s.Push(2.0)
 	count := 0
@@ -58,10 +57,15 @@ func TestSynchronizedFloat64ArrayStack_Generated_All(t *testing.T) {
 		t.Errorf("All count = %d", count)
 	}
 }
-func TestSynchronizedFloat64ArrayStack_Generated_String(t *testing.T) {
-	s := NewSynchronizedFloat64ArrayStack()
+func TestSynchronizedFloat64_Generated_String(t *testing.T) {
+	s := NewSynchronizedFloat64()
 	s.Push(1.0)
 	if s.String() == "" {
 		t.Error("empty")
 	}
+}
+
+func TestSynchronizedFloat64_Generated_PeekAtPanics(t *testing.T) {
+	s := NewSynchronizedFloat64From(Float64Of(1, 2, 3))
+	assertPanics(t, func() { _ = s.PeekAt(99) })
 }

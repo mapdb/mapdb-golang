@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Int32ArrayDeque is a double-ended queue of int32 values, backed by a
+// Int32 is a double-ended queue of int32 values, backed by a
 // power-of-two ring buffer. AddFirst, AddLast, RemoveFirst, RemoveLast,
 // PeekFirst and PeekLast are all O(1) amortised.
 //
@@ -15,7 +15,7 @@ import (
 // that preceded it: callers that iterate via ToSlice or ForEach see
 // elements in logical front-to-back order regardless of where head
 // happens to sit in the underlying buffer.
-type Int32ArrayDeque struct {
+type Int32 struct {
 	items []int32 // len == capacity, always a power of two; indexed modulo cap
 	head  int     // index of the front element (0 when empty)
 	size  int     // number of logical elements
@@ -29,7 +29,7 @@ const initialInt32DequeCap = 16
 
 // ceilPow2 rounds n up to the next power of two, with a floor of
 // initialInt32DequeCap. Used when sizing the buffer to fit a
-// caller-supplied slice in Int32ArrayDequeOf.
+// caller-supplied slice in Int32Of.
 func ceilPow2Int32Deque(n int) int {
 	cap := initialInt32DequeCap
 	for cap < n {
@@ -38,15 +38,15 @@ func ceilPow2Int32Deque(n int) int {
 	return cap
 }
 
-// NewInt32ArrayDeque creates a new empty Int32ArrayDeque.
-func NewInt32ArrayDeque() *Int32ArrayDeque {
-	return &Int32ArrayDeque{items: make([]int32, initialInt32DequeCap)}
+// NewInt32 creates a new empty Int32.
+func NewInt32() *Int32 {
+	return &Int32{items: make([]int32, initialInt32DequeCap)}
 }
 
-// Int32ArrayDequeOf creates a new Int32ArrayDeque from the given values in
+// Int32Of creates a new Int32 from the given values in
 // front-to-back order.
-func Int32ArrayDequeOf(values ...int32) *Int32ArrayDeque {
-	d := &Int32ArrayDeque{
+func Int32Of(values ...int32) *Int32 {
+	d := &Int32{
 		items: make([]int32, ceilPow2Int32Deque(len(values))),
 		size:  len(values),
 	}
@@ -56,7 +56,7 @@ func Int32ArrayDequeOf(values ...int32) *Int32ArrayDeque {
 
 // grow doubles the backing buffer and repacks elements so that head is at 0.
 // Called lazily when size would exceed capacity.
-func (d *Int32ArrayDeque) grow() {
+func (d *Int32) grow() {
 	newCap := len(d.items) * 2
 	if newCap == 0 {
 		newCap = initialInt32DequeCap
@@ -71,7 +71,7 @@ func (d *Int32ArrayDeque) grow() {
 }
 
 // AddFirst prepends a value to the front of the deque. O(1) amortised.
-func (d *Int32ArrayDeque) AddFirst(value int32) {
+func (d *Int32) AddFirst(value int32) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -82,7 +82,7 @@ func (d *Int32ArrayDeque) AddFirst(value int32) {
 }
 
 // AddLast appends a value to the back of the deque. O(1) amortised.
-func (d *Int32ArrayDeque) AddLast(value int32) {
+func (d *Int32) AddLast(value int32) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -91,61 +91,55 @@ func (d *Int32ArrayDeque) AddLast(value int32) {
 	d.size++
 }
 
-// RemoveFirst removes and returns the front element, or an error if empty. O(1).
-func (d *Int32ArrayDeque) RemoveFirst() (int32, error) {
+// RemoveFirst removes and returns the front element. The bool is false if empty. O(1).
+func (d *Int32) RemoveFirst() (int32, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int32ArrayDeque: RemoveFirst on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	v := d.items[d.head]
 	d.items[d.head] = 0 // let GC reclaim references if int32 ever carries them
 	d.head = (d.head + 1) & mask
 	d.size--
-	return v, nil
+	return v, true
 }
 
-// RemoveLast removes and returns the back element, or an error if empty. O(1).
-func (d *Int32ArrayDeque) RemoveLast() (int32, error) {
+// RemoveLast removes and returns the back element. The bool is false if empty. O(1).
+func (d *Int32) RemoveLast() (int32, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int32ArrayDeque: RemoveLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	d.size--
 	idx := (d.head + d.size) & mask
 	v := d.items[idx]
 	d.items[idx] = 0
-	return v, nil
+	return v, true
 }
 
-// PeekFirst returns the front element without removing it, or an error if empty.
-func (d *Int32ArrayDeque) PeekFirst() (int32, error) {
+// PeekFirst returns the front element without removing it. The bool is false if empty.
+func (d *Int32) PeekFirst() (int32, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int32ArrayDeque: PeekFirst on empty deque")
+		return 0, false
 	}
-	return d.items[d.head], nil
+	return d.items[d.head], true
 }
 
-// PeekLast returns the back element without removing it, or an error if empty.
-func (d *Int32ArrayDeque) PeekLast() (int32, error) {
+// PeekLast returns the back element without removing it. The bool is false if empty.
+func (d *Int32) PeekLast() (int32, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int32ArrayDeque: PeekLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
-	return d.items[(d.head+d.size-1)&mask], nil
+	return d.items[(d.head+d.size-1)&mask], true
 }
 
-// Size returns the number of elements in the deque.
-func (d *Int32ArrayDeque) Size() int { return d.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *Int32ArrayDeque) Len() int { return d.Size() }
-
-// IsEmpty returns true if the deque contains no elements.
-func (d *Int32ArrayDeque) IsEmpty() bool { return d.size == 0 }
+// Len returns the number of elements in the deque. Use d.Len() == 0 to test
+// for emptiness.
+func (d *Int32) Len() int { return d.size }
 
 // Clear removes all elements. The backing buffer is retained.
-func (d *Int32ArrayDeque) Clear() {
+func (d *Int32) Clear() {
 	// Wipe slots so retained references are released. Cheap for value types.
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
@@ -156,7 +150,7 @@ func (d *Int32ArrayDeque) Clear() {
 }
 
 // Contains returns true if the deque contains the given value.
-func (d *Int32ArrayDeque) Contains(value int32) bool {
+func (d *Int32) Contains(value int32) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		v := d.items[(d.head+i)&mask]
@@ -168,7 +162,7 @@ func (d *Int32ArrayDeque) Contains(value int32) bool {
 }
 
 // ForEach applies the function to each element from front to back.
-func (d *Int32ArrayDeque) ForEach(f func(int32)) {
+func (d *Int32) ForEach(f func(int32)) {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		f(d.items[(d.head+i)&mask])
@@ -176,7 +170,7 @@ func (d *Int32ArrayDeque) ForEach(f func(int32)) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (d *Int32ArrayDeque) AnySatisfy(predicate func(int32) bool) bool {
+func (d *Int32) AnySatisfy(predicate func(int32) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if predicate(d.items[(d.head+i)&mask]) {
@@ -187,7 +181,7 @@ func (d *Int32ArrayDeque) AnySatisfy(predicate func(int32) bool) bool {
 }
 
 // AllSatisfy returns true if every element satisfies the predicate.
-func (d *Int32ArrayDeque) AllSatisfy(predicate func(int32) bool) bool {
+func (d *Int32) AllSatisfy(predicate func(int32) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if !predicate(d.items[(d.head+i)&mask]) {
@@ -198,7 +192,7 @@ func (d *Int32ArrayDeque) AllSatisfy(predicate func(int32) bool) bool {
 }
 
 // ToSlice returns a copy of the elements in front-to-back order.
-func (d *Int32ArrayDeque) ToSlice() []int32 {
+func (d *Int32) ToSlice() []int32 {
 	out := make([]int32, d.size)
 	if d.size == 0 {
 		return out
@@ -215,7 +209,7 @@ func (d *Int32ArrayDeque) ToSlice() []int32 {
 }
 
 // Equals returns true if the other deque has the same elements in the same order.
-func (d *Int32ArrayDeque) Equals(other *Int32ArrayDeque) bool {
+func (d *Int32) Equals(other *Int32) bool {
 	if d.size != other.size {
 		return false
 	}
@@ -232,7 +226,7 @@ func (d *Int32ArrayDeque) Equals(other *Int32ArrayDeque) bool {
 }
 
 // String returns a string representation in front-to-back order.
-func (d *Int32ArrayDeque) String() string {
+func (d *Int32) String() string {
 	if d.size == 0 {
 		return "[]"
 	}

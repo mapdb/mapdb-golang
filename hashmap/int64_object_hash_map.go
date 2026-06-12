@@ -9,28 +9,28 @@ import (
 )
 
 const (
-	int64ObjectHashMapDefaultCapacity = 16
+	int64ObjectDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// Int64ObjectHashMap is an open-addressing hash map with int64 keys and generic values.
+// Int64Object is an open-addressing hash map with int64 keys and generic values.
 // The key type is specialized to avoid boxing overhead.
-type Int64ObjectHashMap[V any] struct {
+type Int64Object[V any] struct {
 	keys     []int64
 	values   []V
 	occupied []bool
 	size     int
 }
 
-// NewInt64ObjectHashMap creates a new empty Int64ObjectHashMap with default capacity.
-func NewInt64ObjectHashMap[V any]() *Int64ObjectHashMap[V] {
-	return NewInt64ObjectHashMapWithCapacity[V](int64ObjectHashMapDefaultCapacity)
+// NewInt64Object creates a new empty Int64Object with default capacity.
+func NewInt64Object[V any]() *Int64Object[V] {
+	return NewInt64ObjectWithCapacity[V](int64ObjectDefaultCapacity)
 }
 
-// NewInt64ObjectHashMapWithCapacity creates a new empty Int64ObjectHashMap with the given initial capacity.
-func NewInt64ObjectHashMapWithCapacity[V any](capacity int) *Int64ObjectHashMap[V] {
-	cap := nextPowerOfTwoInt64ObjectHashMap(capacity)
-	return &Int64ObjectHashMap[V]{
+// NewInt64ObjectWithCapacity creates a new empty Int64Object with the given initial capacity.
+func NewInt64ObjectWithCapacity[V any](capacity int) *Int64Object[V] {
+	cap := nextPowerOfTwoInt64Object(capacity)
+	return &Int64Object[V]{
 		keys:     make([]int64, cap),
 		values:   make([]V, cap),
 		occupied: make([]bool, cap),
@@ -39,7 +39,7 @@ func NewInt64ObjectHashMapWithCapacity[V any](capacity int) *Int64ObjectHashMap[
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Int64ObjectHashMap[V]) Put(key int64, value V) (V, bool) {
+func (m *Int64Object[V]) Put(key int64, value V) (V, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -66,7 +66,7 @@ func (m *Int64ObjectHashMap[V]) Put(key int64, value V) (V, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Int64ObjectHashMap[V]) Get(key int64) (V, bool) {
+func (m *Int64Object[V]) Get(key int64) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -88,7 +88,7 @@ func (m *Int64ObjectHashMap[V]) Get(key int64) (V, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Int64ObjectHashMap[V]) GetOrDefault(key int64, defaultValue V) V {
+func (m *Int64Object[V]) GetOrDefault(key int64, defaultValue V) V {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -96,7 +96,7 @@ func (m *Int64ObjectHashMap[V]) GetOrDefault(key int64, defaultValue V) V {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Int64ObjectHashMap[V]) Remove(key int64) (V, bool) {
+func (m *Int64Object[V]) Remove(key int64) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -125,27 +125,18 @@ func (m *Int64ObjectHashMap[V]) Remove(key int64) (V, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int64ObjectHashMap[V]) ContainsKey(key int64) bool {
+func (m *Int64Object[V]) ContainsKey(key int64) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Int64ObjectHashMap[V]) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int64Object[V]) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int64ObjectHashMap[V]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Int64ObjectHashMap[V]) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Int64ObjectHashMap[V]) Clear() {
+func (m *Int64Object[V]) Clear() {
 	var zeroV V
 	for i := range m.occupied {
 		m.occupied[i] = false
@@ -156,7 +147,7 @@ func (m *Int64ObjectHashMap[V]) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Int64ObjectHashMap[V]) All() iter.Seq2[int64, V] {
+func (m *Int64Object[V]) All() iter.Seq2[int64, V] {
 	return func(yield func(int64, V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -169,7 +160,7 @@ func (m *Int64ObjectHashMap[V]) All() iter.Seq2[int64, V] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Int64ObjectHashMap[V]) Keys() iter.Seq[int64] {
+func (m *Int64Object[V]) Keys() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -182,7 +173,7 @@ func (m *Int64ObjectHashMap[V]) Keys() iter.Seq[int64] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Int64ObjectHashMap[V]) Values() iter.Seq[V] {
+func (m *Int64Object[V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -195,7 +186,7 @@ func (m *Int64ObjectHashMap[V]) Values() iter.Seq[V] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int64ObjectHashMap[V]) ForEach(f func(int64, V)) {
+func (m *Int64Object[V]) ForEach(f func(int64, V)) {
 	for i := range m.occupied {
 		if m.occupied[i] {
 			f(m.keys[i], m.values[i])
@@ -204,8 +195,8 @@ func (m *Int64ObjectHashMap[V]) ForEach(f func(int64, V)) {
 }
 
 // Select returns a new map containing only entries that satisfy the predicate.
-func (m *Int64ObjectHashMap[V]) Select(predicate func(int64, V) bool) *Int64ObjectHashMap[V] {
-	result := NewInt64ObjectHashMap[V]()
+func (m *Int64Object[V]) Select(predicate func(int64, V) bool) *Int64Object[V] {
+	result := NewInt64Object[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -215,8 +206,8 @@ func (m *Int64ObjectHashMap[V]) Select(predicate func(int64, V) bool) *Int64Obje
 }
 
 // Reject returns a new map containing only entries that do not satisfy the predicate.
-func (m *Int64ObjectHashMap[V]) Reject(predicate func(int64, V) bool) *Int64ObjectHashMap[V] {
-	result := NewInt64ObjectHashMap[V]()
+func (m *Int64Object[V]) Reject(predicate func(int64, V) bool) *Int64Object[V] {
+	result := NewInt64Object[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -226,7 +217,7 @@ func (m *Int64ObjectHashMap[V]) Reject(predicate func(int64, V) bool) *Int64Obje
 }
 
 // String returns a string representation of the map.
-func (m *Int64ObjectHashMap[V]) String() string {
+func (m *Int64Object[V]) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -246,22 +237,22 @@ func (m *Int64ObjectHashMap[V]) String() string {
 	return sb.String()
 }
 
-func (m *Int64ObjectHashMap[V]) hashKey(key int64) uint64 {
+func (m *Int64Object[V]) hashKey(key int64) uint64 {
 	h := uint64(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Int64ObjectHashMap[V]) needsResize() bool {
+func (m *Int64Object[V]) needsResize() bool {
 	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *Int64ObjectHashMap[V]) resize() {
+func (m *Int64Object[V]) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	oldOccupied := m.occupied
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = int64ObjectHashMapDefaultCapacity
+		newCap = int64ObjectDefaultCapacity
 	}
 	m.keys = make([]int64, newCap)
 	m.values = make([]V, newCap)
@@ -275,7 +266,7 @@ func (m *Int64ObjectHashMap[V]) resize() {
 	}
 }
 
-func (m *Int64ObjectHashMap[V]) rehashFrom(deleted int, mask int) {
+func (m *Int64Object[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(m.hashKey(m.keys[idx])) & mask
@@ -294,7 +285,7 @@ func (m *Int64ObjectHashMap[V]) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoInt64ObjectHashMap(n int) int {
+func nextPowerOfTwoInt64Object(n int) int {
 	if n <= 0 {
 		return 16
 	}

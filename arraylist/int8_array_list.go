@@ -3,81 +3,86 @@
 package arraylist
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// Int8ArrayList is a resizable array-backed list of int8 values.
+// Int8 is a resizable array-backed list of int8 values.
 // Length is always len(l.items); there is no separate size counter.
-type Int8ArrayList struct {
+//
+// The zero value is an empty, ready-to-use list.
+type Int8 struct {
 	items []int8
 }
 
-// NewInt8ArrayList creates a new empty Int8ArrayList.
-func NewInt8ArrayList() *Int8ArrayList {
-	return &Int8ArrayList{items: make([]int8, 0, 16)}
+// NewInt8 creates a new empty Int8.
+func NewInt8() *Int8 {
+	return &Int8{items: make([]int8, 0, 16)}
 }
 
-// NewInt8ArrayListWithCapacity creates a new empty Int8ArrayList with the given initial capacity.
-func NewInt8ArrayListWithCapacity(capacity int) *Int8ArrayList {
-	return &Int8ArrayList{items: make([]int8, 0, capacity)}
+// NewInt8WithCapacity creates a new empty Int8 with the given initial capacity.
+func NewInt8WithCapacity(capacity int) *Int8 {
+	return &Int8{items: make([]int8, 0, capacity)}
 }
 
-// Int8ArrayListOf creates a new Int8ArrayList from the given values.
-func Int8ArrayListOf(values ...int8) *Int8ArrayList {
-	l := &Int8ArrayList{items: make([]int8, len(values))}
+// Int8Of creates a new Int8 from the given values.
+func Int8Of(values ...int8) *Int8 {
+	l := &Int8{items: make([]int8, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
-func (l *Int8ArrayList) Add(value int8) {
+func (l *Int8) Add(value int8) {
 	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
-func (l *Int8ArrayList) AddAll(values ...int8) {
+func (l *Int8) AddAll(values ...int8) {
 	l.items = append(l.items, values...)
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *Int8ArrayList) Get(index int) (int8, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *Int8) Get(index int) int8 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int8ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int8: index out of range [%d] with length %d", index, len(l.items)))
 	}
-	return l.items[index], nil
+	return l.items[index]
 }
 
-// Set sets the value at the given index, returning the previous value.
-// Returns an error if the index is out of bounds.
-func (l *Int8ArrayList) Set(index int, value int8) (int8, error) {
+// Set sets the value at the given index, returning the previous value. It
+// panics if the index is out of bounds, matching the semantics of a native
+// Go slice.
+func (l *Int8) Set(index int, value int8) int8 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int8ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int8: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	l.items[index] = value
-	return old, nil
+	return old
 }
 
-// RemoveAtIndex removes the value at the given index and returns it.
-// Returns an error if the index is out of bounds.
-func (l *Int8ArrayList) RemoveAtIndex(index int) (int8, error) {
+// RemoveAtIndex removes the value at the given index and returns it. It panics
+// if the index is out of bounds, matching the semantics of a native Go slice.
+func (l *Int8) RemoveAtIndex(index int) int8 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("Int8ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Int8: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	copy(l.items[index:], l.items[index+1:])
 	l.items = l.items[:len(l.items)-1]
-	return old, nil
+	return old
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
-func (l *Int8ArrayList) Remove(value int8) bool {
+func (l *Int8) Remove(value int8) bool {
 	for i, v := range l.items {
 		if v == value {
-			_, _ = l.RemoveAtIndex(i)
+			l.RemoveAtIndex(i)
 			return true
 		}
 	}
@@ -85,7 +90,7 @@ func (l *Int8ArrayList) Remove(value int8) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *Int8ArrayList) Contains(value int8) bool {
+func (l *Int8) Contains(value int8) bool {
 	for _, v := range l.items {
 		if v == value {
 			return true
@@ -95,7 +100,7 @@ func (l *Int8ArrayList) Contains(value int8) bool {
 }
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
-func (l *Int8ArrayList) IndexOf(value int8) int {
+func (l *Int8) IndexOf(value int8) int {
 	for i, v := range l.items {
 		if v == value {
 			return i
@@ -104,21 +109,16 @@ func (l *Int8ArrayList) IndexOf(value int8) int {
 	return -1
 }
 
-// Size returns the number of elements in the list.
-func (l *Int8ArrayList) Size() int { return len(l.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *Int8ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *Int8ArrayList) IsEmpty() bool { return len(l.items) == 0 }
+// Len returns the number of elements in the list, matching the Go
+// convention (sort.Interface, container/list, bytes.Buffer). Use
+// l.Len() == 0 to test for emptiness.
+func (l *Int8) Len() int { return len(l.items) }
 
 // Clear removes all elements from the list.
-func (l *Int8ArrayList) Clear() { l.items = l.items[:0] }
+func (l *Int8) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *Int8ArrayList) All() iter.Seq[int8] {
+func (l *Int8) All() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for _, v := range l.items {
 			if !yield(v) {
@@ -129,7 +129,7 @@ func (l *Int8ArrayList) All() iter.Seq[int8] {
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *Int8ArrayList) AllWithIndex() iter.Seq2[int, int8] {
+func (l *Int8) AllWithIndex() iter.Seq2[int, int8] {
 	return func(yield func(int, int8) bool) {
 		for i, v := range l.items {
 			if !yield(i, v) {
@@ -140,22 +140,22 @@ func (l *Int8ArrayList) AllWithIndex() iter.Seq2[int, int8] {
 }
 
 // ForEach calls the given function for each element.
-func (l *Int8ArrayList) ForEach(f func(int8)) {
+func (l *Int8) ForEach(f func(int8)) {
 	for _, v := range l.items {
 		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
-func (l *Int8ArrayList) ForEachWithIndex(f func(int8, int)) {
+func (l *Int8) ForEachWithIndex(f func(int8, int)) {
 	for i, v := range l.items {
 		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
-func (l *Int8ArrayList) Select(predicate func(int8) bool) *Int8ArrayList {
-	result := NewInt8ArrayList()
+func (l *Int8) Select(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for _, v := range l.items {
 		if predicate(v) {
 			result.Add(v)
@@ -165,8 +165,8 @@ func (l *Int8ArrayList) Select(predicate func(int8) bool) *Int8ArrayList {
 }
 
 // Reject returns a new list containing only elements that do not satisfy the predicate.
-func (l *Int8ArrayList) Reject(predicate func(int8) bool) *Int8ArrayList {
-	result := NewInt8ArrayList()
+func (l *Int8) Reject(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for _, v := range l.items {
 		if !predicate(v) {
 			result.Add(v)
@@ -176,7 +176,7 @@ func (l *Int8ArrayList) Reject(predicate func(int8) bool) *Int8ArrayList {
 }
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
-func (l *Int8ArrayList) Detect(predicate func(int8) bool) (int8, bool) {
+func (l *Int8) Detect(predicate func(int8) bool) (int8, bool) {
 	for _, v := range l.items {
 		if predicate(v) {
 			return v, true
@@ -186,7 +186,7 @@ func (l *Int8ArrayList) Detect(predicate func(int8) bool) (int8, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *Int8ArrayList) AnySatisfy(predicate func(int8) bool) bool {
+func (l *Int8) AnySatisfy(predicate func(int8) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return true
@@ -196,7 +196,7 @@ func (l *Int8ArrayList) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *Int8ArrayList) AllSatisfy(predicate func(int8) bool) bool {
+func (l *Int8) AllSatisfy(predicate func(int8) bool) bool {
 	for _, v := range l.items {
 		if !predicate(v) {
 			return false
@@ -206,7 +206,7 @@ func (l *Int8ArrayList) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *Int8ArrayList) NoneSatisfy(predicate func(int8) bool) bool {
+func (l *Int8) NoneSatisfy(predicate func(int8) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return false
@@ -216,7 +216,7 @@ func (l *Int8ArrayList) NoneSatisfy(predicate func(int8) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *Int8ArrayList) Count(predicate func(int8) bool) int {
+func (l *Int8) Count(predicate func(int8) bool) int {
 	count := 0
 	for _, v := range l.items {
 		if predicate(v) {
@@ -227,7 +227,7 @@ func (l *Int8ArrayList) Count(predicate func(int8) bool) int {
 }
 
 // InjectInto performs a left fold over the list.
-func (l *Int8ArrayList) InjectInto(initial int8, f func(int8, int8) int8) int8 {
+func (l *Int8) InjectInto(initial int8, f func(int8, int8) int8) int8 {
 	result := initial
 	for _, v := range l.items {
 		result = f(result, v)
@@ -236,7 +236,7 @@ func (l *Int8ArrayList) InjectInto(initial int8, f func(int8, int8) int8) int8 {
 }
 
 // Sum returns the sum of all elements as int64 to avoid overflow.
-func (l *Int8ArrayList) Sum() int64 {
+func (l *Int8) Sum() int64 {
 	var sum int64
 	for _, v := range l.items {
 		sum += int64(v)
@@ -245,7 +245,7 @@ func (l *Int8ArrayList) Sum() int64 {
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
-func (l *Int8ArrayList) Min() (int8, bool) {
+func (l *Int8) Min() (int8, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -259,7 +259,7 @@ func (l *Int8ArrayList) Min() (int8, bool) {
 }
 
 // Max returns the maximum element, or the zero value and false if empty.
-func (l *Int8ArrayList) Max() (int8, bool) {
+func (l *Int8) Max() (int8, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -273,21 +273,28 @@ func (l *Int8ArrayList) Max() (int8, bool) {
 }
 
 // Sort sorts the list in ascending order.
-func (l *Int8ArrayList) Sort() {
-	sort.Slice(l.items, func(i, j int) bool {
-		return l.items[i] < l.items[j]
+func (l *Int8) Sort() {
+	slices.SortFunc(l.items, func(a, b int8) int {
+		return cmp.Compare(a, b)
 	})
 }
 
-// SortWithComparator sorts the list using the given comparison function.
-func (l *Int8ArrayList) SortWithComparator(less func(int8, int8) bool) {
-	sort.Slice(l.items, func(i, j int) bool {
-		return less(l.items[i], l.items[j])
+// SortWithComparator sorts the list using the given less function.
+func (l *Int8) SortWithComparator(less func(int8, int8) bool) {
+	slices.SortFunc(l.items, func(a, b int8) int {
+		switch {
+		case less(a, b):
+			return -1
+		case less(b, a):
+			return 1
+		default:
+			return 0
+		}
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
-func (l *Int8ArrayList) BinarySearch(value int8) (int, bool) {
+func (l *Int8) BinarySearch(value int8) (int, bool) {
 	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
@@ -304,9 +311,9 @@ func (l *Int8ArrayList) BinarySearch(value int8) (int, bool) {
 }
 
 // Reversed returns a new list with elements in reverse order.
-func (l *Int8ArrayList) Reversed() *Int8ArrayList {
+func (l *Int8) Reversed() *Int8 {
 	n := len(l.items)
-	result := NewInt8ArrayListWithCapacity(n)
+	result := NewInt8WithCapacity(n)
 	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
@@ -314,9 +321,9 @@ func (l *Int8ArrayList) Reversed() *Int8ArrayList {
 }
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
-func (l *Int8ArrayList) Distinct() *Int8ArrayList {
+func (l *Int8) Distinct() *Int8 {
 	seen := make(map[int8]struct{})
-	result := NewInt8ArrayList()
+	result := NewInt8()
 	for _, v := range l.items {
 		if _, ok := seen[v]; !ok {
 			seen[v] = struct{}{}
@@ -327,26 +334,26 @@ func (l *Int8ArrayList) Distinct() *Int8ArrayList {
 }
 
 // ToSlice returns a copy of the list elements as a slice.
-func (l *Int8ArrayList) ToSlice() []int8 {
+func (l *Int8) ToSlice() []int8 {
 	result := make([]int8, len(l.items))
 	copy(result, l.items)
 	return result
 }
 
 // With returns the list after adding the value (fluent API).
-func (l *Int8ArrayList) With(value int8) *Int8ArrayList {
+func (l *Int8) AddReturning(value int8) *Int8 {
 	l.Add(value)
 	return l
 }
 
-// Without returns the list after removing the first occurrence of value (fluent API).
-func (l *Int8ArrayList) Without(value int8) *Int8ArrayList {
+// RemoveReturning removes the first occurrence of value and returns the receiver (mutating, fluent).
+func (l *Int8) RemoveReturning(value int8) *Int8 {
 	l.Remove(value)
 	return l
 }
 
 // String returns a string representation of the list.
-func (l *Int8ArrayList) String() string {
+func (l *Int8) String() string {
 	if len(l.items) == 0 {
 		return "[]"
 	}
@@ -363,7 +370,7 @@ func (l *Int8ArrayList) String() string {
 }
 
 // Equals returns true if the other list has the same elements in the same order.
-func (l *Int8ArrayList) Equals(other *Int8ArrayList) bool {
+func (l *Int8) Equals(other *Int8) bool {
 	if len(l.items) != len(other.items) {
 		return false
 	}
@@ -375,16 +382,16 @@ func (l *Int8ArrayList) Equals(other *Int8ArrayList) bool {
 	return true
 }
 
-// WithAll returns the list after adding all values (fluent API).
-func (l *Int8ArrayList) WithAll(values ...int8) *Int8ArrayList {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (l *Int8) AddAllReturning(values ...int8) *Int8 {
 	l.AddAll(values...)
 	return l
 }
 
-// WithoutAll removes every occurrence of any of the given values.
+// RemoveAllReturning removes every occurrence of any of the given values.
 // Compacts in place — keeps the existing backing storage and avoids
 // the temporary-list allocation the previous implementation made.
-func (l *Int8ArrayList) WithoutAll(values ...int8) *Int8ArrayList {
+func (l *Int8) RemoveAllReturning(values ...int8) *Int8 {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
@@ -413,6 +420,6 @@ func (l *Int8ArrayList) WithoutAll(values ...int8) *Int8ArrayList {
 }
 
 // ToImmutable returns an immutable copy of this list.
-func (l *Int8ArrayList) ToImmutable() *ImmutableInt8ArrayList {
-	return ImmutableInt8ArrayListFrom(l)
+func (l *Int8) ToImmutable() *ImmutableInt8 {
+	return ImmutableInt8From(l)
 }

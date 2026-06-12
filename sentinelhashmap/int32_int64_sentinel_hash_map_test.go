@@ -4,8 +4,8 @@ import (
 	"testing"
 )
 
-func TestInt32Int64SentinelHashMap_PutGet(t *testing.T) {
-	m := NewInt32Int64SentinelHashMap()
+func TestInt32Int64_PutGet(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(0, 100) // sentinel key 0
 	m.Put(1, 200) // sentinel key 1
 	m.Put(2, 300) // regular key
@@ -19,13 +19,13 @@ func TestInt32Int64SentinelHashMap_PutGet(t *testing.T) {
 	if v, ok := m.Get(2); !ok || v != 300 {
 		t.Errorf("Get(2) = (%d, %v), want (300, true)", v, ok)
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
 }
 
-func TestInt32Int64SentinelHashMap_RemoveSentinels(t *testing.T) {
-	m := NewInt32Int64SentinelHashMap()
+func TestInt32Int64_RemoveSentinels(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(0, 100)
 	m.Put(1, 200)
 	m.Put(5, 500)
@@ -37,13 +37,13 @@ func TestInt32Int64SentinelHashMap_RemoveSentinels(t *testing.T) {
 	if m.ContainsKey(0) {
 		t.Error("ContainsKey(0) should be false after remove")
 	}
-	if m.Size() != 2 {
-		t.Errorf("Size = %d, want 2", m.Size())
+	if m.Len() != 2 {
+		t.Errorf("Size = %d, want 2", m.Len())
 	}
 }
 
-func TestInt32Int64SentinelHashMap_All(t *testing.T) {
-	m := NewInt32Int64SentinelHashMap()
+func TestInt32Int64_All(t *testing.T) {
+	m := NewInt32Int64()
 	m.Put(0, 10)
 	m.Put(1, 20)
 	m.Put(5, 50)
@@ -57,13 +57,13 @@ func TestInt32Int64SentinelHashMap_All(t *testing.T) {
 	}
 }
 
-func TestInt32Int64SentinelHashMap_Resize(t *testing.T) {
-	m := NewInt32Int64SentinelHashMap()
+func TestInt32Int64_Resize(t *testing.T) {
+	m := NewInt32Int64()
 	for i := int32(0); i < 100; i++ {
 		m.Put(i, int64(i*10))
 	}
-	if m.Size() != 100 {
-		t.Errorf("Size = %d, want 100", m.Size())
+	if m.Len() != 100 {
+		t.Errorf("Size = %d, want 100", m.Len())
 	}
 	for i := int32(0); i < 100; i++ {
 		v, ok := m.Get(i)

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Int64ArrayDeque is a double-ended queue of int64 values, backed by a
+// Int64 is a double-ended queue of int64 values, backed by a
 // power-of-two ring buffer. AddFirst, AddLast, RemoveFirst, RemoveLast,
 // PeekFirst and PeekLast are all O(1) amortised.
 //
@@ -15,7 +15,7 @@ import (
 // that preceded it: callers that iterate via ToSlice or ForEach see
 // elements in logical front-to-back order regardless of where head
 // happens to sit in the underlying buffer.
-type Int64ArrayDeque struct {
+type Int64 struct {
 	items []int64 // len == capacity, always a power of two; indexed modulo cap
 	head  int     // index of the front element (0 when empty)
 	size  int     // number of logical elements
@@ -29,7 +29,7 @@ const initialInt64DequeCap = 16
 
 // ceilPow2 rounds n up to the next power of two, with a floor of
 // initialInt64DequeCap. Used when sizing the buffer to fit a
-// caller-supplied slice in Int64ArrayDequeOf.
+// caller-supplied slice in Int64Of.
 func ceilPow2Int64Deque(n int) int {
 	cap := initialInt64DequeCap
 	for cap < n {
@@ -38,15 +38,15 @@ func ceilPow2Int64Deque(n int) int {
 	return cap
 }
 
-// NewInt64ArrayDeque creates a new empty Int64ArrayDeque.
-func NewInt64ArrayDeque() *Int64ArrayDeque {
-	return &Int64ArrayDeque{items: make([]int64, initialInt64DequeCap)}
+// NewInt64 creates a new empty Int64.
+func NewInt64() *Int64 {
+	return &Int64{items: make([]int64, initialInt64DequeCap)}
 }
 
-// Int64ArrayDequeOf creates a new Int64ArrayDeque from the given values in
+// Int64Of creates a new Int64 from the given values in
 // front-to-back order.
-func Int64ArrayDequeOf(values ...int64) *Int64ArrayDeque {
-	d := &Int64ArrayDeque{
+func Int64Of(values ...int64) *Int64 {
+	d := &Int64{
 		items: make([]int64, ceilPow2Int64Deque(len(values))),
 		size:  len(values),
 	}
@@ -56,7 +56,7 @@ func Int64ArrayDequeOf(values ...int64) *Int64ArrayDeque {
 
 // grow doubles the backing buffer and repacks elements so that head is at 0.
 // Called lazily when size would exceed capacity.
-func (d *Int64ArrayDeque) grow() {
+func (d *Int64) grow() {
 	newCap := len(d.items) * 2
 	if newCap == 0 {
 		newCap = initialInt64DequeCap
@@ -71,7 +71,7 @@ func (d *Int64ArrayDeque) grow() {
 }
 
 // AddFirst prepends a value to the front of the deque. O(1) amortised.
-func (d *Int64ArrayDeque) AddFirst(value int64) {
+func (d *Int64) AddFirst(value int64) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -82,7 +82,7 @@ func (d *Int64ArrayDeque) AddFirst(value int64) {
 }
 
 // AddLast appends a value to the back of the deque. O(1) amortised.
-func (d *Int64ArrayDeque) AddLast(value int64) {
+func (d *Int64) AddLast(value int64) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -91,61 +91,55 @@ func (d *Int64ArrayDeque) AddLast(value int64) {
 	d.size++
 }
 
-// RemoveFirst removes and returns the front element, or an error if empty. O(1).
-func (d *Int64ArrayDeque) RemoveFirst() (int64, error) {
+// RemoveFirst removes and returns the front element. The bool is false if empty. O(1).
+func (d *Int64) RemoveFirst() (int64, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int64ArrayDeque: RemoveFirst on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	v := d.items[d.head]
 	d.items[d.head] = 0 // let GC reclaim references if int64 ever carries them
 	d.head = (d.head + 1) & mask
 	d.size--
-	return v, nil
+	return v, true
 }
 
-// RemoveLast removes and returns the back element, or an error if empty. O(1).
-func (d *Int64ArrayDeque) RemoveLast() (int64, error) {
+// RemoveLast removes and returns the back element. The bool is false if empty. O(1).
+func (d *Int64) RemoveLast() (int64, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int64ArrayDeque: RemoveLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	d.size--
 	idx := (d.head + d.size) & mask
 	v := d.items[idx]
 	d.items[idx] = 0
-	return v, nil
+	return v, true
 }
 
-// PeekFirst returns the front element without removing it, or an error if empty.
-func (d *Int64ArrayDeque) PeekFirst() (int64, error) {
+// PeekFirst returns the front element without removing it. The bool is false if empty.
+func (d *Int64) PeekFirst() (int64, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int64ArrayDeque: PeekFirst on empty deque")
+		return 0, false
 	}
-	return d.items[d.head], nil
+	return d.items[d.head], true
 }
 
-// PeekLast returns the back element without removing it, or an error if empty.
-func (d *Int64ArrayDeque) PeekLast() (int64, error) {
+// PeekLast returns the back element without removing it. The bool is false if empty.
+func (d *Int64) PeekLast() (int64, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int64ArrayDeque: PeekLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
-	return d.items[(d.head+d.size-1)&mask], nil
+	return d.items[(d.head+d.size-1)&mask], true
 }
 
-// Size returns the number of elements in the deque.
-func (d *Int64ArrayDeque) Size() int { return d.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *Int64ArrayDeque) Len() int { return d.Size() }
-
-// IsEmpty returns true if the deque contains no elements.
-func (d *Int64ArrayDeque) IsEmpty() bool { return d.size == 0 }
+// Len returns the number of elements in the deque. Use d.Len() == 0 to test
+// for emptiness.
+func (d *Int64) Len() int { return d.size }
 
 // Clear removes all elements. The backing buffer is retained.
-func (d *Int64ArrayDeque) Clear() {
+func (d *Int64) Clear() {
 	// Wipe slots so retained references are released. Cheap for value types.
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
@@ -156,7 +150,7 @@ func (d *Int64ArrayDeque) Clear() {
 }
 
 // Contains returns true if the deque contains the given value.
-func (d *Int64ArrayDeque) Contains(value int64) bool {
+func (d *Int64) Contains(value int64) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		v := d.items[(d.head+i)&mask]
@@ -168,7 +162,7 @@ func (d *Int64ArrayDeque) Contains(value int64) bool {
 }
 
 // ForEach applies the function to each element from front to back.
-func (d *Int64ArrayDeque) ForEach(f func(int64)) {
+func (d *Int64) ForEach(f func(int64)) {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		f(d.items[(d.head+i)&mask])
@@ -176,7 +170,7 @@ func (d *Int64ArrayDeque) ForEach(f func(int64)) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (d *Int64ArrayDeque) AnySatisfy(predicate func(int64) bool) bool {
+func (d *Int64) AnySatisfy(predicate func(int64) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if predicate(d.items[(d.head+i)&mask]) {
@@ -187,7 +181,7 @@ func (d *Int64ArrayDeque) AnySatisfy(predicate func(int64) bool) bool {
 }
 
 // AllSatisfy returns true if every element satisfies the predicate.
-func (d *Int64ArrayDeque) AllSatisfy(predicate func(int64) bool) bool {
+func (d *Int64) AllSatisfy(predicate func(int64) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if !predicate(d.items[(d.head+i)&mask]) {
@@ -198,7 +192,7 @@ func (d *Int64ArrayDeque) AllSatisfy(predicate func(int64) bool) bool {
 }
 
 // ToSlice returns a copy of the elements in front-to-back order.
-func (d *Int64ArrayDeque) ToSlice() []int64 {
+func (d *Int64) ToSlice() []int64 {
 	out := make([]int64, d.size)
 	if d.size == 0 {
 		return out
@@ -215,7 +209,7 @@ func (d *Int64ArrayDeque) ToSlice() []int64 {
 }
 
 // Equals returns true if the other deque has the same elements in the same order.
-func (d *Int64ArrayDeque) Equals(other *Int64ArrayDeque) bool {
+func (d *Int64) Equals(other *Int64) bool {
 	if d.size != other.size {
 		return false
 	}
@@ -232,7 +226,7 @@ func (d *Int64ArrayDeque) Equals(other *Int64ArrayDeque) bool {
 }
 
 // String returns a string representation in front-to-back order.
-func (d *Int64ArrayDeque) String() string {
+func (d *Int64) String() string {
 	if d.size == 0 {
 		return "[]"
 	}

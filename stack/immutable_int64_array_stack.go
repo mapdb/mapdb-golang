@@ -3,123 +3,111 @@
 package stack
 
 import (
-	"fmt"
 	"iter"
 )
 
-// ImmutableInt64ArrayStack is an immutable LIFO stack of int64 values.
-type ImmutableInt64ArrayStack struct {
-	delegate *Int64ArrayStack
+// ImmutableInt64 is an immutable LIFO stack of int64 values.
+type ImmutableInt64 struct {
+	delegate *Int64
 }
 
-// NewImmutableInt64ArrayStack creates an immutable stack from the given values.
+// NewImmutableInt64 creates an immutable stack from the given values.
 // The last value becomes the top of the stack.
-func NewImmutableInt64ArrayStack(values ...int64) *ImmutableInt64ArrayStack {
-	return &ImmutableInt64ArrayStack{delegate: Int64ArrayStackOf(values...)}
+func NewImmutableInt64(values ...int64) *ImmutableInt64 {
+	return &ImmutableInt64{delegate: Int64Of(values...)}
 }
 
-// ImmutableInt64ArrayStackFrom creates an immutable copy of a mutable stack.
-func ImmutableInt64ArrayStackFrom(s *Int64ArrayStack) *ImmutableInt64ArrayStack {
-	copy := &Int64ArrayStack{items: make([]int64, len(s.items))}
+// ImmutableInt64From creates an immutable copy of a mutable stack.
+func ImmutableInt64From(s *Int64) *ImmutableInt64 {
+	copy := &Int64{items: make([]int64, len(s.items))}
 	for i := range s.items {
 		copy.items[i] = s.items[i]
 	}
-	return &ImmutableInt64ArrayStack{delegate: copy}
+	return &ImmutableInt64{delegate: copy}
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *ImmutableInt64ArrayStack) Peek() (int64, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *ImmutableInt64) Peek() (int64, bool) {
 	return s.delegate.Peek()
 }
 
-// PeekAt returns the element at the given distance from the top,
-// or an error if the index is out of bounds.
-func (s *ImmutableInt64ArrayStack) PeekAt(index int) (int64, error) {
+// PeekAt returns the element at the given distance from the top.
+// It panics if the index is out of range, like a native Go slice.
+func (s *ImmutableInt64) PeekAt(index int) int64 {
 	return s.delegate.PeekAt(index)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableInt64ArrayStack) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableInt64ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *ImmutableInt64ArrayStack) IsEmpty() bool {
-	return s.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableInt64) Len() int { return s.delegate.Len() }
 
 // Contains returns true if the stack contains the given value.
-func (s *ImmutableInt64ArrayStack) Contains(value int64) bool {
+func (s *ImmutableInt64) Contains(value int64) bool {
 	return s.delegate.Contains(value)
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *ImmutableInt64ArrayStack) All() iter.Seq[int64] {
+func (s *ImmutableInt64) All() iter.Seq[int64] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *ImmutableInt64ArrayStack) ForEach(f func(int64)) {
+func (s *ImmutableInt64) ForEach(f func(int64)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable stack with elements satisfying the predicate.
-func (s *ImmutableInt64ArrayStack) Select(predicate func(int64) bool) *ImmutableInt64ArrayStack {
-	return &ImmutableInt64ArrayStack{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableInt64) Select(predicate func(int64) bool) *ImmutableInt64 {
+	return &ImmutableInt64{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable stack with elements not satisfying the predicate.
-func (s *ImmutableInt64ArrayStack) Reject(predicate func(int64) bool) *ImmutableInt64ArrayStack {
-	return &ImmutableInt64ArrayStack{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableInt64) Reject(predicate func(int64) bool) *ImmutableInt64 {
+	return &ImmutableInt64{delegate: s.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element from top satisfying the predicate, or zero and false.
-func (s *ImmutableInt64ArrayStack) Detect(predicate func(int64) bool) (int64, bool) {
+func (s *ImmutableInt64) Detect(predicate func(int64) bool) (int64, bool) {
 	return s.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableInt64ArrayStack) AnySatisfy(predicate func(int64) bool) bool {
+func (s *ImmutableInt64) AnySatisfy(predicate func(int64) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableInt64ArrayStack) AllSatisfy(predicate func(int64) bool) bool {
+func (s *ImmutableInt64) AllSatisfy(predicate func(int64) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableInt64ArrayStack) NoneSatisfy(predicate func(int64) bool) bool {
+func (s *ImmutableInt64) NoneSatisfy(predicate func(int64) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *ImmutableInt64ArrayStack) Count(predicate func(int64) bool) int {
+func (s *ImmutableInt64) Count(predicate func(int64) bool) int {
 	return s.delegate.Count(predicate)
 }
 
 // ToSlice returns all elements as a slice (top first).
-func (s *ImmutableInt64ArrayStack) ToSlice() []int64 {
+func (s *ImmutableInt64) ToSlice() []int64 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableInt64ArrayStack) String() string {
+func (s *ImmutableInt64) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable stack has the same elements.
-func (s *ImmutableInt64ArrayStack) Equals(other *ImmutableInt64ArrayStack) bool {
+func (s *ImmutableInt64) Equals(other *ImmutableInt64) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this stack.
-func (s *ImmutableInt64ArrayStack) ToMutable() *Int64ArrayStack {
-	copy := &Int64ArrayStack{items: make([]int64, len(s.delegate.items))}
+func (s *ImmutableInt64) ToMutable() *Int64 {
+	copy := &Int64{items: make([]int64, len(s.delegate.items))}
 	for i := range s.delegate.items {
 		copy.items[i] = s.delegate.items[i]
 	}
@@ -128,21 +116,21 @@ func (s *ImmutableInt64ArrayStack) ToMutable() *Int64ArrayStack {
 
 // Push returns a NEW immutable stack with the value pushed on top.
 // The original stack is not modified.
-func (s *ImmutableInt64ArrayStack) Push(value int64) *ImmutableInt64ArrayStack {
+func (s *ImmutableInt64) Push(value int64) *ImmutableInt64 {
 	newItems := make([]int64, len(s.delegate.items)+1)
 	copy(newItems, s.delegate.items)
 	newItems[len(s.delegate.items)] = value
-	return &ImmutableInt64ArrayStack{delegate: &Int64ArrayStack{items: newItems}}
+	return &ImmutableInt64{delegate: &Int64{items: newItems}}
 }
 
 // Pop returns a NEW immutable stack with the top element removed, and the removed value.
-// The original stack is not modified. Returns an error if the stack is empty.
-func (s *ImmutableInt64ArrayStack) Pop() (*ImmutableInt64ArrayStack, int64, error) {
-	if s.delegate.IsEmpty() {
-		return nil, 0, fmt.Errorf("ImmutableInt64ArrayStack: Pop on empty stack")
+// The original stack is not modified. The bool is false if the stack is empty.
+func (s *ImmutableInt64) Pop() (*ImmutableInt64, int64, bool) {
+	if s.delegate.Len() == 0 {
+		return nil, 0, false
 	}
 	top := s.delegate.items[len(s.delegate.items)-1]
 	newItems := make([]int64, len(s.delegate.items)-1)
 	copy(newItems, s.delegate.items[:len(s.delegate.items)-1])
-	return &ImmutableInt64ArrayStack{delegate: &Int64ArrayStack{items: newItems}}, top, nil
+	return &ImmutableInt64{delegate: &Int64{items: newItems}}, top, true
 }

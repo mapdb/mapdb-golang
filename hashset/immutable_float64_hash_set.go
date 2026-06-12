@@ -6,107 +6,98 @@ import (
 	"iter"
 )
 
-// ImmutableFloat64HashSet is an immutable view of a Float64HashSet.
-type ImmutableFloat64HashSet struct {
-	delegate *Float64HashSet
+// ImmutableFloat64 is an immutable view of a Float64.
+type ImmutableFloat64 struct {
+	delegate *Float64
 }
 
-// NewImmutableFloat64HashSet creates an immutable set from the given values.
-func NewImmutableFloat64HashSet(values ...float64) *ImmutableFloat64HashSet {
-	return &ImmutableFloat64HashSet{delegate: Float64HashSetOf(values...)}
+// NewImmutableFloat64 creates an immutable set from the given values.
+func NewImmutableFloat64(values ...float64) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: Float64Of(values...)}
 }
 
-// ImmutableFloat64HashSetFrom creates an immutable copy of a mutable set.
-func ImmutableFloat64HashSetFrom(s *Float64HashSet) *ImmutableFloat64HashSet {
-	copy := Float64HashSetOf(s.ToSlice()...)
-	return &ImmutableFloat64HashSet{delegate: copy}
+// ImmutableFloat64From creates an immutable copy of a mutable set.
+func ImmutableFloat64From(s *Float64) *ImmutableFloat64 {
+	copy := Float64Of(s.ToSlice()...)
+	return &ImmutableFloat64{delegate: copy}
 }
 
 // Contains returns true if the set contains the given value.
-func (s *ImmutableFloat64HashSet) Contains(value float64) bool {
+func (s *ImmutableFloat64) Contains(value float64) bool {
 	return s.delegate.Contains(value)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableFloat64HashSet) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableFloat64HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *ImmutableFloat64HashSet) IsEmpty() bool {
-	return s.delegate.IsEmpty()
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableFloat64) Len() int {
+	return s.delegate.Len()
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *ImmutableFloat64HashSet) All() iter.Seq[float64] {
+func (s *ImmutableFloat64) All() iter.Seq[float64] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element.
-func (s *ImmutableFloat64HashSet) ForEach(f func(float64)) {
+func (s *ImmutableFloat64) ForEach(f func(float64)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable set with elements satisfying the predicate.
-func (s *ImmutableFloat64HashSet) Select(predicate func(float64) bool) *ImmutableFloat64HashSet {
-	return &ImmutableFloat64HashSet{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableFloat64) Select(predicate func(float64) bool) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable set with elements not satisfying the predicate.
-func (s *ImmutableFloat64HashSet) Reject(predicate func(float64) bool) *ImmutableFloat64HashSet {
-	return &ImmutableFloat64HashSet{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableFloat64) Reject(predicate func(float64) bool) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: s.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableFloat64HashSet) AnySatisfy(predicate func(float64) bool) bool {
+func (s *ImmutableFloat64) AnySatisfy(predicate func(float64) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableFloat64HashSet) AllSatisfy(predicate func(float64) bool) bool {
+func (s *ImmutableFloat64) AllSatisfy(predicate func(float64) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableFloat64HashSet) NoneSatisfy(predicate func(float64) bool) bool {
+func (s *ImmutableFloat64) NoneSatisfy(predicate func(float64) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Union returns a new immutable set with elements from both sets.
-func (s *ImmutableFloat64HashSet) Union(other *ImmutableFloat64HashSet) *ImmutableFloat64HashSet {
-	return &ImmutableFloat64HashSet{delegate: s.delegate.Union(other.delegate)}
+func (s *ImmutableFloat64) Union(other *ImmutableFloat64) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: s.delegate.Union(other.delegate)}
 }
 
 // Intersect returns a new immutable set with elements in both sets.
-func (s *ImmutableFloat64HashSet) Intersect(other *ImmutableFloat64HashSet) *ImmutableFloat64HashSet {
-	return &ImmutableFloat64HashSet{delegate: s.delegate.Intersect(other.delegate)}
+func (s *ImmutableFloat64) Intersect(other *ImmutableFloat64) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: s.delegate.Intersect(other.delegate)}
 }
 
 // Difference returns a new immutable set with elements in this but not other.
-func (s *ImmutableFloat64HashSet) Difference(other *ImmutableFloat64HashSet) *ImmutableFloat64HashSet {
-	return &ImmutableFloat64HashSet{delegate: s.delegate.Difference(other.delegate)}
+func (s *ImmutableFloat64) Difference(other *ImmutableFloat64) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: s.delegate.Difference(other.delegate)}
 }
 
 // ToSlice returns all elements as a slice.
-func (s *ImmutableFloat64HashSet) ToSlice() []float64 {
+func (s *ImmutableFloat64) ToSlice() []float64 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableFloat64HashSet) String() string {
+func (s *ImmutableFloat64) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable set has the same elements.
-func (s *ImmutableFloat64HashSet) Equals(other *ImmutableFloat64HashSet) bool {
+func (s *ImmutableFloat64) Equals(other *ImmutableFloat64) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this set.
-func (s *ImmutableFloat64HashSet) ToMutable() *Float64HashSet {
-	return Float64HashSetOf(s.ToSlice()...)
+func (s *ImmutableFloat64) ToMutable() *Float64 {
+	return Float64Of(s.ToSlice()...)
 }

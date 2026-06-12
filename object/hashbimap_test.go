@@ -12,10 +12,10 @@ import (
 
 func TestHashBiMap_NewEmpty(t *testing.T) {
 	bm := NewHashBiMap[string, int]()
-	if bm.Size() != 0 {
-		t.Errorf("Size() = %d, want 0", bm.Size())
+	if bm.Len() != 0 {
+		t.Errorf("Size() = %d, want 0", bm.Len())
 	}
-	if !bm.IsEmpty() {
+	if bm.Len() != 0 {
 		t.Error("IsEmpty() = false, want true")
 	}
 }
@@ -30,8 +30,8 @@ func TestHashBiMap_Put(t *testing.T) {
 		if old != 0 {
 			t.Errorf("Put returned old=%d, want 0", old)
 		}
-		if bm.Size() != 1 {
-			t.Errorf("Size() = %d, want 1", bm.Size())
+		if bm.Len() != 1 {
+			t.Errorf("Size() = %d, want 1", bm.Len())
 		}
 	})
 
@@ -75,8 +75,8 @@ func TestHashBiMap_BijectionInvariant(t *testing.T) {
 		if !ok || k != "c" {
 			t.Errorf("GetInverse(1) = (%q, %v), want (c, true)", k, ok)
 		}
-		if bm.Size() != 2 {
-			t.Errorf("Size() = %d, want 2", bm.Size())
+		if bm.Len() != 2 {
+			t.Errorf("Size() = %d, want 2", bm.Len())
 		}
 	})
 
@@ -90,8 +90,8 @@ func TestHashBiMap_BijectionInvariant(t *testing.T) {
 		if old != 1 {
 			t.Errorf("old = %d, want 1", old)
 		}
-		if bm.Size() != 1 {
-			t.Errorf("Size() = %d, want 1", bm.Size())
+		if bm.Len() != 1 {
+			t.Errorf("Size() = %d, want 1", bm.Len())
 		}
 	})
 
@@ -106,8 +106,8 @@ func TestHashBiMap_BijectionInvariant(t *testing.T) {
 		if bm.ContainsKey(2) {
 			t.Error("key 2 should be removed")
 		}
-		if bm.Size() != 3 {
-			t.Errorf("Size() = %d, want 3", bm.Size())
+		if bm.Len() != 3 {
+			t.Errorf("Size() = %d, want 3", bm.Len())
 		}
 		k, ok := bm.GetInverse(20)
 		if !ok || k != 4 {
@@ -179,8 +179,8 @@ func TestHashBiMap_Remove(t *testing.T) {
 	if bm.ContainsValue(1) {
 		t.Error("ContainsValue(1) after Remove = true")
 	}
-	if bm.Size() != 1 {
-		t.Errorf("Size after Remove = %d, want 1", bm.Size())
+	if bm.Len() != 1 {
+		t.Errorf("Size after Remove = %d, want 1", bm.Len())
 	}
 
 	_, ok = bm.Remove("missing")
@@ -217,8 +217,8 @@ func TestHashBiMap_Inverse(t *testing.T) {
 	bm.Put("b", 2)
 
 	inv := bm.Inverse()
-	if inv.Size() != 2 {
-		t.Errorf("Inverse size = %d, want 2", inv.Size())
+	if inv.Len() != 2 {
+		t.Errorf("Inverse size = %d, want 2", inv.Len())
 	}
 
 	// In the inverse, keys are int, values are string
@@ -239,7 +239,7 @@ func TestHashBiMap_Inverse(t *testing.T) {
 
 	// Modifying inverse should not affect original
 	inv.Put(3, "c")
-	if bm.Size() != 2 {
+	if bm.Len() != 2 {
 		t.Error("modifying inverse affected original")
 	}
 }
@@ -279,7 +279,7 @@ func TestHashBiMap_Keys(t *testing.T) {
 	for k := range bm.Keys() {
 		keys.Add(k)
 	}
-	if keys.Size() != 2 || !keys.Contains("x") || !keys.Contains("y") {
+	if keys.Len() != 2 || !keys.Contains("x") || !keys.Contains("y") {
 		t.Errorf("Keys = %v, want {x, y}", keys)
 	}
 }
@@ -360,10 +360,10 @@ func TestHashBiMap_Clear(t *testing.T) {
 	bm.Put("a", 1)
 	bm.Put("b", 2)
 	bm.Clear()
-	if bm.Size() != 0 {
-		t.Errorf("Size after Clear = %d, want 0", bm.Size())
+	if bm.Len() != 0 {
+		t.Errorf("Size after Clear = %d, want 0", bm.Len())
 	}
-	if !bm.IsEmpty() {
+	if bm.Len() != 0 {
 		t.Error("IsEmpty after Clear = false")
 	}
 	if bm.ContainsKey("a") {

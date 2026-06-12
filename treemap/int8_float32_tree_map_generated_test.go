@@ -1,15 +1,14 @@
-
 package treemap
 
 import "testing"
 
-func TestInt8Float32TreeMap_Generated_PutGet(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_PutGet(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(3, 3.0)
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
-	if m.Size() != 3 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size = %d", m.Len())
 	}
 	if v, ok := m.Get(2); !ok || v != 2.0 {
 		t.Errorf("Get = (%v,%v)", v, ok)
@@ -18,20 +17,20 @@ func TestInt8Float32TreeMap_Generated_PutGet(t *testing.T) {
 		t.Error("Get missing should be false")
 	}
 }
-func TestInt8Float32TreeMap_Generated_Remove(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_Remove(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	old, ok := m.Remove(1)
 	if !ok || old != 1.0 {
 		t.Errorf("Remove = (%v,%v)", old, ok)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size = %d", m.Len())
 	}
 }
-func TestInt8Float32TreeMap_Generated_ContainsKey(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_ContainsKey(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	if !m.ContainsKey(1) {
 		t.Error("Should contain")
@@ -40,8 +39,8 @@ func TestInt8Float32TreeMap_Generated_ContainsKey(t *testing.T) {
 		t.Error("Should not contain")
 	}
 }
-func TestInt8Float32TreeMap_Generated_MinMax(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_MinMax(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(3, 3.0)
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
@@ -52,8 +51,8 @@ func TestInt8Float32TreeMap_Generated_MinMax(t *testing.T) {
 		t.Errorf("Max key = %v", k)
 	}
 }
-func TestInt8Float32TreeMap_Generated_FloorCeiling(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_FloorCeiling(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Put(3, 3.0)
 	if k, _, ok := m.Floor(2); !ok || k != 1 {
@@ -63,16 +62,16 @@ func TestInt8Float32TreeMap_Generated_FloorCeiling(t *testing.T) {
 		t.Errorf("Ceiling = %v", k)
 	}
 }
-func TestInt8Float32TreeMap_Generated_Clear(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_Clear(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestInt8Float32TreeMap_Generated_All(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_All(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	count := 0
@@ -83,8 +82,8 @@ func TestInt8Float32TreeMap_Generated_All(t *testing.T) {
 		t.Errorf("All count = %d", count)
 	}
 }
-func TestInt8Float32TreeMap_Generated_SortedOrder(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_SortedOrder(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(3, 3.0)
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
@@ -98,25 +97,25 @@ func TestInt8Float32TreeMap_Generated_SortedOrder(t *testing.T) {
 		}
 	}
 }
-func TestInt8Float32TreeMap_Generated_Select(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_Select(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
 	sel := m.Select(func(k int8, v float32) bool { return v > 1.0 })
-	if sel.Size() != 2 {
-		t.Errorf("Select size = %d", sel.Size())
+	if sel.Len() != 2 {
+		t.Errorf("Select size = %d", sel.Len())
 	}
 }
-func TestInt8Float32TreeMap_Generated_String(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_String(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	if m.String() == "" {
 		t.Error("empty")
 	}
 }
-func TestInt8Float32TreeMap_Generated_HigherLower(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_HigherLower(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Put(3, 3.0)
 	m.Put(5, 5.0)
@@ -136,8 +135,8 @@ func TestInt8Float32TreeMap_Generated_HigherLower(t *testing.T) {
 		t.Error("Lower of min should be false")
 	}
 }
-func TestInt8Float32TreeMap_Generated_HeadTailSubMap(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_HeadTailSubMap(t *testing.T) {
+	m := NewInt8Float32()
 	for i, k := range []int8{1, 2, 3, 4, 5} {
 		v := []float32{1.0, 2.0, 3.0, 4.0, 5.0}[i]
 		m.Put(k, v)
@@ -167,8 +166,8 @@ func TestInt8Float32TreeMap_Generated_HeadTailSubMap(t *testing.T) {
 		t.Errorf("SubMap count = %d, want 2", subCount)
 	}
 }
-func TestInt8Float32TreeMap_Generated_FirstLastEntry(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_FirstLastEntry(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(2, 2.0)
 	m.Put(1, 1.0)
 	m.Put(3, 3.0)
@@ -179,26 +178,26 @@ func TestInt8Float32TreeMap_Generated_FirstLastEntry(t *testing.T) {
 		t.Errorf("LastEntry key = %v, want 3", k)
 	}
 }
-func TestInt8Float32TreeMap_Generated_PollFirstLastEntry(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_PollFirstLastEntry(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
 	if k, _, ok := m.PollFirstEntry(); !ok || k != 1 {
 		t.Errorf("PollFirstEntry key = %v", k)
 	}
-	if m.Size() != 2 {
-		t.Errorf("Size after PollFirst = %d", m.Size())
+	if m.Len() != 2 {
+		t.Errorf("Size after PollFirst = %d", m.Len())
 	}
 	if k, _, ok := m.PollLastEntry(); !ok || k != 3 {
 		t.Errorf("PollLastEntry key = %v", k)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size after PollLast = %d", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size after PollLast = %d", m.Len())
 	}
 }
-func TestInt8Float32TreeMap_Generated_DescendingOrder(t *testing.T) {
-	m := NewInt8Float32TreeMap()
+func TestInt8Float32_Generated_DescendingOrder(t *testing.T) {
+	m := NewInt8Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)

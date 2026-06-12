@@ -6,111 +6,105 @@ import (
 	"iter"
 )
 
-// ImmutableFloat64HashBag is an immutable view of a Float64HashBag.
-type ImmutableFloat64HashBag struct {
-	delegate *Float64HashBag
+// ImmutableHashFloat64 is an immutable view of a HashFloat64.
+type ImmutableHashFloat64 struct {
+	delegate *HashFloat64
 }
 
-// NewImmutableFloat64HashBag creates an immutable bag from the given values.
-func NewImmutableFloat64HashBag(values ...float64) *ImmutableFloat64HashBag {
-	return &ImmutableFloat64HashBag{delegate: Float64HashBagOf(values...)}
+// NewImmutableHashFloat64 creates an immutable bag from the given values.
+func NewImmutableHashFloat64(values ...float64) *ImmutableHashFloat64 {
+	return &ImmutableHashFloat64{delegate: HashFloat64Of(values...)}
 }
 
-// ImmutableFloat64HashBagFrom creates an immutable copy of a mutable bag.
-func ImmutableFloat64HashBagFrom(b *Float64HashBag) *ImmutableFloat64HashBag {
-	copy := NewFloat64HashBag()
+// ImmutableHashFloat64From creates an immutable copy of a mutable bag.
+func ImmutableHashFloat64From(b *HashFloat64) *ImmutableHashFloat64 {
+	copy := NewHashFloat64()
 	b.ForEachWithOccurrences(func(v float64, count int) {
 		copy.AddOccurrences(v, count)
 	})
-	return &ImmutableFloat64HashBag{delegate: copy}
+	return &ImmutableHashFloat64{delegate: copy}
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *ImmutableFloat64HashBag) OccurrencesOf(value float64) int {
+func (b *ImmutableHashFloat64) OccurrencesOf(value float64) int {
 	return b.delegate.OccurrencesOf(value)
 }
 
 // Contains returns true if the bag contains at least one occurrence.
-func (b *ImmutableFloat64HashBag) Contains(value float64) bool {
+func (b *ImmutableHashFloat64) Contains(value float64) bool {
 	return b.delegate.Contains(value)
 }
 
 // Size returns the total count including duplicates.
-func (b *ImmutableFloat64HashBag) Size() int {
-	return b.delegate.Size()
+func (b *ImmutableHashFloat64) Len() int {
+	return b.delegate.Len()
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *ImmutableFloat64HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *ImmutableFloat64HashBag) SizeDistinct() int {
+func (b *ImmutableHashFloat64) SizeDistinct() int {
 	return b.delegate.SizeDistinct()
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *ImmutableFloat64HashBag) IsEmpty() bool {
-	return b.delegate.IsEmpty()
-}
-
 // All returns an iter.Seq yielding each element once per occurrence.
-func (b *ImmutableFloat64HashBag) All() iter.Seq[float64] {
+func (b *ImmutableHashFloat64) All() iter.Seq[float64] {
 	return b.delegate.All()
 }
 
 // AllDistinct returns an iter.Seq yielding each distinct element once.
-func (b *ImmutableFloat64HashBag) AllDistinct() iter.Seq[float64] {
+func (b *ImmutableHashFloat64) AllDistinct() iter.Seq[float64] {
 	return b.delegate.AllDistinct()
 }
 
 // AllWithOccurrences returns an iter.Seq2 yielding (value, count) pairs.
-func (b *ImmutableFloat64HashBag) AllWithOccurrences() iter.Seq2[float64, int] {
+func (b *ImmutableHashFloat64) AllWithOccurrences() iter.Seq2[float64, int] {
 	return b.delegate.AllWithOccurrences()
 }
 
 // ForEach calls the function for each element (once per occurrence).
-func (b *ImmutableFloat64HashBag) ForEach(f func(float64)) {
+func (b *ImmutableHashFloat64) ForEach(f func(float64)) {
 	b.delegate.ForEach(f)
 }
 
 // ForEachWithOccurrences calls the function with each distinct element and its count.
-func (b *ImmutableFloat64HashBag) ForEachWithOccurrences(f func(float64, int)) {
+func (b *ImmutableHashFloat64) ForEachWithOccurrences(f func(float64, int)) {
 	b.delegate.ForEachWithOccurrences(f)
 }
 
 // Select returns a new immutable bag with elements satisfying the predicate.
-func (b *ImmutableFloat64HashBag) Select(predicate func(float64) bool) *ImmutableFloat64HashBag {
-	return &ImmutableFloat64HashBag{delegate: b.delegate.Select(predicate)}
+func (b *ImmutableHashFloat64) Select(predicate func(float64) bool) *ImmutableHashFloat64 {
+	return &ImmutableHashFloat64{delegate: b.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable bag with elements not satisfying the predicate.
-func (b *ImmutableFloat64HashBag) Reject(predicate func(float64) bool) *ImmutableFloat64HashBag {
-	return &ImmutableFloat64HashBag{delegate: b.delegate.Reject(predicate)}
+func (b *ImmutableHashFloat64) Reject(predicate func(float64) bool) *ImmutableHashFloat64 {
+	return &ImmutableHashFloat64{delegate: b.delegate.Reject(predicate)}
 }
 
 // Detect returns the first distinct element satisfying the predicate, or zero and false.
-func (b *ImmutableFloat64HashBag) Detect(predicate func(float64) bool) (float64, bool) {
+func (b *ImmutableHashFloat64) Detect(predicate func(float64) bool) (float64, bool) {
 	return b.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *ImmutableFloat64HashBag) AnySatisfy(predicate func(float64) bool) bool {
+func (b *ImmutableHashFloat64) AnySatisfy(predicate func(float64) bool) bool {
 	return b.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (b *ImmutableFloat64HashBag) AllSatisfy(predicate func(float64) bool) bool {
+func (b *ImmutableHashFloat64) AllSatisfy(predicate func(float64) bool) bool {
 	return b.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *ImmutableFloat64HashBag) NoneSatisfy(predicate func(float64) bool) bool {
+func (b *ImmutableHashFloat64) NoneSatisfy(predicate func(float64) bool) bool {
 	return b.delegate.NoneSatisfy(predicate)
 }
 
 // TopOccurrences returns the n elements with the highest counts.
-func (b *ImmutableFloat64HashBag) TopOccurrences(n int) []struct {
+func (b *ImmutableHashFloat64) TopOccurrences(n int) []struct {
 	Value float64
 	Count int
 } {
@@ -118,23 +112,23 @@ func (b *ImmutableFloat64HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (repeated per count).
-func (b *ImmutableFloat64HashBag) ToSlice() []float64 {
+func (b *ImmutableHashFloat64) ToSlice() []float64 {
 	return b.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (b *ImmutableFloat64HashBag) String() string {
+func (b *ImmutableHashFloat64) String() string {
 	return b.delegate.String()
 }
 
 // Equals returns true if the other immutable bag has the same elements and counts.
-func (b *ImmutableFloat64HashBag) Equals(other *ImmutableFloat64HashBag) bool {
+func (b *ImmutableHashFloat64) Equals(other *ImmutableHashFloat64) bool {
 	return b.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this bag.
-func (b *ImmutableFloat64HashBag) ToMutable() *Float64HashBag {
-	copy := NewFloat64HashBag()
+func (b *ImmutableHashFloat64) ToMutable() *HashFloat64 {
+	copy := NewHashFloat64()
 	b.ForEachWithOccurrences(func(v float64, count int) {
 		copy.AddOccurrences(v, count)
 	})

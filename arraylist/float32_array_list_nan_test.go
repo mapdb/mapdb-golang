@@ -15,11 +15,11 @@ var (
 
 func bitsF32(v float32) uint32 { return math.Float32bits(v) }
 
-// TestFloat32ArrayList_SortTotalOrder verifies Sort uses the IEEE total order:
+// TestFloat32_SortTotalOrder verifies Sort uses the IEEE total order:
 // -Inf < negatives < -0 < +0 < positives < +Inf < (positive) NaN, and that the
 // two zeroes are kept distinct rather than collapsed.
-func TestFloat32ArrayList_SortTotalOrder(t *testing.T) {
-	l := NewFloat32ArrayList()
+func TestFloat32_SortTotalOrder(t *testing.T) {
+	l := NewFloat32()
 	// Deliberately scrambled, including both zeroes and a NaN.
 	l.AddAll(2.0, nanF32, -1.0, float32(math.Inf(1)), float32(math.Inf(-1)), posZeroF32, negZeroF32)
 	l.Sort()
@@ -49,10 +49,10 @@ func TestFloat32ArrayList_SortTotalOrder(t *testing.T) {
 	}
 }
 
-// TestFloat32ArrayList_MinMaxWithNaN verifies that with total ordering NaN is
+// TestFloat32_MinMaxWithNaN verifies that with total ordering NaN is
 // the maximum (sorts above +Inf) and is never selected as the minimum.
-func TestFloat32ArrayList_MinMaxWithNaN(t *testing.T) {
-	l := NewFloat32ArrayList()
+func TestFloat32_MinMaxWithNaN(t *testing.T) {
+	l := NewFloat32()
 	l.AddAll(3.0, nanF32, 1.0, 2.0)
 
 	mn, ok := l.Min()
@@ -72,7 +72,7 @@ func TestFloat32ArrayList_MinMaxWithNaN(t *testing.T) {
 	}
 
 	// Empty list: no min/max.
-	empty := NewFloat32ArrayList()
+	empty := NewFloat32()
 	if _, ok := empty.Min(); ok {
 		t.Fatal("Min on empty: expected !ok")
 	}
@@ -81,10 +81,10 @@ func TestFloat32ArrayList_MinMaxWithNaN(t *testing.T) {
 	}
 }
 
-// TestFloat32ArrayList_DistinctNaNAndZeros verifies Distinct dedupes NaN against
+// TestFloat32_DistinctNaNAndZeros verifies Distinct dedupes NaN against
 // itself (bit-keyed) and keeps -0 and +0 as separate values.
-func TestFloat32ArrayList_DistinctNaNAndZeros(t *testing.T) {
-	l := NewFloat32ArrayList()
+func TestFloat32_DistinctNaNAndZeros(t *testing.T) {
+	l := NewFloat32()
 	l.AddAll(1.0, nanF32, 1.0, nanF32, posZeroF32, negZeroF32, posZeroF32)
 	got := l.Distinct().ToSlice()
 
@@ -101,13 +101,13 @@ func TestFloat32ArrayList_DistinctNaNAndZeros(t *testing.T) {
 	}
 }
 
-// TestFloat32ArrayList_WithoutAllNaNAndZeros verifies WithoutAll removes NaN
+// TestFloat32_WithoutAllNaNAndZeros verifies WithoutAll removes NaN
 // entries (bit-keyed) and removes only the matching zero sign.
-func TestFloat32ArrayList_WithoutAllNaNAndZeros(t *testing.T) {
+func TestFloat32_WithoutAllNaNAndZeros(t *testing.T) {
 	// Removing NaN must actually drop every NaN.
-	l := NewFloat32ArrayList()
+	l := NewFloat32()
 	l.AddAll(1.0, nanF32, 2.0, nanF32)
-	l.WithoutAll(nanF32)
+	l.RemoveAllReturning(nanF32)
 	got := l.ToSlice()
 	want := []float32{1.0, 2.0}
 	if len(got) != len(want) {
@@ -120,9 +120,9 @@ func TestFloat32ArrayList_WithoutAllNaNAndZeros(t *testing.T) {
 	}
 
 	// Removing -0 must leave +0 intact (distinct bit patterns).
-	l2 := NewFloat32ArrayList()
+	l2 := NewFloat32()
 	l2.AddAll(posZeroF32, negZeroF32, 5.0)
-	l2.WithoutAll(negZeroF32)
+	l2.RemoveAllReturning(negZeroF32)
 	got2 := l2.ToSlice()
 	want2 := []float32{posZeroF32, 5.0}
 	if len(got2) != len(want2) {

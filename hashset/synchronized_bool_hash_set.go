@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedBoolHashSet is a thread-safe wrapper around BoolHashSet.
+// SynchronizedBool is a thread-safe wrapper around Bool.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take a
 // caller-supplied function (Select, ForEach, AnySatisfy, …) snapshot
@@ -17,36 +17,36 @@ import (
 // without deadlocking.
 //
 // Methods that return a new set (Select, Reject, Union, Intersect,
-// Difference, SymmetricDifference) return an unwrapped *BoolHashSet;
+// Difference, SymmetricDifference) return an unwrapped *Bool;
 // the caller owns it.
-type SynchronizedBoolHashSet struct {
-	delegate *BoolHashSet
+type SynchronizedBool struct {
+	delegate *Bool
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedBoolHashSet creates a new thread-safe empty set.
-func NewSynchronizedBoolHashSet() *SynchronizedBoolHashSet {
-	return &SynchronizedBoolHashSet{delegate: NewBoolHashSet()}
+// NewSynchronizedBool creates a new thread-safe empty set.
+func NewSynchronizedBool() *SynchronizedBool {
+	return &SynchronizedBool{delegate: NewBool()}
 }
 
-// NewSynchronizedBoolHashSetFrom wraps an existing set. The
+// NewSynchronizedBoolFrom wraps an existing set. The
 // wrapper takes ownership — callers must not mutate the delegate
 // directly without locking.
-func NewSynchronizedBoolHashSetFrom(s *BoolHashSet) *SynchronizedBoolHashSet {
-	return &SynchronizedBoolHashSet{delegate: s}
+func NewSynchronizedBoolFrom(s *Bool) *SynchronizedBool {
+	return &SynchronizedBool{delegate: s}
 }
 
-// SynchronizedBoolHashSetOf constructs a synchronized set from values.
-func SynchronizedBoolHashSetOf(values ...bool) *SynchronizedBoolHashSet {
-	s := NewBoolHashSet()
+// SynchronizedBoolOf constructs a synchronized set from values.
+func SynchronizedBoolOf(values ...bool) *SynchronizedBool {
+	s := NewBool()
 	for _, v := range values {
 		s.Add(v)
 	}
-	return &SynchronizedBoolHashSet{delegate: s}
+	return &SynchronizedBool{delegate: s}
 }
 
 // snapshot returns a defensive copy of the set's elements under RLock.
-func (s *SynchronizedBoolHashSet) snapshot() []bool {
+func (s *SynchronizedBool) snapshot() []bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -54,25 +54,25 @@ func (s *SynchronizedBoolHashSet) snapshot() []bool {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedBoolHashSet) Add(value bool) bool {
+func (s *SynchronizedBool) Add(value bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Add(value)
 }
 
-func (s *SynchronizedBoolHashSet) AddAll(values ...bool) {
+func (s *SynchronizedBool) AddAll(values ...bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.AddAll(values...)
 }
 
-func (s *SynchronizedBoolHashSet) Remove(value bool) bool {
+func (s *SynchronizedBool) Remove(value bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Remove(value)
 }
 
-func (s *SynchronizedBoolHashSet) Clear() {
+func (s *SynchronizedBool) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -80,35 +80,26 @@ func (s *SynchronizedBoolHashSet) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedBoolHashSet) Contains(value bool) bool {
+func (s *SynchronizedBool) Contains(value bool) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedBoolHashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedBool) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedBoolHashSet) Len() int { return s.Size() }
-
-func (s *SynchronizedBoolHashSet) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedBoolHashSet) ToSlice() []bool {
+func (s *SynchronizedBool) ToSlice() []bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedBoolHashSet) String() string {
+func (s *SynchronizedBool) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -117,7 +108,7 @@ func (s *SynchronizedBoolHashSet) String() string {
 // ── iteration ────────────────────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (s *SynchronizedBoolHashSet) All() iter.Seq[bool] {
+func (s *SynchronizedBool) All() iter.Seq[bool] {
 	snapshot := s.snapshot()
 	return func(yield func(bool) bool) {
 		for _, v := range snapshot {
@@ -130,13 +121,13 @@ func (s *SynchronizedBoolHashSet) All() iter.Seq[bool] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedBoolHashSet) ForEach(f func(bool)) {
+func (s *SynchronizedBool) ForEach(f func(bool)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedBoolHashSet) AnySatisfy(predicate func(bool) bool) bool {
+func (s *SynchronizedBool) AnySatisfy(predicate func(bool) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -145,7 +136,7 @@ func (s *SynchronizedBoolHashSet) AnySatisfy(predicate func(bool) bool) bool {
 	return false
 }
 
-func (s *SynchronizedBoolHashSet) AllSatisfy(predicate func(bool) bool) bool {
+func (s *SynchronizedBool) AllSatisfy(predicate func(bool) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -154,7 +145,7 @@ func (s *SynchronizedBoolHashSet) AllSatisfy(predicate func(bool) bool) bool {
 	return true
 }
 
-func (s *SynchronizedBoolHashSet) NoneSatisfy(predicate func(bool) bool) bool {
+func (s *SynchronizedBool) NoneSatisfy(predicate func(bool) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -163,7 +154,7 @@ func (s *SynchronizedBoolHashSet) NoneSatisfy(predicate func(bool) bool) bool {
 	return true
 }
 
-func (s *SynchronizedBoolHashSet) Detect(predicate func(bool) bool) (bool, bool) {
+func (s *SynchronizedBool) Detect(predicate func(bool) bool) (bool, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -175,9 +166,9 @@ func (s *SynchronizedBoolHashSet) Detect(predicate func(bool) bool) (bool, bool)
 
 // ── functional that return a new set ─────────────────────────────────
 
-func (s *SynchronizedBoolHashSet) Select(predicate func(bool) bool) *BoolHashSet {
+func (s *SynchronizedBool) Select(predicate func(bool) bool) *Bool {
 	snapshot := s.snapshot()
-	result := NewBoolHashSet()
+	result := NewBool()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -186,9 +177,9 @@ func (s *SynchronizedBoolHashSet) Select(predicate func(bool) bool) *BoolHashSet
 	return result
 }
 
-func (s *SynchronizedBoolHashSet) Reject(predicate func(bool) bool) *BoolHashSet {
+func (s *SynchronizedBool) Reject(predicate func(bool) bool) *Bool {
 	snapshot := s.snapshot()
-	result := NewBoolHashSet()
+	result := NewBool()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -201,7 +192,7 @@ func (s *SynchronizedBoolHashSet) Reject(predicate func(bool) bool) *BoolHashSet
 
 // lockPair acquires two RLocks in pointer-address order and returns
 // a release function. Guarantees no A.op(B) ⟷ B.op(A) deadlock.
-func (s *SynchronizedBoolHashSet) lockPair(other *SynchronizedBoolHashSet) func() {
+func (s *SynchronizedBool) lockPair(other *SynchronizedBool) func() {
 	if s == other {
 		s.mu.RLock()
 		return func() { s.mu.RUnlock() }
@@ -215,25 +206,25 @@ func (s *SynchronizedBoolHashSet) lockPair(other *SynchronizedBoolHashSet) func(
 	return func() { second.mu.RUnlock(); first.mu.RUnlock() }
 }
 
-func (s *SynchronizedBoolHashSet) Union(other *SynchronizedBoolHashSet) *BoolHashSet {
+func (s *SynchronizedBool) Union(other *SynchronizedBool) *Bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Union(other.delegate)
 }
 
-func (s *SynchronizedBoolHashSet) Intersect(other *SynchronizedBoolHashSet) *BoolHashSet {
+func (s *SynchronizedBool) Intersect(other *SynchronizedBool) *Bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Intersect(other.delegate)
 }
 
-func (s *SynchronizedBoolHashSet) Difference(other *SynchronizedBoolHashSet) *BoolHashSet {
+func (s *SynchronizedBool) Difference(other *SynchronizedBool) *Bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Difference(other.delegate)
 }
 
-func (s *SynchronizedBoolHashSet) SymmetricDifference(other *SynchronizedBoolHashSet) *BoolHashSet {
+func (s *SynchronizedBool) SymmetricDifference(other *SynchronizedBool) *Bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.SymmetricDifference(other.delegate)
@@ -241,37 +232,41 @@ func (s *SynchronizedBoolHashSet) SymmetricDifference(other *SynchronizedBoolHas
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedBoolHashSet) With(value bool) *SynchronizedBoolHashSet {
+// AddReturning adds the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedBool) AddReturning(value bool) *SynchronizedBool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedBoolHashSet) WithAll(values ...bool) *SynchronizedBoolHashSet {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (s *SynchronizedBool) AddAllReturning(values ...bool) *SynchronizedBool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
-func (s *SynchronizedBoolHashSet) Without(value bool) *SynchronizedBoolHashSet {
+// RemoveReturning removes the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedBool) RemoveReturning(value bool) *SynchronizedBool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.Without(value)
+	s.delegate.RemoveReturning(value)
 	return s
 }
 
-func (s *SynchronizedBoolHashSet) WithoutAll(values ...bool) *SynchronizedBoolHashSet {
+// RemoveAllReturning removes all given values and returns the receiver (mutating, fluent).
+func (s *SynchronizedBool) RemoveAllReturning(values ...bool) *SynchronizedBool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithoutAll(values...)
+	s.delegate.RemoveAllReturning(values...)
 	return s
 }
 
 // ── conversions ───────────────────────────────────────────────────────
 
-func (s *SynchronizedBoolHashSet) ToImmutable() *ImmutableBoolHashSet {
+func (s *SynchronizedBool) ToImmutable() *ImmutableBool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -279,7 +274,7 @@ func (s *SynchronizedBoolHashSet) ToImmutable() *ImmutableBoolHashSet {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent deadlocks under concurrent A.Equals(B) / B.Equals(A).
-func (s *SynchronizedBoolHashSet) Equals(other *SynchronizedBoolHashSet) bool {
+func (s *SynchronizedBool) Equals(other *SynchronizedBool) bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Equals(other.delegate)

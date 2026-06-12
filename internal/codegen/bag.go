@@ -138,31 +138,31 @@ type {{.SnakeName}}BagEntry struct {
 	count int
 }
 
-// {{.Name}}HashBag is a bag (multiset) that counts occurrences of {{.GoType}} values.
+// Hash{{.Name}} is a bag (multiset) that counts occurrences of {{.GoType}} values.
 // Backed by a map from value bit pattern to (value, count).
-type {{.Name}}HashBag struct {
+type Hash{{.Name}} struct {
 	counts map[{{.BitsType}}]{{.SnakeName}}BagEntry
 	size   int // total count including duplicates
 }
 {{else}}
-// {{.Name}}HashBag is a bag (multiset) that counts occurrences of {{.GoType}} values.
+// Hash{{.Name}} is a bag (multiset) that counts occurrences of {{.GoType}} values.
 // Backed by a map from value to count.
-type {{.Name}}HashBag struct {
+type Hash{{.Name}} struct {
 	counts map[{{.GoType}}]int
 	size   int // total count including duplicates
 }
 {{end}}
-// New{{.Name}}HashBag creates a new empty {{.Name}}HashBag.
-func New{{.Name}}HashBag() *{{.Name}}HashBag {
-	return &{{.Name}}HashBag{
+// NewHash{{.Name}} creates a new empty Hash{{.Name}}.
+func NewHash{{.Name}}() *Hash{{.Name}} {
+	return &Hash{{.Name}}{
 		counts: make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}}),
 		size:   0,
 	}
 }
 
-// {{.Name}}HashBagOf creates a new {{.Name}}HashBag from the given values.
-func {{.Name}}HashBagOf(values ...{{.GoType}}) *{{.Name}}HashBag {
-	b := New{{.Name}}HashBag()
+// Hash{{.Name}}Of creates a new Hash{{.Name}} from the given values.
+func Hash{{.Name}}Of(values ...{{.GoType}}) *Hash{{.Name}} {
+	b := NewHash{{.Name}}()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -170,7 +170,7 @@ func {{.Name}}HashBagOf(values ...{{.GoType}}) *{{.Name}}HashBag {
 }
 
 // Add adds one occurrence of the value.
-func (b *{{.Name}}HashBag) Add(value {{.GoType}}) {
+func (b *Hash{{.Name}}) Add(value {{.GoType}}) {
 	if b.counts == nil {
 		b.counts = make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}})
 	}
@@ -189,9 +189,9 @@ func (b *{{.Name}}HashBag) Add(value {{.GoType}}) {
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *{{.Name}}HashBag) AddOccurrences(value {{.GoType}}, occurrences int) int {
+func (b *Hash{{.Name}}) AddOccurrences(value {{.GoType}}, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("{{.Name}}HashBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("Hash{{.Name}}: cannot add negative occurrences: %d", occurrences))
 	}
 {{- if .IsFloat}}
 	k := {{.BitsFn}}(value)
@@ -221,7 +221,7 @@ func (b *{{.Name}}HashBag) AddOccurrences(value {{.GoType}}, occurrences int) in
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *{{.Name}}HashBag) Remove(value {{.GoType}}) bool {
+func (b *Hash{{.Name}}) Remove(value {{.GoType}}) bool {
 {{- if .IsFloat}}
 	k := {{.BitsFn}}(value)
 	e, ok := b.counts[k]
@@ -252,7 +252,7 @@ func (b *{{.Name}}HashBag) Remove(value {{.GoType}}) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *{{.Name}}HashBag) RemoveOccurrences(value {{.GoType}}, occurrences int) bool {
+func (b *Hash{{.Name}}) RemoveOccurrences(value {{.GoType}}, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -288,7 +288,7 @@ func (b *{{.Name}}HashBag) RemoveOccurrences(value {{.GoType}}, occurrences int)
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *{{.Name}}HashBag) RemoveAll(value {{.GoType}}) int {
+func (b *Hash{{.Name}}) RemoveAll(value {{.GoType}}) int {
 {{- if .IsFloat}}
 	k := {{.BitsFn}}(value)
 	e, ok := b.counts[k]
@@ -310,42 +310,37 @@ func (b *{{.Name}}HashBag) RemoveAll(value {{.GoType}}) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *{{.Name}}HashBag) OccurrencesOf(value {{.GoType}}) int {
+func (b *Hash{{.Name}}) OccurrencesOf(value {{.GoType}}) int {
 	return b.counts[{{if .IsFloat}}{{.BitsFn}}(value)].count{{else}}value]{{end}}
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *{{.Name}}HashBag) Contains(value {{.GoType}}) bool {
+func (b *Hash{{.Name}}) Contains(value {{.GoType}}) bool {
 	return b.counts[{{if .IsFloat}}{{.BitsFn}}(value)].count{{else}}value]{{end}} > 0
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *{{.Name}}HashBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *Hash{{.Name}}) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *{{.Name}}HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *{{.Name}}HashBag) SizeDistinct() int {
+func (b *Hash{{.Name}}) SizeDistinct() int {
 	return len(b.counts)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *{{.Name}}HashBag) IsEmpty() bool {
-	return b.size == 0
-}
 
 // Clear removes all elements from the bag.
-func (b *{{.Name}}HashBag) Clear() {
+func (b *Hash{{.Name}}) Clear() {
 	b.counts = make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}})
 	b.size = 0
 }
 
 // All returns an iter.Seq that yields each element once per occurrence.
-func (b *{{.Name}}HashBag) All() iter.Seq[{{.GoType}}] {
+func (b *Hash{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 {{- if .IsFloat}}
 		for _, e := range b.counts {
@@ -368,7 +363,7 @@ func (b *{{.Name}}HashBag) All() iter.Seq[{{.GoType}}] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once.
-func (b *{{.Name}}HashBag) AllDistinct() iter.Seq[{{.GoType}}] {
+func (b *Hash{{.Name}}) AllDistinct() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 {{- if .IsFloat}}
 		for _, e := range b.counts {
@@ -387,7 +382,7 @@ func (b *{{.Name}}HashBag) AllDistinct() iter.Seq[{{.GoType}}] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs.
-func (b *{{.Name}}HashBag) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
+func (b *Hash{{.Name}}) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
 	return func(yield func({{.GoType}}, int) bool) {
 {{- if .IsFloat}}
 		for _, e := range b.counts {
@@ -406,7 +401,7 @@ func (b *{{.Name}}HashBag) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence).
-func (b *{{.Name}}HashBag) ForEach(f func({{.GoType}})) {
+func (b *Hash{{.Name}}) ForEach(f func({{.GoType}})) {
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		for i := 0; i < e.count; i++ {
@@ -423,7 +418,7 @@ func (b *{{.Name}}HashBag) ForEach(f func({{.GoType}})) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count.
-func (b *{{.Name}}HashBag) ForEachWithOccurrences(f func({{.GoType}}, int)) {
+func (b *Hash{{.Name}}) ForEachWithOccurrences(f func({{.GoType}}, int)) {
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		f(e.value, e.count)
@@ -436,8 +431,8 @@ func (b *{{.Name}}HashBag) ForEachWithOccurrences(f func({{.GoType}}, int)) {
 }
 
 // Select returns a new bag containing only elements that satisfy the predicate.
-func (b *{{.Name}}HashBag) Select(predicate func({{.GoType}}) bool) *{{.Name}}HashBag {
-	result := New{{.Name}}HashBag()
+func (b *Hash{{.Name}}) Select(predicate func({{.GoType}}) bool) *Hash{{.Name}} {
+	result := NewHash{{.Name}}()
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		if predicate(e.value) {
@@ -455,8 +450,8 @@ func (b *{{.Name}}HashBag) Select(predicate func({{.GoType}}) bool) *{{.Name}}Ha
 }
 
 // Reject returns a new bag containing only elements that do not satisfy the predicate.
-func (b *{{.Name}}HashBag) Reject(predicate func({{.GoType}}) bool) *{{.Name}}HashBag {
-	result := New{{.Name}}HashBag()
+func (b *Hash{{.Name}}) Reject(predicate func({{.GoType}}) bool) *Hash{{.Name}} {
+	result := NewHash{{.Name}}()
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		if !predicate(e.value) {
@@ -474,7 +469,7 @@ func (b *{{.Name}}HashBag) Reject(predicate func({{.GoType}}) bool) *{{.Name}}Ha
 }
 
 // Detect returns the first distinct element that satisfies the predicate, or zero value and false.
-func (b *{{.Name}}HashBag) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (b *Hash{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		if predicate(e.value) {
@@ -492,7 +487,7 @@ func (b *{{.Name}}HashBag) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *{{.Name}}HashBag) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *Hash{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		if predicate(e.value) {
@@ -510,7 +505,7 @@ func (b *{{.Name}}HashBag) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *{{.Name}}HashBag) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *Hash{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		if !predicate(e.value) {
@@ -528,7 +523,7 @@ func (b *{{.Name}}HashBag) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *{{.Name}}HashBag) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *Hash{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 {{- if .IsFloat}}
 	for _, e := range b.counts {
 		if predicate(e.value) {
@@ -546,7 +541,7 @@ func (b *{{.Name}}HashBag) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *{{.Name}}HashBag) TopOccurrences(n int) []struct {
+func (b *Hash{{.Name}}) TopOccurrences(n int) []struct {
 	Value {{.GoType}}
 	Count int
 } {
@@ -589,7 +584,7 @@ func (b *{{.Name}}HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count).
-func (b *{{.Name}}HashBag) ToSlice() []{{.GoType}} {
+func (b *Hash{{.Name}}) ToSlice() []{{.GoType}} {
 	result := make([]{{.GoType}}, 0, b.size)
 {{- if .IsFloat}}
 	for _, e := range b.counts {
@@ -608,19 +603,19 @@ func (b *{{.Name}}HashBag) ToSlice() []{{.GoType}} {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *{{.Name}}HashBag) With(value {{.GoType}}) *{{.Name}}HashBag {
+func (b *Hash{{.Name}}) AddReturning(value {{.GoType}}) *Hash{{.Name}} {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *{{.Name}}HashBag) Without(value {{.GoType}}) *{{.Name}}HashBag {
+func (b *Hash{{.Name}}) RemoveReturning(value {{.GoType}}) *Hash{{.Name}} {
 	b.RemoveAll(value)
 	return b
 }
 
 // String returns a string representation of the bag.
-func (b *{{.Name}}HashBag) String() string {
+func (b *Hash{{.Name}}) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -649,7 +644,7 @@ func (b *{{.Name}}HashBag) String() string {
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *{{.Name}}HashBag) WithAll(values ...{{.GoType}}) *{{.Name}}HashBag {
+func (b *Hash{{.Name}}) AddAllReturning(values ...{{.GoType}}) *Hash{{.Name}} {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -657,7 +652,7 @@ func (b *{{.Name}}HashBag) WithAll(values ...{{.GoType}}) *{{.Name}}HashBag {
 }
 
 // WithoutAll removes all occurrences of the given values.
-func (b *{{.Name}}HashBag) WithoutAll(values ...{{.GoType}}) *{{.Name}}HashBag {
+func (b *Hash{{.Name}}) RemoveAllReturning(values ...{{.GoType}}) *Hash{{.Name}} {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -665,12 +660,12 @@ func (b *{{.Name}}HashBag) WithoutAll(values ...{{.GoType}}) *{{.Name}}HashBag {
 }
 
 // ToImmutable returns an immutable copy of this bag.
-func (b *{{.Name}}HashBag) ToImmutable() *Immutable{{.Name}}HashBag {
-	return Immutable{{.Name}}HashBagFrom(b)
+func (b *Hash{{.Name}}) ToImmutable() *ImmutableHash{{.Name}} {
+	return ImmutableHash{{.Name}}From(b)
 }
 
 // Equals returns true if the other bag has the same elements with the same counts.
-func (b *{{.Name}}HashBag) Equals(other *{{.Name}}HashBag) bool {
+func (b *Hash{{.Name}}) Equals(other *Hash{{.Name}}) bool {
 	if b.size != other.size || len(b.counts) != len(other.counts) {
 		return false
 	}
@@ -697,111 +692,106 @@ import (
 	"iter"
 )
 
-// Immutable{{.Name}}HashBag is an immutable view of a {{.Name}}HashBag.
-type Immutable{{.Name}}HashBag struct {
-	delegate *{{.Name}}HashBag
+// ImmutableHash{{.Name}} is an immutable view of a Hash{{.Name}}.
+type ImmutableHash{{.Name}} struct {
+	delegate *Hash{{.Name}}
 }
 
-// NewImmutable{{.Name}}HashBag creates an immutable bag from the given values.
-func NewImmutable{{.Name}}HashBag(values ...{{.GoType}}) *Immutable{{.Name}}HashBag {
-	return &Immutable{{.Name}}HashBag{delegate: {{.Name}}HashBagOf(values...)}
+// NewImmutableHash{{.Name}} creates an immutable bag from the given values.
+func NewImmutableHash{{.Name}}(values ...{{.GoType}}) *ImmutableHash{{.Name}} {
+	return &ImmutableHash{{.Name}}{delegate: Hash{{.Name}}Of(values...)}
 }
 
-// Immutable{{.Name}}HashBagFrom creates an immutable copy of a mutable bag.
-func Immutable{{.Name}}HashBagFrom(b *{{.Name}}HashBag) *Immutable{{.Name}}HashBag {
-	copy := New{{.Name}}HashBag()
+// ImmutableHash{{.Name}}From creates an immutable copy of a mutable bag.
+func ImmutableHash{{.Name}}From(b *Hash{{.Name}}) *ImmutableHash{{.Name}} {
+	copy := NewHash{{.Name}}()
 	b.ForEachWithOccurrences(func(v {{.GoType}}, count int) {
 		copy.AddOccurrences(v, count)
 	})
-	return &Immutable{{.Name}}HashBag{delegate: copy}
+	return &ImmutableHash{{.Name}}{delegate: copy}
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *Immutable{{.Name}}HashBag) OccurrencesOf(value {{.GoType}}) int {
+func (b *ImmutableHash{{.Name}}) OccurrencesOf(value {{.GoType}}) int {
 	return b.delegate.OccurrencesOf(value)
 }
 
 // Contains returns true if the bag contains at least one occurrence.
-func (b *Immutable{{.Name}}HashBag) Contains(value {{.GoType}}) bool {
+func (b *ImmutableHash{{.Name}}) Contains(value {{.GoType}}) bool {
 	return b.delegate.Contains(value)
 }
 
 // Size returns the total count including duplicates.
-func (b *Immutable{{.Name}}HashBag) Size() int {
-	return b.delegate.Size()
+func (b *ImmutableHash{{.Name}}) Len() int {
+	return b.delegate.Len()
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Immutable{{.Name}}HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *Immutable{{.Name}}HashBag) SizeDistinct() int {
+func (b *ImmutableHash{{.Name}}) SizeDistinct() int {
 	return b.delegate.SizeDistinct()
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *Immutable{{.Name}}HashBag) IsEmpty() bool {
-	return b.delegate.IsEmpty()
-}
 
 // All returns an iter.Seq yielding each element once per occurrence.
-func (b *Immutable{{.Name}}HashBag) All() iter.Seq[{{.GoType}}] {
+func (b *ImmutableHash{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return b.delegate.All()
 }
 
 // AllDistinct returns an iter.Seq yielding each distinct element once.
-func (b *Immutable{{.Name}}HashBag) AllDistinct() iter.Seq[{{.GoType}}] {
+func (b *ImmutableHash{{.Name}}) AllDistinct() iter.Seq[{{.GoType}}] {
 	return b.delegate.AllDistinct()
 }
 
 // AllWithOccurrences returns an iter.Seq2 yielding (value, count) pairs.
-func (b *Immutable{{.Name}}HashBag) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
+func (b *ImmutableHash{{.Name}}) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
 	return b.delegate.AllWithOccurrences()
 }
 
 // ForEach calls the function for each element (once per occurrence).
-func (b *Immutable{{.Name}}HashBag) ForEach(f func({{.GoType}})) {
+func (b *ImmutableHash{{.Name}}) ForEach(f func({{.GoType}})) {
 	b.delegate.ForEach(f)
 }
 
 // ForEachWithOccurrences calls the function with each distinct element and its count.
-func (b *Immutable{{.Name}}HashBag) ForEachWithOccurrences(f func({{.GoType}}, int)) {
+func (b *ImmutableHash{{.Name}}) ForEachWithOccurrences(f func({{.GoType}}, int)) {
 	b.delegate.ForEachWithOccurrences(f)
 }
 
 // Select returns a new immutable bag with elements satisfying the predicate.
-func (b *Immutable{{.Name}}HashBag) Select(predicate func({{.GoType}}) bool) *Immutable{{.Name}}HashBag {
-	return &Immutable{{.Name}}HashBag{delegate: b.delegate.Select(predicate)}
+func (b *ImmutableHash{{.Name}}) Select(predicate func({{.GoType}}) bool) *ImmutableHash{{.Name}} {
+	return &ImmutableHash{{.Name}}{delegate: b.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable bag with elements not satisfying the predicate.
-func (b *Immutable{{.Name}}HashBag) Reject(predicate func({{.GoType}}) bool) *Immutable{{.Name}}HashBag {
-	return &Immutable{{.Name}}HashBag{delegate: b.delegate.Reject(predicate)}
+func (b *ImmutableHash{{.Name}}) Reject(predicate func({{.GoType}}) bool) *ImmutableHash{{.Name}} {
+	return &ImmutableHash{{.Name}}{delegate: b.delegate.Reject(predicate)}
 }
 
 // Detect returns the first distinct element satisfying the predicate, or zero and false.
-func (b *Immutable{{.Name}}HashBag) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (b *ImmutableHash{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	return b.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *Immutable{{.Name}}HashBag) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *ImmutableHash{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	return b.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (b *Immutable{{.Name}}HashBag) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *ImmutableHash{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	return b.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *Immutable{{.Name}}HashBag) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *ImmutableHash{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	return b.delegate.NoneSatisfy(predicate)
 }
 
 // TopOccurrences returns the n elements with the highest counts.
-func (b *Immutable{{.Name}}HashBag) TopOccurrences(n int) []struct {
+func (b *ImmutableHash{{.Name}}) TopOccurrences(n int) []struct {
 	Value {{.GoType}}
 	Count int
 } {
@@ -809,23 +799,23 @@ func (b *Immutable{{.Name}}HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (repeated per count).
-func (b *Immutable{{.Name}}HashBag) ToSlice() []{{.GoType}} {
+func (b *ImmutableHash{{.Name}}) ToSlice() []{{.GoType}} {
 	return b.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (b *Immutable{{.Name}}HashBag) String() string {
+func (b *ImmutableHash{{.Name}}) String() string {
 	return b.delegate.String()
 }
 
 // Equals returns true if the other immutable bag has the same elements and counts.
-func (b *Immutable{{.Name}}HashBag) Equals(other *Immutable{{.Name}}HashBag) bool {
+func (b *ImmutableHash{{.Name}}) Equals(other *ImmutableHash{{.Name}}) bool {
 	return b.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this bag.
-func (b *Immutable{{.Name}}HashBag) ToMutable() *{{.Name}}HashBag {
-	copy := New{{.Name}}HashBag()
+func (b *ImmutableHash{{.Name}}) ToMutable() *Hash{{.Name}} {
+	copy := NewHash{{.Name}}()
 	b.ForEachWithOccurrences(func(v {{.GoType}}, count int) {
 		copy.AddOccurrences(v, count)
 	})
@@ -841,31 +831,31 @@ import (
 	"unsafe"
 )
 
-// Synchronized{{.Name}}HashBag is a thread-safe wrapper around {{.Name}}HashBag.
+// SynchronizedHash{{.Name}} is a thread-safe wrapper around Hash{{.Name}}.
 //
 // Read methods hold an RLock; writes hold a Lock. Functional methods
 // (ForEach/Select/Reject/AnySatisfy/…) snapshot (value, count) pairs
 // under RLock, release, and run the callback against the snapshot so
 // the callback may safely re-enter the wrapper.
-type Synchronized{{.Name}}HashBag struct {
-	delegate *{{.Name}}HashBag
+type SynchronizedHash{{.Name}} struct {
+	delegate *Hash{{.Name}}
 	mu       sync.RWMutex
 }
 
-// NewSynchronized{{.Name}}HashBag creates a new thread-safe empty bag.
-func NewSynchronized{{.Name}}HashBag() *Synchronized{{.Name}}HashBag {
-	return &Synchronized{{.Name}}HashBag{delegate: New{{.Name}}HashBag()}
+// NewSynchronizedHash{{.Name}} creates a new thread-safe empty bag.
+func NewSynchronizedHash{{.Name}}() *SynchronizedHash{{.Name}} {
+	return &SynchronizedHash{{.Name}}{delegate: NewHash{{.Name}}()}
 }
 
-// NewSynchronized{{.Name}}HashBagFrom wraps an existing bag. The
+// NewSynchronizedHash{{.Name}}From wraps an existing bag. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronized{{.Name}}HashBagFrom(b *{{.Name}}HashBag) *Synchronized{{.Name}}HashBag {
-	return &Synchronized{{.Name}}HashBag{delegate: b}
+func NewSynchronizedHash{{.Name}}From(b *Hash{{.Name}}) *SynchronizedHash{{.Name}} {
+	return &SynchronizedHash{{.Name}}{delegate: b}
 }
 
 // snapshotDistinct returns (values, counts) for every distinct element,
 // held only briefly under RLock.
-func (b *Synchronized{{.Name}}HashBag) snapshotDistinct() (values []{{.GoType}}, counts []int) {
+func (b *SynchronizedHash{{.Name}}) snapshotDistinct() (values []{{.GoType}}, counts []int) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	for v, c := range b.delegate.AllWithOccurrences() {
@@ -877,37 +867,37 @@ func (b *Synchronized{{.Name}}HashBag) snapshotDistinct() (values []{{.GoType}},
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (b *Synchronized{{.Name}}HashBag) Add(value {{.GoType}}) {
+func (b *SynchronizedHash{{.Name}}) Add(value {{.GoType}}) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.delegate.Add(value)
 }
 
-func (b *Synchronized{{.Name}}HashBag) AddOccurrences(value {{.GoType}}, occurrences int) int {
+func (b *SynchronizedHash{{.Name}}) AddOccurrences(value {{.GoType}}, occurrences int) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.AddOccurrences(value, occurrences)
 }
 
-func (b *Synchronized{{.Name}}HashBag) Remove(value {{.GoType}}) bool {
+func (b *SynchronizedHash{{.Name}}) Remove(value {{.GoType}}) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.Remove(value)
 }
 
-func (b *Synchronized{{.Name}}HashBag) RemoveOccurrences(value {{.GoType}}, occurrences int) bool {
+func (b *SynchronizedHash{{.Name}}) RemoveOccurrences(value {{.GoType}}, occurrences int) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.RemoveOccurrences(value, occurrences)
 }
 
-func (b *Synchronized{{.Name}}HashBag) RemoveAll(value {{.GoType}}) int {
+func (b *SynchronizedHash{{.Name}}) RemoveAll(value {{.GoType}}) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.delegate.RemoveAll(value)
 }
 
-func (b *Synchronized{{.Name}}HashBag) Clear() {
+func (b *SynchronizedHash{{.Name}}) Clear() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.delegate.Clear()
@@ -915,47 +905,41 @@ func (b *Synchronized{{.Name}}HashBag) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (b *Synchronized{{.Name}}HashBag) OccurrencesOf(value {{.GoType}}) int {
+func (b *SynchronizedHash{{.Name}}) OccurrencesOf(value {{.GoType}}) int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.OccurrencesOf(value)
 }
 
-func (b *Synchronized{{.Name}}HashBag) Contains(value {{.GoType}}) bool {
+func (b *SynchronizedHash{{.Name}}) Contains(value {{.GoType}}) bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.Contains(value)
 }
 
-func (b *Synchronized{{.Name}}HashBag) Size() int {
+func (b *SynchronizedHash{{.Name}}) Len() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.delegate.Size()
+	return b.delegate.Len()
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Synchronized{{.Name}}HashBag) Len() int { return b.Size() }
 
-func (b *Synchronized{{.Name}}HashBag) SizeDistinct() int {
+func (b *SynchronizedHash{{.Name}}) SizeDistinct() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.SizeDistinct()
 }
 
-func (b *Synchronized{{.Name}}HashBag) IsEmpty() bool {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return b.delegate.IsEmpty()
-}
 
-func (b *Synchronized{{.Name}}HashBag) ToSlice() []{{.GoType}} {
+func (b *SynchronizedHash{{.Name}}) ToSlice() []{{.GoType}} {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.ToSlice()
 }
 
-func (b *Synchronized{{.Name}}HashBag) String() string {
+func (b *SynchronizedHash{{.Name}}) String() string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.String()
@@ -964,7 +948,7 @@ func (b *Synchronized{{.Name}}HashBag) String() string {
 // ── iteration (snapshot-based) ────────────────────────────────────────
 
 // All yields every occurrence (multiplicity preserved).
-func (b *Synchronized{{.Name}}HashBag) All() iter.Seq[{{.GoType}}] {
+func (b *SynchronizedHash{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	values, counts := b.snapshotDistinct()
 	return func(yield func({{.GoType}}) bool) {
 		for i, v := range values {
@@ -978,7 +962,7 @@ func (b *Synchronized{{.Name}}HashBag) All() iter.Seq[{{.GoType}}] {
 }
 
 // AllDistinct yields each distinct value exactly once.
-func (b *Synchronized{{.Name}}HashBag) AllDistinct() iter.Seq[{{.GoType}}] {
+func (b *SynchronizedHash{{.Name}}) AllDistinct() iter.Seq[{{.GoType}}] {
 	values, _ := b.snapshotDistinct()
 	return func(yield func({{.GoType}}) bool) {
 		for _, v := range values {
@@ -990,7 +974,7 @@ func (b *Synchronized{{.Name}}HashBag) AllDistinct() iter.Seq[{{.GoType}}] {
 }
 
 // AllWithOccurrences yields (value, count) pairs for each distinct value.
-func (b *Synchronized{{.Name}}HashBag) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
+func (b *SynchronizedHash{{.Name}}) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
 	values, counts := b.snapshotDistinct()
 	return func(yield func({{.GoType}}, int) bool) {
 		for i, v := range values {
@@ -1003,7 +987,7 @@ func (b *Synchronized{{.Name}}HashBag) AllWithOccurrences() iter.Seq2[{{.GoType}
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (b *Synchronized{{.Name}}HashBag) ForEach(f func({{.GoType}})) {
+func (b *SynchronizedHash{{.Name}}) ForEach(f func({{.GoType}})) {
 	values, counts := b.snapshotDistinct()
 	for i, v := range values {
 		for j := 0; j < counts[i]; j++ {
@@ -1012,14 +996,14 @@ func (b *Synchronized{{.Name}}HashBag) ForEach(f func({{.GoType}})) {
 	}
 }
 
-func (b *Synchronized{{.Name}}HashBag) ForEachWithOccurrences(f func({{.GoType}}, int)) {
+func (b *SynchronizedHash{{.Name}}) ForEachWithOccurrences(f func({{.GoType}}, int)) {
 	values, counts := b.snapshotDistinct()
 	for i, v := range values {
 		f(v, counts[i])
 	}
 }
 
-func (b *Synchronized{{.Name}}HashBag) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *SynchronizedHash{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if predicate(v) {
@@ -1029,7 +1013,7 @@ func (b *Synchronized{{.Name}}HashBag) AnySatisfy(predicate func({{.GoType}}) bo
 	return false
 }
 
-func (b *Synchronized{{.Name}}HashBag) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *SynchronizedHash{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if !predicate(v) {
@@ -1039,7 +1023,7 @@ func (b *Synchronized{{.Name}}HashBag) AllSatisfy(predicate func({{.GoType}}) bo
 	return true
 }
 
-func (b *Synchronized{{.Name}}HashBag) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *SynchronizedHash{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if predicate(v) {
@@ -1049,7 +1033,7 @@ func (b *Synchronized{{.Name}}HashBag) NoneSatisfy(predicate func({{.GoType}}) b
 	return true
 }
 
-func (b *Synchronized{{.Name}}HashBag) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (b *SynchronizedHash{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	values, _ := b.snapshotDistinct()
 	for _, v := range values {
 		if predicate(v) {
@@ -1062,9 +1046,9 @@ func (b *Synchronized{{.Name}}HashBag) Detect(predicate func({{.GoType}}) bool) 
 
 // ── functional that return new bags ──────────────────────────────────
 
-func (b *Synchronized{{.Name}}HashBag) Select(predicate func({{.GoType}}) bool) *{{.Name}}HashBag {
+func (b *SynchronizedHash{{.Name}}) Select(predicate func({{.GoType}}) bool) *Hash{{.Name}} {
 	values, counts := b.snapshotDistinct()
-	result := New{{.Name}}HashBag()
+	result := NewHash{{.Name}}()
 	for i, v := range values {
 		if predicate(v) {
 			result.AddOccurrences(v, counts[i])
@@ -1073,9 +1057,9 @@ func (b *Synchronized{{.Name}}HashBag) Select(predicate func({{.GoType}}) bool) 
 	return result
 }
 
-func (b *Synchronized{{.Name}}HashBag) Reject(predicate func({{.GoType}}) bool) *{{.Name}}HashBag {
+func (b *SynchronizedHash{{.Name}}) Reject(predicate func({{.GoType}}) bool) *Hash{{.Name}} {
 	values, counts := b.snapshotDistinct()
-	result := New{{.Name}}HashBag()
+	result := NewHash{{.Name}}()
 	for i, v := range values {
 		if !predicate(v) {
 			result.AddOccurrences(v, counts[i])
@@ -1086,7 +1070,7 @@ func (b *Synchronized{{.Name}}HashBag) Reject(predicate func({{.GoType}}) bool) 
 
 // TopOccurrences returns the n most frequent elements. Returns the
 // exact same shape as the underlying bag.
-func (b *Synchronized{{.Name}}HashBag) TopOccurrences(n int) []struct {
+func (b *SynchronizedHash{{.Name}}) TopOccurrences(n int) []struct {
 	Value {{.GoType}}
 	Count int
 } {
@@ -1097,37 +1081,37 @@ func (b *Synchronized{{.Name}}HashBag) TopOccurrences(n int) []struct {
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (b *Synchronized{{.Name}}HashBag) With(value {{.GoType}}) *Synchronized{{.Name}}HashBag {
+func (b *SynchronizedHash{{.Name}}) AddReturning(value {{.GoType}}) *SynchronizedHash{{.Name}} {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.With(value)
+	b.delegate.AddReturning(value)
 	return b
 }
 
-func (b *Synchronized{{.Name}}HashBag) WithAll(values ...{{.GoType}}) *Synchronized{{.Name}}HashBag {
+func (b *SynchronizedHash{{.Name}}) AddAllReturning(values ...{{.GoType}}) *SynchronizedHash{{.Name}} {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.WithAll(values...)
+	b.delegate.AddAllReturning(values...)
 	return b
 }
 
-func (b *Synchronized{{.Name}}HashBag) Without(value {{.GoType}}) *Synchronized{{.Name}}HashBag {
+func (b *SynchronizedHash{{.Name}}) RemoveReturning(value {{.GoType}}) *SynchronizedHash{{.Name}} {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.Without(value)
+	b.delegate.RemoveReturning(value)
 	return b
 }
 
-func (b *Synchronized{{.Name}}HashBag) WithoutAll(values ...{{.GoType}}) *Synchronized{{.Name}}HashBag {
+func (b *SynchronizedHash{{.Name}}) RemoveAllReturning(values ...{{.GoType}}) *SynchronizedHash{{.Name}} {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.WithoutAll(values...)
+	b.delegate.RemoveAllReturning(values...)
 	return b
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (b *Synchronized{{.Name}}HashBag) ToImmutable() *Immutable{{.Name}}HashBag {
+func (b *SynchronizedHash{{.Name}}) ToImmutable() *ImmutableHash{{.Name}} {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.ToImmutable()
@@ -1135,7 +1119,7 @@ func (b *Synchronized{{.Name}}HashBag) ToImmutable() *Immutable{{.Name}}HashBag 
 
 // Equals compares by contents. Locks acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (b *Synchronized{{.Name}}HashBag) Equals(other *Synchronized{{.Name}}HashBag) bool {
+func (b *SynchronizedHash{{.Name}}) Equals(other *SynchronizedHash{{.Name}}) bool {
 	if b == other {
 		b.mu.RLock()
 		defer b.mu.RUnlock()
@@ -1156,39 +1140,40 @@ func (b *Synchronized{{.Name}}HashBag) Equals(other *Synchronized{{.Name}}HashBa
 const treeBagTmpl = genHeader + `package bag
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
 {{- if .IsFloat}}
 	"math"
 {{- end}}
-	"sort"
+	"slices"
 	"strings"
 )
 
-// {{.Name}}TreeBagEntry holds a value and its occurrence count in a {{.Name}}TreeBag.
-type {{.Name}}TreeBagEntry struct {
+// Tree{{.Name}}Entry holds a value and its occurrence count in a Tree{{.Name}}.
+type Tree{{.Name}}Entry struct {
 	value {{.GoType}}
 	count int
 }
 
-// {{.Name}}TreeBag is a sorted bag (multiset) that counts occurrences of {{.GoType}} values.
+// Tree{{.Name}} is a sorted bag (multiset) that counts occurrences of {{.GoType}} values.
 // Backed by a sorted slice of entries with binary search for O(log n) lookup.
-type {{.Name}}TreeBag struct {
-	entries []{{.Name}}TreeBagEntry
+type Tree{{.Name}} struct {
+	entries []Tree{{.Name}}Entry
 	size    int // total count including duplicates
 }
 
-// New{{.Name}}TreeBag creates a new empty {{.Name}}TreeBag.
-func New{{.Name}}TreeBag() *{{.Name}}TreeBag {
-	return &{{.Name}}TreeBag{
+// NewTree{{.Name}} creates a new empty Tree{{.Name}}.
+func NewTree{{.Name}}() *Tree{{.Name}} {
+	return &Tree{{.Name}}{
 		entries: nil,
 		size:    0,
 	}
 }
 
-// {{.Name}}TreeBagOf creates a new {{.Name}}TreeBag from the given values.
-func {{.Name}}TreeBagOf(values ...{{.GoType}}) *{{.Name}}TreeBag {
-	b := New{{.Name}}TreeBag()
+// Tree{{.Name}}Of creates a new Tree{{.Name}} from the given values.
+func Tree{{.Name}}Of(values ...{{.GoType}}) *Tree{{.Name}} {
+	b := NewTree{{.Name}}()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -1197,7 +1182,7 @@ func {{.Name}}TreeBagOf(values ...{{.GoType}}) *{{.Name}}TreeBag {
 
 // search returns the index where value is or would be inserted.
 // Returns (index, found).
-func (b *{{.Name}}TreeBag) search(value {{.GoType}}) (int, bool) {
+func (b *Tree{{.Name}}) search(value {{.GoType}}) (int, bool) {
 	lo, hi := 0, len(b.entries)
 	for lo < hi {
 		mid := lo + (hi-lo)/2
@@ -1213,7 +1198,7 @@ func (b *{{.Name}}TreeBag) search(value {{.GoType}}) (int, bool) {
 }
 
 // Add adds one occurrence of the value.
-func (b *{{.Name}}TreeBag) Add(value {{.GoType}}) {
+func (b *Tree{{.Name}}) Add(value {{.GoType}}) {
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
@@ -1221,17 +1206,17 @@ func (b *{{.Name}}TreeBag) Add(value {{.GoType}}) {
 		return
 	}
 	// Insert at idx to keep sorted order
-	b.entries = append(b.entries, {{.Name}}TreeBagEntry{})
+	b.entries = append(b.entries, Tree{{.Name}}Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = {{.Name}}TreeBagEntry{value: value, count: 1}
+	b.entries[idx] = Tree{{.Name}}Entry{value: value, count: 1}
 	b.size++
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *{{.Name}}TreeBag) AddOccurrences(value {{.GoType}}, occurrences int) int {
+func (b *Tree{{.Name}}) AddOccurrences(value {{.GoType}}, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("{{.Name}}TreeBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("Tree{{.Name}}: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		idx, found := b.search(value)
@@ -1246,15 +1231,15 @@ func (b *{{.Name}}TreeBag) AddOccurrences(value {{.GoType}}, occurrences int) in
 		b.size += occurrences
 		return b.entries[idx].count
 	}
-	b.entries = append(b.entries, {{.Name}}TreeBagEntry{})
+	b.entries = append(b.entries, Tree{{.Name}}Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = {{.Name}}TreeBagEntry{value: value, count: occurrences}
+	b.entries[idx] = Tree{{.Name}}Entry{value: value, count: occurrences}
 	b.size += occurrences
 	return occurrences
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *{{.Name}}TreeBag) Remove(value {{.GoType}}) bool {
+func (b *Tree{{.Name}}) Remove(value {{.GoType}}) bool {
 	idx, found := b.search(value)
 	if !found {
 		return false
@@ -1269,7 +1254,7 @@ func (b *{{.Name}}TreeBag) Remove(value {{.GoType}}) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *{{.Name}}TreeBag) RemoveOccurrences(value {{.GoType}}, occurrences int) bool {
+func (b *Tree{{.Name}}) RemoveOccurrences(value {{.GoType}}, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -1288,7 +1273,7 @@ func (b *{{.Name}}TreeBag) RemoveOccurrences(value {{.GoType}}, occurrences int)
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *{{.Name}}TreeBag) RemoveAll(value {{.GoType}}) int {
+func (b *Tree{{.Name}}) RemoveAll(value {{.GoType}}) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -1300,7 +1285,7 @@ func (b *{{.Name}}TreeBag) RemoveAll(value {{.GoType}}) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *{{.Name}}TreeBag) OccurrencesOf(value {{.GoType}}) int {
+func (b *Tree{{.Name}}) OccurrencesOf(value {{.GoType}}) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -1309,38 +1294,33 @@ func (b *{{.Name}}TreeBag) OccurrencesOf(value {{.GoType}}) int {
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *{{.Name}}TreeBag) Contains(value {{.GoType}}) bool {
+func (b *Tree{{.Name}}) Contains(value {{.GoType}}) bool {
 	_, found := b.search(value)
 	return found
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *{{.Name}}TreeBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *Tree{{.Name}}) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *{{.Name}}TreeBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *{{.Name}}TreeBag) SizeDistinct() int {
+func (b *Tree{{.Name}}) SizeDistinct() int {
 	return len(b.entries)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *{{.Name}}TreeBag) IsEmpty() bool {
-	return b.size == 0
-}
 
 // Clear removes all elements from the bag.
-func (b *{{.Name}}TreeBag) Clear() {
+func (b *Tree{{.Name}}) Clear() {
 	b.entries = nil
 	b.size = 0
 }
 
 // Min returns the smallest element, or zero value and false if empty.
-func (b *{{.Name}}TreeBag) Min() ({{.GoType}}, bool) {
+func (b *Tree{{.Name}}) Min() ({{.GoType}}, bool) {
 	if len(b.entries) == 0 {
 		return {{.Zero}}, false
 	}
@@ -1348,7 +1328,7 @@ func (b *{{.Name}}TreeBag) Min() ({{.GoType}}, bool) {
 }
 
 // Max returns the largest element, or zero value and false if empty.
-func (b *{{.Name}}TreeBag) Max() ({{.GoType}}, bool) {
+func (b *Tree{{.Name}}) Max() ({{.GoType}}, bool) {
 	if len(b.entries) == 0 {
 		return {{.Zero}}, false
 	}
@@ -1356,7 +1336,7 @@ func (b *{{.Name}}TreeBag) Max() ({{.GoType}}, bool) {
 }
 
 // All returns an iter.Seq that yields each element once per occurrence, in sorted order.
-func (b *{{.Name}}TreeBag) All() iter.Seq[{{.GoType}}] {
+func (b *Tree{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 		for _, entry := range b.entries {
 			for i := 0; i < entry.count; i++ {
@@ -1369,7 +1349,7 @@ func (b *{{.Name}}TreeBag) All() iter.Seq[{{.GoType}}] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once, in sorted order.
-func (b *{{.Name}}TreeBag) AllDistinct() iter.Seq[{{.GoType}}] {
+func (b *Tree{{.Name}}) AllDistinct() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value) {
@@ -1380,7 +1360,7 @@ func (b *{{.Name}}TreeBag) AllDistinct() iter.Seq[{{.GoType}}] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs in sorted order.
-func (b *{{.Name}}TreeBag) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
+func (b *Tree{{.Name}}) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
 	return func(yield func({{.GoType}}, int) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value, entry.count) {
@@ -1391,7 +1371,7 @@ func (b *{{.Name}}TreeBag) AllWithOccurrences() iter.Seq2[{{.GoType}}, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence), in sorted order.
-func (b *{{.Name}}TreeBag) ForEach(f func({{.GoType}})) {
+func (b *Tree{{.Name}}) ForEach(f func({{.GoType}})) {
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
 			f(entry.value)
@@ -1400,15 +1380,15 @@ func (b *{{.Name}}TreeBag) ForEach(f func({{.GoType}})) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count, in sorted order.
-func (b *{{.Name}}TreeBag) ForEachWithOccurrences(f func({{.GoType}}, int)) {
+func (b *Tree{{.Name}}) ForEachWithOccurrences(f func({{.GoType}}, int)) {
 	for _, entry := range b.entries {
 		f(entry.value, entry.count)
 	}
 }
 
 // Select returns a new tree bag containing only elements that satisfy the predicate.
-func (b *{{.Name}}TreeBag) Select(predicate func({{.GoType}}) bool) *{{.Name}}TreeBag {
-	result := New{{.Name}}TreeBag()
+func (b *Tree{{.Name}}) Select(predicate func({{.GoType}}) bool) *Tree{{.Name}} {
+	result := NewTree{{.Name}}()
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -1418,8 +1398,8 @@ func (b *{{.Name}}TreeBag) Select(predicate func({{.GoType}}) bool) *{{.Name}}Tr
 }
 
 // Reject returns a new tree bag containing only elements that do not satisfy the predicate.
-func (b *{{.Name}}TreeBag) Reject(predicate func({{.GoType}}) bool) *{{.Name}}TreeBag {
-	result := New{{.Name}}TreeBag()
+func (b *Tree{{.Name}}) Reject(predicate func({{.GoType}}) bool) *Tree{{.Name}} {
+	result := NewTree{{.Name}}()
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -1429,7 +1409,7 @@ func (b *{{.Name}}TreeBag) Reject(predicate func({{.GoType}}) bool) *{{.Name}}Tr
 }
 
 // Detect returns the first distinct element (in sorted order) that satisfies the predicate, or zero value and false.
-func (b *{{.Name}}TreeBag) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (b *Tree{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return entry.value, true
@@ -1439,7 +1419,7 @@ func (b *{{.Name}}TreeBag) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}
 }
 
 // AnySatisfy returns true if any distinct element satisfies the predicate.
-func (b *{{.Name}}TreeBag) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *Tree{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return true
@@ -1449,7 +1429,7 @@ func (b *{{.Name}}TreeBag) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *{{.Name}}TreeBag) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *Tree{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			return false
@@ -1459,7 +1439,7 @@ func (b *{{.Name}}TreeBag) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // NoneSatisfy returns true if no distinct element satisfies the predicate.
-func (b *{{.Name}}TreeBag) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (b *Tree{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return false
@@ -1469,15 +1449,15 @@ func (b *{{.Name}}TreeBag) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *{{.Name}}TreeBag) TopOccurrences(n int) []struct {
+func (b *Tree{{.Name}}) TopOccurrences(n int) []struct {
 	Value {{.GoType}}
 	Count int
 } {
 	// Copy entries and sort by count descending
-	sorted := make([]{{.Name}}TreeBagEntry, len(b.entries))
+	sorted := make([]Tree{{.Name}}Entry, len(b.entries))
 	copy(sorted, b.entries)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].count > sorted[j].count
+	slices.SortFunc(sorted, func(a, b Tree{{.Name}}Entry) int {
+		return cmp.Compare(b.count, a.count)
 	})
 	if n > len(sorted) {
 		n = len(sorted)
@@ -1494,7 +1474,7 @@ func (b *{{.Name}}TreeBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count), in sorted order.
-func (b *{{.Name}}TreeBag) ToSlice() []{{.GoType}} {
+func (b *Tree{{.Name}}) ToSlice() []{{.GoType}} {
 	result := make([]{{.GoType}}, 0, b.size)
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
@@ -1505,7 +1485,7 @@ func (b *{{.Name}}TreeBag) ToSlice() []{{.GoType}} {
 }
 
 // ToSortedSlice returns all distinct elements as a sorted slice.
-func (b *{{.Name}}TreeBag) ToSortedSlice() []{{.GoType}} {
+func (b *Tree{{.Name}}) ToSortedSlice() []{{.GoType}} {
 	result := make([]{{.GoType}}, 0, len(b.entries))
 	for _, entry := range b.entries {
 		result = append(result, entry.value)
@@ -1514,19 +1494,19 @@ func (b *{{.Name}}TreeBag) ToSortedSlice() []{{.GoType}} {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *{{.Name}}TreeBag) With(value {{.GoType}}) *{{.Name}}TreeBag {
+func (b *Tree{{.Name}}) AddReturning(value {{.GoType}}) *Tree{{.Name}} {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *{{.Name}}TreeBag) Without(value {{.GoType}}) *{{.Name}}TreeBag {
+func (b *Tree{{.Name}}) RemoveReturning(value {{.GoType}}) *Tree{{.Name}} {
 	b.RemoveAll(value)
 	return b
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *{{.Name}}TreeBag) WithAll(values ...{{.GoType}}) *{{.Name}}TreeBag {
+func (b *Tree{{.Name}}) AddAllReturning(values ...{{.GoType}}) *Tree{{.Name}} {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -1534,7 +1514,7 @@ func (b *{{.Name}}TreeBag) WithAll(values ...{{.GoType}}) *{{.Name}}TreeBag {
 }
 
 // WithoutAll removes all occurrences of the given values (fluent API).
-func (b *{{.Name}}TreeBag) WithoutAll(values ...{{.GoType}}) *{{.Name}}TreeBag {
+func (b *Tree{{.Name}}) RemoveAllReturning(values ...{{.GoType}}) *Tree{{.Name}} {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -1542,7 +1522,7 @@ func (b *{{.Name}}TreeBag) WithoutAll(values ...{{.GoType}}) *{{.Name}}TreeBag {
 }
 
 // String returns a string representation of the bag in sorted order.
-func (b *{{.Name}}TreeBag) String() string {
+func (b *Tree{{.Name}}) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -1561,7 +1541,7 @@ func (b *{{.Name}}TreeBag) String() string {
 }
 
 // Equals returns true if the other tree bag has the same elements with the same counts.
-func (b *{{.Name}}TreeBag) Equals(other *{{.Name}}TreeBag) bool {
+func (b *Tree{{.Name}}) Equals(other *Tree{{.Name}}) bool {
 	if b.size != other.size || len(b.entries) != len(other.entries) {
 		return false
 	}

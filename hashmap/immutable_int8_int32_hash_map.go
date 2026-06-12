@@ -6,136 +6,127 @@ import (
 	"iter"
 )
 
-// ImmutableInt8Int32HashMap is an immutable view of a Int8Int32HashMap.
+// ImmutableInt8Int32 is an immutable view of a Int8Int32.
 // It exposes only read operations. Any attempt to modify requires
 // creating a mutable copy first via ToMutable().
-type ImmutableInt8Int32HashMap struct {
-	delegate *Int8Int32HashMap
+type ImmutableInt8Int32 struct {
+	delegate *Int8Int32
 }
 
-// NewImmutableInt8Int32HashMap creates an immutable map from key-value pairs.
-func NewImmutableInt8Int32HashMap(pairs ...struct {
+// NewImmutableInt8Int32 creates an immutable map from key-value pairs.
+func NewImmutableInt8Int32(pairs ...struct {
 	Key   int8
 	Value int32
-}) *ImmutableInt8Int32HashMap {
-	m := NewInt8Int32HashMapWithCapacity(len(pairs) * 2)
+}) *ImmutableInt8Int32 {
+	m := NewInt8Int32WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
-	return &ImmutableInt8Int32HashMap{delegate: m}
+	return &ImmutableInt8Int32{delegate: m}
 }
 
-// ImmutableInt8Int32HashMapFrom creates an immutable copy of a mutable map.
-func ImmutableInt8Int32HashMapFrom(m *Int8Int32HashMap) *ImmutableInt8Int32HashMap {
-	copy := NewInt8Int32HashMapWithCapacity(m.Size() * 2)
+// ImmutableInt8Int32From creates an immutable copy of a mutable map.
+func ImmutableInt8Int32From(m *Int8Int32) *ImmutableInt8Int32 {
+	copy := NewInt8Int32WithCapacity(m.Len() * 2)
 	m.ForEach(func(k int8, v int32) {
 		copy.Put(k, v)
 	})
-	return &ImmutableInt8Int32HashMap{delegate: copy}
+	return &ImmutableInt8Int32{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableInt8Int32HashMap) Get(key int8) (int32, bool) {
+func (m *ImmutableInt8Int32) Get(key int8) (int32, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableInt8Int32HashMap) GetOrDefault(key int8, defaultValue int32) int32 {
+func (m *ImmutableInt8Int32) GetOrDefault(key int8, defaultValue int32) int32 {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableInt8Int32HashMap) ContainsKey(key int8) bool {
+func (m *ImmutableInt8Int32) ContainsKey(key int8) bool {
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *ImmutableInt8Int32HashMap) ContainsValue(value int32) bool {
+func (m *ImmutableInt8Int32) ContainsValue(value int32) bool {
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableInt8Int32HashMap) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableInt8Int32HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableInt8Int32HashMap) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableInt8Int32) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableInt8Int32HashMap) All() iter.Seq2[int8, int32] {
+func (m *ImmutableInt8Int32) All() iter.Seq2[int8, int32] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableInt8Int32HashMap) Keys() iter.Seq[int8] {
+func (m *ImmutableInt8Int32) Keys() iter.Seq[int8] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableInt8Int32HashMap) Values() iter.Seq[int32] {
+func (m *ImmutableInt8Int32) Values() iter.Seq[int32] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableInt8Int32HashMap) ForEach(f func(int8, int32)) {
+func (m *ImmutableInt8Int32) ForEach(f func(int8, int32)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries that satisfy the predicate.
-func (m *ImmutableInt8Int32HashMap) Select(predicate func(int8, int32) bool) *ImmutableInt8Int32HashMap {
-	return &ImmutableInt8Int32HashMap{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableInt8Int32) Select(predicate func(int8, int32) bool) *ImmutableInt8Int32 {
+	return &ImmutableInt8Int32{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries that do not satisfy the predicate.
-func (m *ImmutableInt8Int32HashMap) Reject(predicate func(int8, int32) bool) *ImmutableInt8Int32HashMap {
-	return &ImmutableInt8Int32HashMap{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableInt8Int32) Reject(predicate func(int8, int32) bool) *ImmutableInt8Int32 {
+	return &ImmutableInt8Int32{delegate: m.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *ImmutableInt8Int32HashMap) AnySatisfy(predicate func(int8, int32) bool) bool {
+func (m *ImmutableInt8Int32) AnySatisfy(predicate func(int8, int32) bool) bool {
 	return m.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *ImmutableInt8Int32HashMap) AllSatisfy(predicate func(int8, int32) bool) bool {
+func (m *ImmutableInt8Int32) AllSatisfy(predicate func(int8, int32) bool) bool {
 	return m.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *ImmutableInt8Int32HashMap) NoneSatisfy(predicate func(int8, int32) bool) bool {
+func (m *ImmutableInt8Int32) NoneSatisfy(predicate func(int8, int32) bool) bool {
 	return m.delegate.NoneSatisfy(predicate)
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *ImmutableInt8Int32HashMap) KeysToSlice() []int8 {
+func (m *ImmutableInt8Int32) KeysToSlice() []int8 {
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *ImmutableInt8Int32HashMap) ValuesToSlice() []int32 {
+func (m *ImmutableInt8Int32) ValuesToSlice() []int32 {
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *ImmutableInt8Int32HashMap) String() string {
+func (m *ImmutableInt8Int32) String() string {
 	return m.delegate.String()
 }
 
 // Equals returns true if the other immutable map has the same entries.
-func (m *ImmutableInt8Int32HashMap) Equals(other *ImmutableInt8Int32HashMap) bool {
+func (m *ImmutableInt8Int32) Equals(other *ImmutableInt8Int32) bool {
 	return m.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableInt8Int32HashMap) ToMutable() *Int8Int32HashMap {
-	copy := NewInt8Int32HashMapWithCapacity(m.Size() * 2)
+func (m *ImmutableInt8Int32) ToMutable() *Int8Int32 {
+	copy := NewInt8Int32WithCapacity(m.Len() * 2)
 	m.ForEach(func(k int8, v int32) {
 		copy.Put(k, v)
 	})

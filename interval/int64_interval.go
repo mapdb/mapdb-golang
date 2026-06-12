@@ -8,61 +8,62 @@ import (
 	"strings"
 )
 
-// Int64Interval is a virtual collection representing a range of int64 values
+// Int64 is a virtual collection representing a range of int64 values
 // [from, to] with a given step. No elements are materialised in memory.
-type Int64Interval struct {
+type Int64 struct {
 	from int64
 	to   int64
 	step int64
 }
 
-// NewInt64Interval creates an interval from `from` to `to` (inclusive) with the
+// NewInt64 creates an interval from `from` to `to` (inclusive) with the
 // given step. Panics if step is zero or if the step direction doesn't match
 // the from/to direction.
-func NewInt64Interval(from, to, step int64) *Int64Interval {
+func NewInt64(from, to, step int64) *Int64 {
 	if step == 0 {
-		panic("Int64Interval: step must not be zero")
+		panic("interval.Int64: step must not be zero")
 	}
 	if from < to && step < 0 {
-		panic("Int64Interval: step must be positive when from < to")
+		panic("interval.Int64: step must be positive when from < to")
 	}
 	if from > to && step > 0 {
-		panic("Int64Interval: step must be negative when from > to")
+		panic("interval.Int64: step must be negative when from > to")
 	}
-	return &Int64Interval{from: from, to: to, step: step}
+	return &Int64{from: from, to: to, step: step}
 }
 
-// Int64IntervalFromTo creates an interval from `from` to `to` (inclusive) with
+// Int64FromTo creates an interval from `from` to `to` (inclusive) with
 // step 1 (ascending) or -1 (descending).
-func Int64IntervalFromTo(from, to int64) *Int64Interval {
+func Int64FromTo(from, to int64) *Int64 {
 	var step int64 = 1
 	if from > to {
 		step = -1
 	}
-	return &Int64Interval{from: from, to: to, step: step}
+	return &Int64{from: from, to: to, step: step}
 }
 
-// Int64IntervalOneTo creates an interval from 1 to `to` (inclusive).
-func Int64IntervalOneTo(to int64) *Int64Interval {
-	return Int64IntervalFromTo(1, to)
+// Int64OneTo creates an interval from 1 to `to` (inclusive).
+func Int64OneTo(to int64) *Int64 {
+	return Int64FromTo(1, to)
 }
 
-// Int64IntervalZeroTo creates an interval from 0 to `to` (inclusive).
-func Int64IntervalZeroTo(to int64) *Int64Interval {
-	return Int64IntervalFromTo(0, to)
+// Int64ZeroTo creates an interval from 0 to `to` (inclusive).
+func Int64ZeroTo(to int64) *Int64 {
+	return Int64FromTo(0, to)
 }
 
 // From returns the start of the interval.
-func (iv *Int64Interval) From() int64 { return iv.from }
+func (iv *Int64) From() int64 { return iv.from }
 
 // To returns the end of the interval (inclusive).
-func (iv *Int64Interval) To() int64 { return iv.to }
+func (iv *Int64) To() int64 { return iv.to }
 
 // Step returns the step.
-func (iv *Int64Interval) Step() int64 { return iv.step }
+func (iv *Int64) Step() int64 { return iv.step }
 
-// Size returns the number of elements in the interval.
-func (iv *Int64Interval) Size() int {
+// Len returns the number of elements in the interval. Use iv.Len() == 0 to
+// test for emptiness.
+func (iv *Int64) Len() int {
 	if (iv.step > 0 && iv.from > iv.to) || (iv.step < 0 && iv.from < iv.to) {
 		return 0
 	}
@@ -74,22 +75,16 @@ func (iv *Int64Interval) Size() int {
 	return int(count)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (iv *Int64Interval) Len() int { return iv.Size() }
-
-// IsEmpty returns true if the interval contains no elements.
-func (iv *Int64Interval) IsEmpty() bool { return iv.Size() == 0 }
-
 // Contains returns true if the interval contains the given value.
-func (iv *Int64Interval) Contains(value int64) bool {
+func (iv *Int64) Contains(value int64) bool {
 	if iv.step > 0 {
 		return value >= iv.from && value <= iv.to && (uint64(int64(value))-uint64(int64(iv.from)))%iv.absStep() == 0
 	}
 	return value <= iv.from && value >= iv.to && (uint64(int64(iv.from))-uint64(int64(value)))%iv.absStep() == 0
 }
 
-// Get returns the element at the given index, or an error if out of bounds.
+// Get returns the element at the given index. It panics if the index is out
+// of bounds, matching the semantics of a native Go slice.
 //
 // Narrower intervals (int8/16/32) widen into int64 before computing
 // from + step*index so the product never overflows the value width. int64 has
@@ -99,14 +94,14 @@ func (iv *Int64Interval) Contains(value int64) bool {
 // int64 arithmetic wraps, which is exactly the required semantics. The product
 // is built in uint64 and reinterpreted so the wrap is explicit and free of
 // implementation-defined signed-overflow assumptions.
-func (iv *Int64Interval) Get(index int) (int64, error) {
-	if index < 0 || index >= iv.Size() {
-		return 0, fmt.Errorf("Int64Interval: index out of bounds: %d (size %d)", index, iv.Size())
+func (iv *Int64) Get(index int) int64 {
+	if index < 0 || index >= iv.Len() {
+		panic(fmt.Sprintf("interval.Int64: index out of range [%d] with length %d", index, iv.Len()))
 	}
-	return int64(uint64(iv.from) + uint64(iv.step)*uint64(int64(index))), nil
+	return int64(uint64(iv.from) + uint64(iv.step)*uint64(int64(index)))
 }
 
-func (iv *Int64Interval) absStep() uint64 {
+func (iv *Int64) absStep() uint64 {
 	step := int64(iv.step)
 	if step < 0 {
 		return uint64(^step) + 1
@@ -114,7 +109,7 @@ func (iv *Int64Interval) absStep() uint64 {
 	return uint64(step)
 }
 
-func (iv *Int64Interval) distance() uint64 {
+func (iv *Int64) distance() uint64 {
 	if iv.step > 0 {
 		return uint64(int64(iv.to)) - uint64(int64(iv.from))
 	}
@@ -122,15 +117,11 @@ func (iv *Int64Interval) distance() uint64 {
 }
 
 // All returns an iter.Seq that yields elements in order.
-func (iv *Int64Interval) All() iter.Seq[int64] {
+func (iv *Int64) All() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
-		size := iv.Size()
+		size := iv.Len()
 		for i := 0; i < size; i++ {
-			value, err := iv.Get(i)
-			if err != nil {
-				return
-			}
-			if !yield(value) {
+			if !yield(iv.Get(i)) {
 				return
 			}
 		}
@@ -138,14 +129,14 @@ func (iv *Int64Interval) All() iter.Seq[int64] {
 }
 
 // ForEach calls the given function for each element in order.
-func (iv *Int64Interval) ForEach(f func(int64)) {
+func (iv *Int64) ForEach(f func(int64)) {
 	for v := range iv.All() {
 		f(v)
 	}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (iv *Int64Interval) AnySatisfy(predicate func(int64) bool) bool {
+func (iv *Int64) AnySatisfy(predicate func(int64) bool) bool {
 	for v := range iv.All() {
 		if predicate(v) {
 			return true
@@ -155,7 +146,7 @@ func (iv *Int64Interval) AnySatisfy(predicate func(int64) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (iv *Int64Interval) AllSatisfy(predicate func(int64) bool) bool {
+func (iv *Int64) AllSatisfy(predicate func(int64) bool) bool {
 	for v := range iv.All() {
 		if !predicate(v) {
 			return false
@@ -165,7 +156,7 @@ func (iv *Int64Interval) AllSatisfy(predicate func(int64) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (iv *Int64Interval) NoneSatisfy(predicate func(int64) bool) bool {
+func (iv *Int64) NoneSatisfy(predicate func(int64) bool) bool {
 	for v := range iv.All() {
 		if predicate(v) {
 			return false
@@ -175,8 +166,8 @@ func (iv *Int64Interval) NoneSatisfy(predicate func(int64) bool) bool {
 }
 
 // ToSlice returns all elements as a slice.
-func (iv *Int64Interval) ToSlice() []int64 {
-	n := iv.Size()
+func (iv *Int64) ToSlice() []int64 {
+	n := iv.Len()
 	result := make([]int64, 0, n)
 	for v := range iv.All() {
 		result = append(result, v)
@@ -185,16 +176,16 @@ func (iv *Int64Interval) ToSlice() []int64 {
 }
 
 // Reversed returns a new interval with elements in reverse order.
-func (iv *Int64Interval) Reversed() *Int64Interval {
+func (iv *Int64) Reversed() *Int64 {
 	if iv.step == int64(-1<<63) {
-		panic("Int64Interval: cannot reverse interval with minimum step")
+		panic("interval.Int64: cannot reverse interval with minimum step")
 	}
-	return &Int64Interval{from: iv.to, to: iv.from, step: -iv.step}
+	return &Int64{from: iv.to, to: iv.from, step: -iv.step}
 }
 
 // String returns a string representation of the interval.
-func (iv *Int64Interval) String() string {
-	n := iv.Size()
+func (iv *Int64) String() string {
+	n := iv.Len()
 	if n == 0 {
 		return "[]"
 	}

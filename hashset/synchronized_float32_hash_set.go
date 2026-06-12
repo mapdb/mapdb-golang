@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedFloat32HashSet is a thread-safe wrapper around Float32HashSet.
+// SynchronizedFloat32 is a thread-safe wrapper around Float32.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take a
 // caller-supplied function (Select, ForEach, AnySatisfy, …) snapshot
@@ -17,36 +17,36 @@ import (
 // without deadlocking.
 //
 // Methods that return a new set (Select, Reject, Union, Intersect,
-// Difference, SymmetricDifference) return an unwrapped *Float32HashSet;
+// Difference, SymmetricDifference) return an unwrapped *Float32;
 // the caller owns it.
-type SynchronizedFloat32HashSet struct {
-	delegate *Float32HashSet
+type SynchronizedFloat32 struct {
+	delegate *Float32
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedFloat32HashSet creates a new thread-safe empty set.
-func NewSynchronizedFloat32HashSet() *SynchronizedFloat32HashSet {
-	return &SynchronizedFloat32HashSet{delegate: NewFloat32HashSet()}
+// NewSynchronizedFloat32 creates a new thread-safe empty set.
+func NewSynchronizedFloat32() *SynchronizedFloat32 {
+	return &SynchronizedFloat32{delegate: NewFloat32()}
 }
 
-// NewSynchronizedFloat32HashSetFrom wraps an existing set. The
+// NewSynchronizedFloat32From wraps an existing set. The
 // wrapper takes ownership — callers must not mutate the delegate
 // directly without locking.
-func NewSynchronizedFloat32HashSetFrom(s *Float32HashSet) *SynchronizedFloat32HashSet {
-	return &SynchronizedFloat32HashSet{delegate: s}
+func NewSynchronizedFloat32From(s *Float32) *SynchronizedFloat32 {
+	return &SynchronizedFloat32{delegate: s}
 }
 
-// SynchronizedFloat32HashSetOf constructs a synchronized set from values.
-func SynchronizedFloat32HashSetOf(values ...float32) *SynchronizedFloat32HashSet {
-	s := NewFloat32HashSet()
+// SynchronizedFloat32Of constructs a synchronized set from values.
+func SynchronizedFloat32Of(values ...float32) *SynchronizedFloat32 {
+	s := NewFloat32()
 	for _, v := range values {
 		s.Add(v)
 	}
-	return &SynchronizedFloat32HashSet{delegate: s}
+	return &SynchronizedFloat32{delegate: s}
 }
 
 // snapshot returns a defensive copy of the set's elements under RLock.
-func (s *SynchronizedFloat32HashSet) snapshot() []float32 {
+func (s *SynchronizedFloat32) snapshot() []float32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -54,25 +54,25 @@ func (s *SynchronizedFloat32HashSet) snapshot() []float32 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32HashSet) Add(value float32) bool {
+func (s *SynchronizedFloat32) Add(value float32) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Add(value)
 }
 
-func (s *SynchronizedFloat32HashSet) AddAll(values ...float32) {
+func (s *SynchronizedFloat32) AddAll(values ...float32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.AddAll(values...)
 }
 
-func (s *SynchronizedFloat32HashSet) Remove(value float32) bool {
+func (s *SynchronizedFloat32) Remove(value float32) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Remove(value)
 }
 
-func (s *SynchronizedFloat32HashSet) Clear() {
+func (s *SynchronizedFloat32) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -80,35 +80,26 @@ func (s *SynchronizedFloat32HashSet) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32HashSet) Contains(value float32) bool {
+func (s *SynchronizedFloat32) Contains(value float32) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedFloat32HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedFloat32) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedFloat32HashSet) Len() int { return s.Size() }
-
-func (s *SynchronizedFloat32HashSet) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedFloat32HashSet) ToSlice() []float32 {
+func (s *SynchronizedFloat32) ToSlice() []float32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedFloat32HashSet) String() string {
+func (s *SynchronizedFloat32) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -117,7 +108,7 @@ func (s *SynchronizedFloat32HashSet) String() string {
 // ── iteration ────────────────────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (s *SynchronizedFloat32HashSet) All() iter.Seq[float32] {
+func (s *SynchronizedFloat32) All() iter.Seq[float32] {
 	snapshot := s.snapshot()
 	return func(yield func(float32) bool) {
 		for _, v := range snapshot {
@@ -130,13 +121,13 @@ func (s *SynchronizedFloat32HashSet) All() iter.Seq[float32] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedFloat32HashSet) ForEach(f func(float32)) {
+func (s *SynchronizedFloat32) ForEach(f func(float32)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedFloat32HashSet) AnySatisfy(predicate func(float32) bool) bool {
+func (s *SynchronizedFloat32) AnySatisfy(predicate func(float32) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -145,7 +136,7 @@ func (s *SynchronizedFloat32HashSet) AnySatisfy(predicate func(float32) bool) bo
 	return false
 }
 
-func (s *SynchronizedFloat32HashSet) AllSatisfy(predicate func(float32) bool) bool {
+func (s *SynchronizedFloat32) AllSatisfy(predicate func(float32) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -154,7 +145,7 @@ func (s *SynchronizedFloat32HashSet) AllSatisfy(predicate func(float32) bool) bo
 	return true
 }
 
-func (s *SynchronizedFloat32HashSet) NoneSatisfy(predicate func(float32) bool) bool {
+func (s *SynchronizedFloat32) NoneSatisfy(predicate func(float32) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -163,7 +154,7 @@ func (s *SynchronizedFloat32HashSet) NoneSatisfy(predicate func(float32) bool) b
 	return true
 }
 
-func (s *SynchronizedFloat32HashSet) Detect(predicate func(float32) bool) (float32, bool) {
+func (s *SynchronizedFloat32) Detect(predicate func(float32) bool) (float32, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -175,9 +166,9 @@ func (s *SynchronizedFloat32HashSet) Detect(predicate func(float32) bool) (float
 
 // ── functional that return a new set ─────────────────────────────────
 
-func (s *SynchronizedFloat32HashSet) Select(predicate func(float32) bool) *Float32HashSet {
+func (s *SynchronizedFloat32) Select(predicate func(float32) bool) *Float32 {
 	snapshot := s.snapshot()
-	result := NewFloat32HashSet()
+	result := NewFloat32()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -186,9 +177,9 @@ func (s *SynchronizedFloat32HashSet) Select(predicate func(float32) bool) *Float
 	return result
 }
 
-func (s *SynchronizedFloat32HashSet) Reject(predicate func(float32) bool) *Float32HashSet {
+func (s *SynchronizedFloat32) Reject(predicate func(float32) bool) *Float32 {
 	snapshot := s.snapshot()
-	result := NewFloat32HashSet()
+	result := NewFloat32()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -201,7 +192,7 @@ func (s *SynchronizedFloat32HashSet) Reject(predicate func(float32) bool) *Float
 
 // lockPair acquires two RLocks in pointer-address order and returns
 // a release function. Guarantees no A.op(B) ⟷ B.op(A) deadlock.
-func (s *SynchronizedFloat32HashSet) lockPair(other *SynchronizedFloat32HashSet) func() {
+func (s *SynchronizedFloat32) lockPair(other *SynchronizedFloat32) func() {
 	if s == other {
 		s.mu.RLock()
 		return func() { s.mu.RUnlock() }
@@ -215,25 +206,25 @@ func (s *SynchronizedFloat32HashSet) lockPair(other *SynchronizedFloat32HashSet)
 	return func() { second.mu.RUnlock(); first.mu.RUnlock() }
 }
 
-func (s *SynchronizedFloat32HashSet) Union(other *SynchronizedFloat32HashSet) *Float32HashSet {
+func (s *SynchronizedFloat32) Union(other *SynchronizedFloat32) *Float32 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Union(other.delegate)
 }
 
-func (s *SynchronizedFloat32HashSet) Intersect(other *SynchronizedFloat32HashSet) *Float32HashSet {
+func (s *SynchronizedFloat32) Intersect(other *SynchronizedFloat32) *Float32 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Intersect(other.delegate)
 }
 
-func (s *SynchronizedFloat32HashSet) Difference(other *SynchronizedFloat32HashSet) *Float32HashSet {
+func (s *SynchronizedFloat32) Difference(other *SynchronizedFloat32) *Float32 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Difference(other.delegate)
 }
 
-func (s *SynchronizedFloat32HashSet) SymmetricDifference(other *SynchronizedFloat32HashSet) *Float32HashSet {
+func (s *SynchronizedFloat32) SymmetricDifference(other *SynchronizedFloat32) *Float32 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.SymmetricDifference(other.delegate)
@@ -241,37 +232,41 @@ func (s *SynchronizedFloat32HashSet) SymmetricDifference(other *SynchronizedFloa
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32HashSet) With(value float32) *SynchronizedFloat32HashSet {
+// AddReturning adds the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat32) AddReturning(value float32) *SynchronizedFloat32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedFloat32HashSet) WithAll(values ...float32) *SynchronizedFloat32HashSet {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat32) AddAllReturning(values ...float32) *SynchronizedFloat32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
-func (s *SynchronizedFloat32HashSet) Without(value float32) *SynchronizedFloat32HashSet {
+// RemoveReturning removes the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat32) RemoveReturning(value float32) *SynchronizedFloat32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.Without(value)
+	s.delegate.RemoveReturning(value)
 	return s
 }
 
-func (s *SynchronizedFloat32HashSet) WithoutAll(values ...float32) *SynchronizedFloat32HashSet {
+// RemoveAllReturning removes all given values and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat32) RemoveAllReturning(values ...float32) *SynchronizedFloat32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithoutAll(values...)
+	s.delegate.RemoveAllReturning(values...)
 	return s
 }
 
 // ── conversions ───────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32HashSet) ToImmutable() *ImmutableFloat32HashSet {
+func (s *SynchronizedFloat32) ToImmutable() *ImmutableFloat32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -279,7 +274,7 @@ func (s *SynchronizedFloat32HashSet) ToImmutable() *ImmutableFloat32HashSet {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent deadlocks under concurrent A.Equals(B) / B.Equals(A).
-func (s *SynchronizedFloat32HashSet) Equals(other *SynchronizedFloat32HashSet) bool {
+func (s *SynchronizedFloat32) Equals(other *SynchronizedFloat32) bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Equals(other.delegate)

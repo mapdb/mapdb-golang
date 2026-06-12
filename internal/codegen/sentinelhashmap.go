@@ -61,7 +61,7 @@ type shmData struct {
 
 	NeedsMath bool
 
-	MapName   string // Int32Float32 (exported type stem: Int32Float32SentinelHashMap)
+	MapName   string // Int32Float32 (exported type stem: Int32Float32)
 	MapSnake  string // int32_float32 (file-name stem)
 	EntryStem string // int32Float32 (lower-camel, used for unexported const stem)
 }
@@ -158,22 +158,22 @@ import (
 )
 
 const (
-	{{.EntryStem}}SentinelHashMapDefaultCapacity = 16
+	{{.EntryStem}}DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
-	{{.EntryStem}}SentinelHashMapEmptyKey   = {{.KeyType}}(0)
-	{{.EntryStem}}SentinelHashMapRemovedKey = {{.KeyType}}(1)
+	{{.EntryStem}}EmptyKey   = {{.KeyType}}(0)
+	{{.EntryStem}}RemovedKey = {{.KeyType}}(1)
 {{- if .KeyIsFloat}}
-	// {{.EntryStem}}SentinelHashMapNegZeroBits is the IEEE-754 bit pattern of -0.0, routed to a
+	// {{.EntryStem}}NegZeroBits is the IEEE-754 bit pattern of -0.0, routed to a
 	// dedicated field so -0.0 stays distinct from +0.0 (which collides with
 	// the empty sentinel) and from the table.
-	{{.EntryStem}}SentinelHashMapNegZeroBits = {{.NegZeroType}}({{.NegZeroBits}})
+	{{.EntryStem}}NegZeroBits = {{.NegZeroType}}({{.NegZeroBits}})
 {{- end}}
 )
 
-// {{.MapName}}SentinelHashMap is a sentinel-based open-addressing hash map with {{.KeyType}} keys and {{.ValType}} values.
+// {{.MapName}} is a sentinel-based open-addressing hash map with {{.KeyType}} keys and {{.ValType}} values.
 // It uses sentinel values (0=empty, 1=removed) to track slot state.
 // Keys 0 and 1 are stored separately in dedicated fields.
-type {{.MapName}}SentinelHashMap struct {
+type {{.MapName}} struct {
 	keys   []{{.KeyType}}
 	values []{{.ValType}}
 	size   int
@@ -190,15 +190,15 @@ type {{.MapName}}SentinelHashMap struct {
 	oneKeyValue    {{.ValType}}
 }
 
-// New{{.MapName}}SentinelHashMap creates a new empty {{.MapName}}SentinelHashMap with default capacity.
-func New{{.MapName}}SentinelHashMap() *{{.MapName}}SentinelHashMap {
-	return New{{.MapName}}SentinelHashMapWithCapacity({{.EntryStem}}SentinelHashMapDefaultCapacity)
+// New{{.MapName}} creates a new empty {{.MapName}} with default capacity.
+func New{{.MapName}}() *{{.MapName}} {
+	return New{{.MapName}}WithCapacity({{.EntryStem}}DefaultCapacity)
 }
 
-// New{{.MapName}}SentinelHashMapWithCapacity creates a new empty {{.MapName}}SentinelHashMap with the given initial capacity.
-func New{{.MapName}}SentinelHashMapWithCapacity(capacity int) *{{.MapName}}SentinelHashMap {
-	cap := nextPowerOfTwo{{.MapName}}SentinelHashMap(capacity)
-	return &{{.MapName}}SentinelHashMap{
+// New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
+func New{{.MapName}}WithCapacity(capacity int) *{{.MapName}} {
+	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	return &{{.MapName}}{
 		keys:   make([]{{.KeyType}}, cap),
 		values: make([]{{.ValType}}, cap),
 		size:   0,
@@ -206,8 +206,8 @@ func New{{.MapName}}SentinelHashMapWithCapacity(capacity int) *{{.MapName}}Senti
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *{{.MapName}}SentinelHashMap) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
-	if {{if .KeyIsFloat}}{{.KeyBitsFn}}(key) == {{.KeyBitsFn}}({{.EntryStem}}SentinelHashMapEmptyKey){{else}}key == {{.EntryStem}}SentinelHashMapEmptyKey{{end}} {
+func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
+	if {{if .KeyIsFloat}}{{.KeyBitsFn}}(key) == {{.KeyBitsFn}}({{.EntryStem}}EmptyKey){{else}}key == {{.EntryStem}}EmptyKey{{end}} {
 		old := m.zeroKeyValue
 		existed := m.zeroKeyPresent
 		m.zeroKeyValue = value
@@ -218,7 +218,7 @@ func (m *{{.MapName}}SentinelHashMap) Put(key {{.KeyType}}, value {{.ValType}}) 
 		return old, existed
 	}
 {{- if .KeyIsFloat}}
-	if {{.KeyBitsFn}}(key) == {{.EntryStem}}SentinelHashMapNegZeroBits {
+	if {{.KeyBitsFn}}(key) == {{.EntryStem}}NegZeroBits {
 		old := m.negZeroKeyValue
 		existed := m.negZeroKeyPresent
 		m.negZeroKeyValue = value
@@ -229,7 +229,7 @@ func (m *{{.MapName}}SentinelHashMap) Put(key {{.KeyType}}, value {{.ValType}}) 
 		return old, existed
 	}
 {{- end}}
-	if key == {{.EntryStem}}SentinelHashMapRemovedKey {
+	if key == {{.EntryStem}}RemovedKey {
 		old := m.oneKeyValue
 		existed := m.oneKeyPresent
 		m.oneKeyValue = value
@@ -242,15 +242,15 @@ func (m *{{.MapName}}SentinelHashMap) Put(key {{.KeyType}}, value {{.ValType}}) 
 	return m.putRegular(key, value)
 }
 
-func (m *{{.MapName}}SentinelHashMap) putRegular(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
+func (m *{{.MapName}}) putRegular(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
 	cap := len(m.keys)
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := {{.EntryStem}}SentinelHashMapEmptyKey
-	removed := {{.EntryStem}}SentinelHashMapRemovedKey
+	empty := {{.EntryStem}}EmptyKey
+	removed := {{.EntryStem}}RemovedKey
 	firstRemoved := -1
 
 	for {
@@ -281,22 +281,22 @@ func (m *{{.MapName}}SentinelHashMap) putRegular(key {{.KeyType}}, value {{.ValT
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *{{.MapName}}SentinelHashMap) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
-	if {{if .KeyIsFloat}}{{.KeyBitsFn}}(key) == {{.KeyBitsFn}}({{.EntryStem}}SentinelHashMapEmptyKey){{else}}key == {{.EntryStem}}SentinelHashMapEmptyKey{{end}} {
+func (m *{{.MapName}}) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
+	if {{if .KeyIsFloat}}{{.KeyBitsFn}}(key) == {{.KeyBitsFn}}({{.EntryStem}}EmptyKey){{else}}key == {{.EntryStem}}EmptyKey{{end}} {
 		if m.zeroKeyPresent {
 			return m.zeroKeyValue, true
 		}
 		return {{.ValZero}}, false
 	}
 {{- if .KeyIsFloat}}
-	if {{.KeyBitsFn}}(key) == {{.EntryStem}}SentinelHashMapNegZeroBits {
+	if {{.KeyBitsFn}}(key) == {{.EntryStem}}NegZeroBits {
 		if m.negZeroKeyPresent {
 			return m.negZeroKeyValue, true
 		}
 		return {{.ValZero}}, false
 	}
 {{- end}}
-	if key == {{.EntryStem}}SentinelHashMapRemovedKey {
+	if key == {{.EntryStem}}RemovedKey {
 		if m.oneKeyPresent {
 			return m.oneKeyValue, true
 		}
@@ -308,7 +308,7 @@ func (m *{{.MapName}}SentinelHashMap) Get(key {{.KeyType}}) ({{.ValType}}, bool)
 	}
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := {{.EntryStem}}SentinelHashMapEmptyKey
+	empty := {{.EntryStem}}EmptyKey
 
 	for {
 		k := m.keys[idx]
@@ -323,7 +323,7 @@ func (m *{{.MapName}}SentinelHashMap) Get(key {{.KeyType}}) ({{.ValType}}, bool)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *{{.MapName}}SentinelHashMap) GetOrDefault(key {{.KeyType}}, defaultValue {{.ValType}}) {{.ValType}} {
+func (m *{{.MapName}}) GetOrDefault(key {{.KeyType}}, defaultValue {{.ValType}}) {{.ValType}} {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -331,8 +331,8 @@ func (m *{{.MapName}}SentinelHashMap) GetOrDefault(key {{.KeyType}}, defaultValu
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *{{.MapName}}SentinelHashMap) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
-	if {{if .KeyIsFloat}}{{.KeyBitsFn}}(key) == {{.KeyBitsFn}}({{.EntryStem}}SentinelHashMapEmptyKey){{else}}key == {{.EntryStem}}SentinelHashMapEmptyKey{{end}} {
+func (m *{{.MapName}}) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
+	if {{if .KeyIsFloat}}{{.KeyBitsFn}}(key) == {{.KeyBitsFn}}({{.EntryStem}}EmptyKey){{else}}key == {{.EntryStem}}EmptyKey{{end}} {
 		if m.zeroKeyPresent {
 			old := m.zeroKeyValue
 			m.zeroKeyPresent = false
@@ -343,7 +343,7 @@ func (m *{{.MapName}}SentinelHashMap) Remove(key {{.KeyType}}) ({{.ValType}}, bo
 		return {{.ValZero}}, false
 	}
 {{- if .KeyIsFloat}}
-	if {{.KeyBitsFn}}(key) == {{.EntryStem}}SentinelHashMapNegZeroBits {
+	if {{.KeyBitsFn}}(key) == {{.EntryStem}}NegZeroBits {
 		if m.negZeroKeyPresent {
 			old := m.negZeroKeyValue
 			m.negZeroKeyPresent = false
@@ -354,7 +354,7 @@ func (m *{{.MapName}}SentinelHashMap) Remove(key {{.KeyType}}) ({{.ValType}}, bo
 		return {{.ValZero}}, false
 	}
 {{- end}}
-	if key == {{.EntryStem}}SentinelHashMapRemovedKey {
+	if key == {{.EntryStem}}RemovedKey {
 		if m.oneKeyPresent {
 			old := m.oneKeyValue
 			m.oneKeyPresent = false
@@ -367,14 +367,14 @@ func (m *{{.MapName}}SentinelHashMap) Remove(key {{.KeyType}}) ({{.ValType}}, bo
 	return m.removeRegular(key)
 }
 
-func (m *{{.MapName}}SentinelHashMap) removeRegular(key {{.KeyType}}) ({{.ValType}}, bool) {
+func (m *{{.MapName}}) removeRegular(key {{.KeyType}}) ({{.ValType}}, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return {{.ValZero}}, false
 	}
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := {{.EntryStem}}SentinelHashMapEmptyKey
+	empty := {{.EntryStem}}EmptyKey
 
 	for {
 		k := m.keys[idx]
@@ -383,7 +383,7 @@ func (m *{{.MapName}}SentinelHashMap) removeRegular(key {{.KeyType}}) ({{.ValTyp
 		}
 		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(k) == {{.KeyBitsFn}}(key){{else}}k == key{{end}} {
 			old := m.values[idx]
-			m.keys[idx] = {{.EntryStem}}SentinelHashMapRemovedKey
+			m.keys[idx] = {{.EntryStem}}RemovedKey
 			m.values[idx] = {{.ValZero}}
 			m.size--
 			return old, true
@@ -393,15 +393,15 @@ func (m *{{.MapName}}SentinelHashMap) removeRegular(key {{.KeyType}}) ({{.ValTyp
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *{{.MapName}}SentinelHashMap) ContainsKey(key {{.KeyType}}) bool {
+func (m *{{.MapName}}) ContainsKey(key {{.KeyType}}) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *{{.MapName}}SentinelHashMap) ContainsValue(value {{.ValType}}) bool {
-	empty := {{.EntryStem}}SentinelHashMapEmptyKey
-	removed := {{.EntryStem}}SentinelHashMapRemovedKey
+func (m *{{.MapName}}) ContainsValue(value {{.ValType}}) bool {
+	empty := {{.EntryStem}}EmptyKey
+	removed := {{.EntryStem}}RemovedKey
 	if m.zeroKeyPresent && {{if .ValueIsFloat}}{{.ValBitsFn}}(m.zeroKeyValue) == {{.ValBitsFn}}(value){{else}}m.zeroKeyValue == value{{end}} {
 		return true
 	}
@@ -421,22 +421,13 @@ func (m *{{.MapName}}SentinelHashMap) ContainsValue(value {{.ValType}}) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *{{.MapName}}SentinelHashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *{{.MapName}}) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *{{.MapName}}SentinelHashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *{{.MapName}}SentinelHashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *{{.MapName}}SentinelHashMap) Clear() {
+func (m *{{.MapName}}) Clear() {
 	for i := range m.keys {
 		m.keys[i] = {{.KeyZero}}
 		m.values[i] = {{.ValZero}}
@@ -453,7 +444,7 @@ func (m *{{.MapName}}SentinelHashMap) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *{{.MapName}}SentinelHashMap) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+func (m *{{.MapName}}) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		if m.zeroKeyPresent {
 			if !yield({{.KeyZero}}, m.zeroKeyValue) {
@@ -468,12 +459,12 @@ func (m *{{.MapName}}SentinelHashMap) All() iter.Seq2[{{.KeyType}}, {{.ValType}}
 		}
 {{- end}}
 		if m.oneKeyPresent {
-			if !yield({{.EntryStem}}SentinelHashMapRemovedKey, m.oneKeyValue) {
+			if !yield({{.EntryStem}}RemovedKey, m.oneKeyValue) {
 				return
 			}
 		}
-		empty := {{.EntryStem}}SentinelHashMapEmptyKey
-		removed := {{.EntryStem}}SentinelHashMapRemovedKey
+		empty := {{.EntryStem}}EmptyKey
+		removed := {{.EntryStem}}RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.keys[i], m.values[i]) {
@@ -485,7 +476,7 @@ func (m *{{.MapName}}SentinelHashMap) All() iter.Seq2[{{.KeyType}}, {{.ValType}}
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *{{.MapName}}SentinelHashMap) Keys() iter.Seq[{{.KeyType}}] {
+func (m *{{.MapName}}) Keys() iter.Seq[{{.KeyType}}] {
 	return func(yield func({{.KeyType}}) bool) {
 		if m.zeroKeyPresent {
 			if !yield({{.KeyZero}}) {
@@ -500,12 +491,12 @@ func (m *{{.MapName}}SentinelHashMap) Keys() iter.Seq[{{.KeyType}}] {
 		}
 {{- end}}
 		if m.oneKeyPresent {
-			if !yield({{.EntryStem}}SentinelHashMapRemovedKey) {
+			if !yield({{.EntryStem}}RemovedKey) {
 				return
 			}
 		}
-		empty := {{.EntryStem}}SentinelHashMapEmptyKey
-		removed := {{.EntryStem}}SentinelHashMapRemovedKey
+		empty := {{.EntryStem}}EmptyKey
+		removed := {{.EntryStem}}RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.keys[i]) {
@@ -517,7 +508,7 @@ func (m *{{.MapName}}SentinelHashMap) Keys() iter.Seq[{{.KeyType}}] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *{{.MapName}}SentinelHashMap) Values() iter.Seq[{{.ValType}}] {
+func (m *{{.MapName}}) Values() iter.Seq[{{.ValType}}] {
 	return func(yield func({{.ValType}}) bool) {
 		if m.zeroKeyPresent {
 			if !yield(m.zeroKeyValue) {
@@ -536,8 +527,8 @@ func (m *{{.MapName}}SentinelHashMap) Values() iter.Seq[{{.ValType}}] {
 				return
 			}
 		}
-		empty := {{.EntryStem}}SentinelHashMapEmptyKey
-		removed := {{.EntryStem}}SentinelHashMapRemovedKey
+		empty := {{.EntryStem}}EmptyKey
+		removed := {{.EntryStem}}RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.values[i]) {
@@ -549,15 +540,15 @@ func (m *{{.MapName}}SentinelHashMap) Values() iter.Seq[{{.ValType}}] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *{{.MapName}}SentinelHashMap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
+func (m *{{.MapName}}) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 	for k, v := range m.All() {
 		f(k, v)
 	}
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *{{.MapName}}SentinelHashMap) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}SentinelHashMap {
-	result := New{{.MapName}}SentinelHashMap()
+func (m *{{.MapName}}) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}} {
+	result := New{{.MapName}}()
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			result.Put(k, v)
@@ -567,8 +558,8 @@ func (m *{{.MapName}}SentinelHashMap) Select(predicate func({{.KeyType}}, {{.Val
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *{{.MapName}}SentinelHashMap) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}SentinelHashMap {
-	result := New{{.MapName}}SentinelHashMap()
+func (m *{{.MapName}}) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}} {
+	result := New{{.MapName}}()
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			result.Put(k, v)
@@ -578,7 +569,7 @@ func (m *{{.MapName}}SentinelHashMap) Reject(predicate func({{.KeyType}}, {{.Val
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *{{.MapName}}SentinelHashMap) AnySatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
+func (m *{{.MapName}}) AnySatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return true
@@ -588,7 +579,7 @@ func (m *{{.MapName}}SentinelHashMap) AnySatisfy(predicate func({{.KeyType}}, {{
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *{{.MapName}}SentinelHashMap) AllSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
+func (m *{{.MapName}}) AllSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			return false
@@ -598,12 +589,12 @@ func (m *{{.MapName}}SentinelHashMap) AllSatisfy(predicate func({{.KeyType}}, {{
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *{{.MapName}}SentinelHashMap) NoneSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
+func (m *{{.MapName}}) NoneSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	return !m.AnySatisfy(predicate)
 }
 
 // String returns a string representation of the map.
-func (m *{{.MapName}}SentinelHashMap) String() string {
+func (m *{{.MapName}}) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -621,12 +612,12 @@ func (m *{{.MapName}}SentinelHashMap) String() string {
 	return sb.String()
 }
 
-func (m *{{.MapName}}SentinelHashMap) hashKey(key {{.KeyType}}) uint64 {
+func (m *{{.MapName}}) hashKey(key {{.KeyType}}) uint64 {
 	h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *{{.MapName}}SentinelHashMap) needsResize() bool {
+func (m *{{.MapName}}) needsResize() bool {
 	// Count only regular entries (not sentinel entries) for load factor
 	regularEntries := m.size
 	if m.zeroKeyPresent {
@@ -643,16 +634,15 @@ func (m *{{.MapName}}SentinelHashMap) needsResize() bool {
 	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *{{.MapName}}SentinelHashMap) resize() {
+func (m *{{.MapName}}) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = {{.EntryStem}}SentinelHashMapDefaultCapacity
+		newCap = {{.EntryStem}}DefaultCapacity
 	}
 
 	// Save sentinel state
-	savedSize := m.size
 	savedZeroPresent := m.zeroKeyPresent
 	savedZeroValue := m.zeroKeyValue
 {{- if .KeyIsFloat}}
@@ -681,21 +671,20 @@ func (m *{{.MapName}}SentinelHashMap) resize() {
 	}
 {{- end}}
 	if savedOnePresent {
-		m.Put({{.EntryStem}}SentinelHashMapRemovedKey, savedOneValue)
+		m.Put({{.EntryStem}}RemovedKey, savedOneValue)
 	}
 
 	// Re-insert regular entries
-	empty := {{.EntryStem}}SentinelHashMapEmptyKey
-	removed := {{.EntryStem}}SentinelHashMapRemovedKey
+	empty := {{.EntryStem}}EmptyKey
+	removed := {{.EntryStem}}RemovedKey
 	for i := range oldKeys {
 		if oldKeys[i] != empty && oldKeys[i] != removed {
 			m.Put(oldKeys[i], oldValues[i])
 		}
 	}
-	_ = savedSize
 }
 
-func nextPowerOfTwo{{.MapName}}SentinelHashMap(n int) int {
+func nextPowerOfTwo{{.MapName}}(n int) int {
 	if n <= 0 {
 		return 16
 	}

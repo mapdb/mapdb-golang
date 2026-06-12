@@ -6,107 +6,98 @@ import (
 	"iter"
 )
 
-// ImmutableInt32HashSet is an immutable view of a Int32HashSet.
-type ImmutableInt32HashSet struct {
-	delegate *Int32HashSet
+// ImmutableInt32 is an immutable view of a Int32.
+type ImmutableInt32 struct {
+	delegate *Int32
 }
 
-// NewImmutableInt32HashSet creates an immutable set from the given values.
-func NewImmutableInt32HashSet(values ...int32) *ImmutableInt32HashSet {
-	return &ImmutableInt32HashSet{delegate: Int32HashSetOf(values...)}
+// NewImmutableInt32 creates an immutable set from the given values.
+func NewImmutableInt32(values ...int32) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: Int32Of(values...)}
 }
 
-// ImmutableInt32HashSetFrom creates an immutable copy of a mutable set.
-func ImmutableInt32HashSetFrom(s *Int32HashSet) *ImmutableInt32HashSet {
-	copy := Int32HashSetOf(s.ToSlice()...)
-	return &ImmutableInt32HashSet{delegate: copy}
+// ImmutableInt32From creates an immutable copy of a mutable set.
+func ImmutableInt32From(s *Int32) *ImmutableInt32 {
+	copy := Int32Of(s.ToSlice()...)
+	return &ImmutableInt32{delegate: copy}
 }
 
 // Contains returns true if the set contains the given value.
-func (s *ImmutableInt32HashSet) Contains(value int32) bool {
+func (s *ImmutableInt32) Contains(value int32) bool {
 	return s.delegate.Contains(value)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableInt32HashSet) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableInt32HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *ImmutableInt32HashSet) IsEmpty() bool {
-	return s.delegate.IsEmpty()
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableInt32) Len() int {
+	return s.delegate.Len()
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *ImmutableInt32HashSet) All() iter.Seq[int32] {
+func (s *ImmutableInt32) All() iter.Seq[int32] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element.
-func (s *ImmutableInt32HashSet) ForEach(f func(int32)) {
+func (s *ImmutableInt32) ForEach(f func(int32)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable set with elements satisfying the predicate.
-func (s *ImmutableInt32HashSet) Select(predicate func(int32) bool) *ImmutableInt32HashSet {
-	return &ImmutableInt32HashSet{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableInt32) Select(predicate func(int32) bool) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable set with elements not satisfying the predicate.
-func (s *ImmutableInt32HashSet) Reject(predicate func(int32) bool) *ImmutableInt32HashSet {
-	return &ImmutableInt32HashSet{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableInt32) Reject(predicate func(int32) bool) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: s.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableInt32HashSet) AnySatisfy(predicate func(int32) bool) bool {
+func (s *ImmutableInt32) AnySatisfy(predicate func(int32) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableInt32HashSet) AllSatisfy(predicate func(int32) bool) bool {
+func (s *ImmutableInt32) AllSatisfy(predicate func(int32) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableInt32HashSet) NoneSatisfy(predicate func(int32) bool) bool {
+func (s *ImmutableInt32) NoneSatisfy(predicate func(int32) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Union returns a new immutable set with elements from both sets.
-func (s *ImmutableInt32HashSet) Union(other *ImmutableInt32HashSet) *ImmutableInt32HashSet {
-	return &ImmutableInt32HashSet{delegate: s.delegate.Union(other.delegate)}
+func (s *ImmutableInt32) Union(other *ImmutableInt32) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: s.delegate.Union(other.delegate)}
 }
 
 // Intersect returns a new immutable set with elements in both sets.
-func (s *ImmutableInt32HashSet) Intersect(other *ImmutableInt32HashSet) *ImmutableInt32HashSet {
-	return &ImmutableInt32HashSet{delegate: s.delegate.Intersect(other.delegate)}
+func (s *ImmutableInt32) Intersect(other *ImmutableInt32) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: s.delegate.Intersect(other.delegate)}
 }
 
 // Difference returns a new immutable set with elements in this but not other.
-func (s *ImmutableInt32HashSet) Difference(other *ImmutableInt32HashSet) *ImmutableInt32HashSet {
-	return &ImmutableInt32HashSet{delegate: s.delegate.Difference(other.delegate)}
+func (s *ImmutableInt32) Difference(other *ImmutableInt32) *ImmutableInt32 {
+	return &ImmutableInt32{delegate: s.delegate.Difference(other.delegate)}
 }
 
 // ToSlice returns all elements as a slice.
-func (s *ImmutableInt32HashSet) ToSlice() []int32 {
+func (s *ImmutableInt32) ToSlice() []int32 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableInt32HashSet) String() string {
+func (s *ImmutableInt32) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable set has the same elements.
-func (s *ImmutableInt32HashSet) Equals(other *ImmutableInt32HashSet) bool {
+func (s *ImmutableInt32) Equals(other *ImmutableInt32) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this set.
-func (s *ImmutableInt32HashSet) ToMutable() *Int32HashSet {
-	return Int32HashSetOf(s.ToSlice()...)
+func (s *ImmutableInt32) ToMutable() *Int32 {
+	return Int32Of(s.ToSlice()...)
 }

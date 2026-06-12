@@ -8,24 +8,24 @@ import (
 	"strings"
 )
 
-// Int64HashBag is a bag (multiset) that counts occurrences of int64 values.
+// HashInt64 is a bag (multiset) that counts occurrences of int64 values.
 // Backed by a map from value to count.
-type Int64HashBag struct {
+type HashInt64 struct {
 	counts map[int64]int
 	size   int // total count including duplicates
 }
 
-// NewInt64HashBag creates a new empty Int64HashBag.
-func NewInt64HashBag() *Int64HashBag {
-	return &Int64HashBag{
+// NewHashInt64 creates a new empty HashInt64.
+func NewHashInt64() *HashInt64 {
+	return &HashInt64{
 		counts: make(map[int64]int),
 		size:   0,
 	}
 }
 
-// Int64HashBagOf creates a new Int64HashBag from the given values.
-func Int64HashBagOf(values ...int64) *Int64HashBag {
-	b := NewInt64HashBag()
+// HashInt64Of creates a new HashInt64 from the given values.
+func HashInt64Of(values ...int64) *HashInt64 {
+	b := NewHashInt64()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -33,7 +33,7 @@ func Int64HashBagOf(values ...int64) *Int64HashBag {
 }
 
 // Add adds one occurrence of the value.
-func (b *Int64HashBag) Add(value int64) {
+func (b *HashInt64) Add(value int64) {
 	if b.counts == nil {
 		b.counts = make(map[int64]int)
 	}
@@ -43,9 +43,9 @@ func (b *Int64HashBag) Add(value int64) {
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *Int64HashBag) AddOccurrences(value int64, occurrences int) int {
+func (b *HashInt64) AddOccurrences(value int64, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("Int64HashBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("HashInt64: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		return b.counts[value]
@@ -59,7 +59,7 @@ func (b *Int64HashBag) AddOccurrences(value int64, occurrences int) int {
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *Int64HashBag) Remove(value int64) bool {
+func (b *HashInt64) Remove(value int64) bool {
 	count, ok := b.counts[value]
 	if !ok || count <= 0 {
 		return false
@@ -74,7 +74,7 @@ func (b *Int64HashBag) Remove(value int64) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *Int64HashBag) RemoveOccurrences(value int64, occurrences int) bool {
+func (b *HashInt64) RemoveOccurrences(value int64, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -93,7 +93,7 @@ func (b *Int64HashBag) RemoveOccurrences(value int64, occurrences int) bool {
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *Int64HashBag) RemoveAll(value int64) int {
+func (b *HashInt64) RemoveAll(value int64) int {
 	count, ok := b.counts[value]
 	if !ok {
 		return 0
@@ -104,42 +104,36 @@ func (b *Int64HashBag) RemoveAll(value int64) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *Int64HashBag) OccurrencesOf(value int64) int {
+func (b *HashInt64) OccurrencesOf(value int64) int {
 	return b.counts[value]
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *Int64HashBag) Contains(value int64) bool {
+func (b *HashInt64) Contains(value int64) bool {
 	return b.counts[value] > 0
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *Int64HashBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *HashInt64) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Int64HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *Int64HashBag) SizeDistinct() int {
+func (b *HashInt64) SizeDistinct() int {
 	return len(b.counts)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *Int64HashBag) IsEmpty() bool {
-	return b.size == 0
-}
-
 // Clear removes all elements from the bag.
-func (b *Int64HashBag) Clear() {
+func (b *HashInt64) Clear() {
 	b.counts = make(map[int64]int)
 	b.size = 0
 }
 
 // All returns an iter.Seq that yields each element once per occurrence.
-func (b *Int64HashBag) All() iter.Seq[int64] {
+func (b *HashInt64) All() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for value, count := range b.counts {
 			for i := 0; i < count; i++ {
@@ -152,7 +146,7 @@ func (b *Int64HashBag) All() iter.Seq[int64] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once.
-func (b *Int64HashBag) AllDistinct() iter.Seq[int64] {
+func (b *HashInt64) AllDistinct() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for value := range b.counts {
 			if !yield(value) {
@@ -163,7 +157,7 @@ func (b *Int64HashBag) AllDistinct() iter.Seq[int64] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs.
-func (b *Int64HashBag) AllWithOccurrences() iter.Seq2[int64, int] {
+func (b *HashInt64) AllWithOccurrences() iter.Seq2[int64, int] {
 	return func(yield func(int64, int) bool) {
 		for value, count := range b.counts {
 			if !yield(value, count) {
@@ -174,7 +168,7 @@ func (b *Int64HashBag) AllWithOccurrences() iter.Seq2[int64, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence).
-func (b *Int64HashBag) ForEach(f func(int64)) {
+func (b *HashInt64) ForEach(f func(int64)) {
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
 			f(value)
@@ -183,15 +177,15 @@ func (b *Int64HashBag) ForEach(f func(int64)) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count.
-func (b *Int64HashBag) ForEachWithOccurrences(f func(int64, int)) {
+func (b *HashInt64) ForEachWithOccurrences(f func(int64, int)) {
 	for value, count := range b.counts {
 		f(value, count)
 	}
 }
 
 // Select returns a new bag containing only elements that satisfy the predicate.
-func (b *Int64HashBag) Select(predicate func(int64) bool) *Int64HashBag {
-	result := NewInt64HashBag()
+func (b *HashInt64) Select(predicate func(int64) bool) *HashInt64 {
+	result := NewHashInt64()
 	for value, count := range b.counts {
 		if predicate(value) {
 			result.AddOccurrences(value, count)
@@ -201,8 +195,8 @@ func (b *Int64HashBag) Select(predicate func(int64) bool) *Int64HashBag {
 }
 
 // Reject returns a new bag containing only elements that do not satisfy the predicate.
-func (b *Int64HashBag) Reject(predicate func(int64) bool) *Int64HashBag {
-	result := NewInt64HashBag()
+func (b *HashInt64) Reject(predicate func(int64) bool) *HashInt64 {
+	result := NewHashInt64()
 	for value, count := range b.counts {
 		if !predicate(value) {
 			result.AddOccurrences(value, count)
@@ -212,7 +206,7 @@ func (b *Int64HashBag) Reject(predicate func(int64) bool) *Int64HashBag {
 }
 
 // Detect returns the first distinct element that satisfies the predicate, or zero value and false.
-func (b *Int64HashBag) Detect(predicate func(int64) bool) (int64, bool) {
+func (b *HashInt64) Detect(predicate func(int64) bool) (int64, bool) {
 	for value := range b.counts {
 		if predicate(value) {
 			return value, true
@@ -222,7 +216,7 @@ func (b *Int64HashBag) Detect(predicate func(int64) bool) (int64, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *Int64HashBag) AnySatisfy(predicate func(int64) bool) bool {
+func (b *HashInt64) AnySatisfy(predicate func(int64) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return true
@@ -232,7 +226,7 @@ func (b *Int64HashBag) AnySatisfy(predicate func(int64) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *Int64HashBag) AllSatisfy(predicate func(int64) bool) bool {
+func (b *HashInt64) AllSatisfy(predicate func(int64) bool) bool {
 	for value := range b.counts {
 		if !predicate(value) {
 			return false
@@ -242,7 +236,7 @@ func (b *Int64HashBag) AllSatisfy(predicate func(int64) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *Int64HashBag) NoneSatisfy(predicate func(int64) bool) bool {
+func (b *HashInt64) NoneSatisfy(predicate func(int64) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return false
@@ -252,7 +246,7 @@ func (b *Int64HashBag) NoneSatisfy(predicate func(int64) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *Int64HashBag) TopOccurrences(n int) []struct {
+func (b *HashInt64) TopOccurrences(n int) []struct {
 	Value int64
 	Count int
 } {
@@ -289,7 +283,7 @@ func (b *Int64HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count).
-func (b *Int64HashBag) ToSlice() []int64 {
+func (b *HashInt64) ToSlice() []int64 {
 	result := make([]int64, 0, b.size)
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
@@ -300,19 +294,19 @@ func (b *Int64HashBag) ToSlice() []int64 {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *Int64HashBag) With(value int64) *Int64HashBag {
+func (b *HashInt64) AddReturning(value int64) *HashInt64 {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *Int64HashBag) Without(value int64) *Int64HashBag {
+func (b *HashInt64) RemoveReturning(value int64) *HashInt64 {
 	b.RemoveAll(value)
 	return b
 }
 
 // String returns a string representation of the bag.
-func (b *Int64HashBag) String() string {
+func (b *HashInt64) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -331,7 +325,7 @@ func (b *Int64HashBag) String() string {
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *Int64HashBag) WithAll(values ...int64) *Int64HashBag {
+func (b *HashInt64) AddAllReturning(values ...int64) *HashInt64 {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -339,7 +333,7 @@ func (b *Int64HashBag) WithAll(values ...int64) *Int64HashBag {
 }
 
 // WithoutAll removes all occurrences of the given values.
-func (b *Int64HashBag) WithoutAll(values ...int64) *Int64HashBag {
+func (b *HashInt64) RemoveAllReturning(values ...int64) *HashInt64 {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -347,12 +341,12 @@ func (b *Int64HashBag) WithoutAll(values ...int64) *Int64HashBag {
 }
 
 // ToImmutable returns an immutable copy of this bag.
-func (b *Int64HashBag) ToImmutable() *ImmutableInt64HashBag {
-	return ImmutableInt64HashBagFrom(b)
+func (b *HashInt64) ToImmutable() *ImmutableHashInt64 {
+	return ImmutableHashInt64From(b)
 }
 
 // Equals returns true if the other bag has the same elements with the same counts.
-func (b *Int64HashBag) Equals(other *Int64HashBag) bool {
+func (b *HashInt64) Equals(other *HashInt64) bool {
 	if b.size != other.size || len(b.counts) != len(other.counts) {
 		return false
 	}

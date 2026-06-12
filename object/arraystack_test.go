@@ -12,10 +12,10 @@ import (
 
 func TestArrayStack_NewEmpty(t *testing.T) {
 	s := NewArrayStack[int]()
-	if s.Size() != 0 {
-		t.Errorf("Size() = %d, want 0", s.Size())
+	if s.Len() != 0 {
+		t.Errorf("Size() = %d, want 0", s.Len())
 	}
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("IsEmpty() = false, want true")
 	}
 }
@@ -23,12 +23,12 @@ func TestArrayStack_NewEmpty(t *testing.T) {
 func TestArrayStack_NewArrayStackFrom(t *testing.T) {
 	// last element is top
 	s := NewArrayStackFrom(1, 2, 3)
-	if s.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", s.Len())
 	}
-	top, err := s.Peek()
-	if err != nil {
-		t.Fatalf("Peek error: %v", err)
+	top, ok := s.Peek()
+	if !ok {
+		t.Fatal("Peek on non-empty stack returned ok=false")
 	}
 	if top != 3 {
 		t.Errorf("Peek() = %d, want 3 (last element is top)", top)
@@ -39,8 +39,8 @@ func TestArrayStack_Push(t *testing.T) {
 	s := NewArrayStack[int]()
 	s.Push(10)
 	s.Push(20)
-	if s.Size() != 2 {
-		t.Errorf("Size() = %d, want 2", s.Size())
+	if s.Len() != 2 {
+		t.Errorf("Size() = %d, want 2", s.Len())
 	}
 	top, _ := s.Peek()
 	if top != 20 {
@@ -51,15 +51,15 @@ func TestArrayStack_Push(t *testing.T) {
 func TestArrayStack_Pop(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		s := NewArrayStackFrom(1, 2, 3)
-		v, err := s.Pop()
-		if err != nil {
-			t.Fatalf("Pop error: %v", err)
+		v, ok := s.Pop()
+		if !ok {
+			t.Fatal("Pop on non-empty stack returned ok=false")
 		}
 		if v != 3 {
 			t.Errorf("Pop() = %d, want 3", v)
 		}
-		if s.Size() != 2 {
-			t.Errorf("Size after Pop = %d, want 2", s.Size())
+		if s.Len() != 2 {
+			t.Errorf("Size after Pop = %d, want 2", s.Len())
 		}
 
 		v, _ = s.Pop()
@@ -68,11 +68,10 @@ func TestArrayStack_Pop(t *testing.T) {
 		}
 	})
 
-	t.Run("empty stack error", func(t *testing.T) {
+	t.Run("empty stack returns false", func(t *testing.T) {
 		s := NewArrayStack[int]()
-		_, err := s.Pop()
-		if err == nil {
-			t.Error("Pop on empty stack: expected error")
+		if _, ok := s.Pop(); ok {
+			t.Error("Pop on empty stack: expected ok=false")
 		}
 	})
 }
@@ -80,24 +79,23 @@ func TestArrayStack_Pop(t *testing.T) {
 func TestArrayStack_Peek(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		s := NewArrayStackFrom(10, 20)
-		v, err := s.Peek()
-		if err != nil {
-			t.Fatalf("Peek error: %v", err)
+		v, ok := s.Peek()
+		if !ok {
+			t.Fatal("Peek on non-empty stack returned ok=false")
 		}
 		if v != 20 {
 			t.Errorf("Peek() = %d, want 20", v)
 		}
 		// Peek should not remove element
-		if s.Size() != 2 {
-			t.Errorf("Size after Peek = %d, want 2", s.Size())
+		if s.Len() != 2 {
+			t.Errorf("Size after Peek = %d, want 2", s.Len())
 		}
 	})
 
-	t.Run("empty stack error", func(t *testing.T) {
+	t.Run("empty stack returns false", func(t *testing.T) {
 		s := NewArrayStack[int]()
-		_, err := s.Peek()
-		if err == nil {
-			t.Error("Peek on empty stack: expected error")
+		if _, ok := s.Peek(); ok {
+			t.Error("Peek on empty stack: expected ok=false")
 		}
 	})
 }
@@ -106,47 +104,32 @@ func TestArrayStack_PeekAt(t *testing.T) {
 	s := NewArrayStackFrom(10, 20, 30) // top is 30
 
 	t.Run("top", func(t *testing.T) {
-		v, err := s.PeekAt(0)
-		if err != nil {
-			t.Fatalf("PeekAt(0) error: %v", err)
-		}
+		v := s.PeekAt(0)
 		if v != 30 {
 			t.Errorf("PeekAt(0) = %d, want 30", v)
 		}
 	})
 
 	t.Run("middle", func(t *testing.T) {
-		v, err := s.PeekAt(1)
-		if err != nil {
-			t.Fatalf("PeekAt(1) error: %v", err)
-		}
+		v := s.PeekAt(1)
 		if v != 20 {
 			t.Errorf("PeekAt(1) = %d, want 20", v)
 		}
 	})
 
 	t.Run("bottom", func(t *testing.T) {
-		v, err := s.PeekAt(2)
-		if err != nil {
-			t.Fatalf("PeekAt(2) error: %v", err)
-		}
+		v := s.PeekAt(2)
 		if v != 10 {
 			t.Errorf("PeekAt(2) = %d, want 10", v)
 		}
 	})
 
 	t.Run("out of bounds", func(t *testing.T) {
-		_, err := s.PeekAt(5)
-		if err == nil {
-			t.Error("PeekAt(5) expected error")
-		}
+		assertPanics(t, func() { s.PeekAt(5) })
 	})
 
 	t.Run("negative index", func(t *testing.T) {
-		_, err := s.PeekAt(-1)
-		if err == nil {
-			t.Error("PeekAt(-1) expected error")
-		}
+		assertPanics(t, func() { s.PeekAt(-1) })
 	})
 }
 
@@ -206,10 +189,10 @@ func TestArrayStack_ToSlice_TopToBottom(t *testing.T) {
 func TestArrayStack_Clear(t *testing.T) {
 	s := NewArrayStackFrom(1, 2, 3)
 	s.Clear()
-	if s.Size() != 0 {
-		t.Errorf("Size after Clear = %d, want 0", s.Size())
+	if s.Len() != 0 {
+		t.Errorf("Size after Clear = %d, want 0", s.Len())
 	}
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("IsEmpty after Clear = false")
 	}
 }
@@ -234,8 +217,8 @@ func TestArrayStack_StringType(t *testing.T) {
 	if v != "world" {
 		t.Errorf("Pop() = %q, want %q", v, "world")
 	}
-	if s.Size() != 1 {
-		t.Errorf("Size after Pop = %d, want 1", s.Size())
+	if s.Len() != 1 {
+		t.Errorf("Size after Pop = %d, want 1", s.Len())
 	}
 }
 

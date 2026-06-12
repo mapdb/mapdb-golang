@@ -12,7 +12,7 @@ import (
 // genCmpFloat writes cmp_float.go into the current working directory for the
 // given package. The cmpFloat32/cmpFloat64 implementations are byte-identical
 // across every collection package that needs a float total order
-// (arraylist/bag/priority_queue/treemap/treeset); this shared template is the
+// (arraylist/bag/priorityqueue/treemap/treeset); this shared template is the
 // single canonical source so each package's copy is generated, not
 // hand-maintained.
 func genCmpFloat(pkg string) error {

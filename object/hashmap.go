@@ -48,12 +48,8 @@ func (h *HashMap[K, V]) ContainsKey(key K) bool {
 	return ok
 }
 
-func (h *HashMap[K, V]) Size() int { return len(h.m) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (h *HashMap[K, V]) Len() int      { return h.Size() }
-func (h *HashMap[K, V]) IsEmpty() bool { return len(h.m) == 0 }
+// Len returns the number of entries. Use h.Len() == 0 to test for emptiness.
+func (h *HashMap[K, V]) Len() int { return len(h.m) }
 
 func (h *HashMap[K, V]) All() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {

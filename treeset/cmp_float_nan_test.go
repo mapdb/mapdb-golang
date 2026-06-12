@@ -8,7 +8,7 @@ import (
 // NaN sign/payload ordering is verified natively here (NOT in the shared
 // cross-language validation suite): in TypeScript all NaN bit patterns are a
 // single ECMAScript language-level NaN, so an f32 NaN's SIGN and PAYLOAD are
-// not cross-language-observable. cmpFloat32 (and the Float32TreeSet built on
+// not cross-language-observable. cmpFloat32 (and the Float32 built on
 // it) is the production totalOrder comparator phase 3 fixed.
 
 func b32(bits uint32) float32 { return math.Float32frombits(bits) }
@@ -36,11 +36,11 @@ func TestCmpFloat32_NaNSignAndPayloadOrdering(t *testing.T) {
 	}
 }
 
-// The same total order, observed via the production Float32TreeSet in-order
+// The same total order, observed via the production Float32 in-order
 // traversal: -NaN < -Inf < -finite < -0.0 < +0.0 < +finite < +Inf < +NaN, with
 // distinct positive NaN payloads as distinct elements ordered ascending.
-func TestFloat32TreeSet_NaNSignAndPayloadTotalOrder(t *testing.T) {
-	s := NewFloat32TreeSet()
+func TestFloat32_NaNSignAndPayloadTotalOrder(t *testing.T) {
+	s := NewFloat32()
 	for _, v := range []float32{
 		0.0,
 		b32(0x7fc00000), // +NaN
@@ -54,8 +54,8 @@ func TestFloat32TreeSet_NaNSignAndPayloadTotalOrder(t *testing.T) {
 	} {
 		s.Add(v)
 	}
-	if s.Size() != 9 {
-		t.Fatalf("Size = %d; want 9 (each distinct bit pattern distinct, incl. ±0 and both +NaN payloads)", s.Size())
+	if s.Len() != 9 {
+		t.Fatalf("Size = %d; want 9 (each distinct bit pattern distinct, incl. ±0 and both +NaN payloads)", s.Len())
 	}
 	got := s.ToSlice()
 	want := []uint32{

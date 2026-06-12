@@ -10,8 +10,8 @@ func TestMultimap_PutGet(t *testing.T) {
 	m.Put("a", 2)
 	m.Put("b", 3)
 
-	if m.Size() != 3 {
-		t.Errorf("Size = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size = %d, want 3", m.Len())
 	}
 	if m.SizeDistinct() != 2 {
 		t.Errorf("SizeDistinct = %d, want 2", m.SizeDistinct())
@@ -30,8 +30,8 @@ func TestMultimap_RemoveAll(t *testing.T) {
 	if len(removed) != 3 {
 		t.Errorf("removed = %v", removed)
 	}
-	if m.Size() != 0 {
-		t.Errorf("Size = %d", m.Size())
+	if m.Len() != 0 {
+		t.Errorf("Size = %d", m.Len())
 	}
 	if m.ContainsKey("x") {
 		t.Error("should not contain x")

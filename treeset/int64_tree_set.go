@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	int64TreeSetNodeRed   = false
-	int64TreeSetNodeBlack = true
+	int64NodeRed   = false
+	int64NodeBlack = true
 )
 
-type int64TreeSetNode struct {
+type int64Node struct {
 	key    int64
-	left   *int64TreeSetNode
-	right  *int64TreeSetNode
-	parent *int64TreeSetNode
+	left   *int64Node
+	right  *int64Node
+	parent *int64Node
 	color  bool
 }
 
-// Int64TreeSet is a sorted set of int64 values, backed by a red-black tree.
-type Int64TreeSet struct {
-	root *int64TreeSetNode
+// Int64 is a sorted set of int64 values, backed by a red-black tree.
+type Int64 struct {
+	root *int64Node
 	size int
 }
 
-// NewInt64TreeSet creates a new empty sorted set.
-func NewInt64TreeSet() *Int64TreeSet {
-	return &Int64TreeSet{}
+// NewInt64 creates a new empty sorted set.
+func NewInt64() *Int64 {
+	return &Int64{}
 }
 
-// Int64TreeSetOf creates a new sorted set from the given values.
-func Int64TreeSetOf(values ...int64) *Int64TreeSet {
-	s := NewInt64TreeSet()
+// Int64Of creates a new sorted set from the given values.
+func Int64Of(values ...int64) *Int64 {
+	s := NewInt64()
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -42,9 +42,9 @@ func Int64TreeSetOf(values ...int64) *Int64TreeSet {
 }
 
 // Add inserts a value. Returns true if added (not already present).
-func (s *Int64TreeSet) Add(value int64) bool {
+func (s *Int64) Add(value int64) bool {
 	if s.root == nil {
-		s.root = &int64TreeSetNode{key: value, color: int64TreeSetNodeBlack}
+		s.root = &int64Node{key: value, color: int64NodeBlack}
 		s.size++
 		return true
 	}
@@ -52,7 +52,7 @@ func (s *Int64TreeSet) Add(value int64) bool {
 	for {
 		if value < node.key {
 			if node.left == nil {
-				node.left = &int64TreeSetNode{key: value, parent: node, color: int64TreeSetNodeRed}
+				node.left = &int64Node{key: value, parent: node, color: int64NodeRed}
 				s.fixAfterInsert(node.left)
 				s.size++
 				return true
@@ -60,7 +60,7 @@ func (s *Int64TreeSet) Add(value int64) bool {
 			node = node.left
 		} else if value > node.key {
 			if node.right == nil {
-				node.right = &int64TreeSetNode{key: value, parent: node, color: int64TreeSetNodeRed}
+				node.right = &int64Node{key: value, parent: node, color: int64NodeRed}
 				s.fixAfterInsert(node.right)
 				s.size++
 				return true
@@ -73,7 +73,7 @@ func (s *Int64TreeSet) Add(value int64) bool {
 }
 
 // Remove removes a value. Returns true if found and removed.
-func (s *Int64TreeSet) Remove(value int64) bool {
+func (s *Int64) Remove(value int64) bool {
 	node := s.findNode(value)
 	if node == nil {
 		return false
@@ -84,25 +84,18 @@ func (s *Int64TreeSet) Remove(value int64) bool {
 }
 
 // Contains returns true if the set contains the value.
-func (s *Int64TreeSet) Contains(value int64) bool {
+func (s *Int64) Contains(value int64) bool {
 	return s.findNode(value) != nil
 }
 
-// Size returns the number of elements.
-func (s *Int64TreeSet) Size() int { return s.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int64TreeSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set is empty.
-func (s *Int64TreeSet) IsEmpty() bool { return s.size == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Int64) Len() int { return s.size }
 
 // Clear removes all elements.
-func (s *Int64TreeSet) Clear() { s.root = nil; s.size = 0 }
+func (s *Int64) Clear() { s.root = nil; s.size = 0 }
 
 // Min returns the smallest element, or zero and false if empty.
-func (s *Int64TreeSet) Min() (int64, bool) {
+func (s *Int64) Min() (int64, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -110,7 +103,7 @@ func (s *Int64TreeSet) Min() (int64, bool) {
 }
 
 // Max returns the largest element, or zero and false if empty.
-func (s *Int64TreeSet) Max() (int64, bool) {
+func (s *Int64) Max() (int64, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -118,8 +111,8 @@ func (s *Int64TreeSet) Max() (int64, bool) {
 }
 
 // Floor returns the largest element <= value, or zero and false.
-func (s *Int64TreeSet) Floor(value int64) (int64, bool) {
-	var result *int64TreeSetNode
+func (s *Int64) Floor(value int64) (int64, bool) {
+	var result *int64Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -139,8 +132,8 @@ func (s *Int64TreeSet) Floor(value int64) (int64, bool) {
 }
 
 // Ceiling returns the smallest element >= value, or zero and false.
-func (s *Int64TreeSet) Ceiling(value int64) (int64, bool) {
-	var result *int64TreeSetNode
+func (s *Int64) Ceiling(value int64) (int64, bool) {
+	var result *int64Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -160,10 +153,10 @@ func (s *Int64TreeSet) Ceiling(value int64) (int64, bool) {
 }
 
 // All returns an iter.Seq that yields elements in ascending order.
-func (s *Int64TreeSet) All() iter.Seq[int64] {
+func (s *Int64) All() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
-		var inorder func(node *int64TreeSetNode) bool
-		inorder = func(node *int64TreeSetNode) bool {
+		var inorder func(node *int64Node) bool
+		inorder = func(node *int64Node) bool {
 			if node == nil {
 				return true
 			}
@@ -180,7 +173,7 @@ func (s *Int64TreeSet) All() iter.Seq[int64] {
 }
 
 // RangeValues returns an iter.Seq that yields elements in [from, to).
-func (s *Int64TreeSet) RangeValues(from, to int64) iter.Seq[int64] {
+func (s *Int64) RangeValues(from, to int64) iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for v := range s.All() {
 			if v < from {
@@ -197,15 +190,15 @@ func (s *Int64TreeSet) RangeValues(from, to int64) iter.Seq[int64] {
 }
 
 // ForEach calls the function for each element in ascending order.
-func (s *Int64TreeSet) ForEach(f func(int64)) {
+func (s *Int64) ForEach(f func(int64)) {
 	for v := range s.All() {
 		f(v)
 	}
 }
 
 // Select returns a new sorted set with elements satisfying the predicate.
-func (s *Int64TreeSet) Select(predicate func(int64) bool) *Int64TreeSet {
-	result := NewInt64TreeSet()
+func (s *Int64) Select(predicate func(int64) bool) *Int64 {
+	result := NewInt64()
 	for v := range s.All() {
 		if predicate(v) {
 			result.Add(v)
@@ -215,8 +208,8 @@ func (s *Int64TreeSet) Select(predicate func(int64) bool) *Int64TreeSet {
 }
 
 // Reject returns a new sorted set with elements NOT satisfying the predicate.
-func (s *Int64TreeSet) Reject(predicate func(int64) bool) *Int64TreeSet {
-	result := NewInt64TreeSet()
+func (s *Int64) Reject(predicate func(int64) bool) *Int64 {
+	result := NewInt64()
 	for v := range s.All() {
 		if !predicate(v) {
 			result.Add(v)
@@ -226,7 +219,7 @@ func (s *Int64TreeSet) Reject(predicate func(int64) bool) *Int64TreeSet {
 }
 
 // Detect returns the first element satisfying the predicate, or (zero, false) if none.
-func (s *Int64TreeSet) Detect(predicate func(int64) bool) (int64, bool) {
+func (s *Int64) Detect(predicate func(int64) bool) (int64, bool) {
 	for v := range s.All() {
 		if predicate(v) {
 			return v, true
@@ -237,7 +230,7 @@ func (s *Int64TreeSet) Detect(predicate func(int64) bool) (int64, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int64TreeSet) AnySatisfy(predicate func(int64) bool) bool {
+func (s *Int64) AnySatisfy(predicate func(int64) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return true
@@ -247,7 +240,7 @@ func (s *Int64TreeSet) AnySatisfy(predicate func(int64) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int64TreeSet) AllSatisfy(predicate func(int64) bool) bool {
+func (s *Int64) AllSatisfy(predicate func(int64) bool) bool {
 	for v := range s.All() {
 		if !predicate(v) {
 			return false
@@ -257,7 +250,7 @@ func (s *Int64TreeSet) AllSatisfy(predicate func(int64) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int64TreeSet) NoneSatisfy(predicate func(int64) bool) bool {
+func (s *Int64) NoneSatisfy(predicate func(int64) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return false
@@ -267,7 +260,7 @@ func (s *Int64TreeSet) NoneSatisfy(predicate func(int64) bool) bool {
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *Int64TreeSet) Count(predicate func(int64) bool) int {
+func (s *Int64) Count(predicate func(int64) bool) int {
 	c := 0
 	for v := range s.All() {
 		if predicate(v) {
@@ -278,8 +271,8 @@ func (s *Int64TreeSet) Count(predicate func(int64) bool) int {
 }
 
 // Union returns a new sorted set with elements from both sets.
-func (s *Int64TreeSet) Union(other *Int64TreeSet) *Int64TreeSet {
-	result := NewInt64TreeSet()
+func (s *Int64) Union(other *Int64) *Int64 {
+	result := NewInt64()
 	for v := range s.All() {
 		result.Add(v)
 	}
@@ -290,8 +283,8 @@ func (s *Int64TreeSet) Union(other *Int64TreeSet) *Int64TreeSet {
 }
 
 // Intersect returns a new sorted set with elements in both sets.
-func (s *Int64TreeSet) Intersect(other *Int64TreeSet) *Int64TreeSet {
-	result := NewInt64TreeSet()
+func (s *Int64) Intersect(other *Int64) *Int64 {
+	result := NewInt64()
 	for v := range s.All() {
 		if other.Contains(v) {
 			result.Add(v)
@@ -301,8 +294,8 @@ func (s *Int64TreeSet) Intersect(other *Int64TreeSet) *Int64TreeSet {
 }
 
 // Difference returns a new sorted set with elements in this but not other.
-func (s *Int64TreeSet) Difference(other *Int64TreeSet) *Int64TreeSet {
-	result := NewInt64TreeSet()
+func (s *Int64) Difference(other *Int64) *Int64 {
+	result := NewInt64()
 	for v := range s.All() {
 		if !other.Contains(v) {
 			result.Add(v)
@@ -312,7 +305,7 @@ func (s *Int64TreeSet) Difference(other *Int64TreeSet) *Int64TreeSet {
 }
 
 // ToSlice returns elements as a sorted slice.
-func (s *Int64TreeSet) ToSlice() []int64 {
+func (s *Int64) ToSlice() []int64 {
 	result := make([]int64, 0, s.size)
 	for v := range s.All() {
 		result = append(result, v)
@@ -320,14 +313,14 @@ func (s *Int64TreeSet) ToSlice() []int64 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *Int64TreeSet) With(value int64) *Int64TreeSet { s.Add(value); return s }
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Int64) AddReturning(value int64) *Int64 { s.Add(value); return s }
 
-// Without returns the set after removing the value (fluent API).
-func (s *Int64TreeSet) Without(value int64) *Int64TreeSet { s.Remove(value); return s }
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Int64) RemoveReturning(value int64) *Int64 { s.Remove(value); return s }
 
 // String returns a string representation in sorted order.
-func (s *Int64TreeSet) String() string {
+func (s *Int64) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -347,7 +340,7 @@ func (s *Int64TreeSet) String() string {
 
 // --- Red-black tree internals (same as TreeMap) ---
 
-func (s *Int64TreeSet) findNode(key int64) *int64TreeSetNode {
+func (s *Int64) findNode(key int64) *int64Node {
 	node := s.root
 	for node != nil {
 		if key < node.key {
@@ -360,20 +353,20 @@ func (s *Int64TreeSet) findNode(key int64) *int64TreeSetNode {
 	}
 	return nil
 }
-func (s *Int64TreeSet) minNode(node *int64TreeSetNode) *int64TreeSetNode {
+func (s *Int64) minNode(node *int64Node) *int64Node {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
-func (s *Int64TreeSet) maxNode(node *int64TreeSetNode) *int64TreeSetNode {
+func (s *Int64) maxNode(node *int64Node) *int64Node {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (s *Int64TreeSet) rotateLeft(x *int64TreeSetNode) {
+func (s *Int64) rotateLeft(x *int64Node) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -390,7 +383,7 @@ func (s *Int64TreeSet) rotateLeft(x *int64TreeSetNode) {
 	y.left = x
 	x.parent = y
 }
-func (s *Int64TreeSet) rotateRight(x *int64TreeSetNode) {
+func (s *Int64) rotateRight(x *int64Node) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -408,52 +401,52 @@ func (s *Int64TreeSet) rotateRight(x *int64TreeSetNode) {
 	x.parent = y
 }
 
-func (s *Int64TreeSet) fixAfterInsert(z *int64TreeSetNode) {
-	for z.parent != nil && z.parent.color == int64TreeSetNodeRed {
+func (s *Int64) fixAfterInsert(z *int64Node) {
+	for z.parent != nil && z.parent.color == int64NodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
-			if y != nil && y.color == int64TreeSetNodeRed {
-				z.parent.color = int64TreeSetNodeBlack
-				y.color = int64TreeSetNodeBlack
-				z.parent.parent.color = int64TreeSetNodeRed
+			if y != nil && y.color == int64NodeRed {
+				z.parent.color = int64NodeBlack
+				y.color = int64NodeBlack
+				z.parent.parent.color = int64NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.right {
 					z = z.parent
 					s.rotateLeft(z)
 				}
-				z.parent.color = int64TreeSetNodeBlack
-				z.parent.parent.color = int64TreeSetNodeRed
+				z.parent.color = int64NodeBlack
+				z.parent.parent.color = int64NodeRed
 				s.rotateRight(z.parent.parent)
 			}
 		} else {
 			y := z.parent.parent.left
-			if y != nil && y.color == int64TreeSetNodeRed {
-				z.parent.color = int64TreeSetNodeBlack
-				y.color = int64TreeSetNodeBlack
-				z.parent.parent.color = int64TreeSetNodeRed
+			if y != nil && y.color == int64NodeRed {
+				z.parent.color = int64NodeBlack
+				y.color = int64NodeBlack
+				z.parent.parent.color = int64NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.left {
 					z = z.parent
 					s.rotateRight(z)
 				}
-				z.parent.color = int64TreeSetNodeBlack
-				z.parent.parent.color = int64TreeSetNodeRed
+				z.parent.color = int64NodeBlack
+				z.parent.parent.color = int64NodeRed
 				s.rotateLeft(z.parent.parent)
 			}
 		}
 	}
-	s.root.color = int64TreeSetNodeBlack
+	s.root.color = int64NodeBlack
 }
 
-func (s *Int64TreeSet) deleteNode(z *int64TreeSetNode) {
+func (s *Int64) deleteNode(z *int64Node) {
 	if z.left != nil && z.right != nil {
 		succ := s.minNode(z.right)
 		z.key = succ.key
 		z = succ
 	}
-	var child *int64TreeSetNode
+	var child *int64Node
 	if z.left != nil {
 		child = z.left
 	} else {
@@ -468,13 +461,13 @@ func (s *Int64TreeSet) deleteNode(z *int64TreeSetNode) {
 		} else {
 			z.parent.right = child
 		}
-		if z.color == int64TreeSetNodeBlack {
+		if z.color == int64NodeBlack {
 			s.fixAfterDelete(child)
 		}
 	} else if z.parent == nil {
 		s.root = nil
 	} else {
-		if z.color == int64TreeSetNodeBlack {
+		if z.color == int64NodeBlack {
 			s.fixAfterDelete(z)
 		}
 		if z.parent != nil {
@@ -487,17 +480,17 @@ func (s *Int64TreeSet) deleteNode(z *int64TreeSetNode) {
 	}
 }
 
-func (s *Int64TreeSet) fixAfterDelete(x *int64TreeSetNode) {
-	for x != s.root && x.color == int64TreeSetNodeBlack {
+func (s *Int64) fixAfterDelete(x *int64Node) {
+	for x != s.root && x.color == int64NodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right
 			if w == nil {
 				x = x.parent
 				continue
 			}
-			if w.color == int64TreeSetNodeRed {
-				w.color = int64TreeSetNodeBlack
-				x.parent.color = int64TreeSetNodeRed
+			if w.color == int64NodeRed {
+				w.color = int64NodeBlack
+				x.parent.color = int64NodeRed
 				s.rotateLeft(x.parent)
 				w = x.parent.right
 			}
@@ -505,24 +498,24 @@ func (s *Int64TreeSet) fixAfterDelete(x *int64TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int64TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int64TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int64NodeBlack
+			rb := w.right == nil || w.right.color == int64NodeBlack
 			if lb && rb {
-				w.color = int64TreeSetNodeRed
+				w.color = int64NodeRed
 				x = x.parent
 			} else {
 				if rb {
 					if w.left != nil {
-						w.left.color = int64TreeSetNodeBlack
+						w.left.color = int64NodeBlack
 					}
-					w.color = int64TreeSetNodeRed
+					w.color = int64NodeRed
 					s.rotateRight(w)
 					w = x.parent.right
 				}
 				w.color = x.parent.color
-				x.parent.color = int64TreeSetNodeBlack
+				x.parent.color = int64NodeBlack
 				if w.right != nil {
-					w.right.color = int64TreeSetNodeBlack
+					w.right.color = int64NodeBlack
 				}
 				s.rotateLeft(x.parent)
 				x = s.root
@@ -533,9 +526,9 @@ func (s *Int64TreeSet) fixAfterDelete(x *int64TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			if w.color == int64TreeSetNodeRed {
-				w.color = int64TreeSetNodeBlack
-				x.parent.color = int64TreeSetNodeRed
+			if w.color == int64NodeRed {
+				w.color = int64NodeBlack
+				x.parent.color = int64NodeRed
 				s.rotateRight(x.parent)
 				w = x.parent.left
 			}
@@ -543,29 +536,29 @@ func (s *Int64TreeSet) fixAfterDelete(x *int64TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int64TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int64TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int64NodeBlack
+			rb := w.right == nil || w.right.color == int64NodeBlack
 			if lb && rb {
-				w.color = int64TreeSetNodeRed
+				w.color = int64NodeRed
 				x = x.parent
 			} else {
 				if lb {
 					if w.right != nil {
-						w.right.color = int64TreeSetNodeBlack
+						w.right.color = int64NodeBlack
 					}
-					w.color = int64TreeSetNodeRed
+					w.color = int64NodeRed
 					s.rotateLeft(w)
 					w = x.parent.left
 				}
 				w.color = x.parent.color
-				x.parent.color = int64TreeSetNodeBlack
+				x.parent.color = int64NodeBlack
 				if w.left != nil {
-					w.left.color = int64TreeSetNodeBlack
+					w.left.color = int64NodeBlack
 				}
 				s.rotateRight(x.parent)
 				x = s.root
 			}
 		}
 	}
-	x.color = int64TreeSetNodeBlack
+	x.color = int64NodeBlack
 }

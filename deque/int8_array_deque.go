@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Int8ArrayDeque is a double-ended queue of int8 values, backed by a
+// Int8 is a double-ended queue of int8 values, backed by a
 // power-of-two ring buffer. AddFirst, AddLast, RemoveFirst, RemoveLast,
 // PeekFirst and PeekLast are all O(1) amortised.
 //
@@ -15,7 +15,7 @@ import (
 // that preceded it: callers that iterate via ToSlice or ForEach see
 // elements in logical front-to-back order regardless of where head
 // happens to sit in the underlying buffer.
-type Int8ArrayDeque struct {
+type Int8 struct {
 	items []int8 // len == capacity, always a power of two; indexed modulo cap
 	head  int    // index of the front element (0 when empty)
 	size  int    // number of logical elements
@@ -29,7 +29,7 @@ const initialInt8DequeCap = 16
 
 // ceilPow2 rounds n up to the next power of two, with a floor of
 // initialInt8DequeCap. Used when sizing the buffer to fit a
-// caller-supplied slice in Int8ArrayDequeOf.
+// caller-supplied slice in Int8Of.
 func ceilPow2Int8Deque(n int) int {
 	cap := initialInt8DequeCap
 	for cap < n {
@@ -38,15 +38,15 @@ func ceilPow2Int8Deque(n int) int {
 	return cap
 }
 
-// NewInt8ArrayDeque creates a new empty Int8ArrayDeque.
-func NewInt8ArrayDeque() *Int8ArrayDeque {
-	return &Int8ArrayDeque{items: make([]int8, initialInt8DequeCap)}
+// NewInt8 creates a new empty Int8.
+func NewInt8() *Int8 {
+	return &Int8{items: make([]int8, initialInt8DequeCap)}
 }
 
-// Int8ArrayDequeOf creates a new Int8ArrayDeque from the given values in
+// Int8Of creates a new Int8 from the given values in
 // front-to-back order.
-func Int8ArrayDequeOf(values ...int8) *Int8ArrayDeque {
-	d := &Int8ArrayDeque{
+func Int8Of(values ...int8) *Int8 {
+	d := &Int8{
 		items: make([]int8, ceilPow2Int8Deque(len(values))),
 		size:  len(values),
 	}
@@ -56,7 +56,7 @@ func Int8ArrayDequeOf(values ...int8) *Int8ArrayDeque {
 
 // grow doubles the backing buffer and repacks elements so that head is at 0.
 // Called lazily when size would exceed capacity.
-func (d *Int8ArrayDeque) grow() {
+func (d *Int8) grow() {
 	newCap := len(d.items) * 2
 	if newCap == 0 {
 		newCap = initialInt8DequeCap
@@ -71,7 +71,7 @@ func (d *Int8ArrayDeque) grow() {
 }
 
 // AddFirst prepends a value to the front of the deque. O(1) amortised.
-func (d *Int8ArrayDeque) AddFirst(value int8) {
+func (d *Int8) AddFirst(value int8) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -82,7 +82,7 @@ func (d *Int8ArrayDeque) AddFirst(value int8) {
 }
 
 // AddLast appends a value to the back of the deque. O(1) amortised.
-func (d *Int8ArrayDeque) AddLast(value int8) {
+func (d *Int8) AddLast(value int8) {
 	if d.size == len(d.items) {
 		d.grow()
 	}
@@ -91,61 +91,55 @@ func (d *Int8ArrayDeque) AddLast(value int8) {
 	d.size++
 }
 
-// RemoveFirst removes and returns the front element, or an error if empty. O(1).
-func (d *Int8ArrayDeque) RemoveFirst() (int8, error) {
+// RemoveFirst removes and returns the front element. The bool is false if empty. O(1).
+func (d *Int8) RemoveFirst() (int8, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int8ArrayDeque: RemoveFirst on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	v := d.items[d.head]
 	d.items[d.head] = 0 // let GC reclaim references if int8 ever carries them
 	d.head = (d.head + 1) & mask
 	d.size--
-	return v, nil
+	return v, true
 }
 
-// RemoveLast removes and returns the back element, or an error if empty. O(1).
-func (d *Int8ArrayDeque) RemoveLast() (int8, error) {
+// RemoveLast removes and returns the back element. The bool is false if empty. O(1).
+func (d *Int8) RemoveLast() (int8, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int8ArrayDeque: RemoveLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
 	d.size--
 	idx := (d.head + d.size) & mask
 	v := d.items[idx]
 	d.items[idx] = 0
-	return v, nil
+	return v, true
 }
 
-// PeekFirst returns the front element without removing it, or an error if empty.
-func (d *Int8ArrayDeque) PeekFirst() (int8, error) {
+// PeekFirst returns the front element without removing it. The bool is false if empty.
+func (d *Int8) PeekFirst() (int8, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int8ArrayDeque: PeekFirst on empty deque")
+		return 0, false
 	}
-	return d.items[d.head], nil
+	return d.items[d.head], true
 }
 
-// PeekLast returns the back element without removing it, or an error if empty.
-func (d *Int8ArrayDeque) PeekLast() (int8, error) {
+// PeekLast returns the back element without removing it. The bool is false if empty.
+func (d *Int8) PeekLast() (int8, bool) {
 	if d.size == 0 {
-		return 0, fmt.Errorf("Int8ArrayDeque: PeekLast on empty deque")
+		return 0, false
 	}
 	mask := len(d.items) - 1
-	return d.items[(d.head+d.size-1)&mask], nil
+	return d.items[(d.head+d.size-1)&mask], true
 }
 
-// Size returns the number of elements in the deque.
-func (d *Int8ArrayDeque) Size() int { return d.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *Int8ArrayDeque) Len() int { return d.Size() }
-
-// IsEmpty returns true if the deque contains no elements.
-func (d *Int8ArrayDeque) IsEmpty() bool { return d.size == 0 }
+// Len returns the number of elements in the deque. Use d.Len() == 0 to test
+// for emptiness.
+func (d *Int8) Len() int { return d.size }
 
 // Clear removes all elements. The backing buffer is retained.
-func (d *Int8ArrayDeque) Clear() {
+func (d *Int8) Clear() {
 	// Wipe slots so retained references are released. Cheap for value types.
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
@@ -156,7 +150,7 @@ func (d *Int8ArrayDeque) Clear() {
 }
 
 // Contains returns true if the deque contains the given value.
-func (d *Int8ArrayDeque) Contains(value int8) bool {
+func (d *Int8) Contains(value int8) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		v := d.items[(d.head+i)&mask]
@@ -168,7 +162,7 @@ func (d *Int8ArrayDeque) Contains(value int8) bool {
 }
 
 // ForEach applies the function to each element from front to back.
-func (d *Int8ArrayDeque) ForEach(f func(int8)) {
+func (d *Int8) ForEach(f func(int8)) {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		f(d.items[(d.head+i)&mask])
@@ -176,7 +170,7 @@ func (d *Int8ArrayDeque) ForEach(f func(int8)) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (d *Int8ArrayDeque) AnySatisfy(predicate func(int8) bool) bool {
+func (d *Int8) AnySatisfy(predicate func(int8) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if predicate(d.items[(d.head+i)&mask]) {
@@ -187,7 +181,7 @@ func (d *Int8ArrayDeque) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if every element satisfies the predicate.
-func (d *Int8ArrayDeque) AllSatisfy(predicate func(int8) bool) bool {
+func (d *Int8) AllSatisfy(predicate func(int8) bool) bool {
 	mask := len(d.items) - 1
 	for i := 0; i < d.size; i++ {
 		if !predicate(d.items[(d.head+i)&mask]) {
@@ -198,7 +192,7 @@ func (d *Int8ArrayDeque) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // ToSlice returns a copy of the elements in front-to-back order.
-func (d *Int8ArrayDeque) ToSlice() []int8 {
+func (d *Int8) ToSlice() []int8 {
 	out := make([]int8, d.size)
 	if d.size == 0 {
 		return out
@@ -215,7 +209,7 @@ func (d *Int8ArrayDeque) ToSlice() []int8 {
 }
 
 // Equals returns true if the other deque has the same elements in the same order.
-func (d *Int8ArrayDeque) Equals(other *Int8ArrayDeque) bool {
+func (d *Int8) Equals(other *Int8) bool {
 	if d.size != other.size {
 		return false
 	}
@@ -232,7 +226,7 @@ func (d *Int8ArrayDeque) Equals(other *Int8ArrayDeque) bool {
 }
 
 // String returns a string representation in front-to-back order.
-func (d *Int8ArrayDeque) String() string {
+func (d *Int8) String() string {
 	if d.size == 0 {
 		return "[]"
 	}

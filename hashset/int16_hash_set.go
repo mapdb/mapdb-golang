@@ -9,38 +9,38 @@ import (
 )
 
 const (
-	int16HashSetDefaultCapacity = 16
+	int16DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-type int16HashSetEntry struct {
+type int16Entry struct {
 	key      int16
 	occupied bool
 }
 
-// Int16HashSet is an open-addressing hash set for int16 values.
-type Int16HashSet struct {
-	entries []int16HashSetEntry
+// Int16 is an open-addressing hash set for int16 values.
+type Int16 struct {
+	entries []int16Entry
 	size    int
 }
 
-// NewInt16HashSet creates a new empty Int16HashSet.
-func NewInt16HashSet() *Int16HashSet {
-	return NewInt16HashSetWithCapacity(int16HashSetDefaultCapacity)
+// NewInt16 creates a new empty Int16.
+func NewInt16() *Int16 {
+	return NewInt16WithCapacity(int16DefaultCapacity)
 }
 
-// NewInt16HashSetWithCapacity creates a new empty Int16HashSet with the given initial capacity.
-func NewInt16HashSetWithCapacity(capacity int) *Int16HashSet {
-	cap := nextPowerOfTwoInt16HashSet(capacity)
-	return &Int16HashSet{
-		entries: make([]int16HashSetEntry, cap),
+// NewInt16WithCapacity creates a new empty Int16 with the given initial capacity.
+func NewInt16WithCapacity(capacity int) *Int16 {
+	cap := nextPowerOfTwoInt16(capacity)
+	return &Int16{
+		entries: make([]int16Entry, cap),
 		size:    0,
 	}
 }
 
-// Int16HashSetOf creates a new Int16HashSet from the given values.
-func Int16HashSetOf(values ...int16) *Int16HashSet {
-	s := NewInt16HashSetWithCapacity(len(values) * 2)
+// Int16Of creates a new Int16 from the given values.
+func Int16Of(values ...int16) *Int16 {
+	s := NewInt16WithCapacity(len(values) * 2)
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -48,7 +48,7 @@ func Int16HashSetOf(values ...int16) *Int16HashSet {
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).
-func (s *Int16HashSet) Add(value int16) bool {
+func (s *Int16) Add(value int16) bool {
 	if s.needsResize() {
 		s.resize()
 	}
@@ -71,14 +71,14 @@ func (s *Int16HashSet) Add(value int16) bool {
 }
 
 // AddAll inserts all values into the set.
-func (s *Int16HashSet) AddAll(values ...int16) {
+func (s *Int16) AddAll(values ...int16) {
 	for _, v := range values {
 		s.Add(v)
 	}
 }
 
 // Remove removes a value from the set. Returns true if the value was found and removed.
-func (s *Int16HashSet) Remove(value int16) bool {
+func (s *Int16) Remove(value int16) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -91,7 +91,7 @@ func (s *Int16HashSet) Remove(value int16) bool {
 			return false
 		}
 		if s.entries[idx].key == value {
-			s.entries[idx] = int16HashSetEntry{}
+			s.entries[idx] = int16Entry{}
 			s.size--
 			s.rehashFrom(idx, mask)
 			return true
@@ -101,7 +101,7 @@ func (s *Int16HashSet) Remove(value int16) bool {
 }
 
 // Contains returns true if the set contains the given value.
-func (s *Int16HashSet) Contains(value int16) bool {
+func (s *Int16) Contains(value int16) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -120,30 +120,21 @@ func (s *Int16HashSet) Contains(value int16) bool {
 	}
 }
 
-// Size returns the number of elements in the set.
-func (s *Int16HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Int16) Len() int {
 	return s.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int16HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *Int16HashSet) IsEmpty() bool {
-	return s.size == 0
-}
-
 // Clear removes all elements from the set.
-func (s *Int16HashSet) Clear() {
+func (s *Int16) Clear() {
 	for i := range s.entries {
-		s.entries[i] = int16HashSetEntry{}
+		s.entries[i] = int16Entry{}
 	}
 	s.size = 0
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *Int16HashSet) All() iter.Seq[int16] {
+func (s *Int16) All() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for i := range s.entries {
 			if s.entries[i].occupied {
@@ -156,7 +147,7 @@ func (s *Int16HashSet) All() iter.Seq[int16] {
 }
 
 // ForEach calls the given function for each element.
-func (s *Int16HashSet) ForEach(f func(int16)) {
+func (s *Int16) ForEach(f func(int16)) {
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			f(s.entries[i].key)
@@ -165,8 +156,8 @@ func (s *Int16HashSet) ForEach(f func(int16)) {
 }
 
 // Select returns a new set containing only elements that satisfy the predicate.
-func (s *Int16HashSet) Select(predicate func(int16) bool) *Int16HashSet {
-	result := NewInt16HashSet()
+func (s *Int16) Select(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -176,8 +167,8 @@ func (s *Int16HashSet) Select(predicate func(int16) bool) *Int16HashSet {
 }
 
 // Reject returns a new set containing only elements that do not satisfy the predicate.
-func (s *Int16HashSet) Reject(predicate func(int16) bool) *Int16HashSet {
-	result := NewInt16HashSet()
+func (s *Int16) Reject(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -187,7 +178,7 @@ func (s *Int16HashSet) Reject(predicate func(int16) bool) *Int16HashSet {
 }
 
 // Detect returns the first element that satisfies the predicate, or zero value and false.
-func (s *Int16HashSet) Detect(predicate func(int16) bool) (int16, bool) {
+func (s *Int16) Detect(predicate func(int16) bool) (int16, bool) {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return s.entries[i].key, true
@@ -197,7 +188,7 @@ func (s *Int16HashSet) Detect(predicate func(int16) bool) (int16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int16HashSet) AnySatisfy(predicate func(int16) bool) bool {
+func (s *Int16) AnySatisfy(predicate func(int16) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return true
@@ -207,7 +198,7 @@ func (s *Int16HashSet) AnySatisfy(predicate func(int16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int16HashSet) AllSatisfy(predicate func(int16) bool) bool {
+func (s *Int16) AllSatisfy(predicate func(int16) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			return false
@@ -217,7 +208,7 @@ func (s *Int16HashSet) AllSatisfy(predicate func(int16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int16HashSet) NoneSatisfy(predicate func(int16) bool) bool {
+func (s *Int16) NoneSatisfy(predicate func(int16) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return false
@@ -227,8 +218,8 @@ func (s *Int16HashSet) NoneSatisfy(predicate func(int16) bool) bool {
 }
 
 // Union returns a new set containing all elements from both sets.
-func (s *Int16HashSet) Union(other *Int16HashSet) *Int16HashSet {
-	result := NewInt16HashSetWithCapacity((s.size + other.size) * 2)
+func (s *Int16) Union(other *Int16) *Int16 {
+	result := NewInt16WithCapacity((s.size + other.size) * 2)
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			result.Add(s.entries[i].key)
@@ -243,8 +234,8 @@ func (s *Int16HashSet) Union(other *Int16HashSet) *Int16HashSet {
 }
 
 // Intersect returns a new set containing only elements present in both sets.
-func (s *Int16HashSet) Intersect(other *Int16HashSet) *Int16HashSet {
-	result := NewInt16HashSet()
+func (s *Int16) Intersect(other *Int16) *Int16 {
+	result := NewInt16()
 	smaller, larger := s, other
 	if s.size > other.size {
 		smaller, larger = other, s
@@ -258,8 +249,8 @@ func (s *Int16HashSet) Intersect(other *Int16HashSet) *Int16HashSet {
 }
 
 // Difference returns a new set containing elements in this set but not in the other.
-func (s *Int16HashSet) Difference(other *Int16HashSet) *Int16HashSet {
-	result := NewInt16HashSet()
+func (s *Int16) Difference(other *Int16) *Int16 {
+	result := NewInt16()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -269,8 +260,8 @@ func (s *Int16HashSet) Difference(other *Int16HashSet) *Int16HashSet {
 }
 
 // SymmetricDifference returns a new set containing elements in either set but not both.
-func (s *Int16HashSet) SymmetricDifference(other *Int16HashSet) *Int16HashSet {
-	result := NewInt16HashSet()
+func (s *Int16) SymmetricDifference(other *Int16) *Int16 {
+	result := NewInt16()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -285,7 +276,7 @@ func (s *Int16HashSet) SymmetricDifference(other *Int16HashSet) *Int16HashSet {
 }
 
 // ToSlice returns all elements as a slice.
-func (s *Int16HashSet) ToSlice() []int16 {
+func (s *Int16) ToSlice() []int16 {
 	result := make([]int16, 0, s.size)
 	for i := range s.entries {
 		if s.entries[i].occupied {
@@ -295,26 +286,26 @@ func (s *Int16HashSet) ToSlice() []int16 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *Int16HashSet) With(value int16) *Int16HashSet {
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Int16) AddReturning(value int16) *Int16 {
 	s.Add(value)
 	return s
 }
 
-// Without returns the set after removing the value (fluent API).
-func (s *Int16HashSet) Without(value int16) *Int16HashSet {
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Int16) RemoveReturning(value int16) *Int16 {
 	s.Remove(value)
 	return s
 }
 
-// WithAll returns the set after adding all values (fluent API).
-func (s *Int16HashSet) WithAll(values ...int16) *Int16HashSet {
+// AddAllReturning adds all values to the set and returns the receiver (mutating, fluent).
+func (s *Int16) AddAllReturning(values ...int16) *Int16 {
 	s.AddAll(values...)
 	return s
 }
 
-// WithoutAll returns the set after removing all given values (fluent API).
-func (s *Int16HashSet) WithoutAll(values ...int16) *Int16HashSet {
+// RemoveAllReturning removes all given values from the set and returns the receiver (mutating, fluent).
+func (s *Int16) RemoveAllReturning(values ...int16) *Int16 {
 	for _, v := range values {
 		s.Remove(v)
 	}
@@ -322,12 +313,12 @@ func (s *Int16HashSet) WithoutAll(values ...int16) *Int16HashSet {
 }
 
 // ToImmutable returns an immutable copy of this set.
-func (s *Int16HashSet) ToImmutable() *ImmutableInt16HashSet {
-	return ImmutableInt16HashSetFrom(s)
+func (s *Int16) ToImmutable() *ImmutableInt16 {
+	return ImmutableInt16From(s)
 }
 
 // String returns a string representation of the set.
-func (s *Int16HashSet) String() string {
+func (s *Int16) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -348,7 +339,7 @@ func (s *Int16HashSet) String() string {
 }
 
 // Equals returns true if the other set has the same elements.
-func (s *Int16HashSet) Equals(other *Int16HashSet) bool {
+func (s *Int16) Equals(other *Int16) bool {
 	if s.size != other.size {
 		return false
 	}
@@ -360,22 +351,22 @@ func (s *Int16HashSet) Equals(other *Int16HashSet) bool {
 	return true
 }
 
-func (s *Int16HashSet) hash(value int16) uint64 {
+func (s *Int16) hash(value int16) uint64 {
 	h := uint64(value) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (s *Int16HashSet) needsResize() bool {
+func (s *Int16) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
 
-func (s *Int16HashSet) resize() {
+func (s *Int16) resize() {
 	oldEntries := s.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = int16HashSetDefaultCapacity
+		newCap = int16DefaultCapacity
 	}
-	s.entries = make([]int16HashSetEntry, newCap)
+	s.entries = make([]int16Entry, newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -385,7 +376,7 @@ func (s *Int16HashSet) resize() {
 	}
 }
 
-func (s *Int16HashSet) rehashFrom(deleted int, mask int) {
+func (s *Int16) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
@@ -394,7 +385,7 @@ func (s *Int16HashSet) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			s.entries[deleted] = s.entries[idx]
-			s.entries[idx] = int16HashSetEntry{}
+			s.entries[idx] = int16Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -404,7 +395,7 @@ func (s *Int16HashSet) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoInt16HashSet(n int) int {
+func nextPowerOfTwoInt16(n int) int {
 	if n <= 0 {
 		return 16
 	}

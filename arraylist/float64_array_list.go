@@ -6,79 +6,83 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// Float64ArrayList is a resizable array-backed list of float64 values.
+// Float64 is a resizable array-backed list of float64 values.
 // Length is always len(l.items); there is no separate size counter.
-type Float64ArrayList struct {
+//
+// The zero value is an empty, ready-to-use list.
+type Float64 struct {
 	items []float64
 }
 
-// NewFloat64ArrayList creates a new empty Float64ArrayList.
-func NewFloat64ArrayList() *Float64ArrayList {
-	return &Float64ArrayList{items: make([]float64, 0, 16)}
+// NewFloat64 creates a new empty Float64.
+func NewFloat64() *Float64 {
+	return &Float64{items: make([]float64, 0, 16)}
 }
 
-// NewFloat64ArrayListWithCapacity creates a new empty Float64ArrayList with the given initial capacity.
-func NewFloat64ArrayListWithCapacity(capacity int) *Float64ArrayList {
-	return &Float64ArrayList{items: make([]float64, 0, capacity)}
+// NewFloat64WithCapacity creates a new empty Float64 with the given initial capacity.
+func NewFloat64WithCapacity(capacity int) *Float64 {
+	return &Float64{items: make([]float64, 0, capacity)}
 }
 
-// Float64ArrayListOf creates a new Float64ArrayList from the given values.
-func Float64ArrayListOf(values ...float64) *Float64ArrayList {
-	l := &Float64ArrayList{items: make([]float64, len(values))}
+// Float64Of creates a new Float64 from the given values.
+func Float64Of(values ...float64) *Float64 {
+	l := &Float64{items: make([]float64, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
-func (l *Float64ArrayList) Add(value float64) {
+func (l *Float64) Add(value float64) {
 	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
-func (l *Float64ArrayList) AddAll(values ...float64) {
+func (l *Float64) AddAll(values ...float64) {
 	l.items = append(l.items, values...)
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *Float64ArrayList) Get(index int) (float64, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *Float64) Get(index int) float64 {
 	if index < 0 || index >= len(l.items) {
-		return 0.0, fmt.Errorf("Float64ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Float64: index out of range [%d] with length %d", index, len(l.items)))
 	}
-	return l.items[index], nil
+	return l.items[index]
 }
 
-// Set sets the value at the given index, returning the previous value.
-// Returns an error if the index is out of bounds.
-func (l *Float64ArrayList) Set(index int, value float64) (float64, error) {
+// Set sets the value at the given index, returning the previous value. It
+// panics if the index is out of bounds, matching the semantics of a native
+// Go slice.
+func (l *Float64) Set(index int, value float64) float64 {
 	if index < 0 || index >= len(l.items) {
-		return 0.0, fmt.Errorf("Float64ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Float64: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	l.items[index] = value
-	return old, nil
+	return old
 }
 
-// RemoveAtIndex removes the value at the given index and returns it.
-// Returns an error if the index is out of bounds.
-func (l *Float64ArrayList) RemoveAtIndex(index int) (float64, error) {
+// RemoveAtIndex removes the value at the given index and returns it. It panics
+// if the index is out of bounds, matching the semantics of a native Go slice.
+func (l *Float64) RemoveAtIndex(index int) float64 {
 	if index < 0 || index >= len(l.items) {
-		return 0.0, fmt.Errorf("Float64ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Float64: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	copy(l.items[index:], l.items[index+1:])
 	l.items = l.items[:len(l.items)-1]
-	return old, nil
+	return old
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
-func (l *Float64ArrayList) Remove(value float64) bool {
+func (l *Float64) Remove(value float64) bool {
 	for i, v := range l.items {
 		if math.Float64bits(v) == math.Float64bits(value) {
-			_, _ = l.RemoveAtIndex(i)
+			l.RemoveAtIndex(i)
 			return true
 		}
 	}
@@ -86,7 +90,7 @@ func (l *Float64ArrayList) Remove(value float64) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *Float64ArrayList) Contains(value float64) bool {
+func (l *Float64) Contains(value float64) bool {
 	for _, v := range l.items {
 		if math.Float64bits(v) == math.Float64bits(value) {
 			return true
@@ -96,7 +100,7 @@ func (l *Float64ArrayList) Contains(value float64) bool {
 }
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
-func (l *Float64ArrayList) IndexOf(value float64) int {
+func (l *Float64) IndexOf(value float64) int {
 	for i, v := range l.items {
 		if math.Float64bits(v) == math.Float64bits(value) {
 			return i
@@ -105,21 +109,16 @@ func (l *Float64ArrayList) IndexOf(value float64) int {
 	return -1
 }
 
-// Size returns the number of elements in the list.
-func (l *Float64ArrayList) Size() int { return len(l.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *Float64ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *Float64ArrayList) IsEmpty() bool { return len(l.items) == 0 }
+// Len returns the number of elements in the list, matching the Go
+// convention (sort.Interface, container/list, bytes.Buffer). Use
+// l.Len() == 0 to test for emptiness.
+func (l *Float64) Len() int { return len(l.items) }
 
 // Clear removes all elements from the list.
-func (l *Float64ArrayList) Clear() { l.items = l.items[:0] }
+func (l *Float64) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *Float64ArrayList) All() iter.Seq[float64] {
+func (l *Float64) All() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
 		for _, v := range l.items {
 			if !yield(v) {
@@ -130,7 +129,7 @@ func (l *Float64ArrayList) All() iter.Seq[float64] {
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *Float64ArrayList) AllWithIndex() iter.Seq2[int, float64] {
+func (l *Float64) AllWithIndex() iter.Seq2[int, float64] {
 	return func(yield func(int, float64) bool) {
 		for i, v := range l.items {
 			if !yield(i, v) {
@@ -141,22 +140,22 @@ func (l *Float64ArrayList) AllWithIndex() iter.Seq2[int, float64] {
 }
 
 // ForEach calls the given function for each element.
-func (l *Float64ArrayList) ForEach(f func(float64)) {
+func (l *Float64) ForEach(f func(float64)) {
 	for _, v := range l.items {
 		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
-func (l *Float64ArrayList) ForEachWithIndex(f func(float64, int)) {
+func (l *Float64) ForEachWithIndex(f func(float64, int)) {
 	for i, v := range l.items {
 		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
-func (l *Float64ArrayList) Select(predicate func(float64) bool) *Float64ArrayList {
-	result := NewFloat64ArrayList()
+func (l *Float64) Select(predicate func(float64) bool) *Float64 {
+	result := NewFloat64()
 	for _, v := range l.items {
 		if predicate(v) {
 			result.Add(v)
@@ -166,8 +165,8 @@ func (l *Float64ArrayList) Select(predicate func(float64) bool) *Float64ArrayLis
 }
 
 // Reject returns a new list containing only elements that do not satisfy the predicate.
-func (l *Float64ArrayList) Reject(predicate func(float64) bool) *Float64ArrayList {
-	result := NewFloat64ArrayList()
+func (l *Float64) Reject(predicate func(float64) bool) *Float64 {
+	result := NewFloat64()
 	for _, v := range l.items {
 		if !predicate(v) {
 			result.Add(v)
@@ -177,7 +176,7 @@ func (l *Float64ArrayList) Reject(predicate func(float64) bool) *Float64ArrayLis
 }
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
-func (l *Float64ArrayList) Detect(predicate func(float64) bool) (float64, bool) {
+func (l *Float64) Detect(predicate func(float64) bool) (float64, bool) {
 	for _, v := range l.items {
 		if predicate(v) {
 			return v, true
@@ -187,7 +186,7 @@ func (l *Float64ArrayList) Detect(predicate func(float64) bool) (float64, bool) 
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *Float64ArrayList) AnySatisfy(predicate func(float64) bool) bool {
+func (l *Float64) AnySatisfy(predicate func(float64) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return true
@@ -197,7 +196,7 @@ func (l *Float64ArrayList) AnySatisfy(predicate func(float64) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *Float64ArrayList) AllSatisfy(predicate func(float64) bool) bool {
+func (l *Float64) AllSatisfy(predicate func(float64) bool) bool {
 	for _, v := range l.items {
 		if !predicate(v) {
 			return false
@@ -207,7 +206,7 @@ func (l *Float64ArrayList) AllSatisfy(predicate func(float64) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *Float64ArrayList) NoneSatisfy(predicate func(float64) bool) bool {
+func (l *Float64) NoneSatisfy(predicate func(float64) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return false
@@ -217,7 +216,7 @@ func (l *Float64ArrayList) NoneSatisfy(predicate func(float64) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *Float64ArrayList) Count(predicate func(float64) bool) int {
+func (l *Float64) Count(predicate func(float64) bool) int {
 	count := 0
 	for _, v := range l.items {
 		if predicate(v) {
@@ -228,7 +227,7 @@ func (l *Float64ArrayList) Count(predicate func(float64) bool) int {
 }
 
 // InjectInto performs a left fold over the list.
-func (l *Float64ArrayList) InjectInto(initial float64, f func(float64, float64) float64) float64 {
+func (l *Float64) InjectInto(initial float64, f func(float64, float64) float64) float64 {
 	result := initial
 	for _, v := range l.items {
 		result = f(result, v)
@@ -237,7 +236,7 @@ func (l *Float64ArrayList) InjectInto(initial float64, f func(float64, float64) 
 }
 
 // Sum returns the sum of all elements.
-func (l *Float64ArrayList) Sum() float64 {
+func (l *Float64) Sum() float64 {
 	var sum float64
 	for _, v := range l.items {
 		sum += v
@@ -246,7 +245,7 @@ func (l *Float64ArrayList) Sum() float64 {
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
-func (l *Float64ArrayList) Min() (float64, bool) {
+func (l *Float64) Min() (float64, bool) {
 	if len(l.items) == 0 {
 		return 0.0, false
 	}
@@ -260,7 +259,7 @@ func (l *Float64ArrayList) Min() (float64, bool) {
 }
 
 // Max returns the maximum element, or the zero value and false if empty.
-func (l *Float64ArrayList) Max() (float64, bool) {
+func (l *Float64) Max() (float64, bool) {
 	if len(l.items) == 0 {
 		return 0.0, false
 	}
@@ -274,21 +273,28 @@ func (l *Float64ArrayList) Max() (float64, bool) {
 }
 
 // Sort sorts the list in ascending order.
-func (l *Float64ArrayList) Sort() {
-	sort.Slice(l.items, func(i, j int) bool {
-		return cmpFloat64(l.items[i], l.items[j]) < 0
+func (l *Float64) Sort() {
+	slices.SortFunc(l.items, func(a, b float64) int {
+		return cmpFloat64(a, b)
 	})
 }
 
-// SortWithComparator sorts the list using the given comparison function.
-func (l *Float64ArrayList) SortWithComparator(less func(float64, float64) bool) {
-	sort.Slice(l.items, func(i, j int) bool {
-		return less(l.items[i], l.items[j])
+// SortWithComparator sorts the list using the given less function.
+func (l *Float64) SortWithComparator(less func(float64, float64) bool) {
+	slices.SortFunc(l.items, func(a, b float64) int {
+		switch {
+		case less(a, b):
+			return -1
+		case less(b, a):
+			return 1
+		default:
+			return 0
+		}
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
-func (l *Float64ArrayList) BinarySearch(value float64) (int, bool) {
+func (l *Float64) BinarySearch(value float64) (int, bool) {
 	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
@@ -305,9 +311,9 @@ func (l *Float64ArrayList) BinarySearch(value float64) (int, bool) {
 }
 
 // Reversed returns a new list with elements in reverse order.
-func (l *Float64ArrayList) Reversed() *Float64ArrayList {
+func (l *Float64) Reversed() *Float64 {
 	n := len(l.items)
-	result := NewFloat64ArrayListWithCapacity(n)
+	result := NewFloat64WithCapacity(n)
 	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
@@ -315,12 +321,12 @@ func (l *Float64ArrayList) Reversed() *Float64ArrayList {
 }
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
-func (l *Float64ArrayList) Distinct() *Float64ArrayList {
+func (l *Float64) Distinct() *Float64 {
 	// Key by bit pattern so NaN dedupes against itself and -0 stays distinct
 	// from +0 (a plain map[float64] would never match NaN and would collapse
 	// the two zeroes together).
 	seen := make(map[uint64]struct{})
-	result := NewFloat64ArrayList()
+	result := NewFloat64()
 	for _, v := range l.items {
 		bits := math.Float64bits(v)
 		if _, ok := seen[bits]; !ok {
@@ -332,26 +338,26 @@ func (l *Float64ArrayList) Distinct() *Float64ArrayList {
 }
 
 // ToSlice returns a copy of the list elements as a slice.
-func (l *Float64ArrayList) ToSlice() []float64 {
+func (l *Float64) ToSlice() []float64 {
 	result := make([]float64, len(l.items))
 	copy(result, l.items)
 	return result
 }
 
 // With returns the list after adding the value (fluent API).
-func (l *Float64ArrayList) With(value float64) *Float64ArrayList {
+func (l *Float64) AddReturning(value float64) *Float64 {
 	l.Add(value)
 	return l
 }
 
-// Without returns the list after removing the first occurrence of value (fluent API).
-func (l *Float64ArrayList) Without(value float64) *Float64ArrayList {
+// RemoveReturning removes the first occurrence of value and returns the receiver (mutating, fluent).
+func (l *Float64) RemoveReturning(value float64) *Float64 {
 	l.Remove(value)
 	return l
 }
 
 // String returns a string representation of the list.
-func (l *Float64ArrayList) String() string {
+func (l *Float64) String() string {
 	if len(l.items) == 0 {
 		return "[]"
 	}
@@ -368,7 +374,7 @@ func (l *Float64ArrayList) String() string {
 }
 
 // Equals returns true if the other list has the same elements in the same order.
-func (l *Float64ArrayList) Equals(other *Float64ArrayList) bool {
+func (l *Float64) Equals(other *Float64) bool {
 	if len(l.items) != len(other.items) {
 		return false
 	}
@@ -380,16 +386,16 @@ func (l *Float64ArrayList) Equals(other *Float64ArrayList) bool {
 	return true
 }
 
-// WithAll returns the list after adding all values (fluent API).
-func (l *Float64ArrayList) WithAll(values ...float64) *Float64ArrayList {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (l *Float64) AddAllReturning(values ...float64) *Float64 {
 	l.AddAll(values...)
 	return l
 }
 
-// WithoutAll removes every occurrence of any of the given values.
+// RemoveAllReturning removes every occurrence of any of the given values.
 // Compacts in place — keeps the existing backing storage and avoids
 // the temporary-list allocation the previous implementation made.
-func (l *Float64ArrayList) WithoutAll(values ...float64) *Float64ArrayList {
+func (l *Float64) RemoveAllReturning(values ...float64) *Float64 {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
@@ -421,6 +427,6 @@ func (l *Float64ArrayList) WithoutAll(values ...float64) *Float64ArrayList {
 }
 
 // ToImmutable returns an immutable copy of this list.
-func (l *Float64ArrayList) ToImmutable() *ImmutableFloat64ArrayList {
-	return ImmutableFloat64ArrayListFrom(l)
+func (l *Float64) ToImmutable() *ImmutableFloat64 {
+	return ImmutableFloat64From(l)
 }

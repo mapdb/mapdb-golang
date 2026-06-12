@@ -6,111 +6,105 @@ import (
 	"iter"
 )
 
-// ImmutableInt16HashBag is an immutable view of a Int16HashBag.
-type ImmutableInt16HashBag struct {
-	delegate *Int16HashBag
+// ImmutableHashInt16 is an immutable view of a HashInt16.
+type ImmutableHashInt16 struct {
+	delegate *HashInt16
 }
 
-// NewImmutableInt16HashBag creates an immutable bag from the given values.
-func NewImmutableInt16HashBag(values ...int16) *ImmutableInt16HashBag {
-	return &ImmutableInt16HashBag{delegate: Int16HashBagOf(values...)}
+// NewImmutableHashInt16 creates an immutable bag from the given values.
+func NewImmutableHashInt16(values ...int16) *ImmutableHashInt16 {
+	return &ImmutableHashInt16{delegate: HashInt16Of(values...)}
 }
 
-// ImmutableInt16HashBagFrom creates an immutable copy of a mutable bag.
-func ImmutableInt16HashBagFrom(b *Int16HashBag) *ImmutableInt16HashBag {
-	copy := NewInt16HashBag()
+// ImmutableHashInt16From creates an immutable copy of a mutable bag.
+func ImmutableHashInt16From(b *HashInt16) *ImmutableHashInt16 {
+	copy := NewHashInt16()
 	b.ForEachWithOccurrences(func(v int16, count int) {
 		copy.AddOccurrences(v, count)
 	})
-	return &ImmutableInt16HashBag{delegate: copy}
+	return &ImmutableHashInt16{delegate: copy}
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *ImmutableInt16HashBag) OccurrencesOf(value int16) int {
+func (b *ImmutableHashInt16) OccurrencesOf(value int16) int {
 	return b.delegate.OccurrencesOf(value)
 }
 
 // Contains returns true if the bag contains at least one occurrence.
-func (b *ImmutableInt16HashBag) Contains(value int16) bool {
+func (b *ImmutableHashInt16) Contains(value int16) bool {
 	return b.delegate.Contains(value)
 }
 
 // Size returns the total count including duplicates.
-func (b *ImmutableInt16HashBag) Size() int {
-	return b.delegate.Size()
+func (b *ImmutableHashInt16) Len() int {
+	return b.delegate.Len()
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *ImmutableInt16HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *ImmutableInt16HashBag) SizeDistinct() int {
+func (b *ImmutableHashInt16) SizeDistinct() int {
 	return b.delegate.SizeDistinct()
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *ImmutableInt16HashBag) IsEmpty() bool {
-	return b.delegate.IsEmpty()
-}
-
 // All returns an iter.Seq yielding each element once per occurrence.
-func (b *ImmutableInt16HashBag) All() iter.Seq[int16] {
+func (b *ImmutableHashInt16) All() iter.Seq[int16] {
 	return b.delegate.All()
 }
 
 // AllDistinct returns an iter.Seq yielding each distinct element once.
-func (b *ImmutableInt16HashBag) AllDistinct() iter.Seq[int16] {
+func (b *ImmutableHashInt16) AllDistinct() iter.Seq[int16] {
 	return b.delegate.AllDistinct()
 }
 
 // AllWithOccurrences returns an iter.Seq2 yielding (value, count) pairs.
-func (b *ImmutableInt16HashBag) AllWithOccurrences() iter.Seq2[int16, int] {
+func (b *ImmutableHashInt16) AllWithOccurrences() iter.Seq2[int16, int] {
 	return b.delegate.AllWithOccurrences()
 }
 
 // ForEach calls the function for each element (once per occurrence).
-func (b *ImmutableInt16HashBag) ForEach(f func(int16)) {
+func (b *ImmutableHashInt16) ForEach(f func(int16)) {
 	b.delegate.ForEach(f)
 }
 
 // ForEachWithOccurrences calls the function with each distinct element and its count.
-func (b *ImmutableInt16HashBag) ForEachWithOccurrences(f func(int16, int)) {
+func (b *ImmutableHashInt16) ForEachWithOccurrences(f func(int16, int)) {
 	b.delegate.ForEachWithOccurrences(f)
 }
 
 // Select returns a new immutable bag with elements satisfying the predicate.
-func (b *ImmutableInt16HashBag) Select(predicate func(int16) bool) *ImmutableInt16HashBag {
-	return &ImmutableInt16HashBag{delegate: b.delegate.Select(predicate)}
+func (b *ImmutableHashInt16) Select(predicate func(int16) bool) *ImmutableHashInt16 {
+	return &ImmutableHashInt16{delegate: b.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable bag with elements not satisfying the predicate.
-func (b *ImmutableInt16HashBag) Reject(predicate func(int16) bool) *ImmutableInt16HashBag {
-	return &ImmutableInt16HashBag{delegate: b.delegate.Reject(predicate)}
+func (b *ImmutableHashInt16) Reject(predicate func(int16) bool) *ImmutableHashInt16 {
+	return &ImmutableHashInt16{delegate: b.delegate.Reject(predicate)}
 }
 
 // Detect returns the first distinct element satisfying the predicate, or zero and false.
-func (b *ImmutableInt16HashBag) Detect(predicate func(int16) bool) (int16, bool) {
+func (b *ImmutableHashInt16) Detect(predicate func(int16) bool) (int16, bool) {
 	return b.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *ImmutableInt16HashBag) AnySatisfy(predicate func(int16) bool) bool {
+func (b *ImmutableHashInt16) AnySatisfy(predicate func(int16) bool) bool {
 	return b.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (b *ImmutableInt16HashBag) AllSatisfy(predicate func(int16) bool) bool {
+func (b *ImmutableHashInt16) AllSatisfy(predicate func(int16) bool) bool {
 	return b.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *ImmutableInt16HashBag) NoneSatisfy(predicate func(int16) bool) bool {
+func (b *ImmutableHashInt16) NoneSatisfy(predicate func(int16) bool) bool {
 	return b.delegate.NoneSatisfy(predicate)
 }
 
 // TopOccurrences returns the n elements with the highest counts.
-func (b *ImmutableInt16HashBag) TopOccurrences(n int) []struct {
+func (b *ImmutableHashInt16) TopOccurrences(n int) []struct {
 	Value int16
 	Count int
 } {
@@ -118,23 +112,23 @@ func (b *ImmutableInt16HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (repeated per count).
-func (b *ImmutableInt16HashBag) ToSlice() []int16 {
+func (b *ImmutableHashInt16) ToSlice() []int16 {
 	return b.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (b *ImmutableInt16HashBag) String() string {
+func (b *ImmutableHashInt16) String() string {
 	return b.delegate.String()
 }
 
 // Equals returns true if the other immutable bag has the same elements and counts.
-func (b *ImmutableInt16HashBag) Equals(other *ImmutableInt16HashBag) bool {
+func (b *ImmutableHashInt16) Equals(other *ImmutableHashInt16) bool {
 	return b.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this bag.
-func (b *ImmutableInt16HashBag) ToMutable() *Int16HashBag {
-	copy := NewInt16HashBag()
+func (b *ImmutableHashInt16) ToMutable() *HashInt16 {
+	copy := NewHashInt16()
 	b.ForEachWithOccurrences(func(v int16, count int) {
 		copy.AddOccurrences(v, count)
 	})

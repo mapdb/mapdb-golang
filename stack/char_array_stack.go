@@ -8,22 +8,22 @@ import (
 	"strings"
 )
 
-// CharArrayStack is a LIFO (last-in, first-out) stack backed by a uint16 slice.
-type CharArrayStack struct {
+// Char is a LIFO (last-in, first-out) stack backed by a uint16 slice.
+type Char struct {
 	items []uint16
 }
 
-// NewCharArrayStack creates a new empty CharArrayStack.
-func NewCharArrayStack() *CharArrayStack {
-	return &CharArrayStack{
+// NewChar creates a new empty Char.
+func NewChar() *Char {
+	return &Char{
 		items: make([]uint16, 0, 16),
 	}
 }
 
-// CharArrayStackOf creates a new CharArrayStack from the given values.
+// CharOf creates a new Char from the given values.
 // The last value becomes the top of the stack.
-func CharArrayStackOf(values ...uint16) *CharArrayStack {
-	s := &CharArrayStack{
+func CharOf(values ...uint16) *Char {
+	s := &Char{
 		items: make([]uint16, len(values)),
 	}
 	copy(s.items, values)
@@ -31,58 +31,50 @@ func CharArrayStackOf(values ...uint16) *CharArrayStack {
 }
 
 // Push adds a value to the top of the stack.
-func (s *CharArrayStack) Push(value uint16) {
+func (s *Char) Push(value uint16) {
 	s.items = append(s.items, value)
 }
 
-// Pop removes and returns the top value, or an error if the stack is empty.
-func (s *CharArrayStack) Pop() (uint16, error) {
+// Pop removes and returns the top value. The bool is false if the stack is empty.
+func (s *Char) Pop() (uint16, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("CharArrayStack: Pop on empty stack")
+		return 0, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *CharArrayStack) Peek() (uint16, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *Char) Peek() (uint16, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("CharArrayStack: Peek on empty stack")
+		return 0, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
-// PeekAt returns the element at the given distance from the top (0 = top),
-// or an error if the index is out of bounds.
-func (s *CharArrayStack) PeekAt(index int) (uint16, error) {
+// PeekAt returns the element at the given distance from the top (0 = top).
+// It panics if the index is out of range, like a native Go slice.
+func (s *Char) PeekAt(index int) uint16 {
 	if index < 0 || index >= len(s.items) {
-		return 0, fmt.Errorf("CharArrayStack: PeekAt index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("stack.Char: index out of range [%d] with length %d", index, len(s.items)))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
-// Size returns the number of elements in the stack.
-func (s *CharArrayStack) Size() int {
+// Len returns the number of elements in the stack. Use s.Len() == 0 to test
+// for emptiness.
+func (s *Char) Len() int {
 	return len(s.items)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *CharArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *CharArrayStack) IsEmpty() bool {
-	return len(s.items) == 0
-}
-
 // Clear removes all elements from the stack.
-func (s *CharArrayStack) Clear() {
+func (s *Char) Clear() {
 	s.items = s.items[:0]
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *CharArrayStack) Contains(value uint16) bool {
+func (s *Char) Contains(value uint16) bool {
 	for _, v := range s.items {
 		if v == value {
 			return true
@@ -92,7 +84,7 @@ func (s *CharArrayStack) Contains(value uint16) bool {
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *CharArrayStack) All() iter.Seq[uint16] {
+func (s *Char) All() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := len(s.items) - 1; i >= 0; i-- {
 			if !yield(s.items[i]) {
@@ -103,7 +95,7 @@ func (s *CharArrayStack) All() iter.Seq[uint16] {
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *CharArrayStack) ForEach(f func(uint16)) {
+func (s *Char) ForEach(f func(uint16)) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		f(s.items[i])
 	}
@@ -111,8 +103,8 @@ func (s *CharArrayStack) ForEach(f func(uint16)) {
 
 // Select returns a new stack containing only elements that satisfy the predicate.
 // Order is preserved (top of result corresponds to top of original that passed).
-func (s *CharArrayStack) Select(predicate func(uint16) bool) *CharArrayStack {
-	result := NewCharArrayStack()
+func (s *Char) Select(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for _, v := range s.items {
 		if predicate(v) {
 			result.Push(v)
@@ -122,8 +114,8 @@ func (s *CharArrayStack) Select(predicate func(uint16) bool) *CharArrayStack {
 }
 
 // Reject returns a new stack containing only elements that do not satisfy the predicate.
-func (s *CharArrayStack) Reject(predicate func(uint16) bool) *CharArrayStack {
-	result := NewCharArrayStack()
+func (s *Char) Reject(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for _, v := range s.items {
 		if !predicate(v) {
 			result.Push(v)
@@ -133,7 +125,7 @@ func (s *CharArrayStack) Reject(predicate func(uint16) bool) *CharArrayStack {
 }
 
 // Detect returns the first element from the top that satisfies the predicate, or zero and false.
-func (s *CharArrayStack) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (s *Char) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		if predicate(s.items[i]) {
 			return s.items[i], true
@@ -143,7 +135,7 @@ func (s *CharArrayStack) Detect(predicate func(uint16) bool) (uint16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *CharArrayStack) AnySatisfy(predicate func(uint16) bool) bool {
+func (s *Char) AnySatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return true
@@ -153,7 +145,7 @@ func (s *CharArrayStack) AnySatisfy(predicate func(uint16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *CharArrayStack) AllSatisfy(predicate func(uint16) bool) bool {
+func (s *Char) AllSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.items {
 		if !predicate(v) {
 			return false
@@ -163,7 +155,7 @@ func (s *CharArrayStack) AllSatisfy(predicate func(uint16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *CharArrayStack) NoneSatisfy(predicate func(uint16) bool) bool {
+func (s *Char) NoneSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return false
@@ -173,7 +165,7 @@ func (s *CharArrayStack) NoneSatisfy(predicate func(uint16) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (s *CharArrayStack) Count(predicate func(uint16) bool) int {
+func (s *Char) Count(predicate func(uint16) bool) int {
 	count := 0
 	for _, v := range s.items {
 		if predicate(v) {
@@ -184,7 +176,7 @@ func (s *CharArrayStack) Count(predicate func(uint16) bool) int {
 }
 
 // InjectInto performs a left fold from bottom to top.
-func (s *CharArrayStack) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
+func (s *Char) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
 	result := initial
 	for _, v := range s.items {
 		result = f(result, v)
@@ -193,7 +185,7 @@ func (s *CharArrayStack) InjectInto(initial uint16, f func(uint16, uint16) uint1
 }
 
 // ToSlice returns all elements as a slice (top element first).
-func (s *CharArrayStack) ToSlice() []uint16 {
+func (s *Char) ToSlice() []uint16 {
 	result := make([]uint16, len(s.items))
 	for i, j := len(s.items)-1, 0; i >= 0; i, j = i-1, j+1 {
 		result[j] = s.items[i]
@@ -202,20 +194,20 @@ func (s *CharArrayStack) ToSlice() []uint16 {
 }
 
 // ToList returns the elements as a slice in stack order (bottom first, for internal use).
-func (s *CharArrayStack) toList() []uint16 {
+func (s *Char) toList() []uint16 {
 	result := make([]uint16, len(s.items))
 	copy(result, s.items)
 	return result
 }
 
-// With returns the stack after pushing the value (fluent API).
-func (s *CharArrayStack) With(value uint16) *CharArrayStack {
+// AddReturning pushes the value and returns the receiver (mutating, fluent).
+func (s *Char) AddReturning(value uint16) *Char {
 	s.Push(value)
 	return s
 }
 
-// WithAll returns the stack after pushing all values (fluent API).
-func (s *CharArrayStack) WithAll(values ...uint16) *CharArrayStack {
+// AddAllReturning pushes all values and returns the receiver (mutating, fluent).
+func (s *Char) AddAllReturning(values ...uint16) *Char {
 	for _, v := range values {
 		s.Push(v)
 	}
@@ -223,12 +215,12 @@ func (s *CharArrayStack) WithAll(values ...uint16) *CharArrayStack {
 }
 
 // ToImmutable returns an immutable copy of this stack.
-func (s *CharArrayStack) ToImmutable() *ImmutableCharArrayStack {
-	return ImmutableCharArrayStackFrom(s)
+func (s *Char) ToImmutable() *ImmutableChar {
+	return ImmutableCharFrom(s)
 }
 
 // String returns a string representation of the stack (top element first).
-func (s *CharArrayStack) String() string {
+func (s *Char) String() string {
 	if len(s.items) == 0 {
 		return "[]"
 	}
@@ -245,7 +237,7 @@ func (s *CharArrayStack) String() string {
 }
 
 // Equals returns true if the other stack has the same elements in the same order.
-func (s *CharArrayStack) Equals(other *CharArrayStack) bool {
+func (s *Char) Equals(other *Char) bool {
 	if len(s.items) != len(other.items) {
 		return false
 	}

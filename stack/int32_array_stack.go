@@ -8,22 +8,22 @@ import (
 	"strings"
 )
 
-// Int32ArrayStack is a LIFO (last-in, first-out) stack backed by a int32 slice.
-type Int32ArrayStack struct {
+// Int32 is a LIFO (last-in, first-out) stack backed by a int32 slice.
+type Int32 struct {
 	items []int32
 }
 
-// NewInt32ArrayStack creates a new empty Int32ArrayStack.
-func NewInt32ArrayStack() *Int32ArrayStack {
-	return &Int32ArrayStack{
+// NewInt32 creates a new empty Int32.
+func NewInt32() *Int32 {
+	return &Int32{
 		items: make([]int32, 0, 16),
 	}
 }
 
-// Int32ArrayStackOf creates a new Int32ArrayStack from the given values.
+// Int32Of creates a new Int32 from the given values.
 // The last value becomes the top of the stack.
-func Int32ArrayStackOf(values ...int32) *Int32ArrayStack {
-	s := &Int32ArrayStack{
+func Int32Of(values ...int32) *Int32 {
+	s := &Int32{
 		items: make([]int32, len(values)),
 	}
 	copy(s.items, values)
@@ -31,58 +31,50 @@ func Int32ArrayStackOf(values ...int32) *Int32ArrayStack {
 }
 
 // Push adds a value to the top of the stack.
-func (s *Int32ArrayStack) Push(value int32) {
+func (s *Int32) Push(value int32) {
 	s.items = append(s.items, value)
 }
 
-// Pop removes and returns the top value, or an error if the stack is empty.
-func (s *Int32ArrayStack) Pop() (int32, error) {
+// Pop removes and returns the top value. The bool is false if the stack is empty.
+func (s *Int32) Pop() (int32, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int32ArrayStack: Pop on empty stack")
+		return 0, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *Int32ArrayStack) Peek() (int32, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *Int32) Peek() (int32, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int32ArrayStack: Peek on empty stack")
+		return 0, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
-// PeekAt returns the element at the given distance from the top (0 = top),
-// or an error if the index is out of bounds.
-func (s *Int32ArrayStack) PeekAt(index int) (int32, error) {
+// PeekAt returns the element at the given distance from the top (0 = top).
+// It panics if the index is out of range, like a native Go slice.
+func (s *Int32) PeekAt(index int) int32 {
 	if index < 0 || index >= len(s.items) {
-		return 0, fmt.Errorf("Int32ArrayStack: PeekAt index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("stack.Int32: index out of range [%d] with length %d", index, len(s.items)))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
-// Size returns the number of elements in the stack.
-func (s *Int32ArrayStack) Size() int {
+// Len returns the number of elements in the stack. Use s.Len() == 0 to test
+// for emptiness.
+func (s *Int32) Len() int {
 	return len(s.items)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int32ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *Int32ArrayStack) IsEmpty() bool {
-	return len(s.items) == 0
-}
-
 // Clear removes all elements from the stack.
-func (s *Int32ArrayStack) Clear() {
+func (s *Int32) Clear() {
 	s.items = s.items[:0]
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *Int32ArrayStack) Contains(value int32) bool {
+func (s *Int32) Contains(value int32) bool {
 	for _, v := range s.items {
 		if v == value {
 			return true
@@ -92,7 +84,7 @@ func (s *Int32ArrayStack) Contains(value int32) bool {
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *Int32ArrayStack) All() iter.Seq[int32] {
+func (s *Int32) All() iter.Seq[int32] {
 	return func(yield func(int32) bool) {
 		for i := len(s.items) - 1; i >= 0; i-- {
 			if !yield(s.items[i]) {
@@ -103,7 +95,7 @@ func (s *Int32ArrayStack) All() iter.Seq[int32] {
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *Int32ArrayStack) ForEach(f func(int32)) {
+func (s *Int32) ForEach(f func(int32)) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		f(s.items[i])
 	}
@@ -111,8 +103,8 @@ func (s *Int32ArrayStack) ForEach(f func(int32)) {
 
 // Select returns a new stack containing only elements that satisfy the predicate.
 // Order is preserved (top of result corresponds to top of original that passed).
-func (s *Int32ArrayStack) Select(predicate func(int32) bool) *Int32ArrayStack {
-	result := NewInt32ArrayStack()
+func (s *Int32) Select(predicate func(int32) bool) *Int32 {
+	result := NewInt32()
 	for _, v := range s.items {
 		if predicate(v) {
 			result.Push(v)
@@ -122,8 +114,8 @@ func (s *Int32ArrayStack) Select(predicate func(int32) bool) *Int32ArrayStack {
 }
 
 // Reject returns a new stack containing only elements that do not satisfy the predicate.
-func (s *Int32ArrayStack) Reject(predicate func(int32) bool) *Int32ArrayStack {
-	result := NewInt32ArrayStack()
+func (s *Int32) Reject(predicate func(int32) bool) *Int32 {
+	result := NewInt32()
 	for _, v := range s.items {
 		if !predicate(v) {
 			result.Push(v)
@@ -133,7 +125,7 @@ func (s *Int32ArrayStack) Reject(predicate func(int32) bool) *Int32ArrayStack {
 }
 
 // Detect returns the first element from the top that satisfies the predicate, or zero and false.
-func (s *Int32ArrayStack) Detect(predicate func(int32) bool) (int32, bool) {
+func (s *Int32) Detect(predicate func(int32) bool) (int32, bool) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		if predicate(s.items[i]) {
 			return s.items[i], true
@@ -143,7 +135,7 @@ func (s *Int32ArrayStack) Detect(predicate func(int32) bool) (int32, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int32ArrayStack) AnySatisfy(predicate func(int32) bool) bool {
+func (s *Int32) AnySatisfy(predicate func(int32) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return true
@@ -153,7 +145,7 @@ func (s *Int32ArrayStack) AnySatisfy(predicate func(int32) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int32ArrayStack) AllSatisfy(predicate func(int32) bool) bool {
+func (s *Int32) AllSatisfy(predicate func(int32) bool) bool {
 	for _, v := range s.items {
 		if !predicate(v) {
 			return false
@@ -163,7 +155,7 @@ func (s *Int32ArrayStack) AllSatisfy(predicate func(int32) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int32ArrayStack) NoneSatisfy(predicate func(int32) bool) bool {
+func (s *Int32) NoneSatisfy(predicate func(int32) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return false
@@ -173,7 +165,7 @@ func (s *Int32ArrayStack) NoneSatisfy(predicate func(int32) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (s *Int32ArrayStack) Count(predicate func(int32) bool) int {
+func (s *Int32) Count(predicate func(int32) bool) int {
 	count := 0
 	for _, v := range s.items {
 		if predicate(v) {
@@ -184,7 +176,7 @@ func (s *Int32ArrayStack) Count(predicate func(int32) bool) int {
 }
 
 // InjectInto performs a left fold from bottom to top.
-func (s *Int32ArrayStack) InjectInto(initial int32, f func(int32, int32) int32) int32 {
+func (s *Int32) InjectInto(initial int32, f func(int32, int32) int32) int32 {
 	result := initial
 	for _, v := range s.items {
 		result = f(result, v)
@@ -193,7 +185,7 @@ func (s *Int32ArrayStack) InjectInto(initial int32, f func(int32, int32) int32) 
 }
 
 // ToSlice returns all elements as a slice (top element first).
-func (s *Int32ArrayStack) ToSlice() []int32 {
+func (s *Int32) ToSlice() []int32 {
 	result := make([]int32, len(s.items))
 	for i, j := len(s.items)-1, 0; i >= 0; i, j = i-1, j+1 {
 		result[j] = s.items[i]
@@ -202,20 +194,20 @@ func (s *Int32ArrayStack) ToSlice() []int32 {
 }
 
 // ToList returns the elements as a slice in stack order (bottom first, for internal use).
-func (s *Int32ArrayStack) toList() []int32 {
+func (s *Int32) toList() []int32 {
 	result := make([]int32, len(s.items))
 	copy(result, s.items)
 	return result
 }
 
-// With returns the stack after pushing the value (fluent API).
-func (s *Int32ArrayStack) With(value int32) *Int32ArrayStack {
+// AddReturning pushes the value and returns the receiver (mutating, fluent).
+func (s *Int32) AddReturning(value int32) *Int32 {
 	s.Push(value)
 	return s
 }
 
-// WithAll returns the stack after pushing all values (fluent API).
-func (s *Int32ArrayStack) WithAll(values ...int32) *Int32ArrayStack {
+// AddAllReturning pushes all values and returns the receiver (mutating, fluent).
+func (s *Int32) AddAllReturning(values ...int32) *Int32 {
 	for _, v := range values {
 		s.Push(v)
 	}
@@ -223,12 +215,12 @@ func (s *Int32ArrayStack) WithAll(values ...int32) *Int32ArrayStack {
 }
 
 // ToImmutable returns an immutable copy of this stack.
-func (s *Int32ArrayStack) ToImmutable() *ImmutableInt32ArrayStack {
-	return ImmutableInt32ArrayStackFrom(s)
+func (s *Int32) ToImmutable() *ImmutableInt32 {
+	return ImmutableInt32From(s)
 }
 
 // String returns a string representation of the stack (top element first).
-func (s *Int32ArrayStack) String() string {
+func (s *Int32) String() string {
 	if len(s.items) == 0 {
 		return "[]"
 	}
@@ -245,7 +237,7 @@ func (s *Int32ArrayStack) String() string {
 }
 
 // Equals returns true if the other stack has the same elements in the same order.
-func (s *Int32ArrayStack) Equals(other *Int32ArrayStack) bool {
+func (s *Int32) Equals(other *Int32) bool {
 	if len(s.items) != len(other.items) {
 		return false
 	}

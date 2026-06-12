@@ -8,24 +8,24 @@ import (
 	"strings"
 )
 
-// Int32HashBag is a bag (multiset) that counts occurrences of int32 values.
+// HashInt32 is a bag (multiset) that counts occurrences of int32 values.
 // Backed by a map from value to count.
-type Int32HashBag struct {
+type HashInt32 struct {
 	counts map[int32]int
 	size   int // total count including duplicates
 }
 
-// NewInt32HashBag creates a new empty Int32HashBag.
-func NewInt32HashBag() *Int32HashBag {
-	return &Int32HashBag{
+// NewHashInt32 creates a new empty HashInt32.
+func NewHashInt32() *HashInt32 {
+	return &HashInt32{
 		counts: make(map[int32]int),
 		size:   0,
 	}
 }
 
-// Int32HashBagOf creates a new Int32HashBag from the given values.
-func Int32HashBagOf(values ...int32) *Int32HashBag {
-	b := NewInt32HashBag()
+// HashInt32Of creates a new HashInt32 from the given values.
+func HashInt32Of(values ...int32) *HashInt32 {
+	b := NewHashInt32()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -33,7 +33,7 @@ func Int32HashBagOf(values ...int32) *Int32HashBag {
 }
 
 // Add adds one occurrence of the value.
-func (b *Int32HashBag) Add(value int32) {
+func (b *HashInt32) Add(value int32) {
 	if b.counts == nil {
 		b.counts = make(map[int32]int)
 	}
@@ -43,9 +43,9 @@ func (b *Int32HashBag) Add(value int32) {
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *Int32HashBag) AddOccurrences(value int32, occurrences int) int {
+func (b *HashInt32) AddOccurrences(value int32, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("Int32HashBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("HashInt32: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		return b.counts[value]
@@ -59,7 +59,7 @@ func (b *Int32HashBag) AddOccurrences(value int32, occurrences int) int {
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *Int32HashBag) Remove(value int32) bool {
+func (b *HashInt32) Remove(value int32) bool {
 	count, ok := b.counts[value]
 	if !ok || count <= 0 {
 		return false
@@ -74,7 +74,7 @@ func (b *Int32HashBag) Remove(value int32) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *Int32HashBag) RemoveOccurrences(value int32, occurrences int) bool {
+func (b *HashInt32) RemoveOccurrences(value int32, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -93,7 +93,7 @@ func (b *Int32HashBag) RemoveOccurrences(value int32, occurrences int) bool {
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *Int32HashBag) RemoveAll(value int32) int {
+func (b *HashInt32) RemoveAll(value int32) int {
 	count, ok := b.counts[value]
 	if !ok {
 		return 0
@@ -104,42 +104,36 @@ func (b *Int32HashBag) RemoveAll(value int32) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *Int32HashBag) OccurrencesOf(value int32) int {
+func (b *HashInt32) OccurrencesOf(value int32) int {
 	return b.counts[value]
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *Int32HashBag) Contains(value int32) bool {
+func (b *HashInt32) Contains(value int32) bool {
 	return b.counts[value] > 0
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *Int32HashBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *HashInt32) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Int32HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *Int32HashBag) SizeDistinct() int {
+func (b *HashInt32) SizeDistinct() int {
 	return len(b.counts)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *Int32HashBag) IsEmpty() bool {
-	return b.size == 0
-}
-
 // Clear removes all elements from the bag.
-func (b *Int32HashBag) Clear() {
+func (b *HashInt32) Clear() {
 	b.counts = make(map[int32]int)
 	b.size = 0
 }
 
 // All returns an iter.Seq that yields each element once per occurrence.
-func (b *Int32HashBag) All() iter.Seq[int32] {
+func (b *HashInt32) All() iter.Seq[int32] {
 	return func(yield func(int32) bool) {
 		for value, count := range b.counts {
 			for i := 0; i < count; i++ {
@@ -152,7 +146,7 @@ func (b *Int32HashBag) All() iter.Seq[int32] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once.
-func (b *Int32HashBag) AllDistinct() iter.Seq[int32] {
+func (b *HashInt32) AllDistinct() iter.Seq[int32] {
 	return func(yield func(int32) bool) {
 		for value := range b.counts {
 			if !yield(value) {
@@ -163,7 +157,7 @@ func (b *Int32HashBag) AllDistinct() iter.Seq[int32] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs.
-func (b *Int32HashBag) AllWithOccurrences() iter.Seq2[int32, int] {
+func (b *HashInt32) AllWithOccurrences() iter.Seq2[int32, int] {
 	return func(yield func(int32, int) bool) {
 		for value, count := range b.counts {
 			if !yield(value, count) {
@@ -174,7 +168,7 @@ func (b *Int32HashBag) AllWithOccurrences() iter.Seq2[int32, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence).
-func (b *Int32HashBag) ForEach(f func(int32)) {
+func (b *HashInt32) ForEach(f func(int32)) {
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
 			f(value)
@@ -183,15 +177,15 @@ func (b *Int32HashBag) ForEach(f func(int32)) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count.
-func (b *Int32HashBag) ForEachWithOccurrences(f func(int32, int)) {
+func (b *HashInt32) ForEachWithOccurrences(f func(int32, int)) {
 	for value, count := range b.counts {
 		f(value, count)
 	}
 }
 
 // Select returns a new bag containing only elements that satisfy the predicate.
-func (b *Int32HashBag) Select(predicate func(int32) bool) *Int32HashBag {
-	result := NewInt32HashBag()
+func (b *HashInt32) Select(predicate func(int32) bool) *HashInt32 {
+	result := NewHashInt32()
 	for value, count := range b.counts {
 		if predicate(value) {
 			result.AddOccurrences(value, count)
@@ -201,8 +195,8 @@ func (b *Int32HashBag) Select(predicate func(int32) bool) *Int32HashBag {
 }
 
 // Reject returns a new bag containing only elements that do not satisfy the predicate.
-func (b *Int32HashBag) Reject(predicate func(int32) bool) *Int32HashBag {
-	result := NewInt32HashBag()
+func (b *HashInt32) Reject(predicate func(int32) bool) *HashInt32 {
+	result := NewHashInt32()
 	for value, count := range b.counts {
 		if !predicate(value) {
 			result.AddOccurrences(value, count)
@@ -212,7 +206,7 @@ func (b *Int32HashBag) Reject(predicate func(int32) bool) *Int32HashBag {
 }
 
 // Detect returns the first distinct element that satisfies the predicate, or zero value and false.
-func (b *Int32HashBag) Detect(predicate func(int32) bool) (int32, bool) {
+func (b *HashInt32) Detect(predicate func(int32) bool) (int32, bool) {
 	for value := range b.counts {
 		if predicate(value) {
 			return value, true
@@ -222,7 +216,7 @@ func (b *Int32HashBag) Detect(predicate func(int32) bool) (int32, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *Int32HashBag) AnySatisfy(predicate func(int32) bool) bool {
+func (b *HashInt32) AnySatisfy(predicate func(int32) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return true
@@ -232,7 +226,7 @@ func (b *Int32HashBag) AnySatisfy(predicate func(int32) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *Int32HashBag) AllSatisfy(predicate func(int32) bool) bool {
+func (b *HashInt32) AllSatisfy(predicate func(int32) bool) bool {
 	for value := range b.counts {
 		if !predicate(value) {
 			return false
@@ -242,7 +236,7 @@ func (b *Int32HashBag) AllSatisfy(predicate func(int32) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *Int32HashBag) NoneSatisfy(predicate func(int32) bool) bool {
+func (b *HashInt32) NoneSatisfy(predicate func(int32) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return false
@@ -252,7 +246,7 @@ func (b *Int32HashBag) NoneSatisfy(predicate func(int32) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *Int32HashBag) TopOccurrences(n int) []struct {
+func (b *HashInt32) TopOccurrences(n int) []struct {
 	Value int32
 	Count int
 } {
@@ -289,7 +283,7 @@ func (b *Int32HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count).
-func (b *Int32HashBag) ToSlice() []int32 {
+func (b *HashInt32) ToSlice() []int32 {
 	result := make([]int32, 0, b.size)
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
@@ -300,19 +294,19 @@ func (b *Int32HashBag) ToSlice() []int32 {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *Int32HashBag) With(value int32) *Int32HashBag {
+func (b *HashInt32) AddReturning(value int32) *HashInt32 {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *Int32HashBag) Without(value int32) *Int32HashBag {
+func (b *HashInt32) RemoveReturning(value int32) *HashInt32 {
 	b.RemoveAll(value)
 	return b
 }
 
 // String returns a string representation of the bag.
-func (b *Int32HashBag) String() string {
+func (b *HashInt32) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -331,7 +325,7 @@ func (b *Int32HashBag) String() string {
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *Int32HashBag) WithAll(values ...int32) *Int32HashBag {
+func (b *HashInt32) AddAllReturning(values ...int32) *HashInt32 {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -339,7 +333,7 @@ func (b *Int32HashBag) WithAll(values ...int32) *Int32HashBag {
 }
 
 // WithoutAll removes all occurrences of the given values.
-func (b *Int32HashBag) WithoutAll(values ...int32) *Int32HashBag {
+func (b *HashInt32) RemoveAllReturning(values ...int32) *HashInt32 {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -347,12 +341,12 @@ func (b *Int32HashBag) WithoutAll(values ...int32) *Int32HashBag {
 }
 
 // ToImmutable returns an immutable copy of this bag.
-func (b *Int32HashBag) ToImmutable() *ImmutableInt32HashBag {
-	return ImmutableInt32HashBagFrom(b)
+func (b *HashInt32) ToImmutable() *ImmutableHashInt32 {
+	return ImmutableHashInt32From(b)
 }
 
 // Equals returns true if the other bag has the same elements with the same counts.
-func (b *Int32HashBag) Equals(other *Int32HashBag) bool {
+func (b *HashInt32) Equals(other *HashInt32) bool {
 	if b.size != other.size || len(b.counts) != len(other.counts) {
 		return false
 	}

@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt64ArrayList is a thread-safe wrapper around Int64ArrayList.
+// SynchronizedInt64 is a thread-safe wrapper around Int64.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take
 // a caller-supplied function (Select, ForEach, InjectInto, …) snapshot
@@ -17,40 +17,40 @@ import (
 // without deadlocking.
 //
 // Methods that return a fresh collection (Select, Reject, Distinct,
-// Reversed) return an unwrapped *Int64ArrayList: the caller owns it and
+// Reversed) return an unwrapped *Int64: the caller owns it and
 // is free to add their own synchronisation if they need it.
-type SynchronizedInt64ArrayList struct {
-	delegate *Int64ArrayList
+type SynchronizedInt64 struct {
+	delegate *Int64
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt64ArrayList creates a new thread-safe empty list.
-func NewSynchronizedInt64ArrayList() *SynchronizedInt64ArrayList {
-	return &SynchronizedInt64ArrayList{delegate: NewInt64ArrayList()}
+// NewSynchronizedInt64 creates a new thread-safe empty list.
+func NewSynchronizedInt64() *SynchronizedInt64 {
+	return &SynchronizedInt64{delegate: NewInt64()}
 }
 
-// NewSynchronizedInt64ArrayListWithCapacity creates a new thread-safe
+// NewSynchronizedInt64WithCapacity creates a new thread-safe
 // empty list with the given initial capacity.
-func NewSynchronizedInt64ArrayListWithCapacity(capacity int) *SynchronizedInt64ArrayList {
-	return &SynchronizedInt64ArrayList{delegate: NewInt64ArrayListWithCapacity(capacity)}
+func NewSynchronizedInt64WithCapacity(capacity int) *SynchronizedInt64 {
+	return &SynchronizedInt64{delegate: NewInt64WithCapacity(capacity)}
 }
 
-// NewSynchronizedInt64ArrayListFrom wraps an existing list. The
+// NewSynchronizedInt64From wraps an existing list. The
 // wrapper takes ownership of the delegate — callers must not continue
 // to mutate it directly without locking.
-func NewSynchronizedInt64ArrayListFrom(l *Int64ArrayList) *SynchronizedInt64ArrayList {
-	return &SynchronizedInt64ArrayList{delegate: l}
+func NewSynchronizedInt64From(l *Int64) *SynchronizedInt64 {
+	return &SynchronizedInt64{delegate: l}
 }
 
-// SynchronizedInt64ArrayListOf creates a new thread-safe list
+// SynchronizedInt64Of creates a new thread-safe list
 // containing the given values in order.
-func SynchronizedInt64ArrayListOf(values ...int64) *SynchronizedInt64ArrayList {
-	return &SynchronizedInt64ArrayList{delegate: Int64ArrayListOf(values...)}
+func SynchronizedInt64Of(values ...int64) *SynchronizedInt64 {
+	return &SynchronizedInt64{delegate: Int64Of(values...)}
 }
 
 // snapshot returns a defensive copy of the backing slice taken under
 // RLock. Callers iterate the snapshot without holding the lock.
-func (l *SynchronizedInt64ArrayList) snapshot() []int64 {
+func (l *SynchronizedInt64) snapshot() []int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
@@ -58,37 +58,37 @@ func (l *SynchronizedInt64ArrayList) snapshot() []int64 {
 
 // ── simple writes ─────────────────────────────────────────────────────
 
-func (l *SynchronizedInt64ArrayList) Add(value int64) {
+func (l *SynchronizedInt64) Add(value int64) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Add(value)
 }
 
-func (l *SynchronizedInt64ArrayList) AddAll(values ...int64) {
+func (l *SynchronizedInt64) AddAll(values ...int64) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.AddAll(values...)
 }
 
-func (l *SynchronizedInt64ArrayList) Set(index int, value int64) (int64, error) {
+func (l *SynchronizedInt64) Set(index int, value int64) int64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Set(index, value)
 }
 
-func (l *SynchronizedInt64ArrayList) RemoveAtIndex(index int) (int64, error) {
+func (l *SynchronizedInt64) RemoveAtIndex(index int) int64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.RemoveAtIndex(index)
 }
 
-func (l *SynchronizedInt64ArrayList) Remove(value int64) bool {
+func (l *SynchronizedInt64) Remove(value int64) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Remove(value)
 }
 
-func (l *SynchronizedInt64ArrayList) Clear() {
+func (l *SynchronizedInt64) Clear() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Clear()
@@ -96,7 +96,7 @@ func (l *SynchronizedInt64ArrayList) Clear() {
 
 // Sort sorts the backing list in place. Holds the write lock for the
 // duration; do not call back into this wrapper from a custom comparator.
-func (l *SynchronizedInt64ArrayList) Sort() {
+func (l *SynchronizedInt64) Sort() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Sort()
@@ -104,7 +104,7 @@ func (l *SynchronizedInt64ArrayList) Sort() {
 
 // SortWithComparator sorts using the given less function, under the
 // write lock. The comparator must not call back into this wrapper.
-func (l *SynchronizedInt64ArrayList) SortWithComparator(less func(int64, int64) bool) {
+func (l *SynchronizedInt64) SortWithComparator(less func(int64, int64) bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.SortWithComparator(less)
@@ -112,65 +112,55 @@ func (l *SynchronizedInt64ArrayList) SortWithComparator(less func(int64, int64) 
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (l *SynchronizedInt64ArrayList) Get(index int) (int64, error) {
+func (l *SynchronizedInt64) Get(index int) int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Get(index)
 }
 
-func (l *SynchronizedInt64ArrayList) Contains(value int64) bool {
+func (l *SynchronizedInt64) Contains(value int64) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Contains(value)
 }
 
-func (l *SynchronizedInt64ArrayList) IndexOf(value int64) int {
+func (l *SynchronizedInt64) IndexOf(value int64) int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.IndexOf(value)
 }
 
-func (l *SynchronizedInt64ArrayList) Size() int {
+func (l *SynchronizedInt64) Len() int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.delegate.Size()
+	return l.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *SynchronizedInt64ArrayList) Len() int { return l.Size() }
-
-func (l *SynchronizedInt64ArrayList) IsEmpty() bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.delegate.IsEmpty()
-}
-
-func (l *SynchronizedInt64ArrayList) ToSlice() []int64 {
+func (l *SynchronizedInt64) ToSlice() []int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
 }
 
-func (l *SynchronizedInt64ArrayList) String() string {
+func (l *SynchronizedInt64) String() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.String()
 }
 
-func (l *SynchronizedInt64ArrayList) Sum() int64 {
+func (l *SynchronizedInt64) Sum() int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Sum()
 }
 
-func (l *SynchronizedInt64ArrayList) Min() (int64, bool) {
+func (l *SynchronizedInt64) Min() (int64, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Min()
 }
 
-func (l *SynchronizedInt64ArrayList) Max() (int64, bool) {
+func (l *SynchronizedInt64) Max() (int64, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Max()
@@ -179,7 +169,7 @@ func (l *SynchronizedInt64ArrayList) Max() (int64, bool) {
 // BinarySearch requires the delegate to be sorted. Callers must
 // ensure that (e.g. by calling Sort() beforehand, both happening
 // before any concurrent Add).
-func (l *SynchronizedInt64ArrayList) BinarySearch(value int64) (int, bool) {
+func (l *SynchronizedInt64) BinarySearch(value int64) (int, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.BinarySearch(value)
@@ -189,7 +179,7 @@ func (l *SynchronizedInt64ArrayList) BinarySearch(value int64) (int, bool) {
 // same order. Both wrappers are locked under RLock to prevent torn
 // reads; locks are acquired in pointer-address order so two goroutines
 // calling A.Equals(B) and B.Equals(A) concurrently cannot deadlock.
-func (l *SynchronizedInt64ArrayList) Equals(other *SynchronizedInt64ArrayList) bool {
+func (l *SynchronizedInt64) Equals(other *SynchronizedInt64) bool {
 	if l == other {
 		l.mu.RLock()
 		defer l.mu.RUnlock()
@@ -209,7 +199,7 @@ func (l *SynchronizedInt64ArrayList) Equals(other *SynchronizedInt64ArrayList) b
 // ── iteration (snapshot-based) ────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (l *SynchronizedInt64ArrayList) All() iter.Seq[int64] {
+func (l *SynchronizedInt64) All() iter.Seq[int64] {
 	snapshot := l.snapshot()
 	return func(yield func(int64) bool) {
 		for _, v := range snapshot {
@@ -221,7 +211,7 @@ func (l *SynchronizedInt64ArrayList) All() iter.Seq[int64] {
 }
 
 // AllWithIndex returns an iter.Seq2 over a snapshot. Iteration is lock-free.
-func (l *SynchronizedInt64ArrayList) AllWithIndex() iter.Seq2[int, int64] {
+func (l *SynchronizedInt64) AllWithIndex() iter.Seq2[int, int64] {
 	snapshot := l.snapshot()
 	return func(yield func(int, int64) bool) {
 		for i, v := range snapshot {
@@ -234,19 +224,19 @@ func (l *SynchronizedInt64ArrayList) AllWithIndex() iter.Seq2[int, int64] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (l *SynchronizedInt64ArrayList) ForEach(f func(int64)) {
+func (l *SynchronizedInt64) ForEach(f func(int64)) {
 	for _, v := range l.snapshot() {
 		f(v)
 	}
 }
 
-func (l *SynchronizedInt64ArrayList) ForEachWithIndex(f func(int64, int)) {
+func (l *SynchronizedInt64) ForEachWithIndex(f func(int64, int)) {
 	for i, v := range l.snapshot() {
 		f(v, i)
 	}
 }
 
-func (l *SynchronizedInt64ArrayList) AnySatisfy(predicate func(int64) bool) bool {
+func (l *SynchronizedInt64) AnySatisfy(predicate func(int64) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return true
@@ -255,7 +245,7 @@ func (l *SynchronizedInt64ArrayList) AnySatisfy(predicate func(int64) bool) bool
 	return false
 }
 
-func (l *SynchronizedInt64ArrayList) AllSatisfy(predicate func(int64) bool) bool {
+func (l *SynchronizedInt64) AllSatisfy(predicate func(int64) bool) bool {
 	for _, v := range l.snapshot() {
 		if !predicate(v) {
 			return false
@@ -264,7 +254,7 @@ func (l *SynchronizedInt64ArrayList) AllSatisfy(predicate func(int64) bool) bool
 	return true
 }
 
-func (l *SynchronizedInt64ArrayList) NoneSatisfy(predicate func(int64) bool) bool {
+func (l *SynchronizedInt64) NoneSatisfy(predicate func(int64) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return false
@@ -273,7 +263,7 @@ func (l *SynchronizedInt64ArrayList) NoneSatisfy(predicate func(int64) bool) boo
 	return true
 }
 
-func (l *SynchronizedInt64ArrayList) Count(predicate func(int64) bool) int {
+func (l *SynchronizedInt64) Count(predicate func(int64) bool) int {
 	n := 0
 	for _, v := range l.snapshot() {
 		if predicate(v) {
@@ -283,7 +273,7 @@ func (l *SynchronizedInt64ArrayList) Count(predicate func(int64) bool) int {
 	return n
 }
 
-func (l *SynchronizedInt64ArrayList) Detect(predicate func(int64) bool) (int64, bool) {
+func (l *SynchronizedInt64) Detect(predicate func(int64) bool) (int64, bool) {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -293,7 +283,7 @@ func (l *SynchronizedInt64ArrayList) Detect(predicate func(int64) bool) (int64, 
 	return zero, false
 }
 
-func (l *SynchronizedInt64ArrayList) InjectInto(initial int64, f func(int64, int64) int64) int64 {
+func (l *SynchronizedInt64) InjectInto(initial int64, f func(int64, int64) int64) int64 {
 	acc := initial
 	for _, v := range l.snapshot() {
 		acc = f(acc, v)
@@ -304,9 +294,9 @@ func (l *SynchronizedInt64ArrayList) InjectInto(initial int64, f func(int64, int
 // ── functional that return a new list ─────────────────────────────────
 
 // Select returns a new (unsynchronized) list of elements satisfying the predicate.
-func (l *SynchronizedInt64ArrayList) Select(predicate func(int64) bool) *Int64ArrayList {
+func (l *SynchronizedInt64) Select(predicate func(int64) bool) *Int64 {
 	snapshot := l.snapshot()
-	result := NewInt64ArrayList()
+	result := NewInt64()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -316,9 +306,9 @@ func (l *SynchronizedInt64ArrayList) Select(predicate func(int64) bool) *Int64Ar
 }
 
 // Reject returns a new (unsynchronized) list of elements not satisfying the predicate.
-func (l *SynchronizedInt64ArrayList) Reject(predicate func(int64) bool) *Int64ArrayList {
+func (l *SynchronizedInt64) Reject(predicate func(int64) bool) *Int64 {
 	snapshot := l.snapshot()
-	result := NewInt64ArrayList()
+	result := NewInt64()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -329,14 +319,14 @@ func (l *SynchronizedInt64ArrayList) Reject(predicate func(int64) bool) *Int64Ar
 
 // Distinct returns a new (unsynchronized) list with duplicates removed,
 // order preserved.
-func (l *SynchronizedInt64ArrayList) Distinct() *Int64ArrayList {
+func (l *SynchronizedInt64) Distinct() *Int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Distinct()
 }
 
 // Reversed returns a new (unsynchronized) list in reverse order.
-func (l *SynchronizedInt64ArrayList) Reversed() *Int64ArrayList {
+func (l *SynchronizedInt64) Reversed() *Int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Reversed()
@@ -345,31 +335,31 @@ func (l *SynchronizedInt64ArrayList) Reversed() *Int64ArrayList {
 // ── fluent mutators ───────────────────────────────────────────────────
 // All return the wrapper so chained calls stay thread-safe.
 
-func (l *SynchronizedInt64ArrayList) With(value int64) *SynchronizedInt64ArrayList {
+func (l *SynchronizedInt64) AddReturning(value int64) *SynchronizedInt64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.With(value)
+	l.delegate.AddReturning(value)
 	return l
 }
 
-func (l *SynchronizedInt64ArrayList) WithAll(values ...int64) *SynchronizedInt64ArrayList {
+func (l *SynchronizedInt64) AddAllReturning(values ...int64) *SynchronizedInt64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithAll(values...)
+	l.delegate.AddAllReturning(values...)
 	return l
 }
 
-func (l *SynchronizedInt64ArrayList) Without(value int64) *SynchronizedInt64ArrayList {
+func (l *SynchronizedInt64) RemoveReturning(value int64) *SynchronizedInt64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.Without(value)
+	l.delegate.RemoveReturning(value)
 	return l
 }
 
-func (l *SynchronizedInt64ArrayList) WithoutAll(values ...int64) *SynchronizedInt64ArrayList {
+func (l *SynchronizedInt64) RemoveAllReturning(values ...int64) *SynchronizedInt64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithoutAll(values...)
+	l.delegate.RemoveAllReturning(values...)
 	return l
 }
 
@@ -378,7 +368,7 @@ func (l *SynchronizedInt64ArrayList) WithoutAll(values ...int64) *SynchronizedIn
 // ToImmutable returns an immutable copy of the underlying list taken
 // while holding the read lock. The returned value is independent of
 // this wrapper.
-func (l *SynchronizedInt64ArrayList) ToImmutable() *ImmutableInt64ArrayList {
+func (l *SynchronizedInt64) ToImmutable() *ImmutableInt64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToImmutable()

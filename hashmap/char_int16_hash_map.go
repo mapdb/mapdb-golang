@@ -9,43 +9,43 @@ import (
 )
 
 const (
-	charInt16HashMapDefaultCapacity = 16
+	charInt16DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// charInt16HashMapEntry holds a single slot in the hash map for cache locality.
-type charInt16HashMapEntry struct {
+// charInt16Entry holds a single slot in the hash map for cache locality.
+type charInt16Entry struct {
 	key      uint16
 	value    int16
 	occupied bool
 }
 
-// CharInt16HashMap is an open-addressing hash map with uint16 keys and int16 values.
-type CharInt16HashMap struct {
-	entries []charInt16HashMapEntry
+// CharInt16 is an open-addressing hash map with uint16 keys and int16 values.
+type CharInt16 struct {
+	entries []charInt16Entry
 	size    int
 }
 
-// NewCharInt16HashMap creates a new empty CharInt16HashMap with default capacity.
-func NewCharInt16HashMap() *CharInt16HashMap {
-	return NewCharInt16HashMapWithCapacity(charInt16HashMapDefaultCapacity)
+// NewCharInt16 creates a new empty CharInt16 with default capacity.
+func NewCharInt16() *CharInt16 {
+	return NewCharInt16WithCapacity(charInt16DefaultCapacity)
 }
 
-// NewCharInt16HashMapWithCapacity creates a new empty CharInt16HashMap with the given initial capacity.
-func NewCharInt16HashMapWithCapacity(capacity int) *CharInt16HashMap {
-	cap := nextPowerOfTwoCharInt16HashMap(capacity)
-	return &CharInt16HashMap{
-		entries: make([]charInt16HashMapEntry, cap),
+// NewCharInt16WithCapacity creates a new empty CharInt16 with the given initial capacity.
+func NewCharInt16WithCapacity(capacity int) *CharInt16 {
+	cap := nextPowerOfTwoCharInt16(capacity)
+	return &CharInt16{
+		entries: make([]charInt16Entry, cap),
 		size:    0,
 	}
 }
 
-// CharInt16HashMapOf creates a new CharInt16HashMap from key-value pairs.
-func CharInt16HashMapOf(pairs ...struct {
+// CharInt16Of creates a new CharInt16 from key-value pairs.
+func CharInt16Of(pairs ...struct {
 	Key   uint16
 	Value int16
-}) *CharInt16HashMap {
-	m := NewCharInt16HashMapWithCapacity(len(pairs) * 2)
+}) *CharInt16 {
+	m := NewCharInt16WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
@@ -53,7 +53,7 @@ func CharInt16HashMapOf(pairs ...struct {
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *CharInt16HashMap) Put(key uint16, value int16) (int16, bool) {
+func (m *CharInt16) Put(key uint16, value int16) (int16, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -79,7 +79,7 @@ func (m *CharInt16HashMap) Put(key uint16, value int16) (int16, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *CharInt16HashMap) Get(key uint16) (int16, bool) {
+func (m *CharInt16) Get(key uint16) (int16, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -99,7 +99,7 @@ func (m *CharInt16HashMap) Get(key uint16) (int16, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *CharInt16HashMap) GetOrDefault(key uint16, defaultValue int16) int16 {
+func (m *CharInt16) GetOrDefault(key uint16, defaultValue int16) int16 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -107,7 +107,7 @@ func (m *CharInt16HashMap) GetOrDefault(key uint16, defaultValue int16) int16 {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *CharInt16HashMap) Remove(key uint16) (int16, bool) {
+func (m *CharInt16) Remove(key uint16) (int16, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -138,13 +138,13 @@ func (m *CharInt16HashMap) Remove(key uint16) (int16, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *CharInt16HashMap) ContainsKey(key uint16) bool {
+func (m *CharInt16) ContainsKey(key uint16) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *CharInt16HashMap) ContainsValue(value int16) bool {
+func (m *CharInt16) ContainsValue(value int16) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && m.entries[i].value == value {
 			return true
@@ -153,30 +153,21 @@ func (m *CharInt16HashMap) ContainsValue(value int16) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *CharInt16HashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *CharInt16) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *CharInt16HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *CharInt16HashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *CharInt16HashMap) Clear() {
+func (m *CharInt16) Clear() {
 	for i := range m.entries {
-		m.entries[i] = charInt16HashMapEntry{}
+		m.entries[i] = charInt16Entry{}
 	}
 	m.size = 0
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *CharInt16HashMap) All() iter.Seq2[uint16, int16] {
+func (m *CharInt16) All() iter.Seq2[uint16, int16] {
 	return func(yield func(uint16, int16) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -189,7 +180,7 @@ func (m *CharInt16HashMap) All() iter.Seq2[uint16, int16] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *CharInt16HashMap) Keys() iter.Seq[uint16] {
+func (m *CharInt16) Keys() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -202,7 +193,7 @@ func (m *CharInt16HashMap) Keys() iter.Seq[uint16] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *CharInt16HashMap) Values() iter.Seq[int16] {
+func (m *CharInt16) Values() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -215,7 +206,7 @@ func (m *CharInt16HashMap) Values() iter.Seq[int16] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *CharInt16HashMap) ForEach(f func(uint16, int16)) {
+func (m *CharInt16) ForEach(f func(uint16, int16)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key, m.entries[i].value)
@@ -224,7 +215,7 @@ func (m *CharInt16HashMap) ForEach(f func(uint16, int16)) {
 }
 
 // ForEachKey calls the given function for each key.
-func (m *CharInt16HashMap) ForEachKey(f func(uint16)) {
+func (m *CharInt16) ForEachKey(f func(uint16)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key)
@@ -233,7 +224,7 @@ func (m *CharInt16HashMap) ForEachKey(f func(uint16)) {
 }
 
 // ForEachValue calls the given function for each value.
-func (m *CharInt16HashMap) ForEachValue(f func(int16)) {
+func (m *CharInt16) ForEachValue(f func(int16)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].value)
@@ -242,8 +233,8 @@ func (m *CharInt16HashMap) ForEachValue(f func(int16)) {
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *CharInt16HashMap) Select(predicate func(uint16, int16) bool) *CharInt16HashMap {
-	result := NewCharInt16HashMap()
+func (m *CharInt16) Select(predicate func(uint16, int16) bool) *CharInt16 {
+	result := NewCharInt16()
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -253,8 +244,8 @@ func (m *CharInt16HashMap) Select(predicate func(uint16, int16) bool) *CharInt16
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *CharInt16HashMap) Reject(predicate func(uint16, int16) bool) *CharInt16HashMap {
-	result := NewCharInt16HashMap()
+func (m *CharInt16) Reject(predicate func(uint16, int16) bool) *CharInt16 {
+	result := NewCharInt16()
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -264,7 +255,7 @@ func (m *CharInt16HashMap) Reject(predicate func(uint16, int16) bool) *CharInt16
 }
 
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
-func (m *CharInt16HashMap) Detect(predicate func(uint16, int16) bool) (uint16, int16, bool) {
+func (m *CharInt16) Detect(predicate func(uint16, int16) bool) (uint16, int16, bool) {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
@@ -274,7 +265,7 @@ func (m *CharInt16HashMap) Detect(predicate func(uint16, int16) bool) (uint16, i
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *CharInt16HashMap) AnySatisfy(predicate func(uint16, int16) bool) bool {
+func (m *CharInt16) AnySatisfy(predicate func(uint16, int16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
@@ -284,7 +275,7 @@ func (m *CharInt16HashMap) AnySatisfy(predicate func(uint16, int16) bool) bool {
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *CharInt16HashMap) AllSatisfy(predicate func(uint16, int16) bool) bool {
+func (m *CharInt16) AllSatisfy(predicate func(uint16, int16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -294,7 +285,7 @@ func (m *CharInt16HashMap) AllSatisfy(predicate func(uint16, int16) bool) bool {
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *CharInt16HashMap) NoneSatisfy(predicate func(uint16, int16) bool) bool {
+func (m *CharInt16) NoneSatisfy(predicate func(uint16, int16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -304,7 +295,7 @@ func (m *CharInt16HashMap) NoneSatisfy(predicate func(uint16, int16) bool) bool 
 }
 
 // Count returns the number of key-value pairs that satisfy the predicate.
-func (m *CharInt16HashMap) Count(predicate func(uint16, int16) bool) int {
+func (m *CharInt16) Count(predicate func(uint16, int16) bool) int {
 	count := 0
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
@@ -315,7 +306,7 @@ func (m *CharInt16HashMap) Count(predicate func(uint16, int16) bool) int {
 }
 
 // String returns a string representation of the map.
-func (m *CharInt16HashMap) String() string {
+func (m *CharInt16) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -336,7 +327,7 @@ func (m *CharInt16HashMap) String() string {
 }
 
 // Equals returns true if the other map has the same key-value pairs.
-func (m *CharInt16HashMap) Equals(other *CharInt16HashMap) bool {
+func (m *CharInt16) Equals(other *CharInt16) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -352,7 +343,7 @@ func (m *CharInt16HashMap) Equals(other *CharInt16HashMap) bool {
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *CharInt16HashMap) KeysToSlice() []uint16 {
+func (m *CharInt16) KeysToSlice() []uint16 {
 	result := make([]uint16, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -363,7 +354,7 @@ func (m *CharInt16HashMap) KeysToSlice() []uint16 {
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *CharInt16HashMap) ValuesToSlice() []int16 {
+func (m *CharInt16) ValuesToSlice() []int16 {
 	result := make([]int16, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -374,12 +365,12 @@ func (m *CharInt16HashMap) ValuesToSlice() []int16 {
 }
 
 // ToImmutable returns an immutable copy of this map.
-func (m *CharInt16HashMap) ToImmutable() *ImmutableCharInt16HashMap {
-	return ImmutableCharInt16HashMapFrom(m)
+func (m *CharInt16) ToImmutable() *ImmutableCharInt16 {
+	return ImmutableCharInt16From(m)
 }
 
 // InjectInto performs a left fold over all key-value pairs.
-func (m *CharInt16HashMap) InjectInto(initial int16, f func(int16, uint16, int16) int16) int16 {
+func (m *CharInt16) InjectInto(initial int16, f func(int16, uint16, int16) int16) int16 {
 	result := initial
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -392,7 +383,7 @@ func (m *CharInt16HashMap) InjectInto(initial int16, f func(int16, uint16, int16
 // AddToValue adds the given amount to the value for the key.
 // If the key is not present, inserts it with the given amount as value.
 // Returns the new value.
-func (m *CharInt16HashMap) AddToValue(key uint16, amount int16) int16 {
+func (m *CharInt16) AddToValue(key uint16, amount int16) int16 {
 	if v, ok := m.Get(key); ok {
 		newVal := v + amount
 		m.Put(key, newVal)
@@ -405,7 +396,7 @@ func (m *CharInt16HashMap) AddToValue(key uint16, amount int16) int16 {
 // UpdateValue updates the value for the key using the function.
 // If key is absent, inserts initialValue first then applies the function.
 // Returns the new value.
-func (m *CharInt16HashMap) UpdateValue(key uint16, initialValue int16, f func(int16) int16) int16 {
+func (m *CharInt16) UpdateValue(key uint16, initialValue int16, f func(int16) int16) int16 {
 	if v, ok := m.Get(key); ok {
 		newVal := f(v)
 		m.Put(key, newVal)
@@ -416,20 +407,20 @@ func (m *CharInt16HashMap) UpdateValue(key uint16, initialValue int16, f func(in
 	return newVal
 }
 
-// WithKeyValue returns the map after putting the key-value pair (fluent API).
-func (m *CharInt16HashMap) WithKeyValue(key uint16, value int16) *CharInt16HashMap {
+// PutReturning returns the map after putting the key-value pair (fluent API).
+func (m *CharInt16) PutReturning(key uint16, value int16) *CharInt16 {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey returns the map after removing the key (fluent API).
-func (m *CharInt16HashMap) WithoutKey(key uint16) *CharInt16HashMap {
+// RemoveKeyReturning returns the map after removing the key (fluent API).
+func (m *CharInt16) RemoveKeyReturning(key uint16) *CharInt16 {
 	m.Remove(key)
 	return m
 }
 
 // WithoutAllKeys removes all given keys (fluent API).
-func (m *CharInt16HashMap) WithoutAllKeys(keys []uint16) *CharInt16HashMap {
+func (m *CharInt16) WithoutAllKeys(keys []uint16) *CharInt16 {
 	for _, k := range keys {
 		m.Remove(k)
 	}
@@ -437,7 +428,7 @@ func (m *CharInt16HashMap) WithoutAllKeys(keys []uint16) *CharInt16HashMap {
 }
 
 // SumOfValues returns the sum of all values.
-func (m *CharInt16HashMap) SumOfValues() int16 {
+func (m *CharInt16) SumOfValues() int16 {
 	var sum int16
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -449,19 +440,19 @@ func (m *CharInt16HashMap) SumOfValues() int16 {
 
 // Entry returns a handle for in-place check-and-modify operations on the
 // given key. The handle is not thread-safe: external synchronisation (the
-// SynchronizedCharInt16HashMap wrapper's Lock / RLock, or your own mutex) is required
+// SynchronizedCharInt16 wrapper's Lock / RLock, or your own mutex) is required
 // when multiple goroutines share the same underlying map. The name is
 // modelled on Rust's std::collections::hash_map::Entry, not on Java's
 // ConcurrentMap.compute; there is no internal locking, no CAS, and no
 // atomicity guarantee across callback invocation.
-func (m *CharInt16HashMap) Entry(key uint16) CharInt16Entry {
+func (m *CharInt16) Entry(key uint16) CharInt16Entry {
 	return CharInt16Entry{m: m, key: key}
 }
 
 // CharInt16Entry provides in-place check-and-modify operations for a single
-// key. Not thread-safe — see CharInt16HashMap.Entry.
+// key. Not thread-safe — see CharInt16.Entry.
 type CharInt16Entry struct {
-	m   *CharInt16HashMap
+	m   *CharInt16
 	key uint16
 }
 
@@ -522,22 +513,22 @@ func (e CharInt16Entry) AndModify(f func(*int16)) CharInt16Entry {
 	}
 }
 
-func (m *CharInt16HashMap) hashKey(key uint16) uint64 {
+func (m *CharInt16) hashKey(key uint16) uint64 {
 	h := uint64(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *CharInt16HashMap) needsResize() bool {
+func (m *CharInt16) needsResize() bool {
 	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
 }
 
-func (m *CharInt16HashMap) resize() {
+func (m *CharInt16) resize() {
 	oldEntries := m.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = charInt16HashMapDefaultCapacity
+		newCap = charInt16DefaultCapacity
 	}
-	m.entries = make([]charInt16HashMapEntry, newCap)
+	m.entries = make([]charInt16Entry, newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -548,7 +539,7 @@ func (m *CharInt16HashMap) resize() {
 }
 
 // rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *CharInt16HashMap) rehashFrom(deleted int, mask int) {
+func (m *CharInt16) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
@@ -557,7 +548,7 @@ func (m *CharInt16HashMap) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = charInt16HashMapEntry{}
+			m.entries[idx] = charInt16Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -567,7 +558,7 @@ func (m *CharInt16HashMap) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoCharInt16HashMap(n int) int {
+func nextPowerOfTwoCharInt16(n int) int {
 	if n <= 0 {
 		return 16
 	}

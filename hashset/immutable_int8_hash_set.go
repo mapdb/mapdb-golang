@@ -6,107 +6,98 @@ import (
 	"iter"
 )
 
-// ImmutableInt8HashSet is an immutable view of a Int8HashSet.
-type ImmutableInt8HashSet struct {
-	delegate *Int8HashSet
+// ImmutableInt8 is an immutable view of a Int8.
+type ImmutableInt8 struct {
+	delegate *Int8
 }
 
-// NewImmutableInt8HashSet creates an immutable set from the given values.
-func NewImmutableInt8HashSet(values ...int8) *ImmutableInt8HashSet {
-	return &ImmutableInt8HashSet{delegate: Int8HashSetOf(values...)}
+// NewImmutableInt8 creates an immutable set from the given values.
+func NewImmutableInt8(values ...int8) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: Int8Of(values...)}
 }
 
-// ImmutableInt8HashSetFrom creates an immutable copy of a mutable set.
-func ImmutableInt8HashSetFrom(s *Int8HashSet) *ImmutableInt8HashSet {
-	copy := Int8HashSetOf(s.ToSlice()...)
-	return &ImmutableInt8HashSet{delegate: copy}
+// ImmutableInt8From creates an immutable copy of a mutable set.
+func ImmutableInt8From(s *Int8) *ImmutableInt8 {
+	copy := Int8Of(s.ToSlice()...)
+	return &ImmutableInt8{delegate: copy}
 }
 
 // Contains returns true if the set contains the given value.
-func (s *ImmutableInt8HashSet) Contains(value int8) bool {
+func (s *ImmutableInt8) Contains(value int8) bool {
 	return s.delegate.Contains(value)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableInt8HashSet) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableInt8HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *ImmutableInt8HashSet) IsEmpty() bool {
-	return s.delegate.IsEmpty()
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableInt8) Len() int {
+	return s.delegate.Len()
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *ImmutableInt8HashSet) All() iter.Seq[int8] {
+func (s *ImmutableInt8) All() iter.Seq[int8] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element.
-func (s *ImmutableInt8HashSet) ForEach(f func(int8)) {
+func (s *ImmutableInt8) ForEach(f func(int8)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable set with elements satisfying the predicate.
-func (s *ImmutableInt8HashSet) Select(predicate func(int8) bool) *ImmutableInt8HashSet {
-	return &ImmutableInt8HashSet{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableInt8) Select(predicate func(int8) bool) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable set with elements not satisfying the predicate.
-func (s *ImmutableInt8HashSet) Reject(predicate func(int8) bool) *ImmutableInt8HashSet {
-	return &ImmutableInt8HashSet{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableInt8) Reject(predicate func(int8) bool) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: s.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableInt8HashSet) AnySatisfy(predicate func(int8) bool) bool {
+func (s *ImmutableInt8) AnySatisfy(predicate func(int8) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableInt8HashSet) AllSatisfy(predicate func(int8) bool) bool {
+func (s *ImmutableInt8) AllSatisfy(predicate func(int8) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableInt8HashSet) NoneSatisfy(predicate func(int8) bool) bool {
+func (s *ImmutableInt8) NoneSatisfy(predicate func(int8) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Union returns a new immutable set with elements from both sets.
-func (s *ImmutableInt8HashSet) Union(other *ImmutableInt8HashSet) *ImmutableInt8HashSet {
-	return &ImmutableInt8HashSet{delegate: s.delegate.Union(other.delegate)}
+func (s *ImmutableInt8) Union(other *ImmutableInt8) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: s.delegate.Union(other.delegate)}
 }
 
 // Intersect returns a new immutable set with elements in both sets.
-func (s *ImmutableInt8HashSet) Intersect(other *ImmutableInt8HashSet) *ImmutableInt8HashSet {
-	return &ImmutableInt8HashSet{delegate: s.delegate.Intersect(other.delegate)}
+func (s *ImmutableInt8) Intersect(other *ImmutableInt8) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: s.delegate.Intersect(other.delegate)}
 }
 
 // Difference returns a new immutable set with elements in this but not other.
-func (s *ImmutableInt8HashSet) Difference(other *ImmutableInt8HashSet) *ImmutableInt8HashSet {
-	return &ImmutableInt8HashSet{delegate: s.delegate.Difference(other.delegate)}
+func (s *ImmutableInt8) Difference(other *ImmutableInt8) *ImmutableInt8 {
+	return &ImmutableInt8{delegate: s.delegate.Difference(other.delegate)}
 }
 
 // ToSlice returns all elements as a slice.
-func (s *ImmutableInt8HashSet) ToSlice() []int8 {
+func (s *ImmutableInt8) ToSlice() []int8 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableInt8HashSet) String() string {
+func (s *ImmutableInt8) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable set has the same elements.
-func (s *ImmutableInt8HashSet) Equals(other *ImmutableInt8HashSet) bool {
+func (s *ImmutableInt8) Equals(other *ImmutableInt8) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this set.
-func (s *ImmutableInt8HashSet) ToMutable() *Int8HashSet {
-	return Int8HashSetOf(s.ToSlice()...)
+func (s *ImmutableInt8) ToMutable() *Int8 {
+	return Int8Of(s.ToSlice()...)
 }

@@ -4,13 +4,13 @@ import (
 	"testing"
 )
 
-func TestInt32TreeSet_AddContains(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_AddContains(t *testing.T) {
+	s := NewInt32()
 	s.Add(3)
 	s.Add(1)
 	s.Add(2)
-	if s.Size() != 3 {
-		t.Errorf("Size = %d, want 3", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size = %d, want 3", s.Len())
 	}
 	if !s.Contains(2) {
 		t.Error("Contains(2) should be true")
@@ -20,8 +20,8 @@ func TestInt32TreeSet_AddContains(t *testing.T) {
 	}
 }
 
-func TestInt32TreeSet_SortedIteration(t *testing.T) {
-	s := Int32TreeSetOf(50, 10, 30, 20, 40)
+func TestInt32_SortedIteration(t *testing.T) {
+	s := Int32Of(50, 10, 30, 20, 40)
 	values := s.ToSlice()
 	expected := []int32{10, 20, 30, 40, 50}
 	for i, v := range values {
@@ -31,8 +31,8 @@ func TestInt32TreeSet_SortedIteration(t *testing.T) {
 	}
 }
 
-func TestInt32TreeSet_MinMax(t *testing.T) {
-	s := Int32TreeSetOf(30, 10, 50)
+func TestInt32_MinMax(t *testing.T) {
+	s := Int32Of(30, 10, 50)
 	min, ok := s.Min()
 	if !ok || min != 10 {
 		t.Errorf("Min = (%d, %v)", min, ok)
@@ -43,8 +43,8 @@ func TestInt32TreeSet_MinMax(t *testing.T) {
 	}
 }
 
-func TestInt32TreeSet_FloorCeiling(t *testing.T) {
-	s := Int32TreeSetOf(10, 20, 30)
+func TestInt32_FloorCeiling(t *testing.T) {
+	s := Int32Of(10, 20, 30)
 	f, ok := s.Floor(25)
 	if !ok || f != 20 {
 		t.Errorf("Floor(25) = (%d, %v)", f, ok)
@@ -55,24 +55,24 @@ func TestInt32TreeSet_FloorCeiling(t *testing.T) {
 	}
 }
 
-func TestInt32TreeSet_UnionIntersect(t *testing.T) {
-	a := Int32TreeSetOf(1, 2, 3)
-	b := Int32TreeSetOf(3, 4, 5)
-	if a.Union(b).Size() != 5 {
+func TestInt32_UnionIntersect(t *testing.T) {
+	a := Int32Of(1, 2, 3)
+	b := Int32Of(3, 4, 5)
+	if a.Union(b).Len() != 5 {
 		t.Error("Union size should be 5")
 	}
-	if a.Intersect(b).Size() != 1 {
+	if a.Intersect(b).Len() != 1 {
 		t.Error("Intersect size should be 1")
 	}
-	if a.Difference(b).Size() != 2 {
+	if a.Difference(b).Len() != 2 {
 		t.Error("Difference size should be 2")
 	}
 }
 
-func TestInt32TreeSet_Remove(t *testing.T) {
-	s := Int32TreeSetOf(1, 2, 3, 4, 5)
+func TestInt32_Remove(t *testing.T) {
+	s := Int32Of(1, 2, 3, 4, 5)
 	s.Remove(3)
-	if s.Size() != 4 || s.Contains(3) {
+	if s.Len() != 4 || s.Contains(3) {
 		t.Error("Remove(3) failed")
 	}
 	values := s.ToSlice()
@@ -83,16 +83,16 @@ func TestInt32TreeSet_Remove(t *testing.T) {
 	}
 }
 
-func TestInt32TreeSet_LargeInsertDelete(t *testing.T) {
-	s := NewInt32TreeSet()
+func TestInt32_LargeInsertDelete(t *testing.T) {
+	s := NewInt32()
 	for i := int32(0); i < 500; i++ {
 		s.Add(i)
 	}
 	for i := int32(0); i < 250; i++ {
 		s.Remove(i)
 	}
-	if s.Size() != 250 {
-		t.Fatalf("Size = %d, want 250", s.Size())
+	if s.Len() != 250 {
+		t.Fatalf("Size = %d, want 250", s.Len())
 	}
 	prev := int32(-1)
 	for v := range s.All() {

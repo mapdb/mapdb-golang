@@ -8,22 +8,22 @@ import (
 	"strings"
 )
 
-// Int64ArrayStack is a LIFO (last-in, first-out) stack backed by a int64 slice.
-type Int64ArrayStack struct {
+// Int64 is a LIFO (last-in, first-out) stack backed by a int64 slice.
+type Int64 struct {
 	items []int64
 }
 
-// NewInt64ArrayStack creates a new empty Int64ArrayStack.
-func NewInt64ArrayStack() *Int64ArrayStack {
-	return &Int64ArrayStack{
+// NewInt64 creates a new empty Int64.
+func NewInt64() *Int64 {
+	return &Int64{
 		items: make([]int64, 0, 16),
 	}
 }
 
-// Int64ArrayStackOf creates a new Int64ArrayStack from the given values.
+// Int64Of creates a new Int64 from the given values.
 // The last value becomes the top of the stack.
-func Int64ArrayStackOf(values ...int64) *Int64ArrayStack {
-	s := &Int64ArrayStack{
+func Int64Of(values ...int64) *Int64 {
+	s := &Int64{
 		items: make([]int64, len(values)),
 	}
 	copy(s.items, values)
@@ -31,58 +31,50 @@ func Int64ArrayStackOf(values ...int64) *Int64ArrayStack {
 }
 
 // Push adds a value to the top of the stack.
-func (s *Int64ArrayStack) Push(value int64) {
+func (s *Int64) Push(value int64) {
 	s.items = append(s.items, value)
 }
 
-// Pop removes and returns the top value, or an error if the stack is empty.
-func (s *Int64ArrayStack) Pop() (int64, error) {
+// Pop removes and returns the top value. The bool is false if the stack is empty.
+func (s *Int64) Pop() (int64, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int64ArrayStack: Pop on empty stack")
+		return 0, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *Int64ArrayStack) Peek() (int64, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *Int64) Peek() (int64, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int64ArrayStack: Peek on empty stack")
+		return 0, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
-// PeekAt returns the element at the given distance from the top (0 = top),
-// or an error if the index is out of bounds.
-func (s *Int64ArrayStack) PeekAt(index int) (int64, error) {
+// PeekAt returns the element at the given distance from the top (0 = top).
+// It panics if the index is out of range, like a native Go slice.
+func (s *Int64) PeekAt(index int) int64 {
 	if index < 0 || index >= len(s.items) {
-		return 0, fmt.Errorf("Int64ArrayStack: PeekAt index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("stack.Int64: index out of range [%d] with length %d", index, len(s.items)))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
-// Size returns the number of elements in the stack.
-func (s *Int64ArrayStack) Size() int {
+// Len returns the number of elements in the stack. Use s.Len() == 0 to test
+// for emptiness.
+func (s *Int64) Len() int {
 	return len(s.items)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int64ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *Int64ArrayStack) IsEmpty() bool {
-	return len(s.items) == 0
-}
-
 // Clear removes all elements from the stack.
-func (s *Int64ArrayStack) Clear() {
+func (s *Int64) Clear() {
 	s.items = s.items[:0]
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *Int64ArrayStack) Contains(value int64) bool {
+func (s *Int64) Contains(value int64) bool {
 	for _, v := range s.items {
 		if v == value {
 			return true
@@ -92,7 +84,7 @@ func (s *Int64ArrayStack) Contains(value int64) bool {
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *Int64ArrayStack) All() iter.Seq[int64] {
+func (s *Int64) All() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for i := len(s.items) - 1; i >= 0; i-- {
 			if !yield(s.items[i]) {
@@ -103,7 +95,7 @@ func (s *Int64ArrayStack) All() iter.Seq[int64] {
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *Int64ArrayStack) ForEach(f func(int64)) {
+func (s *Int64) ForEach(f func(int64)) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		f(s.items[i])
 	}
@@ -111,8 +103,8 @@ func (s *Int64ArrayStack) ForEach(f func(int64)) {
 
 // Select returns a new stack containing only elements that satisfy the predicate.
 // Order is preserved (top of result corresponds to top of original that passed).
-func (s *Int64ArrayStack) Select(predicate func(int64) bool) *Int64ArrayStack {
-	result := NewInt64ArrayStack()
+func (s *Int64) Select(predicate func(int64) bool) *Int64 {
+	result := NewInt64()
 	for _, v := range s.items {
 		if predicate(v) {
 			result.Push(v)
@@ -122,8 +114,8 @@ func (s *Int64ArrayStack) Select(predicate func(int64) bool) *Int64ArrayStack {
 }
 
 // Reject returns a new stack containing only elements that do not satisfy the predicate.
-func (s *Int64ArrayStack) Reject(predicate func(int64) bool) *Int64ArrayStack {
-	result := NewInt64ArrayStack()
+func (s *Int64) Reject(predicate func(int64) bool) *Int64 {
+	result := NewInt64()
 	for _, v := range s.items {
 		if !predicate(v) {
 			result.Push(v)
@@ -133,7 +125,7 @@ func (s *Int64ArrayStack) Reject(predicate func(int64) bool) *Int64ArrayStack {
 }
 
 // Detect returns the first element from the top that satisfies the predicate, or zero and false.
-func (s *Int64ArrayStack) Detect(predicate func(int64) bool) (int64, bool) {
+func (s *Int64) Detect(predicate func(int64) bool) (int64, bool) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		if predicate(s.items[i]) {
 			return s.items[i], true
@@ -143,7 +135,7 @@ func (s *Int64ArrayStack) Detect(predicate func(int64) bool) (int64, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int64ArrayStack) AnySatisfy(predicate func(int64) bool) bool {
+func (s *Int64) AnySatisfy(predicate func(int64) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return true
@@ -153,7 +145,7 @@ func (s *Int64ArrayStack) AnySatisfy(predicate func(int64) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int64ArrayStack) AllSatisfy(predicate func(int64) bool) bool {
+func (s *Int64) AllSatisfy(predicate func(int64) bool) bool {
 	for _, v := range s.items {
 		if !predicate(v) {
 			return false
@@ -163,7 +155,7 @@ func (s *Int64ArrayStack) AllSatisfy(predicate func(int64) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int64ArrayStack) NoneSatisfy(predicate func(int64) bool) bool {
+func (s *Int64) NoneSatisfy(predicate func(int64) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return false
@@ -173,7 +165,7 @@ func (s *Int64ArrayStack) NoneSatisfy(predicate func(int64) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (s *Int64ArrayStack) Count(predicate func(int64) bool) int {
+func (s *Int64) Count(predicate func(int64) bool) int {
 	count := 0
 	for _, v := range s.items {
 		if predicate(v) {
@@ -184,7 +176,7 @@ func (s *Int64ArrayStack) Count(predicate func(int64) bool) int {
 }
 
 // InjectInto performs a left fold from bottom to top.
-func (s *Int64ArrayStack) InjectInto(initial int64, f func(int64, int64) int64) int64 {
+func (s *Int64) InjectInto(initial int64, f func(int64, int64) int64) int64 {
 	result := initial
 	for _, v := range s.items {
 		result = f(result, v)
@@ -193,7 +185,7 @@ func (s *Int64ArrayStack) InjectInto(initial int64, f func(int64, int64) int64) 
 }
 
 // ToSlice returns all elements as a slice (top element first).
-func (s *Int64ArrayStack) ToSlice() []int64 {
+func (s *Int64) ToSlice() []int64 {
 	result := make([]int64, len(s.items))
 	for i, j := len(s.items)-1, 0; i >= 0; i, j = i-1, j+1 {
 		result[j] = s.items[i]
@@ -202,20 +194,20 @@ func (s *Int64ArrayStack) ToSlice() []int64 {
 }
 
 // ToList returns the elements as a slice in stack order (bottom first, for internal use).
-func (s *Int64ArrayStack) toList() []int64 {
+func (s *Int64) toList() []int64 {
 	result := make([]int64, len(s.items))
 	copy(result, s.items)
 	return result
 }
 
-// With returns the stack after pushing the value (fluent API).
-func (s *Int64ArrayStack) With(value int64) *Int64ArrayStack {
+// AddReturning pushes the value and returns the receiver (mutating, fluent).
+func (s *Int64) AddReturning(value int64) *Int64 {
 	s.Push(value)
 	return s
 }
 
-// WithAll returns the stack after pushing all values (fluent API).
-func (s *Int64ArrayStack) WithAll(values ...int64) *Int64ArrayStack {
+// AddAllReturning pushes all values and returns the receiver (mutating, fluent).
+func (s *Int64) AddAllReturning(values ...int64) *Int64 {
 	for _, v := range values {
 		s.Push(v)
 	}
@@ -223,12 +215,12 @@ func (s *Int64ArrayStack) WithAll(values ...int64) *Int64ArrayStack {
 }
 
 // ToImmutable returns an immutable copy of this stack.
-func (s *Int64ArrayStack) ToImmutable() *ImmutableInt64ArrayStack {
-	return ImmutableInt64ArrayStackFrom(s)
+func (s *Int64) ToImmutable() *ImmutableInt64 {
+	return ImmutableInt64From(s)
 }
 
 // String returns a string representation of the stack (top element first).
-func (s *Int64ArrayStack) String() string {
+func (s *Int64) String() string {
 	if len(s.items) == 0 {
 		return "[]"
 	}
@@ -245,7 +237,7 @@ func (s *Int64ArrayStack) String() string {
 }
 
 // Equals returns true if the other stack has the same elements in the same order.
-func (s *Int64ArrayStack) Equals(other *Int64ArrayStack) bool {
+func (s *Int64) Equals(other *Int64) bool {
 	if len(s.items) != len(other.items) {
 		return false
 	}

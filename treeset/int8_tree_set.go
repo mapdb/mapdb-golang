@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	int8TreeSetNodeRed   = false
-	int8TreeSetNodeBlack = true
+	int8NodeRed   = false
+	int8NodeBlack = true
 )
 
-type int8TreeSetNode struct {
+type int8Node struct {
 	key    int8
-	left   *int8TreeSetNode
-	right  *int8TreeSetNode
-	parent *int8TreeSetNode
+	left   *int8Node
+	right  *int8Node
+	parent *int8Node
 	color  bool
 }
 
-// Int8TreeSet is a sorted set of int8 values, backed by a red-black tree.
-type Int8TreeSet struct {
-	root *int8TreeSetNode
+// Int8 is a sorted set of int8 values, backed by a red-black tree.
+type Int8 struct {
+	root *int8Node
 	size int
 }
 
-// NewInt8TreeSet creates a new empty sorted set.
-func NewInt8TreeSet() *Int8TreeSet {
-	return &Int8TreeSet{}
+// NewInt8 creates a new empty sorted set.
+func NewInt8() *Int8 {
+	return &Int8{}
 }
 
-// Int8TreeSetOf creates a new sorted set from the given values.
-func Int8TreeSetOf(values ...int8) *Int8TreeSet {
-	s := NewInt8TreeSet()
+// Int8Of creates a new sorted set from the given values.
+func Int8Of(values ...int8) *Int8 {
+	s := NewInt8()
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -42,9 +42,9 @@ func Int8TreeSetOf(values ...int8) *Int8TreeSet {
 }
 
 // Add inserts a value. Returns true if added (not already present).
-func (s *Int8TreeSet) Add(value int8) bool {
+func (s *Int8) Add(value int8) bool {
 	if s.root == nil {
-		s.root = &int8TreeSetNode{key: value, color: int8TreeSetNodeBlack}
+		s.root = &int8Node{key: value, color: int8NodeBlack}
 		s.size++
 		return true
 	}
@@ -52,7 +52,7 @@ func (s *Int8TreeSet) Add(value int8) bool {
 	for {
 		if value < node.key {
 			if node.left == nil {
-				node.left = &int8TreeSetNode{key: value, parent: node, color: int8TreeSetNodeRed}
+				node.left = &int8Node{key: value, parent: node, color: int8NodeRed}
 				s.fixAfterInsert(node.left)
 				s.size++
 				return true
@@ -60,7 +60,7 @@ func (s *Int8TreeSet) Add(value int8) bool {
 			node = node.left
 		} else if value > node.key {
 			if node.right == nil {
-				node.right = &int8TreeSetNode{key: value, parent: node, color: int8TreeSetNodeRed}
+				node.right = &int8Node{key: value, parent: node, color: int8NodeRed}
 				s.fixAfterInsert(node.right)
 				s.size++
 				return true
@@ -73,7 +73,7 @@ func (s *Int8TreeSet) Add(value int8) bool {
 }
 
 // Remove removes a value. Returns true if found and removed.
-func (s *Int8TreeSet) Remove(value int8) bool {
+func (s *Int8) Remove(value int8) bool {
 	node := s.findNode(value)
 	if node == nil {
 		return false
@@ -84,25 +84,18 @@ func (s *Int8TreeSet) Remove(value int8) bool {
 }
 
 // Contains returns true if the set contains the value.
-func (s *Int8TreeSet) Contains(value int8) bool {
+func (s *Int8) Contains(value int8) bool {
 	return s.findNode(value) != nil
 }
 
-// Size returns the number of elements.
-func (s *Int8TreeSet) Size() int { return s.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int8TreeSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set is empty.
-func (s *Int8TreeSet) IsEmpty() bool { return s.size == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Int8) Len() int { return s.size }
 
 // Clear removes all elements.
-func (s *Int8TreeSet) Clear() { s.root = nil; s.size = 0 }
+func (s *Int8) Clear() { s.root = nil; s.size = 0 }
 
 // Min returns the smallest element, or zero and false if empty.
-func (s *Int8TreeSet) Min() (int8, bool) {
+func (s *Int8) Min() (int8, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -110,7 +103,7 @@ func (s *Int8TreeSet) Min() (int8, bool) {
 }
 
 // Max returns the largest element, or zero and false if empty.
-func (s *Int8TreeSet) Max() (int8, bool) {
+func (s *Int8) Max() (int8, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -118,8 +111,8 @@ func (s *Int8TreeSet) Max() (int8, bool) {
 }
 
 // Floor returns the largest element <= value, or zero and false.
-func (s *Int8TreeSet) Floor(value int8) (int8, bool) {
-	var result *int8TreeSetNode
+func (s *Int8) Floor(value int8) (int8, bool) {
+	var result *int8Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -139,8 +132,8 @@ func (s *Int8TreeSet) Floor(value int8) (int8, bool) {
 }
 
 // Ceiling returns the smallest element >= value, or zero and false.
-func (s *Int8TreeSet) Ceiling(value int8) (int8, bool) {
-	var result *int8TreeSetNode
+func (s *Int8) Ceiling(value int8) (int8, bool) {
+	var result *int8Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -160,10 +153,10 @@ func (s *Int8TreeSet) Ceiling(value int8) (int8, bool) {
 }
 
 // All returns an iter.Seq that yields elements in ascending order.
-func (s *Int8TreeSet) All() iter.Seq[int8] {
+func (s *Int8) All() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
-		var inorder func(node *int8TreeSetNode) bool
-		inorder = func(node *int8TreeSetNode) bool {
+		var inorder func(node *int8Node) bool
+		inorder = func(node *int8Node) bool {
 			if node == nil {
 				return true
 			}
@@ -180,7 +173,7 @@ func (s *Int8TreeSet) All() iter.Seq[int8] {
 }
 
 // RangeValues returns an iter.Seq that yields elements in [from, to).
-func (s *Int8TreeSet) RangeValues(from, to int8) iter.Seq[int8] {
+func (s *Int8) RangeValues(from, to int8) iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for v := range s.All() {
 			if v < from {
@@ -197,15 +190,15 @@ func (s *Int8TreeSet) RangeValues(from, to int8) iter.Seq[int8] {
 }
 
 // ForEach calls the function for each element in ascending order.
-func (s *Int8TreeSet) ForEach(f func(int8)) {
+func (s *Int8) ForEach(f func(int8)) {
 	for v := range s.All() {
 		f(v)
 	}
 }
 
 // Select returns a new sorted set with elements satisfying the predicate.
-func (s *Int8TreeSet) Select(predicate func(int8) bool) *Int8TreeSet {
-	result := NewInt8TreeSet()
+func (s *Int8) Select(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for v := range s.All() {
 		if predicate(v) {
 			result.Add(v)
@@ -215,8 +208,8 @@ func (s *Int8TreeSet) Select(predicate func(int8) bool) *Int8TreeSet {
 }
 
 // Reject returns a new sorted set with elements NOT satisfying the predicate.
-func (s *Int8TreeSet) Reject(predicate func(int8) bool) *Int8TreeSet {
-	result := NewInt8TreeSet()
+func (s *Int8) Reject(predicate func(int8) bool) *Int8 {
+	result := NewInt8()
 	for v := range s.All() {
 		if !predicate(v) {
 			result.Add(v)
@@ -226,7 +219,7 @@ func (s *Int8TreeSet) Reject(predicate func(int8) bool) *Int8TreeSet {
 }
 
 // Detect returns the first element satisfying the predicate, or (zero, false) if none.
-func (s *Int8TreeSet) Detect(predicate func(int8) bool) (int8, bool) {
+func (s *Int8) Detect(predicate func(int8) bool) (int8, bool) {
 	for v := range s.All() {
 		if predicate(v) {
 			return v, true
@@ -237,7 +230,7 @@ func (s *Int8TreeSet) Detect(predicate func(int8) bool) (int8, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int8TreeSet) AnySatisfy(predicate func(int8) bool) bool {
+func (s *Int8) AnySatisfy(predicate func(int8) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return true
@@ -247,7 +240,7 @@ func (s *Int8TreeSet) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int8TreeSet) AllSatisfy(predicate func(int8) bool) bool {
+func (s *Int8) AllSatisfy(predicate func(int8) bool) bool {
 	for v := range s.All() {
 		if !predicate(v) {
 			return false
@@ -257,7 +250,7 @@ func (s *Int8TreeSet) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int8TreeSet) NoneSatisfy(predicate func(int8) bool) bool {
+func (s *Int8) NoneSatisfy(predicate func(int8) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return false
@@ -267,7 +260,7 @@ func (s *Int8TreeSet) NoneSatisfy(predicate func(int8) bool) bool {
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *Int8TreeSet) Count(predicate func(int8) bool) int {
+func (s *Int8) Count(predicate func(int8) bool) int {
 	c := 0
 	for v := range s.All() {
 		if predicate(v) {
@@ -278,8 +271,8 @@ func (s *Int8TreeSet) Count(predicate func(int8) bool) int {
 }
 
 // Union returns a new sorted set with elements from both sets.
-func (s *Int8TreeSet) Union(other *Int8TreeSet) *Int8TreeSet {
-	result := NewInt8TreeSet()
+func (s *Int8) Union(other *Int8) *Int8 {
+	result := NewInt8()
 	for v := range s.All() {
 		result.Add(v)
 	}
@@ -290,8 +283,8 @@ func (s *Int8TreeSet) Union(other *Int8TreeSet) *Int8TreeSet {
 }
 
 // Intersect returns a new sorted set with elements in both sets.
-func (s *Int8TreeSet) Intersect(other *Int8TreeSet) *Int8TreeSet {
-	result := NewInt8TreeSet()
+func (s *Int8) Intersect(other *Int8) *Int8 {
+	result := NewInt8()
 	for v := range s.All() {
 		if other.Contains(v) {
 			result.Add(v)
@@ -301,8 +294,8 @@ func (s *Int8TreeSet) Intersect(other *Int8TreeSet) *Int8TreeSet {
 }
 
 // Difference returns a new sorted set with elements in this but not other.
-func (s *Int8TreeSet) Difference(other *Int8TreeSet) *Int8TreeSet {
-	result := NewInt8TreeSet()
+func (s *Int8) Difference(other *Int8) *Int8 {
+	result := NewInt8()
 	for v := range s.All() {
 		if !other.Contains(v) {
 			result.Add(v)
@@ -312,7 +305,7 @@ func (s *Int8TreeSet) Difference(other *Int8TreeSet) *Int8TreeSet {
 }
 
 // ToSlice returns elements as a sorted slice.
-func (s *Int8TreeSet) ToSlice() []int8 {
+func (s *Int8) ToSlice() []int8 {
 	result := make([]int8, 0, s.size)
 	for v := range s.All() {
 		result = append(result, v)
@@ -320,14 +313,14 @@ func (s *Int8TreeSet) ToSlice() []int8 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *Int8TreeSet) With(value int8) *Int8TreeSet { s.Add(value); return s }
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Int8) AddReturning(value int8) *Int8 { s.Add(value); return s }
 
-// Without returns the set after removing the value (fluent API).
-func (s *Int8TreeSet) Without(value int8) *Int8TreeSet { s.Remove(value); return s }
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Int8) RemoveReturning(value int8) *Int8 { s.Remove(value); return s }
 
 // String returns a string representation in sorted order.
-func (s *Int8TreeSet) String() string {
+func (s *Int8) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -347,7 +340,7 @@ func (s *Int8TreeSet) String() string {
 
 // --- Red-black tree internals (same as TreeMap) ---
 
-func (s *Int8TreeSet) findNode(key int8) *int8TreeSetNode {
+func (s *Int8) findNode(key int8) *int8Node {
 	node := s.root
 	for node != nil {
 		if key < node.key {
@@ -360,20 +353,20 @@ func (s *Int8TreeSet) findNode(key int8) *int8TreeSetNode {
 	}
 	return nil
 }
-func (s *Int8TreeSet) minNode(node *int8TreeSetNode) *int8TreeSetNode {
+func (s *Int8) minNode(node *int8Node) *int8Node {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
-func (s *Int8TreeSet) maxNode(node *int8TreeSetNode) *int8TreeSetNode {
+func (s *Int8) maxNode(node *int8Node) *int8Node {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (s *Int8TreeSet) rotateLeft(x *int8TreeSetNode) {
+func (s *Int8) rotateLeft(x *int8Node) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -390,7 +383,7 @@ func (s *Int8TreeSet) rotateLeft(x *int8TreeSetNode) {
 	y.left = x
 	x.parent = y
 }
-func (s *Int8TreeSet) rotateRight(x *int8TreeSetNode) {
+func (s *Int8) rotateRight(x *int8Node) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -408,52 +401,52 @@ func (s *Int8TreeSet) rotateRight(x *int8TreeSetNode) {
 	x.parent = y
 }
 
-func (s *Int8TreeSet) fixAfterInsert(z *int8TreeSetNode) {
-	for z.parent != nil && z.parent.color == int8TreeSetNodeRed {
+func (s *Int8) fixAfterInsert(z *int8Node) {
+	for z.parent != nil && z.parent.color == int8NodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
-			if y != nil && y.color == int8TreeSetNodeRed {
-				z.parent.color = int8TreeSetNodeBlack
-				y.color = int8TreeSetNodeBlack
-				z.parent.parent.color = int8TreeSetNodeRed
+			if y != nil && y.color == int8NodeRed {
+				z.parent.color = int8NodeBlack
+				y.color = int8NodeBlack
+				z.parent.parent.color = int8NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.right {
 					z = z.parent
 					s.rotateLeft(z)
 				}
-				z.parent.color = int8TreeSetNodeBlack
-				z.parent.parent.color = int8TreeSetNodeRed
+				z.parent.color = int8NodeBlack
+				z.parent.parent.color = int8NodeRed
 				s.rotateRight(z.parent.parent)
 			}
 		} else {
 			y := z.parent.parent.left
-			if y != nil && y.color == int8TreeSetNodeRed {
-				z.parent.color = int8TreeSetNodeBlack
-				y.color = int8TreeSetNodeBlack
-				z.parent.parent.color = int8TreeSetNodeRed
+			if y != nil && y.color == int8NodeRed {
+				z.parent.color = int8NodeBlack
+				y.color = int8NodeBlack
+				z.parent.parent.color = int8NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.left {
 					z = z.parent
 					s.rotateRight(z)
 				}
-				z.parent.color = int8TreeSetNodeBlack
-				z.parent.parent.color = int8TreeSetNodeRed
+				z.parent.color = int8NodeBlack
+				z.parent.parent.color = int8NodeRed
 				s.rotateLeft(z.parent.parent)
 			}
 		}
 	}
-	s.root.color = int8TreeSetNodeBlack
+	s.root.color = int8NodeBlack
 }
 
-func (s *Int8TreeSet) deleteNode(z *int8TreeSetNode) {
+func (s *Int8) deleteNode(z *int8Node) {
 	if z.left != nil && z.right != nil {
 		succ := s.minNode(z.right)
 		z.key = succ.key
 		z = succ
 	}
-	var child *int8TreeSetNode
+	var child *int8Node
 	if z.left != nil {
 		child = z.left
 	} else {
@@ -468,13 +461,13 @@ func (s *Int8TreeSet) deleteNode(z *int8TreeSetNode) {
 		} else {
 			z.parent.right = child
 		}
-		if z.color == int8TreeSetNodeBlack {
+		if z.color == int8NodeBlack {
 			s.fixAfterDelete(child)
 		}
 	} else if z.parent == nil {
 		s.root = nil
 	} else {
-		if z.color == int8TreeSetNodeBlack {
+		if z.color == int8NodeBlack {
 			s.fixAfterDelete(z)
 		}
 		if z.parent != nil {
@@ -487,17 +480,17 @@ func (s *Int8TreeSet) deleteNode(z *int8TreeSetNode) {
 	}
 }
 
-func (s *Int8TreeSet) fixAfterDelete(x *int8TreeSetNode) {
-	for x != s.root && x.color == int8TreeSetNodeBlack {
+func (s *Int8) fixAfterDelete(x *int8Node) {
+	for x != s.root && x.color == int8NodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right
 			if w == nil {
 				x = x.parent
 				continue
 			}
-			if w.color == int8TreeSetNodeRed {
-				w.color = int8TreeSetNodeBlack
-				x.parent.color = int8TreeSetNodeRed
+			if w.color == int8NodeRed {
+				w.color = int8NodeBlack
+				x.parent.color = int8NodeRed
 				s.rotateLeft(x.parent)
 				w = x.parent.right
 			}
@@ -505,24 +498,24 @@ func (s *Int8TreeSet) fixAfterDelete(x *int8TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int8TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int8TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int8NodeBlack
+			rb := w.right == nil || w.right.color == int8NodeBlack
 			if lb && rb {
-				w.color = int8TreeSetNodeRed
+				w.color = int8NodeRed
 				x = x.parent
 			} else {
 				if rb {
 					if w.left != nil {
-						w.left.color = int8TreeSetNodeBlack
+						w.left.color = int8NodeBlack
 					}
-					w.color = int8TreeSetNodeRed
+					w.color = int8NodeRed
 					s.rotateRight(w)
 					w = x.parent.right
 				}
 				w.color = x.parent.color
-				x.parent.color = int8TreeSetNodeBlack
+				x.parent.color = int8NodeBlack
 				if w.right != nil {
-					w.right.color = int8TreeSetNodeBlack
+					w.right.color = int8NodeBlack
 				}
 				s.rotateLeft(x.parent)
 				x = s.root
@@ -533,9 +526,9 @@ func (s *Int8TreeSet) fixAfterDelete(x *int8TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			if w.color == int8TreeSetNodeRed {
-				w.color = int8TreeSetNodeBlack
-				x.parent.color = int8TreeSetNodeRed
+			if w.color == int8NodeRed {
+				w.color = int8NodeBlack
+				x.parent.color = int8NodeRed
 				s.rotateRight(x.parent)
 				w = x.parent.left
 			}
@@ -543,29 +536,29 @@ func (s *Int8TreeSet) fixAfterDelete(x *int8TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int8TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int8TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int8NodeBlack
+			rb := w.right == nil || w.right.color == int8NodeBlack
 			if lb && rb {
-				w.color = int8TreeSetNodeRed
+				w.color = int8NodeRed
 				x = x.parent
 			} else {
 				if lb {
 					if w.right != nil {
-						w.right.color = int8TreeSetNodeBlack
+						w.right.color = int8NodeBlack
 					}
-					w.color = int8TreeSetNodeRed
+					w.color = int8NodeRed
 					s.rotateLeft(w)
 					w = x.parent.left
 				}
 				w.color = x.parent.color
-				x.parent.color = int8TreeSetNodeBlack
+				x.parent.color = int8NodeBlack
 				if w.left != nil {
-					w.left.color = int8TreeSetNodeBlack
+					w.left.color = int8NodeBlack
 				}
 				s.rotateRight(x.parent)
 				x = s.root
 			}
 		}
 	}
-	x.color = int8TreeSetNodeBlack
+	x.color = int8NodeBlack
 }

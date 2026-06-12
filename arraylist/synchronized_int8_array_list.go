@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt8ArrayList is a thread-safe wrapper around Int8ArrayList.
+// SynchronizedInt8 is a thread-safe wrapper around Int8.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take
 // a caller-supplied function (Select, ForEach, InjectInto, …) snapshot
@@ -17,40 +17,40 @@ import (
 // without deadlocking.
 //
 // Methods that return a fresh collection (Select, Reject, Distinct,
-// Reversed) return an unwrapped *Int8ArrayList: the caller owns it and
+// Reversed) return an unwrapped *Int8: the caller owns it and
 // is free to add their own synchronisation if they need it.
-type SynchronizedInt8ArrayList struct {
-	delegate *Int8ArrayList
+type SynchronizedInt8 struct {
+	delegate *Int8
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt8ArrayList creates a new thread-safe empty list.
-func NewSynchronizedInt8ArrayList() *SynchronizedInt8ArrayList {
-	return &SynchronizedInt8ArrayList{delegate: NewInt8ArrayList()}
+// NewSynchronizedInt8 creates a new thread-safe empty list.
+func NewSynchronizedInt8() *SynchronizedInt8 {
+	return &SynchronizedInt8{delegate: NewInt8()}
 }
 
-// NewSynchronizedInt8ArrayListWithCapacity creates a new thread-safe
+// NewSynchronizedInt8WithCapacity creates a new thread-safe
 // empty list with the given initial capacity.
-func NewSynchronizedInt8ArrayListWithCapacity(capacity int) *SynchronizedInt8ArrayList {
-	return &SynchronizedInt8ArrayList{delegate: NewInt8ArrayListWithCapacity(capacity)}
+func NewSynchronizedInt8WithCapacity(capacity int) *SynchronizedInt8 {
+	return &SynchronizedInt8{delegate: NewInt8WithCapacity(capacity)}
 }
 
-// NewSynchronizedInt8ArrayListFrom wraps an existing list. The
+// NewSynchronizedInt8From wraps an existing list. The
 // wrapper takes ownership of the delegate — callers must not continue
 // to mutate it directly without locking.
-func NewSynchronizedInt8ArrayListFrom(l *Int8ArrayList) *SynchronizedInt8ArrayList {
-	return &SynchronizedInt8ArrayList{delegate: l}
+func NewSynchronizedInt8From(l *Int8) *SynchronizedInt8 {
+	return &SynchronizedInt8{delegate: l}
 }
 
-// SynchronizedInt8ArrayListOf creates a new thread-safe list
+// SynchronizedInt8Of creates a new thread-safe list
 // containing the given values in order.
-func SynchronizedInt8ArrayListOf(values ...int8) *SynchronizedInt8ArrayList {
-	return &SynchronizedInt8ArrayList{delegate: Int8ArrayListOf(values...)}
+func SynchronizedInt8Of(values ...int8) *SynchronizedInt8 {
+	return &SynchronizedInt8{delegate: Int8Of(values...)}
 }
 
 // snapshot returns a defensive copy of the backing slice taken under
 // RLock. Callers iterate the snapshot without holding the lock.
-func (l *SynchronizedInt8ArrayList) snapshot() []int8 {
+func (l *SynchronizedInt8) snapshot() []int8 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
@@ -58,37 +58,37 @@ func (l *SynchronizedInt8ArrayList) snapshot() []int8 {
 
 // ── simple writes ─────────────────────────────────────────────────────
 
-func (l *SynchronizedInt8ArrayList) Add(value int8) {
+func (l *SynchronizedInt8) Add(value int8) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Add(value)
 }
 
-func (l *SynchronizedInt8ArrayList) AddAll(values ...int8) {
+func (l *SynchronizedInt8) AddAll(values ...int8) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.AddAll(values...)
 }
 
-func (l *SynchronizedInt8ArrayList) Set(index int, value int8) (int8, error) {
+func (l *SynchronizedInt8) Set(index int, value int8) int8 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Set(index, value)
 }
 
-func (l *SynchronizedInt8ArrayList) RemoveAtIndex(index int) (int8, error) {
+func (l *SynchronizedInt8) RemoveAtIndex(index int) int8 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.RemoveAtIndex(index)
 }
 
-func (l *SynchronizedInt8ArrayList) Remove(value int8) bool {
+func (l *SynchronizedInt8) Remove(value int8) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Remove(value)
 }
 
-func (l *SynchronizedInt8ArrayList) Clear() {
+func (l *SynchronizedInt8) Clear() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Clear()
@@ -96,7 +96,7 @@ func (l *SynchronizedInt8ArrayList) Clear() {
 
 // Sort sorts the backing list in place. Holds the write lock for the
 // duration; do not call back into this wrapper from a custom comparator.
-func (l *SynchronizedInt8ArrayList) Sort() {
+func (l *SynchronizedInt8) Sort() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Sort()
@@ -104,7 +104,7 @@ func (l *SynchronizedInt8ArrayList) Sort() {
 
 // SortWithComparator sorts using the given less function, under the
 // write lock. The comparator must not call back into this wrapper.
-func (l *SynchronizedInt8ArrayList) SortWithComparator(less func(int8, int8) bool) {
+func (l *SynchronizedInt8) SortWithComparator(less func(int8, int8) bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.SortWithComparator(less)
@@ -112,65 +112,55 @@ func (l *SynchronizedInt8ArrayList) SortWithComparator(less func(int8, int8) boo
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (l *SynchronizedInt8ArrayList) Get(index int) (int8, error) {
+func (l *SynchronizedInt8) Get(index int) int8 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Get(index)
 }
 
-func (l *SynchronizedInt8ArrayList) Contains(value int8) bool {
+func (l *SynchronizedInt8) Contains(value int8) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Contains(value)
 }
 
-func (l *SynchronizedInt8ArrayList) IndexOf(value int8) int {
+func (l *SynchronizedInt8) IndexOf(value int8) int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.IndexOf(value)
 }
 
-func (l *SynchronizedInt8ArrayList) Size() int {
+func (l *SynchronizedInt8) Len() int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.delegate.Size()
+	return l.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *SynchronizedInt8ArrayList) Len() int { return l.Size() }
-
-func (l *SynchronizedInt8ArrayList) IsEmpty() bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.delegate.IsEmpty()
-}
-
-func (l *SynchronizedInt8ArrayList) ToSlice() []int8 {
+func (l *SynchronizedInt8) ToSlice() []int8 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
 }
 
-func (l *SynchronizedInt8ArrayList) String() string {
+func (l *SynchronizedInt8) String() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.String()
 }
 
-func (l *SynchronizedInt8ArrayList) Sum() int64 {
+func (l *SynchronizedInt8) Sum() int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Sum()
 }
 
-func (l *SynchronizedInt8ArrayList) Min() (int8, bool) {
+func (l *SynchronizedInt8) Min() (int8, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Min()
 }
 
-func (l *SynchronizedInt8ArrayList) Max() (int8, bool) {
+func (l *SynchronizedInt8) Max() (int8, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Max()
@@ -179,7 +169,7 @@ func (l *SynchronizedInt8ArrayList) Max() (int8, bool) {
 // BinarySearch requires the delegate to be sorted. Callers must
 // ensure that (e.g. by calling Sort() beforehand, both happening
 // before any concurrent Add).
-func (l *SynchronizedInt8ArrayList) BinarySearch(value int8) (int, bool) {
+func (l *SynchronizedInt8) BinarySearch(value int8) (int, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.BinarySearch(value)
@@ -189,7 +179,7 @@ func (l *SynchronizedInt8ArrayList) BinarySearch(value int8) (int, bool) {
 // same order. Both wrappers are locked under RLock to prevent torn
 // reads; locks are acquired in pointer-address order so two goroutines
 // calling A.Equals(B) and B.Equals(A) concurrently cannot deadlock.
-func (l *SynchronizedInt8ArrayList) Equals(other *SynchronizedInt8ArrayList) bool {
+func (l *SynchronizedInt8) Equals(other *SynchronizedInt8) bool {
 	if l == other {
 		l.mu.RLock()
 		defer l.mu.RUnlock()
@@ -209,7 +199,7 @@ func (l *SynchronizedInt8ArrayList) Equals(other *SynchronizedInt8ArrayList) boo
 // ── iteration (snapshot-based) ────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (l *SynchronizedInt8ArrayList) All() iter.Seq[int8] {
+func (l *SynchronizedInt8) All() iter.Seq[int8] {
 	snapshot := l.snapshot()
 	return func(yield func(int8) bool) {
 		for _, v := range snapshot {
@@ -221,7 +211,7 @@ func (l *SynchronizedInt8ArrayList) All() iter.Seq[int8] {
 }
 
 // AllWithIndex returns an iter.Seq2 over a snapshot. Iteration is lock-free.
-func (l *SynchronizedInt8ArrayList) AllWithIndex() iter.Seq2[int, int8] {
+func (l *SynchronizedInt8) AllWithIndex() iter.Seq2[int, int8] {
 	snapshot := l.snapshot()
 	return func(yield func(int, int8) bool) {
 		for i, v := range snapshot {
@@ -234,19 +224,19 @@ func (l *SynchronizedInt8ArrayList) AllWithIndex() iter.Seq2[int, int8] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (l *SynchronizedInt8ArrayList) ForEach(f func(int8)) {
+func (l *SynchronizedInt8) ForEach(f func(int8)) {
 	for _, v := range l.snapshot() {
 		f(v)
 	}
 }
 
-func (l *SynchronizedInt8ArrayList) ForEachWithIndex(f func(int8, int)) {
+func (l *SynchronizedInt8) ForEachWithIndex(f func(int8, int)) {
 	for i, v := range l.snapshot() {
 		f(v, i)
 	}
 }
 
-func (l *SynchronizedInt8ArrayList) AnySatisfy(predicate func(int8) bool) bool {
+func (l *SynchronizedInt8) AnySatisfy(predicate func(int8) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return true
@@ -255,7 +245,7 @@ func (l *SynchronizedInt8ArrayList) AnySatisfy(predicate func(int8) bool) bool {
 	return false
 }
 
-func (l *SynchronizedInt8ArrayList) AllSatisfy(predicate func(int8) bool) bool {
+func (l *SynchronizedInt8) AllSatisfy(predicate func(int8) bool) bool {
 	for _, v := range l.snapshot() {
 		if !predicate(v) {
 			return false
@@ -264,7 +254,7 @@ func (l *SynchronizedInt8ArrayList) AllSatisfy(predicate func(int8) bool) bool {
 	return true
 }
 
-func (l *SynchronizedInt8ArrayList) NoneSatisfy(predicate func(int8) bool) bool {
+func (l *SynchronizedInt8) NoneSatisfy(predicate func(int8) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return false
@@ -273,7 +263,7 @@ func (l *SynchronizedInt8ArrayList) NoneSatisfy(predicate func(int8) bool) bool 
 	return true
 }
 
-func (l *SynchronizedInt8ArrayList) Count(predicate func(int8) bool) int {
+func (l *SynchronizedInt8) Count(predicate func(int8) bool) int {
 	n := 0
 	for _, v := range l.snapshot() {
 		if predicate(v) {
@@ -283,7 +273,7 @@ func (l *SynchronizedInt8ArrayList) Count(predicate func(int8) bool) int {
 	return n
 }
 
-func (l *SynchronizedInt8ArrayList) Detect(predicate func(int8) bool) (int8, bool) {
+func (l *SynchronizedInt8) Detect(predicate func(int8) bool) (int8, bool) {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -293,7 +283,7 @@ func (l *SynchronizedInt8ArrayList) Detect(predicate func(int8) bool) (int8, boo
 	return zero, false
 }
 
-func (l *SynchronizedInt8ArrayList) InjectInto(initial int8, f func(int8, int8) int8) int8 {
+func (l *SynchronizedInt8) InjectInto(initial int8, f func(int8, int8) int8) int8 {
 	acc := initial
 	for _, v := range l.snapshot() {
 		acc = f(acc, v)
@@ -304,9 +294,9 @@ func (l *SynchronizedInt8ArrayList) InjectInto(initial int8, f func(int8, int8) 
 // ── functional that return a new list ─────────────────────────────────
 
 // Select returns a new (unsynchronized) list of elements satisfying the predicate.
-func (l *SynchronizedInt8ArrayList) Select(predicate func(int8) bool) *Int8ArrayList {
+func (l *SynchronizedInt8) Select(predicate func(int8) bool) *Int8 {
 	snapshot := l.snapshot()
-	result := NewInt8ArrayList()
+	result := NewInt8()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -316,9 +306,9 @@ func (l *SynchronizedInt8ArrayList) Select(predicate func(int8) bool) *Int8Array
 }
 
 // Reject returns a new (unsynchronized) list of elements not satisfying the predicate.
-func (l *SynchronizedInt8ArrayList) Reject(predicate func(int8) bool) *Int8ArrayList {
+func (l *SynchronizedInt8) Reject(predicate func(int8) bool) *Int8 {
 	snapshot := l.snapshot()
-	result := NewInt8ArrayList()
+	result := NewInt8()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -329,14 +319,14 @@ func (l *SynchronizedInt8ArrayList) Reject(predicate func(int8) bool) *Int8Array
 
 // Distinct returns a new (unsynchronized) list with duplicates removed,
 // order preserved.
-func (l *SynchronizedInt8ArrayList) Distinct() *Int8ArrayList {
+func (l *SynchronizedInt8) Distinct() *Int8 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Distinct()
 }
 
 // Reversed returns a new (unsynchronized) list in reverse order.
-func (l *SynchronizedInt8ArrayList) Reversed() *Int8ArrayList {
+func (l *SynchronizedInt8) Reversed() *Int8 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Reversed()
@@ -345,31 +335,31 @@ func (l *SynchronizedInt8ArrayList) Reversed() *Int8ArrayList {
 // ── fluent mutators ───────────────────────────────────────────────────
 // All return the wrapper so chained calls stay thread-safe.
 
-func (l *SynchronizedInt8ArrayList) With(value int8) *SynchronizedInt8ArrayList {
+func (l *SynchronizedInt8) AddReturning(value int8) *SynchronizedInt8 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.With(value)
+	l.delegate.AddReturning(value)
 	return l
 }
 
-func (l *SynchronizedInt8ArrayList) WithAll(values ...int8) *SynchronizedInt8ArrayList {
+func (l *SynchronizedInt8) AddAllReturning(values ...int8) *SynchronizedInt8 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithAll(values...)
+	l.delegate.AddAllReturning(values...)
 	return l
 }
 
-func (l *SynchronizedInt8ArrayList) Without(value int8) *SynchronizedInt8ArrayList {
+func (l *SynchronizedInt8) RemoveReturning(value int8) *SynchronizedInt8 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.Without(value)
+	l.delegate.RemoveReturning(value)
 	return l
 }
 
-func (l *SynchronizedInt8ArrayList) WithoutAll(values ...int8) *SynchronizedInt8ArrayList {
+func (l *SynchronizedInt8) RemoveAllReturning(values ...int8) *SynchronizedInt8 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithoutAll(values...)
+	l.delegate.RemoveAllReturning(values...)
 	return l
 }
 
@@ -378,7 +368,7 @@ func (l *SynchronizedInt8ArrayList) WithoutAll(values ...int8) *SynchronizedInt8
 // ToImmutable returns an immutable copy of the underlying list taken
 // while holding the read lock. The returned value is independent of
 // this wrapper.
-func (l *SynchronizedInt8ArrayList) ToImmutable() *ImmutableInt8ArrayList {
+func (l *SynchronizedInt8) ToImmutable() *ImmutableInt8 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToImmutable()

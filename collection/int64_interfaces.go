@@ -1,4 +1,3 @@
-
 package collection
 
 import (
@@ -14,11 +13,9 @@ import (
 
 // Int64Sized exposes the element count of a collection.
 type Int64Sized interface {
-	// Size returns the number of elements.
-	Size() int
-
-	// IsEmpty returns true if the collection contains no elements.
-	IsEmpty() bool
+	// Len returns the number of elements. Use x.Len() == 0 to test for
+	// emptiness.
+	Len() int
 }
 
 // Int64Iterable provides element-by-element traversal.
@@ -92,8 +89,8 @@ type Int64MutableCollection interface {
 type Int64List interface {
 	Int64Collection
 
-	// Get returns the element at the given index, or an error if out of bounds.
-	Get(index int) (int64, error)
+	// Get returns the element at the given index. It panics on out-of-range index.
+	Get(index int) int64
 
 	// IndexOf returns the index of the first occurrence of value, or -1 if absent.
 	IndexOf(value int64) int
@@ -108,8 +105,9 @@ type Int64MutableList interface {
 	// Add appends a value to the end of the list.
 	Add(value int64)
 
-	// Set replaces the element at the given index. Returns the previous value or an error.
-	Set(index int, value int64) (int64, error)
+	// Set sets the value at the given index, returning the previous value.
+	// It panics on out-of-range index.
+	Set(index int, value int64) int64
 }
 
 // Int64Set marker interface for set-like collections (uniqueness implied).
@@ -155,8 +153,8 @@ type Int64MutableBag interface {
 type Int64Stack interface {
 	Int64Collection
 
-	// Peek returns the top of the stack without removing it.
-	Peek() (int64, error)
+	// Peek returns the top element without removing it. The bool is false if empty.
+	Peek() (int64, bool)
 }
 
 // Int64MutableStack mutable LIFO stack with Push and Pop.
@@ -168,6 +166,6 @@ type Int64MutableStack interface {
 	// Push pushes a value onto the top of the stack.
 	Push(value int64)
 
-	// Pop pops and returns the top of the stack, or an error if empty.
-	Pop() (int64, error)
+	// Pop removes and returns the top element. The bool is false if empty.
+	Pop() (int64, bool)
 }

@@ -9,43 +9,43 @@ import (
 )
 
 const (
-	int64Int8HashMapDefaultCapacity = 16
+	int64Int8DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// int64Int8HashMapEntry holds a single slot in the hash map for cache locality.
-type int64Int8HashMapEntry struct {
+// int64Int8Entry holds a single slot in the hash map for cache locality.
+type int64Int8Entry struct {
 	key      int64
 	value    int8
 	occupied bool
 }
 
-// Int64Int8HashMap is an open-addressing hash map with int64 keys and int8 values.
-type Int64Int8HashMap struct {
-	entries []int64Int8HashMapEntry
+// Int64Int8 is an open-addressing hash map with int64 keys and int8 values.
+type Int64Int8 struct {
+	entries []int64Int8Entry
 	size    int
 }
 
-// NewInt64Int8HashMap creates a new empty Int64Int8HashMap with default capacity.
-func NewInt64Int8HashMap() *Int64Int8HashMap {
-	return NewInt64Int8HashMapWithCapacity(int64Int8HashMapDefaultCapacity)
+// NewInt64Int8 creates a new empty Int64Int8 with default capacity.
+func NewInt64Int8() *Int64Int8 {
+	return NewInt64Int8WithCapacity(int64Int8DefaultCapacity)
 }
 
-// NewInt64Int8HashMapWithCapacity creates a new empty Int64Int8HashMap with the given initial capacity.
-func NewInt64Int8HashMapWithCapacity(capacity int) *Int64Int8HashMap {
-	cap := nextPowerOfTwoInt64Int8HashMap(capacity)
-	return &Int64Int8HashMap{
-		entries: make([]int64Int8HashMapEntry, cap),
+// NewInt64Int8WithCapacity creates a new empty Int64Int8 with the given initial capacity.
+func NewInt64Int8WithCapacity(capacity int) *Int64Int8 {
+	cap := nextPowerOfTwoInt64Int8(capacity)
+	return &Int64Int8{
+		entries: make([]int64Int8Entry, cap),
 		size:    0,
 	}
 }
 
-// Int64Int8HashMapOf creates a new Int64Int8HashMap from key-value pairs.
-func Int64Int8HashMapOf(pairs ...struct {
+// Int64Int8Of creates a new Int64Int8 from key-value pairs.
+func Int64Int8Of(pairs ...struct {
 	Key   int64
 	Value int8
-}) *Int64Int8HashMap {
-	m := NewInt64Int8HashMapWithCapacity(len(pairs) * 2)
+}) *Int64Int8 {
+	m := NewInt64Int8WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
@@ -53,7 +53,7 @@ func Int64Int8HashMapOf(pairs ...struct {
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Int64Int8HashMap) Put(key int64, value int8) (int8, bool) {
+func (m *Int64Int8) Put(key int64, value int8) (int8, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -79,7 +79,7 @@ func (m *Int64Int8HashMap) Put(key int64, value int8) (int8, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Int64Int8HashMap) Get(key int64) (int8, bool) {
+func (m *Int64Int8) Get(key int64) (int8, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -99,7 +99,7 @@ func (m *Int64Int8HashMap) Get(key int64) (int8, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Int64Int8HashMap) GetOrDefault(key int64, defaultValue int8) int8 {
+func (m *Int64Int8) GetOrDefault(key int64, defaultValue int8) int8 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -107,7 +107,7 @@ func (m *Int64Int8HashMap) GetOrDefault(key int64, defaultValue int8) int8 {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Int64Int8HashMap) Remove(key int64) (int8, bool) {
+func (m *Int64Int8) Remove(key int64) (int8, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -138,13 +138,13 @@ func (m *Int64Int8HashMap) Remove(key int64) (int8, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int64Int8HashMap) ContainsKey(key int64) bool {
+func (m *Int64Int8) ContainsKey(key int64) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Int64Int8HashMap) ContainsValue(value int8) bool {
+func (m *Int64Int8) ContainsValue(value int8) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && m.entries[i].value == value {
 			return true
@@ -153,30 +153,21 @@ func (m *Int64Int8HashMap) ContainsValue(value int8) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Int64Int8HashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int64Int8) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int64Int8HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Int64Int8HashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Int64Int8HashMap) Clear() {
+func (m *Int64Int8) Clear() {
 	for i := range m.entries {
-		m.entries[i] = int64Int8HashMapEntry{}
+		m.entries[i] = int64Int8Entry{}
 	}
 	m.size = 0
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Int64Int8HashMap) All() iter.Seq2[int64, int8] {
+func (m *Int64Int8) All() iter.Seq2[int64, int8] {
 	return func(yield func(int64, int8) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -189,7 +180,7 @@ func (m *Int64Int8HashMap) All() iter.Seq2[int64, int8] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Int64Int8HashMap) Keys() iter.Seq[int64] {
+func (m *Int64Int8) Keys() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -202,7 +193,7 @@ func (m *Int64Int8HashMap) Keys() iter.Seq[int64] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Int64Int8HashMap) Values() iter.Seq[int8] {
+func (m *Int64Int8) Values() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -215,7 +206,7 @@ func (m *Int64Int8HashMap) Values() iter.Seq[int8] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int64Int8HashMap) ForEach(f func(int64, int8)) {
+func (m *Int64Int8) ForEach(f func(int64, int8)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key, m.entries[i].value)
@@ -224,7 +215,7 @@ func (m *Int64Int8HashMap) ForEach(f func(int64, int8)) {
 }
 
 // ForEachKey calls the given function for each key.
-func (m *Int64Int8HashMap) ForEachKey(f func(int64)) {
+func (m *Int64Int8) ForEachKey(f func(int64)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key)
@@ -233,7 +224,7 @@ func (m *Int64Int8HashMap) ForEachKey(f func(int64)) {
 }
 
 // ForEachValue calls the given function for each value.
-func (m *Int64Int8HashMap) ForEachValue(f func(int8)) {
+func (m *Int64Int8) ForEachValue(f func(int8)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].value)
@@ -242,8 +233,8 @@ func (m *Int64Int8HashMap) ForEachValue(f func(int8)) {
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *Int64Int8HashMap) Select(predicate func(int64, int8) bool) *Int64Int8HashMap {
-	result := NewInt64Int8HashMap()
+func (m *Int64Int8) Select(predicate func(int64, int8) bool) *Int64Int8 {
+	result := NewInt64Int8()
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -253,8 +244,8 @@ func (m *Int64Int8HashMap) Select(predicate func(int64, int8) bool) *Int64Int8Ha
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *Int64Int8HashMap) Reject(predicate func(int64, int8) bool) *Int64Int8HashMap {
-	result := NewInt64Int8HashMap()
+func (m *Int64Int8) Reject(predicate func(int64, int8) bool) *Int64Int8 {
+	result := NewInt64Int8()
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -264,7 +255,7 @@ func (m *Int64Int8HashMap) Reject(predicate func(int64, int8) bool) *Int64Int8Ha
 }
 
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
-func (m *Int64Int8HashMap) Detect(predicate func(int64, int8) bool) (int64, int8, bool) {
+func (m *Int64Int8) Detect(predicate func(int64, int8) bool) (int64, int8, bool) {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
@@ -274,7 +265,7 @@ func (m *Int64Int8HashMap) Detect(predicate func(int64, int8) bool) (int64, int8
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *Int64Int8HashMap) AnySatisfy(predicate func(int64, int8) bool) bool {
+func (m *Int64Int8) AnySatisfy(predicate func(int64, int8) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
@@ -284,7 +275,7 @@ func (m *Int64Int8HashMap) AnySatisfy(predicate func(int64, int8) bool) bool {
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *Int64Int8HashMap) AllSatisfy(predicate func(int64, int8) bool) bool {
+func (m *Int64Int8) AllSatisfy(predicate func(int64, int8) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -294,7 +285,7 @@ func (m *Int64Int8HashMap) AllSatisfy(predicate func(int64, int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *Int64Int8HashMap) NoneSatisfy(predicate func(int64, int8) bool) bool {
+func (m *Int64Int8) NoneSatisfy(predicate func(int64, int8) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -304,7 +295,7 @@ func (m *Int64Int8HashMap) NoneSatisfy(predicate func(int64, int8) bool) bool {
 }
 
 // Count returns the number of key-value pairs that satisfy the predicate.
-func (m *Int64Int8HashMap) Count(predicate func(int64, int8) bool) int {
+func (m *Int64Int8) Count(predicate func(int64, int8) bool) int {
 	count := 0
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
@@ -315,7 +306,7 @@ func (m *Int64Int8HashMap) Count(predicate func(int64, int8) bool) int {
 }
 
 // String returns a string representation of the map.
-func (m *Int64Int8HashMap) String() string {
+func (m *Int64Int8) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -336,7 +327,7 @@ func (m *Int64Int8HashMap) String() string {
 }
 
 // Equals returns true if the other map has the same key-value pairs.
-func (m *Int64Int8HashMap) Equals(other *Int64Int8HashMap) bool {
+func (m *Int64Int8) Equals(other *Int64Int8) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -352,7 +343,7 @@ func (m *Int64Int8HashMap) Equals(other *Int64Int8HashMap) bool {
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *Int64Int8HashMap) KeysToSlice() []int64 {
+func (m *Int64Int8) KeysToSlice() []int64 {
 	result := make([]int64, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -363,7 +354,7 @@ func (m *Int64Int8HashMap) KeysToSlice() []int64 {
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Int64Int8HashMap) ValuesToSlice() []int8 {
+func (m *Int64Int8) ValuesToSlice() []int8 {
 	result := make([]int8, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -374,12 +365,12 @@ func (m *Int64Int8HashMap) ValuesToSlice() []int8 {
 }
 
 // ToImmutable returns an immutable copy of this map.
-func (m *Int64Int8HashMap) ToImmutable() *ImmutableInt64Int8HashMap {
-	return ImmutableInt64Int8HashMapFrom(m)
+func (m *Int64Int8) ToImmutable() *ImmutableInt64Int8 {
+	return ImmutableInt64Int8From(m)
 }
 
 // InjectInto performs a left fold over all key-value pairs.
-func (m *Int64Int8HashMap) InjectInto(initial int8, f func(int8, int64, int8) int8) int8 {
+func (m *Int64Int8) InjectInto(initial int8, f func(int8, int64, int8) int8) int8 {
 	result := initial
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -392,7 +383,7 @@ func (m *Int64Int8HashMap) InjectInto(initial int8, f func(int8, int64, int8) in
 // AddToValue adds the given amount to the value for the key.
 // If the key is not present, inserts it with the given amount as value.
 // Returns the new value.
-func (m *Int64Int8HashMap) AddToValue(key int64, amount int8) int8 {
+func (m *Int64Int8) AddToValue(key int64, amount int8) int8 {
 	if v, ok := m.Get(key); ok {
 		newVal := v + amount
 		m.Put(key, newVal)
@@ -405,7 +396,7 @@ func (m *Int64Int8HashMap) AddToValue(key int64, amount int8) int8 {
 // UpdateValue updates the value for the key using the function.
 // If key is absent, inserts initialValue first then applies the function.
 // Returns the new value.
-func (m *Int64Int8HashMap) UpdateValue(key int64, initialValue int8, f func(int8) int8) int8 {
+func (m *Int64Int8) UpdateValue(key int64, initialValue int8, f func(int8) int8) int8 {
 	if v, ok := m.Get(key); ok {
 		newVal := f(v)
 		m.Put(key, newVal)
@@ -416,20 +407,20 @@ func (m *Int64Int8HashMap) UpdateValue(key int64, initialValue int8, f func(int8
 	return newVal
 }
 
-// WithKeyValue returns the map after putting the key-value pair (fluent API).
-func (m *Int64Int8HashMap) WithKeyValue(key int64, value int8) *Int64Int8HashMap {
+// PutReturning returns the map after putting the key-value pair (fluent API).
+func (m *Int64Int8) PutReturning(key int64, value int8) *Int64Int8 {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey returns the map after removing the key (fluent API).
-func (m *Int64Int8HashMap) WithoutKey(key int64) *Int64Int8HashMap {
+// RemoveKeyReturning returns the map after removing the key (fluent API).
+func (m *Int64Int8) RemoveKeyReturning(key int64) *Int64Int8 {
 	m.Remove(key)
 	return m
 }
 
 // WithoutAllKeys removes all given keys (fluent API).
-func (m *Int64Int8HashMap) WithoutAllKeys(keys []int64) *Int64Int8HashMap {
+func (m *Int64Int8) WithoutAllKeys(keys []int64) *Int64Int8 {
 	for _, k := range keys {
 		m.Remove(k)
 	}
@@ -437,7 +428,7 @@ func (m *Int64Int8HashMap) WithoutAllKeys(keys []int64) *Int64Int8HashMap {
 }
 
 // SumOfValues returns the sum of all values.
-func (m *Int64Int8HashMap) SumOfValues() int8 {
+func (m *Int64Int8) SumOfValues() int8 {
 	var sum int8
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -449,19 +440,19 @@ func (m *Int64Int8HashMap) SumOfValues() int8 {
 
 // Entry returns a handle for in-place check-and-modify operations on the
 // given key. The handle is not thread-safe: external synchronisation (the
-// SynchronizedInt64Int8HashMap wrapper's Lock / RLock, or your own mutex) is required
+// SynchronizedInt64Int8 wrapper's Lock / RLock, or your own mutex) is required
 // when multiple goroutines share the same underlying map. The name is
 // modelled on Rust's std::collections::hash_map::Entry, not on Java's
 // ConcurrentMap.compute; there is no internal locking, no CAS, and no
 // atomicity guarantee across callback invocation.
-func (m *Int64Int8HashMap) Entry(key int64) Int64Int8Entry {
+func (m *Int64Int8) Entry(key int64) Int64Int8Entry {
 	return Int64Int8Entry{m: m, key: key}
 }
 
 // Int64Int8Entry provides in-place check-and-modify operations for a single
-// key. Not thread-safe — see Int64Int8HashMap.Entry.
+// key. Not thread-safe — see Int64Int8.Entry.
 type Int64Int8Entry struct {
-	m   *Int64Int8HashMap
+	m   *Int64Int8
 	key int64
 }
 
@@ -522,22 +513,22 @@ func (e Int64Int8Entry) AndModify(f func(*int8)) Int64Int8Entry {
 	}
 }
 
-func (m *Int64Int8HashMap) hashKey(key int64) uint64 {
+func (m *Int64Int8) hashKey(key int64) uint64 {
 	h := uint64(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Int64Int8HashMap) needsResize() bool {
+func (m *Int64Int8) needsResize() bool {
 	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
 }
 
-func (m *Int64Int8HashMap) resize() {
+func (m *Int64Int8) resize() {
 	oldEntries := m.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = int64Int8HashMapDefaultCapacity
+		newCap = int64Int8DefaultCapacity
 	}
-	m.entries = make([]int64Int8HashMapEntry, newCap)
+	m.entries = make([]int64Int8Entry, newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -548,7 +539,7 @@ func (m *Int64Int8HashMap) resize() {
 }
 
 // rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *Int64Int8HashMap) rehashFrom(deleted int, mask int) {
+func (m *Int64Int8) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
@@ -557,7 +548,7 @@ func (m *Int64Int8HashMap) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = int64Int8HashMapEntry{}
+			m.entries[idx] = int64Int8Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -567,7 +558,7 @@ func (m *Int64Int8HashMap) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoInt64Int8HashMap(n int) int {
+func nextPowerOfTwoInt64Int8(n int) int {
 	if n <= 0 {
 		return 16
 	}

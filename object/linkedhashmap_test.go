@@ -13,7 +13,7 @@ import (
 
 func TestLinkedHashMapBasic(t *testing.T) {
 	m := NewLinkedHashMap[string, int]()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Fatal("expected empty")
 	}
 
@@ -24,8 +24,8 @@ func TestLinkedHashMapBasic(t *testing.T) {
 	m.Put("b", 2)
 	m.Put("c", 3)
 
-	if m.Size() != 3 {
-		t.Fatalf("expected 3, got %d", m.Size())
+	if m.Len() != 3 {
+		t.Fatalf("expected 3, got %d", m.Len())
 	}
 	if v, ok := m.Get("b"); !ok || v != 2 {
 		t.Fatalf("expected 2, got %v", v)
@@ -99,7 +99,7 @@ func TestLinkedHashMapRemove(t *testing.T) {
 
 	// Remove tail (last element)
 	m.Remove("c")
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Fatal("expected empty")
 	}
 }
@@ -109,7 +109,7 @@ func TestLinkedHashMapClear(t *testing.T) {
 	m.Put(1, 10)
 	m.Put(2, 20)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Fatal("expected empty after clear")
 	}
 }
@@ -161,8 +161,8 @@ func TestLinkedHashMapSelectReject(t *testing.T) {
 	m.Put(3, 30)
 
 	big := m.Select(func(_ int, v int) bool { return v > 15 })
-	if big.Size() != 2 {
-		t.Fatalf("expected 2, got %d", big.Size())
+	if big.Len() != 2 {
+		t.Fatalf("expected 2, got %d", big.Len())
 	}
 	// Verify order preserved
 	if !slices.Equal(big.KeysToSlice(), []int{2, 3}) {
@@ -170,8 +170,8 @@ func TestLinkedHashMapSelectReject(t *testing.T) {
 	}
 
 	small := m.Reject(func(_ int, v int) bool { return v > 15 })
-	if small.Size() != 1 {
-		t.Fatalf("expected 1, got %d", small.Size())
+	if small.Len() != 1 {
+		t.Fatalf("expected 1, got %d", small.Len())
 	}
 }
 

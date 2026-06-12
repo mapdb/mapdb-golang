@@ -42,12 +42,8 @@ func NewLinkedHashSetFrom[T comparable](values ...T) *LinkedHashSet[T] {
 
 // ── Sized ─────────────────────────────────────────────────────────────
 
-func (s *LinkedHashSet[T]) Size() int { return len(s.m) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *LinkedHashSet[T]) Len() int      { return s.Size() }
-func (s *LinkedHashSet[T]) IsEmpty() bool { return len(s.m) == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *LinkedHashSet[T]) Len() int { return len(s.m) }
 
 // ── Iterable ──────────────────────────────────────────────────────────
 

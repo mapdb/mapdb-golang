@@ -21,8 +21,8 @@ func TestProperty_ArrayList_LenAfterAdd(t *testing.T) {
 		for i := 0; i < n; i++ {
 			l.Add(i)
 		}
-		if l.Size() != n {
-			t.Fatalf("trial %d: expected len %d, got %d", trial, n, l.Size())
+		if l.Len() != n {
+			t.Fatalf("trial %d: expected len %d, got %d", trial, n, l.Len())
 		}
 	}
 }
@@ -69,8 +69,8 @@ func TestProperty_HashBag_OccurrencesMatchAdds(t *testing.T) {
 				t.Fatalf("trial %d: expected %d occurrences of %d, got %d", trial, expected, v, got)
 			}
 		}
-		if b.Size() != n {
-			t.Fatalf("trial %d: expected total size %d, got %d", trial, n, b.Size())
+		if b.Len() != n {
+			t.Fatalf("trial %d: expected total size %d, got %d", trial, n, b.Len())
 		}
 	}
 }
@@ -93,8 +93,8 @@ func TestProperty_HashMap_GetAfterPut(t *testing.T) {
 				t.Fatalf("trial %d: expected m[%d]=%d, got %d (ok=%v)", trial, k, v, got, ok)
 			}
 		}
-		if m.Size() != len(expected) {
-			t.Fatalf("trial %d: expected size %d, got %d", trial, len(expected), m.Size())
+		if m.Len() != len(expected) {
+			t.Fatalf("trial %d: expected size %d, got %d", trial, len(expected), m.Len())
 		}
 	}
 }
@@ -111,12 +111,12 @@ func TestProperty_ArrayStack_LIFO(t *testing.T) {
 			s.Push(v)
 		}
 		for i := n - 1; i >= 0; i-- {
-			v, err := s.Pop()
-			if err != nil || v != values[i] {
-				t.Fatalf("trial %d: expected pop %d, got %d (err=%v)", trial, values[i], v, err)
+			v, ok := s.Pop()
+			if !ok || v != values[i] {
+				t.Fatalf("trial %d: expected pop %d, got %d (ok=%v)", trial, values[i], v, ok)
 			}
 		}
-		if s.Size() != 0 {
+		if s.Len() != 0 {
 			t.Fatalf("trial %d: stack should be empty after popping all", trial)
 		}
 	}

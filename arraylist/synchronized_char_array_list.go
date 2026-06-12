@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedCharArrayList is a thread-safe wrapper around CharArrayList.
+// SynchronizedChar is a thread-safe wrapper around Char.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take
 // a caller-supplied function (Select, ForEach, InjectInto, …) snapshot
@@ -17,40 +17,40 @@ import (
 // without deadlocking.
 //
 // Methods that return a fresh collection (Select, Reject, Distinct,
-// Reversed) return an unwrapped *CharArrayList: the caller owns it and
+// Reversed) return an unwrapped *Char: the caller owns it and
 // is free to add their own synchronisation if they need it.
-type SynchronizedCharArrayList struct {
-	delegate *CharArrayList
+type SynchronizedChar struct {
+	delegate *Char
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedCharArrayList creates a new thread-safe empty list.
-func NewSynchronizedCharArrayList() *SynchronizedCharArrayList {
-	return &SynchronizedCharArrayList{delegate: NewCharArrayList()}
+// NewSynchronizedChar creates a new thread-safe empty list.
+func NewSynchronizedChar() *SynchronizedChar {
+	return &SynchronizedChar{delegate: NewChar()}
 }
 
-// NewSynchronizedCharArrayListWithCapacity creates a new thread-safe
+// NewSynchronizedCharWithCapacity creates a new thread-safe
 // empty list with the given initial capacity.
-func NewSynchronizedCharArrayListWithCapacity(capacity int) *SynchronizedCharArrayList {
-	return &SynchronizedCharArrayList{delegate: NewCharArrayListWithCapacity(capacity)}
+func NewSynchronizedCharWithCapacity(capacity int) *SynchronizedChar {
+	return &SynchronizedChar{delegate: NewCharWithCapacity(capacity)}
 }
 
-// NewSynchronizedCharArrayListFrom wraps an existing list. The
+// NewSynchronizedCharFrom wraps an existing list. The
 // wrapper takes ownership of the delegate — callers must not continue
 // to mutate it directly without locking.
-func NewSynchronizedCharArrayListFrom(l *CharArrayList) *SynchronizedCharArrayList {
-	return &SynchronizedCharArrayList{delegate: l}
+func NewSynchronizedCharFrom(l *Char) *SynchronizedChar {
+	return &SynchronizedChar{delegate: l}
 }
 
-// SynchronizedCharArrayListOf creates a new thread-safe list
+// SynchronizedCharOf creates a new thread-safe list
 // containing the given values in order.
-func SynchronizedCharArrayListOf(values ...uint16) *SynchronizedCharArrayList {
-	return &SynchronizedCharArrayList{delegate: CharArrayListOf(values...)}
+func SynchronizedCharOf(values ...uint16) *SynchronizedChar {
+	return &SynchronizedChar{delegate: CharOf(values...)}
 }
 
 // snapshot returns a defensive copy of the backing slice taken under
 // RLock. Callers iterate the snapshot without holding the lock.
-func (l *SynchronizedCharArrayList) snapshot() []uint16 {
+func (l *SynchronizedChar) snapshot() []uint16 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
@@ -58,37 +58,37 @@ func (l *SynchronizedCharArrayList) snapshot() []uint16 {
 
 // ── simple writes ─────────────────────────────────────────────────────
 
-func (l *SynchronizedCharArrayList) Add(value uint16) {
+func (l *SynchronizedChar) Add(value uint16) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Add(value)
 }
 
-func (l *SynchronizedCharArrayList) AddAll(values ...uint16) {
+func (l *SynchronizedChar) AddAll(values ...uint16) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.AddAll(values...)
 }
 
-func (l *SynchronizedCharArrayList) Set(index int, value uint16) (uint16, error) {
+func (l *SynchronizedChar) Set(index int, value uint16) uint16 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Set(index, value)
 }
 
-func (l *SynchronizedCharArrayList) RemoveAtIndex(index int) (uint16, error) {
+func (l *SynchronizedChar) RemoveAtIndex(index int) uint16 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.RemoveAtIndex(index)
 }
 
-func (l *SynchronizedCharArrayList) Remove(value uint16) bool {
+func (l *SynchronizedChar) Remove(value uint16) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Remove(value)
 }
 
-func (l *SynchronizedCharArrayList) Clear() {
+func (l *SynchronizedChar) Clear() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Clear()
@@ -96,7 +96,7 @@ func (l *SynchronizedCharArrayList) Clear() {
 
 // Sort sorts the backing list in place. Holds the write lock for the
 // duration; do not call back into this wrapper from a custom comparator.
-func (l *SynchronizedCharArrayList) Sort() {
+func (l *SynchronizedChar) Sort() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Sort()
@@ -104,7 +104,7 @@ func (l *SynchronizedCharArrayList) Sort() {
 
 // SortWithComparator sorts using the given less function, under the
 // write lock. The comparator must not call back into this wrapper.
-func (l *SynchronizedCharArrayList) SortWithComparator(less func(uint16, uint16) bool) {
+func (l *SynchronizedChar) SortWithComparator(less func(uint16, uint16) bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.SortWithComparator(less)
@@ -112,65 +112,55 @@ func (l *SynchronizedCharArrayList) SortWithComparator(less func(uint16, uint16)
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (l *SynchronizedCharArrayList) Get(index int) (uint16, error) {
+func (l *SynchronizedChar) Get(index int) uint16 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Get(index)
 }
 
-func (l *SynchronizedCharArrayList) Contains(value uint16) bool {
+func (l *SynchronizedChar) Contains(value uint16) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Contains(value)
 }
 
-func (l *SynchronizedCharArrayList) IndexOf(value uint16) int {
+func (l *SynchronizedChar) IndexOf(value uint16) int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.IndexOf(value)
 }
 
-func (l *SynchronizedCharArrayList) Size() int {
+func (l *SynchronizedChar) Len() int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.delegate.Size()
+	return l.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *SynchronizedCharArrayList) Len() int { return l.Size() }
-
-func (l *SynchronizedCharArrayList) IsEmpty() bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.delegate.IsEmpty()
-}
-
-func (l *SynchronizedCharArrayList) ToSlice() []uint16 {
+func (l *SynchronizedChar) ToSlice() []uint16 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
 }
 
-func (l *SynchronizedCharArrayList) String() string {
+func (l *SynchronizedChar) String() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.String()
 }
 
-func (l *SynchronizedCharArrayList) Sum() int64 {
+func (l *SynchronizedChar) Sum() int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Sum()
 }
 
-func (l *SynchronizedCharArrayList) Min() (uint16, bool) {
+func (l *SynchronizedChar) Min() (uint16, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Min()
 }
 
-func (l *SynchronizedCharArrayList) Max() (uint16, bool) {
+func (l *SynchronizedChar) Max() (uint16, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Max()
@@ -179,7 +169,7 @@ func (l *SynchronizedCharArrayList) Max() (uint16, bool) {
 // BinarySearch requires the delegate to be sorted. Callers must
 // ensure that (e.g. by calling Sort() beforehand, both happening
 // before any concurrent Add).
-func (l *SynchronizedCharArrayList) BinarySearch(value uint16) (int, bool) {
+func (l *SynchronizedChar) BinarySearch(value uint16) (int, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.BinarySearch(value)
@@ -189,7 +179,7 @@ func (l *SynchronizedCharArrayList) BinarySearch(value uint16) (int, bool) {
 // same order. Both wrappers are locked under RLock to prevent torn
 // reads; locks are acquired in pointer-address order so two goroutines
 // calling A.Equals(B) and B.Equals(A) concurrently cannot deadlock.
-func (l *SynchronizedCharArrayList) Equals(other *SynchronizedCharArrayList) bool {
+func (l *SynchronizedChar) Equals(other *SynchronizedChar) bool {
 	if l == other {
 		l.mu.RLock()
 		defer l.mu.RUnlock()
@@ -209,7 +199,7 @@ func (l *SynchronizedCharArrayList) Equals(other *SynchronizedCharArrayList) boo
 // ── iteration (snapshot-based) ────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (l *SynchronizedCharArrayList) All() iter.Seq[uint16] {
+func (l *SynchronizedChar) All() iter.Seq[uint16] {
 	snapshot := l.snapshot()
 	return func(yield func(uint16) bool) {
 		for _, v := range snapshot {
@@ -221,7 +211,7 @@ func (l *SynchronizedCharArrayList) All() iter.Seq[uint16] {
 }
 
 // AllWithIndex returns an iter.Seq2 over a snapshot. Iteration is lock-free.
-func (l *SynchronizedCharArrayList) AllWithIndex() iter.Seq2[int, uint16] {
+func (l *SynchronizedChar) AllWithIndex() iter.Seq2[int, uint16] {
 	snapshot := l.snapshot()
 	return func(yield func(int, uint16) bool) {
 		for i, v := range snapshot {
@@ -234,19 +224,19 @@ func (l *SynchronizedCharArrayList) AllWithIndex() iter.Seq2[int, uint16] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (l *SynchronizedCharArrayList) ForEach(f func(uint16)) {
+func (l *SynchronizedChar) ForEach(f func(uint16)) {
 	for _, v := range l.snapshot() {
 		f(v)
 	}
 }
 
-func (l *SynchronizedCharArrayList) ForEachWithIndex(f func(uint16, int)) {
+func (l *SynchronizedChar) ForEachWithIndex(f func(uint16, int)) {
 	for i, v := range l.snapshot() {
 		f(v, i)
 	}
 }
 
-func (l *SynchronizedCharArrayList) AnySatisfy(predicate func(uint16) bool) bool {
+func (l *SynchronizedChar) AnySatisfy(predicate func(uint16) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return true
@@ -255,7 +245,7 @@ func (l *SynchronizedCharArrayList) AnySatisfy(predicate func(uint16) bool) bool
 	return false
 }
 
-func (l *SynchronizedCharArrayList) AllSatisfy(predicate func(uint16) bool) bool {
+func (l *SynchronizedChar) AllSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range l.snapshot() {
 		if !predicate(v) {
 			return false
@@ -264,7 +254,7 @@ func (l *SynchronizedCharArrayList) AllSatisfy(predicate func(uint16) bool) bool
 	return true
 }
 
-func (l *SynchronizedCharArrayList) NoneSatisfy(predicate func(uint16) bool) bool {
+func (l *SynchronizedChar) NoneSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return false
@@ -273,7 +263,7 @@ func (l *SynchronizedCharArrayList) NoneSatisfy(predicate func(uint16) bool) boo
 	return true
 }
 
-func (l *SynchronizedCharArrayList) Count(predicate func(uint16) bool) int {
+func (l *SynchronizedChar) Count(predicate func(uint16) bool) int {
 	n := 0
 	for _, v := range l.snapshot() {
 		if predicate(v) {
@@ -283,7 +273,7 @@ func (l *SynchronizedCharArrayList) Count(predicate func(uint16) bool) int {
 	return n
 }
 
-func (l *SynchronizedCharArrayList) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (l *SynchronizedChar) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -293,7 +283,7 @@ func (l *SynchronizedCharArrayList) Detect(predicate func(uint16) bool) (uint16,
 	return zero, false
 }
 
-func (l *SynchronizedCharArrayList) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
+func (l *SynchronizedChar) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
 	acc := initial
 	for _, v := range l.snapshot() {
 		acc = f(acc, v)
@@ -304,9 +294,9 @@ func (l *SynchronizedCharArrayList) InjectInto(initial uint16, f func(uint16, ui
 // ── functional that return a new list ─────────────────────────────────
 
 // Select returns a new (unsynchronized) list of elements satisfying the predicate.
-func (l *SynchronizedCharArrayList) Select(predicate func(uint16) bool) *CharArrayList {
+func (l *SynchronizedChar) Select(predicate func(uint16) bool) *Char {
 	snapshot := l.snapshot()
-	result := NewCharArrayList()
+	result := NewChar()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -316,9 +306,9 @@ func (l *SynchronizedCharArrayList) Select(predicate func(uint16) bool) *CharArr
 }
 
 // Reject returns a new (unsynchronized) list of elements not satisfying the predicate.
-func (l *SynchronizedCharArrayList) Reject(predicate func(uint16) bool) *CharArrayList {
+func (l *SynchronizedChar) Reject(predicate func(uint16) bool) *Char {
 	snapshot := l.snapshot()
-	result := NewCharArrayList()
+	result := NewChar()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -329,14 +319,14 @@ func (l *SynchronizedCharArrayList) Reject(predicate func(uint16) bool) *CharArr
 
 // Distinct returns a new (unsynchronized) list with duplicates removed,
 // order preserved.
-func (l *SynchronizedCharArrayList) Distinct() *CharArrayList {
+func (l *SynchronizedChar) Distinct() *Char {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Distinct()
 }
 
 // Reversed returns a new (unsynchronized) list in reverse order.
-func (l *SynchronizedCharArrayList) Reversed() *CharArrayList {
+func (l *SynchronizedChar) Reversed() *Char {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Reversed()
@@ -345,31 +335,31 @@ func (l *SynchronizedCharArrayList) Reversed() *CharArrayList {
 // ── fluent mutators ───────────────────────────────────────────────────
 // All return the wrapper so chained calls stay thread-safe.
 
-func (l *SynchronizedCharArrayList) With(value uint16) *SynchronizedCharArrayList {
+func (l *SynchronizedChar) AddReturning(value uint16) *SynchronizedChar {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.With(value)
+	l.delegate.AddReturning(value)
 	return l
 }
 
-func (l *SynchronizedCharArrayList) WithAll(values ...uint16) *SynchronizedCharArrayList {
+func (l *SynchronizedChar) AddAllReturning(values ...uint16) *SynchronizedChar {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithAll(values...)
+	l.delegate.AddAllReturning(values...)
 	return l
 }
 
-func (l *SynchronizedCharArrayList) Without(value uint16) *SynchronizedCharArrayList {
+func (l *SynchronizedChar) RemoveReturning(value uint16) *SynchronizedChar {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.Without(value)
+	l.delegate.RemoveReturning(value)
 	return l
 }
 
-func (l *SynchronizedCharArrayList) WithoutAll(values ...uint16) *SynchronizedCharArrayList {
+func (l *SynchronizedChar) RemoveAllReturning(values ...uint16) *SynchronizedChar {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithoutAll(values...)
+	l.delegate.RemoveAllReturning(values...)
 	return l
 }
 
@@ -378,7 +368,7 @@ func (l *SynchronizedCharArrayList) WithoutAll(values ...uint16) *SynchronizedCh
 // ToImmutable returns an immutable copy of the underlying list taken
 // while holding the read lock. The returned value is independent of
 // this wrapper.
-func (l *SynchronizedCharArrayList) ToImmutable() *ImmutableCharArrayList {
+func (l *SynchronizedChar) ToImmutable() *ImmutableChar {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToImmutable()

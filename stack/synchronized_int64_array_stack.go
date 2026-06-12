@@ -8,30 +8,30 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt64ArrayStack is a thread-safe wrapper around Int64ArrayStack.
+// SynchronizedInt64 is a thread-safe wrapper around Int64.
 //
 // Read methods hold an RLock; writes hold a Lock. Callback methods
 // (ForEach/Select/…) snapshot under RLock and run the callback
 // unlocked so it can safely re-enter the wrapper.
-type SynchronizedInt64ArrayStack struct {
-	delegate *Int64ArrayStack
+type SynchronizedInt64 struct {
+	delegate *Int64
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt64ArrayStack creates a new thread-safe empty stack.
-func NewSynchronizedInt64ArrayStack() *SynchronizedInt64ArrayStack {
-	return &SynchronizedInt64ArrayStack{delegate: NewInt64ArrayStack()}
+// NewSynchronizedInt64 creates a new thread-safe empty stack.
+func NewSynchronizedInt64() *SynchronizedInt64 {
+	return &SynchronizedInt64{delegate: NewInt64()}
 }
 
-// NewSynchronizedInt64ArrayStackFrom wraps an existing stack. The
+// NewSynchronizedInt64From wraps an existing stack. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedInt64ArrayStackFrom(s *Int64ArrayStack) *SynchronizedInt64ArrayStack {
-	return &SynchronizedInt64ArrayStack{delegate: s}
+func NewSynchronizedInt64From(s *Int64) *SynchronizedInt64 {
+	return &SynchronizedInt64{delegate: s}
 }
 
 // snapshot copies the stack contents under RLock. The returned slice
 // is ordered the same way the delegate's ToSlice would order it.
-func (s *SynchronizedInt64ArrayStack) snapshot() []int64 {
+func (s *SynchronizedInt64) snapshot() []int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -39,19 +39,19 @@ func (s *SynchronizedInt64ArrayStack) snapshot() []int64 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedInt64ArrayStack) Push(value int64) {
+func (s *SynchronizedInt64) Push(value int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Push(value)
 }
 
-func (s *SynchronizedInt64ArrayStack) Pop() (int64, error) {
+func (s *SynchronizedInt64) Pop() (int64, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Pop()
 }
 
-func (s *SynchronizedInt64ArrayStack) Clear() {
+func (s *SynchronizedInt64) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -59,47 +59,38 @@ func (s *SynchronizedInt64ArrayStack) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedInt64ArrayStack) Peek() (int64, error) {
+func (s *SynchronizedInt64) Peek() (int64, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
 }
 
-func (s *SynchronizedInt64ArrayStack) PeekAt(index int) (int64, error) {
+func (s *SynchronizedInt64) PeekAt(index int) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.PeekAt(index)
 }
 
-func (s *SynchronizedInt64ArrayStack) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedInt64) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedInt64ArrayStack) Len() int { return s.Size() }
-
-func (s *SynchronizedInt64ArrayStack) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedInt64ArrayStack) Contains(value int64) bool {
+func (s *SynchronizedInt64) Contains(value int64) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedInt64ArrayStack) ToSlice() []int64 {
+func (s *SynchronizedInt64) ToSlice() []int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedInt64ArrayStack) String() string {
+func (s *SynchronizedInt64) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -107,7 +98,7 @@ func (s *SynchronizedInt64ArrayStack) String() string {
 
 // ── iteration ────────────────────────────────────────────────────────
 
-func (s *SynchronizedInt64ArrayStack) All() iter.Seq[int64] {
+func (s *SynchronizedInt64) All() iter.Seq[int64] {
 	snapshot := s.snapshot()
 	return func(yield func(int64) bool) {
 		for _, v := range snapshot {
@@ -120,13 +111,13 @@ func (s *SynchronizedInt64ArrayStack) All() iter.Seq[int64] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedInt64ArrayStack) ForEach(f func(int64)) {
+func (s *SynchronizedInt64) ForEach(f func(int64)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedInt64ArrayStack) AnySatisfy(predicate func(int64) bool) bool {
+func (s *SynchronizedInt64) AnySatisfy(predicate func(int64) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -135,7 +126,7 @@ func (s *SynchronizedInt64ArrayStack) AnySatisfy(predicate func(int64) bool) boo
 	return false
 }
 
-func (s *SynchronizedInt64ArrayStack) AllSatisfy(predicate func(int64) bool) bool {
+func (s *SynchronizedInt64) AllSatisfy(predicate func(int64) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -144,7 +135,7 @@ func (s *SynchronizedInt64ArrayStack) AllSatisfy(predicate func(int64) bool) boo
 	return true
 }
 
-func (s *SynchronizedInt64ArrayStack) NoneSatisfy(predicate func(int64) bool) bool {
+func (s *SynchronizedInt64) NoneSatisfy(predicate func(int64) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -153,7 +144,7 @@ func (s *SynchronizedInt64ArrayStack) NoneSatisfy(predicate func(int64) bool) bo
 	return true
 }
 
-func (s *SynchronizedInt64ArrayStack) Count(predicate func(int64) bool) int {
+func (s *SynchronizedInt64) Count(predicate func(int64) bool) int {
 	n := 0
 	for _, v := range s.snapshot() {
 		if predicate(v) {
@@ -163,7 +154,7 @@ func (s *SynchronizedInt64ArrayStack) Count(predicate func(int64) bool) int {
 	return n
 }
 
-func (s *SynchronizedInt64ArrayStack) Detect(predicate func(int64) bool) (int64, bool) {
+func (s *SynchronizedInt64) Detect(predicate func(int64) bool) (int64, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -173,7 +164,7 @@ func (s *SynchronizedInt64ArrayStack) Detect(predicate func(int64) bool) (int64,
 	return zero, false
 }
 
-func (s *SynchronizedInt64ArrayStack) InjectInto(initial int64, f func(int64, int64) int64) int64 {
+func (s *SynchronizedInt64) InjectInto(initial int64, f func(int64, int64) int64) int64 {
 	acc := initial
 	for _, v := range s.snapshot() {
 		acc = f(acc, v)
@@ -183,13 +174,13 @@ func (s *SynchronizedInt64ArrayStack) InjectInto(initial int64, f func(int64, in
 
 // ── functional that return a new stack ───────────────────────────────
 
-func (s *SynchronizedInt64ArrayStack) Select(predicate func(int64) bool) *Int64ArrayStack {
+func (s *SynchronizedInt64) Select(predicate func(int64) bool) *Int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Select(predicate)
 }
 
-func (s *SynchronizedInt64ArrayStack) Reject(predicate func(int64) bool) *Int64ArrayStack {
+func (s *SynchronizedInt64) Reject(predicate func(int64) bool) *Int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Reject(predicate)
@@ -197,23 +188,23 @@ func (s *SynchronizedInt64ArrayStack) Reject(predicate func(int64) bool) *Int64A
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedInt64ArrayStack) With(value int64) *SynchronizedInt64ArrayStack {
+func (s *SynchronizedInt64) AddReturning(value int64) *SynchronizedInt64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedInt64ArrayStack) WithAll(values ...int64) *SynchronizedInt64ArrayStack {
+func (s *SynchronizedInt64) AddAllReturning(values ...int64) *SynchronizedInt64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (s *SynchronizedInt64ArrayStack) ToImmutable() *ImmutableInt64ArrayStack {
+func (s *SynchronizedInt64) ToImmutable() *ImmutableInt64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -221,7 +212,7 @@ func (s *SynchronizedInt64ArrayStack) ToImmutable() *ImmutableInt64ArrayStack {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (s *SynchronizedInt64ArrayStack) Equals(other *SynchronizedInt64ArrayStack) bool {
+func (s *SynchronizedInt64) Equals(other *SynchronizedInt64) bool {
 	if s == other {
 		s.mu.RLock()
 		defer s.mu.RUnlock()

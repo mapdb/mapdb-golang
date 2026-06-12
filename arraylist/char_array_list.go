@@ -3,81 +3,86 @@
 package arraylist
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// CharArrayList is a resizable array-backed list of uint16 values.
+// Char is a resizable array-backed list of uint16 values.
 // Length is always len(l.items); there is no separate size counter.
-type CharArrayList struct {
+//
+// The zero value is an empty, ready-to-use list.
+type Char struct {
 	items []uint16
 }
 
-// NewCharArrayList creates a new empty CharArrayList.
-func NewCharArrayList() *CharArrayList {
-	return &CharArrayList{items: make([]uint16, 0, 16)}
+// NewChar creates a new empty Char.
+func NewChar() *Char {
+	return &Char{items: make([]uint16, 0, 16)}
 }
 
-// NewCharArrayListWithCapacity creates a new empty CharArrayList with the given initial capacity.
-func NewCharArrayListWithCapacity(capacity int) *CharArrayList {
-	return &CharArrayList{items: make([]uint16, 0, capacity)}
+// NewCharWithCapacity creates a new empty Char with the given initial capacity.
+func NewCharWithCapacity(capacity int) *Char {
+	return &Char{items: make([]uint16, 0, capacity)}
 }
 
-// CharArrayListOf creates a new CharArrayList from the given values.
-func CharArrayListOf(values ...uint16) *CharArrayList {
-	l := &CharArrayList{items: make([]uint16, len(values))}
+// CharOf creates a new Char from the given values.
+func CharOf(values ...uint16) *Char {
+	l := &Char{items: make([]uint16, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
-func (l *CharArrayList) Add(value uint16) {
+func (l *Char) Add(value uint16) {
 	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
-func (l *CharArrayList) AddAll(values ...uint16) {
+func (l *Char) AddAll(values ...uint16) {
 	l.items = append(l.items, values...)
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *CharArrayList) Get(index int) (uint16, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *Char) Get(index int) uint16 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Char: index out of range [%d] with length %d", index, len(l.items)))
 	}
-	return l.items[index], nil
+	return l.items[index]
 }
 
-// Set sets the value at the given index, returning the previous value.
-// Returns an error if the index is out of bounds.
-func (l *CharArrayList) Set(index int, value uint16) (uint16, error) {
+// Set sets the value at the given index, returning the previous value. It
+// panics if the index is out of bounds, matching the semantics of a native
+// Go slice.
+func (l *Char) Set(index int, value uint16) uint16 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Char: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	l.items[index] = value
-	return old, nil
+	return old
 }
 
-// RemoveAtIndex removes the value at the given index and returns it.
-// Returns an error if the index is out of bounds.
-func (l *CharArrayList) RemoveAtIndex(index int) (uint16, error) {
+// RemoveAtIndex removes the value at the given index and returns it. It panics
+// if the index is out of bounds, matching the semantics of a native Go slice.
+func (l *Char) RemoveAtIndex(index int) uint16 {
 	if index < 0 || index >= len(l.items) {
-		return 0, fmt.Errorf("CharArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.Char: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	copy(l.items[index:], l.items[index+1:])
 	l.items = l.items[:len(l.items)-1]
-	return old, nil
+	return old
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
-func (l *CharArrayList) Remove(value uint16) bool {
+func (l *Char) Remove(value uint16) bool {
 	for i, v := range l.items {
 		if v == value {
-			_, _ = l.RemoveAtIndex(i)
+			l.RemoveAtIndex(i)
 			return true
 		}
 	}
@@ -85,7 +90,7 @@ func (l *CharArrayList) Remove(value uint16) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *CharArrayList) Contains(value uint16) bool {
+func (l *Char) Contains(value uint16) bool {
 	for _, v := range l.items {
 		if v == value {
 			return true
@@ -95,7 +100,7 @@ func (l *CharArrayList) Contains(value uint16) bool {
 }
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
-func (l *CharArrayList) IndexOf(value uint16) int {
+func (l *Char) IndexOf(value uint16) int {
 	for i, v := range l.items {
 		if v == value {
 			return i
@@ -104,21 +109,16 @@ func (l *CharArrayList) IndexOf(value uint16) int {
 	return -1
 }
 
-// Size returns the number of elements in the list.
-func (l *CharArrayList) Size() int { return len(l.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *CharArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *CharArrayList) IsEmpty() bool { return len(l.items) == 0 }
+// Len returns the number of elements in the list, matching the Go
+// convention (sort.Interface, container/list, bytes.Buffer). Use
+// l.Len() == 0 to test for emptiness.
+func (l *Char) Len() int { return len(l.items) }
 
 // Clear removes all elements from the list.
-func (l *CharArrayList) Clear() { l.items = l.items[:0] }
+func (l *Char) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *CharArrayList) All() iter.Seq[uint16] {
+func (l *Char) All() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for _, v := range l.items {
 			if !yield(v) {
@@ -129,7 +129,7 @@ func (l *CharArrayList) All() iter.Seq[uint16] {
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *CharArrayList) AllWithIndex() iter.Seq2[int, uint16] {
+func (l *Char) AllWithIndex() iter.Seq2[int, uint16] {
 	return func(yield func(int, uint16) bool) {
 		for i, v := range l.items {
 			if !yield(i, v) {
@@ -140,22 +140,22 @@ func (l *CharArrayList) AllWithIndex() iter.Seq2[int, uint16] {
 }
 
 // ForEach calls the given function for each element.
-func (l *CharArrayList) ForEach(f func(uint16)) {
+func (l *Char) ForEach(f func(uint16)) {
 	for _, v := range l.items {
 		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
-func (l *CharArrayList) ForEachWithIndex(f func(uint16, int)) {
+func (l *Char) ForEachWithIndex(f func(uint16, int)) {
 	for i, v := range l.items {
 		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
-func (l *CharArrayList) Select(predicate func(uint16) bool) *CharArrayList {
-	result := NewCharArrayList()
+func (l *Char) Select(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for _, v := range l.items {
 		if predicate(v) {
 			result.Add(v)
@@ -165,8 +165,8 @@ func (l *CharArrayList) Select(predicate func(uint16) bool) *CharArrayList {
 }
 
 // Reject returns a new list containing only elements that do not satisfy the predicate.
-func (l *CharArrayList) Reject(predicate func(uint16) bool) *CharArrayList {
-	result := NewCharArrayList()
+func (l *Char) Reject(predicate func(uint16) bool) *Char {
+	result := NewChar()
 	for _, v := range l.items {
 		if !predicate(v) {
 			result.Add(v)
@@ -176,7 +176,7 @@ func (l *CharArrayList) Reject(predicate func(uint16) bool) *CharArrayList {
 }
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
-func (l *CharArrayList) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (l *Char) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for _, v := range l.items {
 		if predicate(v) {
 			return v, true
@@ -186,7 +186,7 @@ func (l *CharArrayList) Detect(predicate func(uint16) bool) (uint16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *CharArrayList) AnySatisfy(predicate func(uint16) bool) bool {
+func (l *Char) AnySatisfy(predicate func(uint16) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return true
@@ -196,7 +196,7 @@ func (l *CharArrayList) AnySatisfy(predicate func(uint16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *CharArrayList) AllSatisfy(predicate func(uint16) bool) bool {
+func (l *Char) AllSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range l.items {
 		if !predicate(v) {
 			return false
@@ -206,7 +206,7 @@ func (l *CharArrayList) AllSatisfy(predicate func(uint16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *CharArrayList) NoneSatisfy(predicate func(uint16) bool) bool {
+func (l *Char) NoneSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return false
@@ -216,7 +216,7 @@ func (l *CharArrayList) NoneSatisfy(predicate func(uint16) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *CharArrayList) Count(predicate func(uint16) bool) int {
+func (l *Char) Count(predicate func(uint16) bool) int {
 	count := 0
 	for _, v := range l.items {
 		if predicate(v) {
@@ -227,7 +227,7 @@ func (l *CharArrayList) Count(predicate func(uint16) bool) int {
 }
 
 // InjectInto performs a left fold over the list.
-func (l *CharArrayList) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
+func (l *Char) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
 	result := initial
 	for _, v := range l.items {
 		result = f(result, v)
@@ -236,7 +236,7 @@ func (l *CharArrayList) InjectInto(initial uint16, f func(uint16, uint16) uint16
 }
 
 // Sum returns the sum of all elements as int64 to avoid overflow.
-func (l *CharArrayList) Sum() int64 {
+func (l *Char) Sum() int64 {
 	var sum int64
 	for _, v := range l.items {
 		sum += int64(v)
@@ -245,7 +245,7 @@ func (l *CharArrayList) Sum() int64 {
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
-func (l *CharArrayList) Min() (uint16, bool) {
+func (l *Char) Min() (uint16, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -259,7 +259,7 @@ func (l *CharArrayList) Min() (uint16, bool) {
 }
 
 // Max returns the maximum element, or the zero value and false if empty.
-func (l *CharArrayList) Max() (uint16, bool) {
+func (l *Char) Max() (uint16, bool) {
 	if len(l.items) == 0 {
 		return 0, false
 	}
@@ -273,21 +273,28 @@ func (l *CharArrayList) Max() (uint16, bool) {
 }
 
 // Sort sorts the list in ascending order.
-func (l *CharArrayList) Sort() {
-	sort.Slice(l.items, func(i, j int) bool {
-		return l.items[i] < l.items[j]
+func (l *Char) Sort() {
+	slices.SortFunc(l.items, func(a, b uint16) int {
+		return cmp.Compare(a, b)
 	})
 }
 
-// SortWithComparator sorts the list using the given comparison function.
-func (l *CharArrayList) SortWithComparator(less func(uint16, uint16) bool) {
-	sort.Slice(l.items, func(i, j int) bool {
-		return less(l.items[i], l.items[j])
+// SortWithComparator sorts the list using the given less function.
+func (l *Char) SortWithComparator(less func(uint16, uint16) bool) {
+	slices.SortFunc(l.items, func(a, b uint16) int {
+		switch {
+		case less(a, b):
+			return -1
+		case less(b, a):
+			return 1
+		default:
+			return 0
+		}
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
-func (l *CharArrayList) BinarySearch(value uint16) (int, bool) {
+func (l *Char) BinarySearch(value uint16) (int, bool) {
 	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
@@ -304,9 +311,9 @@ func (l *CharArrayList) BinarySearch(value uint16) (int, bool) {
 }
 
 // Reversed returns a new list with elements in reverse order.
-func (l *CharArrayList) Reversed() *CharArrayList {
+func (l *Char) Reversed() *Char {
 	n := len(l.items)
-	result := NewCharArrayListWithCapacity(n)
+	result := NewCharWithCapacity(n)
 	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
@@ -314,9 +321,9 @@ func (l *CharArrayList) Reversed() *CharArrayList {
 }
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
-func (l *CharArrayList) Distinct() *CharArrayList {
+func (l *Char) Distinct() *Char {
 	seen := make(map[uint16]struct{})
-	result := NewCharArrayList()
+	result := NewChar()
 	for _, v := range l.items {
 		if _, ok := seen[v]; !ok {
 			seen[v] = struct{}{}
@@ -327,26 +334,26 @@ func (l *CharArrayList) Distinct() *CharArrayList {
 }
 
 // ToSlice returns a copy of the list elements as a slice.
-func (l *CharArrayList) ToSlice() []uint16 {
+func (l *Char) ToSlice() []uint16 {
 	result := make([]uint16, len(l.items))
 	copy(result, l.items)
 	return result
 }
 
 // With returns the list after adding the value (fluent API).
-func (l *CharArrayList) With(value uint16) *CharArrayList {
+func (l *Char) AddReturning(value uint16) *Char {
 	l.Add(value)
 	return l
 }
 
-// Without returns the list after removing the first occurrence of value (fluent API).
-func (l *CharArrayList) Without(value uint16) *CharArrayList {
+// RemoveReturning removes the first occurrence of value and returns the receiver (mutating, fluent).
+func (l *Char) RemoveReturning(value uint16) *Char {
 	l.Remove(value)
 	return l
 }
 
 // String returns a string representation of the list.
-func (l *CharArrayList) String() string {
+func (l *Char) String() string {
 	if len(l.items) == 0 {
 		return "[]"
 	}
@@ -363,7 +370,7 @@ func (l *CharArrayList) String() string {
 }
 
 // Equals returns true if the other list has the same elements in the same order.
-func (l *CharArrayList) Equals(other *CharArrayList) bool {
+func (l *Char) Equals(other *Char) bool {
 	if len(l.items) != len(other.items) {
 		return false
 	}
@@ -375,16 +382,16 @@ func (l *CharArrayList) Equals(other *CharArrayList) bool {
 	return true
 }
 
-// WithAll returns the list after adding all values (fluent API).
-func (l *CharArrayList) WithAll(values ...uint16) *CharArrayList {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (l *Char) AddAllReturning(values ...uint16) *Char {
 	l.AddAll(values...)
 	return l
 }
 
-// WithoutAll removes every occurrence of any of the given values.
+// RemoveAllReturning removes every occurrence of any of the given values.
 // Compacts in place — keeps the existing backing storage and avoids
 // the temporary-list allocation the previous implementation made.
-func (l *CharArrayList) WithoutAll(values ...uint16) *CharArrayList {
+func (l *Char) RemoveAllReturning(values ...uint16) *Char {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
@@ -413,6 +420,6 @@ func (l *CharArrayList) WithoutAll(values ...uint16) *CharArrayList {
 }
 
 // ToImmutable returns an immutable copy of this list.
-func (l *CharArrayList) ToImmutable() *ImmutableCharArrayList {
-	return ImmutableCharArrayListFrom(l)
+func (l *Char) ToImmutable() *ImmutableChar {
+	return ImmutableCharFrom(l)
 }

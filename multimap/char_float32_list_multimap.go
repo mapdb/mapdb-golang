@@ -8,23 +8,23 @@ import (
 	"strings"
 )
 
-// CharFloat32ListMultimap is a list multimap from uint16 keys to float32 values.
+// CharFloat32List is a list multimap from uint16 keys to float32 values.
 // Each key maps to a slice of values, preserving insertion order per key.
-type CharFloat32ListMultimap struct {
+type CharFloat32List struct {
 	data map[uint16][]float32
 	size int
 }
 
-// NewCharFloat32ListMultimap creates a new empty CharFloat32ListMultimap.
-func NewCharFloat32ListMultimap() *CharFloat32ListMultimap {
-	return &CharFloat32ListMultimap{
+// NewCharFloat32List creates a new empty CharFloat32List.
+func NewCharFloat32List() *CharFloat32List {
+	return &CharFloat32List{
 		data: make(map[uint16][]float32),
 		size: 0,
 	}
 }
 
 // Put adds a value to the list for the given key.
-func (m *CharFloat32ListMultimap) Put(key uint16, value float32) {
+func (m *CharFloat32List) Put(key uint16, value float32) {
 	if m.data == nil {
 		m.data = make(map[uint16][]float32)
 	}
@@ -33,12 +33,12 @@ func (m *CharFloat32ListMultimap) Put(key uint16, value float32) {
 }
 
 // Get returns a copy of the values for the given key. Returns nil if the key is absent.
-func (m *CharFloat32ListMultimap) Get(key uint16) []float32 {
+func (m *CharFloat32List) Get(key uint16) []float32 {
 	return m.GetAll(key)
 }
 
 // GetAll returns a copy of the values for the given key.
-func (m *CharFloat32ListMultimap) GetAll(key uint16) []float32 {
+func (m *CharFloat32List) GetAll(key uint16) []float32 {
 	vals := m.data[key]
 	if vals == nil {
 		return nil
@@ -49,7 +49,7 @@ func (m *CharFloat32ListMultimap) GetAll(key uint16) []float32 {
 }
 
 // RemoveAll removes all values for the given key and returns them.
-func (m *CharFloat32ListMultimap) RemoveAll(key uint16) []float32 {
+func (m *CharFloat32List) RemoveAll(key uint16) []float32 {
 	vals, ok := m.data[key]
 	if !ok {
 		return nil
@@ -60,13 +60,13 @@ func (m *CharFloat32ListMultimap) RemoveAll(key uint16) []float32 {
 }
 
 // ContainsKey returns true if the multimap contains the given key.
-func (m *CharFloat32ListMultimap) ContainsKey(key uint16) bool {
+func (m *CharFloat32List) ContainsKey(key uint16) bool {
 	_, ok := m.data[key]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
-func (m *CharFloat32ListMultimap) ContainsKeyValue(key uint16, value float32) bool {
+func (m *CharFloat32List) ContainsKeyValue(key uint16, value float32) bool {
 	vals, ok := m.data[key]
 	if !ok {
 		return false
@@ -80,32 +80,23 @@ func (m *CharFloat32ListMultimap) ContainsKeyValue(key uint16, value float32) bo
 }
 
 // KeysCount returns the number of distinct keys.
-func (m *CharFloat32ListMultimap) KeysCount() int {
+func (m *CharFloat32List) KeysCount() int {
 	return len(m.data)
 }
 
-// Size returns the total number of values across all keys.
-func (m *CharFloat32ListMultimap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *CharFloat32List) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *CharFloat32ListMultimap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the multimap contains no values.
-func (m *CharFloat32ListMultimap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the multimap.
-func (m *CharFloat32ListMultimap) Clear() {
+func (m *CharFloat32List) Clear() {
 	m.data = make(map[uint16][]float32)
 	m.size = 0
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *CharFloat32ListMultimap) ForEach(f func(uint16, float32)) {
+func (m *CharFloat32List) ForEach(f func(uint16, float32)) {
 	for key, vals := range m.data {
 		for _, val := range vals {
 			f(key, val)
@@ -114,7 +105,7 @@ func (m *CharFloat32ListMultimap) ForEach(f func(uint16, float32)) {
 }
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
-func (m *CharFloat32ListMultimap) ForEachKeyValues(f func(uint16, []float32)) {
+func (m *CharFloat32List) ForEachKeyValues(f func(uint16, []float32)) {
 	for key, vals := range m.data {
 		copied := make([]float32, len(vals))
 		copy(copied, vals)
@@ -123,7 +114,7 @@ func (m *CharFloat32ListMultimap) ForEachKeyValues(f func(uint16, []float32)) {
 }
 
 // Keys returns a slice of all distinct keys.
-func (m *CharFloat32ListMultimap) Keys() []uint16 {
+func (m *CharFloat32List) Keys() []uint16 {
 	result := make([]uint16, 0, len(m.data))
 	for key := range m.data {
 		result = append(result, key)
@@ -132,7 +123,7 @@ func (m *CharFloat32ListMultimap) Keys() []uint16 {
 }
 
 // Values returns a slice of all values across all keys.
-func (m *CharFloat32ListMultimap) Values() []float32 {
+func (m *CharFloat32List) Values() []float32 {
 	result := make([]float32, 0, m.size)
 	for _, vals := range m.data {
 		result = append(result, vals...)
@@ -141,8 +132,8 @@ func (m *CharFloat32ListMultimap) Values() []float32 {
 }
 
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
-func (m *CharFloat32ListMultimap) Select(predicate func(uint16, float32) bool) *CharFloat32ListMultimap {
-	result := NewCharFloat32ListMultimap()
+func (m *CharFloat32List) Select(predicate func(uint16, float32) bool) *CharFloat32List {
+	result := NewCharFloat32List()
 	for key, vals := range m.data {
 		for _, val := range vals {
 			if predicate(key, val) {
@@ -154,8 +145,8 @@ func (m *CharFloat32ListMultimap) Select(predicate func(uint16, float32) bool) *
 }
 
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
-func (m *CharFloat32ListMultimap) Reject(predicate func(uint16, float32) bool) *CharFloat32ListMultimap {
-	result := NewCharFloat32ListMultimap()
+func (m *CharFloat32List) Reject(predicate func(uint16, float32) bool) *CharFloat32List {
+	result := NewCharFloat32List()
 	for key, vals := range m.data {
 		for _, val := range vals {
 			if !predicate(key, val) {
@@ -167,7 +158,7 @@ func (m *CharFloat32ListMultimap) Reject(predicate func(uint16, float32) bool) *
 }
 
 // String returns a string representation of the multimap.
-func (m *CharFloat32ListMultimap) String() string {
+func (m *CharFloat32List) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -193,7 +184,7 @@ func (m *CharFloat32ListMultimap) String() string {
 }
 
 // Equals returns true if the other multimap has the same key-value pairs in the same order per key.
-func (m *CharFloat32ListMultimap) Equals(other *CharFloat32ListMultimap) bool {
+func (m *CharFloat32List) Equals(other *CharFloat32List) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -215,23 +206,23 @@ func (m *CharFloat32ListMultimap) Equals(other *CharFloat32ListMultimap) bool {
 }
 
 // KeysToSlice returns all distinct keys as a slice.
-func (m *CharFloat32ListMultimap) KeysToSlice() []uint16 {
+func (m *CharFloat32List) KeysToSlice() []uint16 {
 	return m.Keys()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *CharFloat32ListMultimap) ValuesToSlice() []float32 {
+func (m *CharFloat32List) ValuesToSlice() []float32 {
 	return m.Values()
 }
 
-// WithKeyValue adds a key-value pair and returns the multimap (fluent API).
-func (m *CharFloat32ListMultimap) WithKeyValue(key uint16, value float32) *CharFloat32ListMultimap {
+// PutReturning adds a key-value pair and returns the multimap (fluent API).
+func (m *CharFloat32List) PutReturning(key uint16, value float32) *CharFloat32List {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey removes all values for the key and returns the multimap (fluent API).
-func (m *CharFloat32ListMultimap) WithoutKey(key uint16) *CharFloat32ListMultimap {
+// RemoveKeyReturning removes all values for the key and returns the multimap (fluent API).
+func (m *CharFloat32List) RemoveKeyReturning(key uint16) *CharFloat32List {
 	m.RemoveAll(key)
 	return m
 }

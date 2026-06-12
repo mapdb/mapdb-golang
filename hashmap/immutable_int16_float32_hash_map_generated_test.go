@@ -1,16 +1,15 @@
-
 package hashmap
 
 import "testing"
 
-func TestImmutableInt16Float32HashMap_Generated_GetAndSize(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_GetAndSize(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
 	im := m.ToImmutable()
-	if im.Size() != 3 {
-		t.Errorf("Size = %d, want 3", im.Size())
+	if im.Len() != 3 {
+		t.Errorf("Size = %d, want 3", im.Len())
 	}
 	if v, ok := im.Get(1); !ok || v != 1.0 {
 		t.Errorf("Get = (%v,%v)", v, ok)
@@ -19,8 +18,8 @@ func TestImmutableInt16Float32HashMap_Generated_GetAndSize(t *testing.T) {
 		t.Errorf("Get missing = (%v,%v)", v, ok)
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_ContainsKey(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_ContainsKey(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	im := m.ToImmutable()
 	if !im.ContainsKey(1) {
@@ -30,16 +29,16 @@ func TestImmutableInt16Float32HashMap_Generated_ContainsKey(t *testing.T) {
 		t.Error("Should not contain missing")
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_ContainsValue(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_ContainsValue(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	im := m.ToImmutable()
 	if !im.ContainsValue(1.0) {
 		t.Error("Should contain value")
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_GetOrDefault(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_GetOrDefault(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	im := m.ToImmutable()
 	if v := im.GetOrDefault(1, 3.0); v != 1.0 {
@@ -49,14 +48,14 @@ func TestImmutableInt16Float32HashMap_Generated_GetOrDefault(t *testing.T) {
 		t.Errorf("got %v", v)
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_IsEmpty(t *testing.T) {
-	im := NewInt16Float32HashMap().ToImmutable()
-	if !im.IsEmpty() {
+func TestImmutableInt16Float32_Generated_IsEmpty(t *testing.T) {
+	im := NewInt16Float32().ToImmutable()
+	if im.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_All(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_All(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	im := m.ToImmutable()
@@ -68,8 +67,8 @@ func TestImmutableInt16Float32HashMap_Generated_All(t *testing.T) {
 		t.Errorf("All count = %d, want 2", count)
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_Keys(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_Keys(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	count := 0
@@ -80,8 +79,8 @@ func TestImmutableInt16Float32HashMap_Generated_Keys(t *testing.T) {
 		t.Errorf("Keys count = %d", count)
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_Values(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_Values(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	count := 0
@@ -92,49 +91,49 @@ func TestImmutableInt16Float32HashMap_Generated_Values(t *testing.T) {
 		t.Errorf("Values count = %d", count)
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_Select(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_Select(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
 	sel := m.ToImmutable().Select(func(k int16, v float32) bool { return v > 1.0 })
-	if sel.Size() != 2 {
-		t.Errorf("Select size = %d, want 2", sel.Size())
+	if sel.Len() != 2 {
+		t.Errorf("Select size = %d, want 2", sel.Len())
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_Reject(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_Reject(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
 	rej := m.ToImmutable().Reject(func(k int16, v float32) bool { return v > 1.0 })
-	if rej.Size() != 1 {
-		t.Errorf("Reject size = %d, want 1", rej.Size())
+	if rej.Len() != 1 {
+		t.Errorf("Reject size = %d, want 1", rej.Len())
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_Equals(t *testing.T) {
-	m1 := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_Equals(t *testing.T) {
+	m1 := NewInt16Float32()
 	m1.Put(1, 1.0)
 	m1.Put(2, 2.0)
-	m2 := NewInt16Float32HashMap()
+	m2 := NewInt16Float32()
 	m2.Put(2, 2.0)
 	m2.Put(1, 1.0)
 	if !m1.ToImmutable().Equals(m2.ToImmutable()) {
 		t.Error("Should be equal")
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_ToMutable(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_ToMutable(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	im := m.ToImmutable()
 	m2 := im.ToMutable()
 	m2.Put(2, 2.0)
-	if im.Size() != 1 {
+	if im.Len() != 1 {
 		t.Error("Immutable should not change")
 	}
 }
-func TestImmutableInt16Float32HashMap_Generated_String(t *testing.T) {
-	m := NewInt16Float32HashMap()
+func TestImmutableInt16Float32_Generated_String(t *testing.T) {
+	m := NewInt16Float32()
 	m.Put(1, 1.0)
 	if m.ToImmutable().String() == "" {
 		t.Error("String empty")

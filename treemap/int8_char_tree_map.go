@@ -22,20 +22,20 @@ type int8CharTreeNode struct {
 	color  bool
 }
 
-// Int8CharTreeMap is a sorted map with int8 keys and uint16 values, backed by a red-black tree.
+// Int8Char is a sorted map with int8 keys and uint16 values, backed by a red-black tree.
 // Keys are maintained in ascending order.
-type Int8CharTreeMap struct {
+type Int8Char struct {
 	root *int8CharTreeNode
 	size int
 }
 
-// NewInt8CharTreeMap creates a new empty sorted map.
-func NewInt8CharTreeMap() *Int8CharTreeMap {
-	return &Int8CharTreeMap{}
+// NewInt8Char creates a new empty sorted map.
+func NewInt8Char() *Int8Char {
+	return &Int8Char{}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Int8CharTreeMap) Put(key int8, value uint16) (uint16, bool) {
+func (m *Int8Char) Put(key int8, value uint16) (uint16, bool) {
 	if m.root == nil {
 		m.root = &int8CharTreeNode{key: key, value: value, color: int8CharTreeNodeBlack}
 		m.size++
@@ -68,7 +68,7 @@ func (m *Int8CharTreeMap) Put(key int8, value uint16) (uint16, bool) {
 }
 
 // Get returns the value for the key, or the zero value and false if not found.
-func (m *Int8CharTreeMap) Get(key int8) (uint16, bool) {
+func (m *Int8Char) Get(key int8) (uint16, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return 0, false
@@ -77,7 +77,7 @@ func (m *Int8CharTreeMap) Get(key int8) (uint16, bool) {
 }
 
 // GetOrDefault returns the value for the key if present, or the default value otherwise.
-func (m *Int8CharTreeMap) GetOrDefault(key int8, defaultValue uint16) uint16 {
+func (m *Int8Char) GetOrDefault(key int8, defaultValue uint16) uint16 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -85,12 +85,12 @@ func (m *Int8CharTreeMap) GetOrDefault(key int8, defaultValue uint16) uint16 {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int8CharTreeMap) ContainsKey(key int8) bool {
+func (m *Int8Char) ContainsKey(key int8) bool {
 	return m.findNode(key) != nil
 }
 
 // Remove removes the entry for the given key. Returns the previous value and true if found.
-func (m *Int8CharTreeMap) Remove(key int8) (uint16, bool) {
+func (m *Int8Char) Remove(key int8) (uint16, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return 0, false
@@ -101,28 +101,19 @@ func (m *Int8CharTreeMap) Remove(key int8) (uint16, bool) {
 	return old, true
 }
 
-// Size returns the number of entries.
-func (m *Int8CharTreeMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int8Char) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int8CharTreeMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map is empty.
-func (m *Int8CharTreeMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries.
-func (m *Int8CharTreeMap) Clear() {
+func (m *Int8Char) Clear() {
 	m.root = nil
 	m.size = 0
 }
 
 // Min returns the smallest key and its value, or zero values and false if empty.
-func (m *Int8CharTreeMap) Min() (int8, uint16, bool) {
+func (m *Int8Char) Min() (int8, uint16, bool) {
 	if m.root == nil {
 		return 0, 0, false
 	}
@@ -131,7 +122,7 @@ func (m *Int8CharTreeMap) Min() (int8, uint16, bool) {
 }
 
 // Max returns the largest key and its value, or zero values and false if empty.
-func (m *Int8CharTreeMap) Max() (int8, uint16, bool) {
+func (m *Int8Char) Max() (int8, uint16, bool) {
 	if m.root == nil {
 		return 0, 0, false
 	}
@@ -140,7 +131,7 @@ func (m *Int8CharTreeMap) Max() (int8, uint16, bool) {
 }
 
 // Floor returns the largest key <= the given key, or zero values and false.
-func (m *Int8CharTreeMap) Floor(key int8) (int8, uint16, bool) {
+func (m *Int8Char) Floor(key int8) (int8, uint16, bool) {
 	var result *int8CharTreeNode
 	node := m.root
 	for node != nil {
@@ -161,7 +152,7 @@ func (m *Int8CharTreeMap) Floor(key int8) (int8, uint16, bool) {
 }
 
 // Ceiling returns the smallest key >= the given key, or zero values and false.
-func (m *Int8CharTreeMap) Ceiling(key int8) (int8, uint16, bool) {
+func (m *Int8Char) Ceiling(key int8) (int8, uint16, bool) {
 	var result *int8CharTreeNode
 	node := m.root
 	for node != nil {
@@ -182,7 +173,7 @@ func (m *Int8CharTreeMap) Ceiling(key int8) (int8, uint16, bool) {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs in ascending key order.
-func (m *Int8CharTreeMap) All() iter.Seq2[int8, uint16] {
+func (m *Int8Char) All() iter.Seq2[int8, uint16] {
 	return func(yield func(int8, uint16) bool) {
 		var inorder func(node *int8CharTreeNode) bool
 		inorder = func(node *int8CharTreeNode) bool {
@@ -202,7 +193,7 @@ func (m *Int8CharTreeMap) All() iter.Seq2[int8, uint16] {
 }
 
 // Keys returns an iter.Seq that yields all keys in ascending order.
-func (m *Int8CharTreeMap) Keys() iter.Seq[int8] {
+func (m *Int8Char) Keys() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for k, _ := range m.All() {
 			if !yield(k) {
@@ -213,7 +204,7 @@ func (m *Int8CharTreeMap) Keys() iter.Seq[int8] {
 }
 
 // Values returns an iter.Seq that yields all values in key order.
-func (m *Int8CharTreeMap) Values() iter.Seq[uint16] {
+func (m *Int8Char) Values() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for _, v := range m.All() {
 			if !yield(v) {
@@ -224,7 +215,7 @@ func (m *Int8CharTreeMap) Values() iter.Seq[uint16] {
 }
 
 // RangeKeys returns an iter.Seq2 that yields entries with keys in [fromKey, toKey).
-func (m *Int8CharTreeMap) RangeKeys(fromKey, toKey int8) iter.Seq2[int8, uint16] {
+func (m *Int8Char) RangeKeys(fromKey, toKey int8) iter.Seq2[int8, uint16] {
 	return func(yield func(int8, uint16) bool) {
 		for k, v := range m.All() {
 			if k < fromKey {
@@ -242,7 +233,7 @@ func (m *Int8CharTreeMap) RangeKeys(fromKey, toKey int8) iter.Seq2[int8, uint16]
 
 // Higher returns the smallest key strictly greater than `key` (and its value),
 // or zero values and false. Unlike Ceiling, never returns `key` itself.
-func (m *Int8CharTreeMap) Higher(key int8) (int8, uint16, bool) {
+func (m *Int8Char) Higher(key int8) (int8, uint16, bool) {
 	var result *int8CharTreeNode
 	node := m.root
 	for node != nil {
@@ -261,7 +252,7 @@ func (m *Int8CharTreeMap) Higher(key int8) (int8, uint16, bool) {
 
 // Lower returns the largest key strictly less than `key` (and its value),
 // or zero values and false. Unlike Floor, never returns `key` itself.
-func (m *Int8CharTreeMap) Lower(key int8) (int8, uint16, bool) {
+func (m *Int8Char) Lower(key int8) (int8, uint16, bool) {
 	var result *int8CharTreeNode
 	node := m.root
 	for node != nil {
@@ -280,7 +271,7 @@ func (m *Int8CharTreeMap) Lower(key int8) (int8, uint16, bool) {
 
 // HeadMap returns an iter.Seq2 over entries with keys strictly less than toKey.
 // Matches Java NavigableMap.headMap(toKey) (exclusive by default).
-func (m *Int8CharTreeMap) HeadMap(toKey int8) iter.Seq2[int8, uint16] {
+func (m *Int8Char) HeadMap(toKey int8) iter.Seq2[int8, uint16] {
 	return func(yield func(int8, uint16) bool) {
 		for k, v := range m.All() {
 			if k >= toKey {
@@ -295,7 +286,7 @@ func (m *Int8CharTreeMap) HeadMap(toKey int8) iter.Seq2[int8, uint16] {
 
 // TailMap returns an iter.Seq2 over entries with keys >= fromKey.
 // Matches Java NavigableMap.tailMap(fromKey) (inclusive by default).
-func (m *Int8CharTreeMap) TailMap(fromKey int8) iter.Seq2[int8, uint16] {
+func (m *Int8Char) TailMap(fromKey int8) iter.Seq2[int8, uint16] {
 	return func(yield func(int8, uint16) bool) {
 		for k, v := range m.All() {
 			if k < fromKey {
@@ -310,18 +301,18 @@ func (m *Int8CharTreeMap) TailMap(fromKey int8) iter.Seq2[int8, uint16] {
 
 // SubMap returns an iter.Seq2 over entries with keys in [fromKey, toKey).
 // Alias for RangeKeys; exists for Java-NavigableMap API parity.
-func (m *Int8CharTreeMap) SubMap(fromKey, toKey int8) iter.Seq2[int8, uint16] {
+func (m *Int8Char) SubMap(fromKey, toKey int8) iter.Seq2[int8, uint16] {
 	return m.RangeKeys(fromKey, toKey)
 }
 
 // FirstEntry is an alias of Min — the smallest key and its value, or zero/false.
-func (m *Int8CharTreeMap) FirstEntry() (int8, uint16, bool) { return m.Min() }
+func (m *Int8Char) FirstEntry() (int8, uint16, bool) { return m.Min() }
 
 // LastEntry is an alias of Max — the largest key and its value, or zero/false.
-func (m *Int8CharTreeMap) LastEntry() (int8, uint16, bool) { return m.Max() }
+func (m *Int8Char) LastEntry() (int8, uint16, bool) { return m.Max() }
 
 // PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
-func (m *Int8CharTreeMap) PollFirstEntry() (int8, uint16, bool) {
+func (m *Int8Char) PollFirstEntry() (int8, uint16, bool) {
 	k, v, ok := m.Min()
 	if !ok {
 		return 0, 0, false
@@ -331,7 +322,7 @@ func (m *Int8CharTreeMap) PollFirstEntry() (int8, uint16, bool) {
 }
 
 // PollLastEntry removes and returns the largest entry, or zero/false if empty.
-func (m *Int8CharTreeMap) PollLastEntry() (int8, uint16, bool) {
+func (m *Int8Char) PollLastEntry() (int8, uint16, bool) {
 	k, v, ok := m.Max()
 	if !ok {
 		return 0, 0, false
@@ -341,7 +332,7 @@ func (m *Int8CharTreeMap) PollLastEntry() (int8, uint16, bool) {
 }
 
 // DescendingMap returns an iter.Seq2 over entries in descending key order.
-func (m *Int8CharTreeMap) DescendingMap() iter.Seq2[int8, uint16] {
+func (m *Int8Char) DescendingMap() iter.Seq2[int8, uint16] {
 	return func(yield func(int8, uint16) bool) {
 		var reverse func(node *int8CharTreeNode) bool
 		reverse = func(node *int8CharTreeNode) bool {
@@ -361,7 +352,7 @@ func (m *Int8CharTreeMap) DescendingMap() iter.Seq2[int8, uint16] {
 }
 
 // DescendingKeys returns an iter.Seq over keys in descending order.
-func (m *Int8CharTreeMap) DescendingKeys() iter.Seq[int8] {
+func (m *Int8Char) DescendingKeys() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for k := range m.DescendingMap() {
 			if !yield(k) {
@@ -372,15 +363,15 @@ func (m *Int8CharTreeMap) DescendingKeys() iter.Seq[int8] {
 }
 
 // ForEach calls the function for each key-value pair in ascending order.
-func (m *Int8CharTreeMap) ForEach(f func(int8, uint16)) {
+func (m *Int8Char) ForEach(f func(int8, uint16)) {
 	for k, v := range m.All() {
 		f(k, v)
 	}
 }
 
-// Select returns a new TreeMap with entries satisfying the predicate.
-func (m *Int8CharTreeMap) Select(predicate func(int8, uint16) bool) *Int8CharTreeMap {
-	result := NewInt8CharTreeMap()
+// Select returns a new map with entries satisfying the predicate.
+func (m *Int8Char) Select(predicate func(int8, uint16) bool) *Int8Char {
+	result := NewInt8Char()
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			result.Put(k, v)
@@ -389,9 +380,9 @@ func (m *Int8CharTreeMap) Select(predicate func(int8, uint16) bool) *Int8CharTre
 	return result
 }
 
-// Reject returns a new TreeMap with entries NOT satisfying the predicate.
-func (m *Int8CharTreeMap) Reject(predicate func(int8, uint16) bool) *Int8CharTreeMap {
-	result := NewInt8CharTreeMap()
+// Reject returns a new map with entries NOT satisfying the predicate.
+func (m *Int8Char) Reject(predicate func(int8, uint16) bool) *Int8Char {
+	result := NewInt8Char()
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			result.Put(k, v)
@@ -401,7 +392,7 @@ func (m *Int8CharTreeMap) Reject(predicate func(int8, uint16) bool) *Int8CharTre
 }
 
 // Detect returns the first entry satisfying the predicate (in key order), or (zero, zero, false).
-func (m *Int8CharTreeMap) Detect(predicate func(int8, uint16) bool) (int8, uint16, bool) {
+func (m *Int8Char) Detect(predicate func(int8, uint16) bool) (int8, uint16, bool) {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return k, v, true
@@ -413,7 +404,7 @@ func (m *Int8CharTreeMap) Detect(predicate func(int8, uint16) bool) (int8, uint1
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *Int8CharTreeMap) AnySatisfy(predicate func(int8, uint16) bool) bool {
+func (m *Int8Char) AnySatisfy(predicate func(int8, uint16) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return true
@@ -423,7 +414,7 @@ func (m *Int8CharTreeMap) AnySatisfy(predicate func(int8, uint16) bool) bool {
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *Int8CharTreeMap) AllSatisfy(predicate func(int8, uint16) bool) bool {
+func (m *Int8Char) AllSatisfy(predicate func(int8, uint16) bool) bool {
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			return false
@@ -433,7 +424,7 @@ func (m *Int8CharTreeMap) AllSatisfy(predicate func(int8, uint16) bool) bool {
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *Int8CharTreeMap) NoneSatisfy(predicate func(int8, uint16) bool) bool {
+func (m *Int8Char) NoneSatisfy(predicate func(int8, uint16) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return false
@@ -443,7 +434,7 @@ func (m *Int8CharTreeMap) NoneSatisfy(predicate func(int8, uint16) bool) bool {
 }
 
 // Count returns the number of entries satisfying the predicate.
-func (m *Int8CharTreeMap) Count(predicate func(int8, uint16) bool) int {
+func (m *Int8Char) Count(predicate func(int8, uint16) bool) int {
 	c := 0
 	for k, v := range m.All() {
 		if predicate(k, v) {
@@ -454,7 +445,7 @@ func (m *Int8CharTreeMap) Count(predicate func(int8, uint16) bool) int {
 }
 
 // String returns a string representation with entries in sorted key order.
-func (m *Int8CharTreeMap) String() string {
+func (m *Int8Char) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -474,7 +465,7 @@ func (m *Int8CharTreeMap) String() string {
 
 // --- Red-black tree internals ---
 
-func (m *Int8CharTreeMap) findNode(key int8) *int8CharTreeNode {
+func (m *Int8Char) findNode(key int8) *int8CharTreeNode {
 	node := m.root
 	for node != nil {
 		if key < node.key {
@@ -488,21 +479,21 @@ func (m *Int8CharTreeMap) findNode(key int8) *int8CharTreeNode {
 	return nil
 }
 
-func (m *Int8CharTreeMap) minNode(node *int8CharTreeNode) *int8CharTreeNode {
+func (m *Int8Char) minNode(node *int8CharTreeNode) *int8CharTreeNode {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
 
-func (m *Int8CharTreeMap) maxNode(node *int8CharTreeNode) *int8CharTreeNode {
+func (m *Int8Char) maxNode(node *int8CharTreeNode) *int8CharTreeNode {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (m *Int8CharTreeMap) rotateLeft(x *int8CharTreeNode) {
+func (m *Int8Char) rotateLeft(x *int8CharTreeNode) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -520,7 +511,7 @@ func (m *Int8CharTreeMap) rotateLeft(x *int8CharTreeNode) {
 	x.parent = y
 }
 
-func (m *Int8CharTreeMap) rotateRight(x *int8CharTreeNode) {
+func (m *Int8Char) rotateRight(x *int8CharTreeNode) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -538,7 +529,7 @@ func (m *Int8CharTreeMap) rotateRight(x *int8CharTreeNode) {
 	x.parent = y
 }
 
-func (m *Int8CharTreeMap) fixAfterInsert(z *int8CharTreeNode) {
+func (m *Int8Char) fixAfterInsert(z *int8CharTreeNode) {
 	for z.parent != nil && z.parent.color == int8CharTreeNodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
@@ -577,7 +568,7 @@ func (m *Int8CharTreeMap) fixAfterInsert(z *int8CharTreeNode) {
 	m.root.color = int8CharTreeNodeBlack
 }
 
-func (m *Int8CharTreeMap) deleteNode(z *int8CharTreeNode) {
+func (m *Int8Char) deleteNode(z *int8CharTreeNode) {
 	if z.left != nil && z.right != nil {
 		succ := m.minNode(z.right)
 		z.key = succ.key
@@ -618,7 +609,7 @@ func (m *Int8CharTreeMap) deleteNode(z *int8CharTreeNode) {
 	}
 }
 
-func (m *Int8CharTreeMap) fixAfterDelete(x *int8CharTreeNode) {
+func (m *Int8Char) fixAfterDelete(x *int8CharTreeNode) {
 	for x != m.root && x.color == int8CharTreeNodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right

@@ -8,24 +8,24 @@ import (
 	"strings"
 )
 
-// Int16HashBag is a bag (multiset) that counts occurrences of int16 values.
+// HashInt16 is a bag (multiset) that counts occurrences of int16 values.
 // Backed by a map from value to count.
-type Int16HashBag struct {
+type HashInt16 struct {
 	counts map[int16]int
 	size   int // total count including duplicates
 }
 
-// NewInt16HashBag creates a new empty Int16HashBag.
-func NewInt16HashBag() *Int16HashBag {
-	return &Int16HashBag{
+// NewHashInt16 creates a new empty HashInt16.
+func NewHashInt16() *HashInt16 {
+	return &HashInt16{
 		counts: make(map[int16]int),
 		size:   0,
 	}
 }
 
-// Int16HashBagOf creates a new Int16HashBag from the given values.
-func Int16HashBagOf(values ...int16) *Int16HashBag {
-	b := NewInt16HashBag()
+// HashInt16Of creates a new HashInt16 from the given values.
+func HashInt16Of(values ...int16) *HashInt16 {
+	b := NewHashInt16()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -33,7 +33,7 @@ func Int16HashBagOf(values ...int16) *Int16HashBag {
 }
 
 // Add adds one occurrence of the value.
-func (b *Int16HashBag) Add(value int16) {
+func (b *HashInt16) Add(value int16) {
 	if b.counts == nil {
 		b.counts = make(map[int16]int)
 	}
@@ -43,9 +43,9 @@ func (b *Int16HashBag) Add(value int16) {
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *Int16HashBag) AddOccurrences(value int16, occurrences int) int {
+func (b *HashInt16) AddOccurrences(value int16, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("Int16HashBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("HashInt16: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		return b.counts[value]
@@ -59,7 +59,7 @@ func (b *Int16HashBag) AddOccurrences(value int16, occurrences int) int {
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *Int16HashBag) Remove(value int16) bool {
+func (b *HashInt16) Remove(value int16) bool {
 	count, ok := b.counts[value]
 	if !ok || count <= 0 {
 		return false
@@ -74,7 +74,7 @@ func (b *Int16HashBag) Remove(value int16) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *Int16HashBag) RemoveOccurrences(value int16, occurrences int) bool {
+func (b *HashInt16) RemoveOccurrences(value int16, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -93,7 +93,7 @@ func (b *Int16HashBag) RemoveOccurrences(value int16, occurrences int) bool {
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *Int16HashBag) RemoveAll(value int16) int {
+func (b *HashInt16) RemoveAll(value int16) int {
 	count, ok := b.counts[value]
 	if !ok {
 		return 0
@@ -104,42 +104,36 @@ func (b *Int16HashBag) RemoveAll(value int16) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *Int16HashBag) OccurrencesOf(value int16) int {
+func (b *HashInt16) OccurrencesOf(value int16) int {
 	return b.counts[value]
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *Int16HashBag) Contains(value int16) bool {
+func (b *HashInt16) Contains(value int16) bool {
 	return b.counts[value] > 0
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *Int16HashBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *HashInt16) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *Int16HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *Int16HashBag) SizeDistinct() int {
+func (b *HashInt16) SizeDistinct() int {
 	return len(b.counts)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *Int16HashBag) IsEmpty() bool {
-	return b.size == 0
-}
-
 // Clear removes all elements from the bag.
-func (b *Int16HashBag) Clear() {
+func (b *HashInt16) Clear() {
 	b.counts = make(map[int16]int)
 	b.size = 0
 }
 
 // All returns an iter.Seq that yields each element once per occurrence.
-func (b *Int16HashBag) All() iter.Seq[int16] {
+func (b *HashInt16) All() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for value, count := range b.counts {
 			for i := 0; i < count; i++ {
@@ -152,7 +146,7 @@ func (b *Int16HashBag) All() iter.Seq[int16] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once.
-func (b *Int16HashBag) AllDistinct() iter.Seq[int16] {
+func (b *HashInt16) AllDistinct() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for value := range b.counts {
 			if !yield(value) {
@@ -163,7 +157,7 @@ func (b *Int16HashBag) AllDistinct() iter.Seq[int16] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs.
-func (b *Int16HashBag) AllWithOccurrences() iter.Seq2[int16, int] {
+func (b *HashInt16) AllWithOccurrences() iter.Seq2[int16, int] {
 	return func(yield func(int16, int) bool) {
 		for value, count := range b.counts {
 			if !yield(value, count) {
@@ -174,7 +168,7 @@ func (b *Int16HashBag) AllWithOccurrences() iter.Seq2[int16, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence).
-func (b *Int16HashBag) ForEach(f func(int16)) {
+func (b *HashInt16) ForEach(f func(int16)) {
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
 			f(value)
@@ -183,15 +177,15 @@ func (b *Int16HashBag) ForEach(f func(int16)) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count.
-func (b *Int16HashBag) ForEachWithOccurrences(f func(int16, int)) {
+func (b *HashInt16) ForEachWithOccurrences(f func(int16, int)) {
 	for value, count := range b.counts {
 		f(value, count)
 	}
 }
 
 // Select returns a new bag containing only elements that satisfy the predicate.
-func (b *Int16HashBag) Select(predicate func(int16) bool) *Int16HashBag {
-	result := NewInt16HashBag()
+func (b *HashInt16) Select(predicate func(int16) bool) *HashInt16 {
+	result := NewHashInt16()
 	for value, count := range b.counts {
 		if predicate(value) {
 			result.AddOccurrences(value, count)
@@ -201,8 +195,8 @@ func (b *Int16HashBag) Select(predicate func(int16) bool) *Int16HashBag {
 }
 
 // Reject returns a new bag containing only elements that do not satisfy the predicate.
-func (b *Int16HashBag) Reject(predicate func(int16) bool) *Int16HashBag {
-	result := NewInt16HashBag()
+func (b *HashInt16) Reject(predicate func(int16) bool) *HashInt16 {
+	result := NewHashInt16()
 	for value, count := range b.counts {
 		if !predicate(value) {
 			result.AddOccurrences(value, count)
@@ -212,7 +206,7 @@ func (b *Int16HashBag) Reject(predicate func(int16) bool) *Int16HashBag {
 }
 
 // Detect returns the first distinct element that satisfies the predicate, or zero value and false.
-func (b *Int16HashBag) Detect(predicate func(int16) bool) (int16, bool) {
+func (b *HashInt16) Detect(predicate func(int16) bool) (int16, bool) {
 	for value := range b.counts {
 		if predicate(value) {
 			return value, true
@@ -222,7 +216,7 @@ func (b *Int16HashBag) Detect(predicate func(int16) bool) (int16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *Int16HashBag) AnySatisfy(predicate func(int16) bool) bool {
+func (b *HashInt16) AnySatisfy(predicate func(int16) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return true
@@ -232,7 +226,7 @@ func (b *Int16HashBag) AnySatisfy(predicate func(int16) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *Int16HashBag) AllSatisfy(predicate func(int16) bool) bool {
+func (b *HashInt16) AllSatisfy(predicate func(int16) bool) bool {
 	for value := range b.counts {
 		if !predicate(value) {
 			return false
@@ -242,7 +236,7 @@ func (b *Int16HashBag) AllSatisfy(predicate func(int16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *Int16HashBag) NoneSatisfy(predicate func(int16) bool) bool {
+func (b *HashInt16) NoneSatisfy(predicate func(int16) bool) bool {
 	for value := range b.counts {
 		if predicate(value) {
 			return false
@@ -252,7 +246,7 @@ func (b *Int16HashBag) NoneSatisfy(predicate func(int16) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *Int16HashBag) TopOccurrences(n int) []struct {
+func (b *HashInt16) TopOccurrences(n int) []struct {
 	Value int16
 	Count int
 } {
@@ -289,7 +283,7 @@ func (b *Int16HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count).
-func (b *Int16HashBag) ToSlice() []int16 {
+func (b *HashInt16) ToSlice() []int16 {
 	result := make([]int16, 0, b.size)
 	for value, count := range b.counts {
 		for i := 0; i < count; i++ {
@@ -300,19 +294,19 @@ func (b *Int16HashBag) ToSlice() []int16 {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *Int16HashBag) With(value int16) *Int16HashBag {
+func (b *HashInt16) AddReturning(value int16) *HashInt16 {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *Int16HashBag) Without(value int16) *Int16HashBag {
+func (b *HashInt16) RemoveReturning(value int16) *HashInt16 {
 	b.RemoveAll(value)
 	return b
 }
 
 // String returns a string representation of the bag.
-func (b *Int16HashBag) String() string {
+func (b *HashInt16) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -331,7 +325,7 @@ func (b *Int16HashBag) String() string {
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *Int16HashBag) WithAll(values ...int16) *Int16HashBag {
+func (b *HashInt16) AddAllReturning(values ...int16) *HashInt16 {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -339,7 +333,7 @@ func (b *Int16HashBag) WithAll(values ...int16) *Int16HashBag {
 }
 
 // WithoutAll removes all occurrences of the given values.
-func (b *Int16HashBag) WithoutAll(values ...int16) *Int16HashBag {
+func (b *HashInt16) RemoveAllReturning(values ...int16) *HashInt16 {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -347,12 +341,12 @@ func (b *Int16HashBag) WithoutAll(values ...int16) *Int16HashBag {
 }
 
 // ToImmutable returns an immutable copy of this bag.
-func (b *Int16HashBag) ToImmutable() *ImmutableInt16HashBag {
-	return ImmutableInt16HashBagFrom(b)
+func (b *HashInt16) ToImmutable() *ImmutableHashInt16 {
+	return ImmutableHashInt16From(b)
 }
 
 // Equals returns true if the other bag has the same elements with the same counts.
-func (b *Int16HashBag) Equals(other *Int16HashBag) bool {
+func (b *HashInt16) Equals(other *HashInt16) bool {
 	if b.size != other.size || len(b.counts) != len(other.counts) {
 		return false
 	}

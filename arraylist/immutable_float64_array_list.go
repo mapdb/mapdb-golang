@@ -6,127 +6,118 @@ import (
 	"iter"
 )
 
-// ImmutableFloat64ArrayList is an immutable view of a Float64ArrayList.
-type ImmutableFloat64ArrayList struct {
-	delegate *Float64ArrayList
+// ImmutableFloat64 is an immutable view of a Float64.
+type ImmutableFloat64 struct {
+	delegate *Float64
 }
 
-// NewImmutableFloat64ArrayList creates an immutable list from the given values.
-func NewImmutableFloat64ArrayList(values ...float64) *ImmutableFloat64ArrayList {
-	return &ImmutableFloat64ArrayList{delegate: Float64ArrayListOf(values...)}
+// NewImmutableFloat64 creates an immutable list from the given values.
+func NewImmutableFloat64(values ...float64) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: Float64Of(values...)}
 }
 
-// ImmutableFloat64ArrayListFrom creates an immutable copy of a mutable list.
-func ImmutableFloat64ArrayListFrom(l *Float64ArrayList) *ImmutableFloat64ArrayList {
-	copy := Float64ArrayListOf(l.ToSlice()...)
-	return &ImmutableFloat64ArrayList{delegate: copy}
+// ImmutableFloat64From creates an immutable copy of a mutable list.
+func ImmutableFloat64From(l *Float64) *ImmutableFloat64 {
+	copy := Float64Of(l.ToSlice()...)
+	return &ImmutableFloat64{delegate: copy}
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *ImmutableFloat64ArrayList) Get(index int) (float64, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *ImmutableFloat64) Get(index int) float64 {
 	return l.delegate.Get(index)
 }
 
-// Size returns the number of elements.
-func (l *ImmutableFloat64ArrayList) Size() int {
-	return l.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *ImmutableFloat64ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *ImmutableFloat64ArrayList) IsEmpty() bool {
-	return l.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use l.Len() == 0 to test for
+// emptiness.
+func (l *ImmutableFloat64) Len() int { return l.delegate.Len() }
 
 // Contains returns true if the list contains the given value.
-func (l *ImmutableFloat64ArrayList) Contains(value float64) bool {
+func (l *ImmutableFloat64) Contains(value float64) bool {
 	return l.delegate.Contains(value)
 }
 
 // IndexOf returns the index of the first occurrence, or -1.
-func (l *ImmutableFloat64ArrayList) IndexOf(value float64) int {
+func (l *ImmutableFloat64) IndexOf(value float64) int {
 	return l.delegate.IndexOf(value)
 }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *ImmutableFloat64ArrayList) All() iter.Seq[float64] {
+func (l *ImmutableFloat64) All() iter.Seq[float64] {
 	return l.delegate.All()
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *ImmutableFloat64ArrayList) AllWithIndex() iter.Seq2[int, float64] {
+func (l *ImmutableFloat64) AllWithIndex() iter.Seq2[int, float64] {
 	return l.delegate.AllWithIndex()
 }
 
 // ForEach calls the given function for each element.
-func (l *ImmutableFloat64ArrayList) ForEach(f func(float64)) {
+func (l *ImmutableFloat64) ForEach(f func(float64)) {
 	l.delegate.ForEach(f)
 }
 
 // Select returns a new immutable list with elements satisfying the predicate.
-func (l *ImmutableFloat64ArrayList) Select(predicate func(float64) bool) *ImmutableFloat64ArrayList {
-	return &ImmutableFloat64ArrayList{delegate: l.delegate.Select(predicate)}
+func (l *ImmutableFloat64) Select(predicate func(float64) bool) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: l.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable list with elements not satisfying the predicate.
-func (l *ImmutableFloat64ArrayList) Reject(predicate func(float64) bool) *ImmutableFloat64ArrayList {
-	return &ImmutableFloat64ArrayList{delegate: l.delegate.Reject(predicate)}
+func (l *ImmutableFloat64) Reject(predicate func(float64) bool) *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: l.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element satisfying the predicate, or zero and false.
-func (l *ImmutableFloat64ArrayList) Detect(predicate func(float64) bool) (float64, bool) {
+func (l *ImmutableFloat64) Detect(predicate func(float64) bool) (float64, bool) {
 	return l.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *ImmutableFloat64ArrayList) AnySatisfy(predicate func(float64) bool) bool {
+func (l *ImmutableFloat64) AnySatisfy(predicate func(float64) bool) bool {
 	return l.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *ImmutableFloat64ArrayList) AllSatisfy(predicate func(float64) bool) bool {
+func (l *ImmutableFloat64) AllSatisfy(predicate func(float64) bool) bool {
 	return l.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *ImmutableFloat64ArrayList) NoneSatisfy(predicate func(float64) bool) bool {
+func (l *ImmutableFloat64) NoneSatisfy(predicate func(float64) bool) bool {
 	return l.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (l *ImmutableFloat64ArrayList) Count(predicate func(float64) bool) int {
+func (l *ImmutableFloat64) Count(predicate func(float64) bool) int {
 	return l.delegate.Count(predicate)
 }
 
 // Reversed returns a new immutable list in reverse order.
-func (l *ImmutableFloat64ArrayList) Reversed() *ImmutableFloat64ArrayList {
-	return &ImmutableFloat64ArrayList{delegate: l.delegate.Reversed()}
+func (l *ImmutableFloat64) Reversed() *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: l.delegate.Reversed()}
 }
 
 // Distinct returns a new immutable list with duplicates removed.
-func (l *ImmutableFloat64ArrayList) Distinct() *ImmutableFloat64ArrayList {
-	return &ImmutableFloat64ArrayList{delegate: l.delegate.Distinct()}
+func (l *ImmutableFloat64) Distinct() *ImmutableFloat64 {
+	return &ImmutableFloat64{delegate: l.delegate.Distinct()}
 }
 
 // ToSlice returns a copy of all elements as a slice.
-func (l *ImmutableFloat64ArrayList) ToSlice() []float64 {
+func (l *ImmutableFloat64) ToSlice() []float64 {
 	return l.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (l *ImmutableFloat64ArrayList) String() string {
+func (l *ImmutableFloat64) String() string {
 	return l.delegate.String()
 }
 
 // Equals returns true if the other immutable list has the same elements in order.
-func (l *ImmutableFloat64ArrayList) Equals(other *ImmutableFloat64ArrayList) bool {
+func (l *ImmutableFloat64) Equals(other *ImmutableFloat64) bool {
 	return l.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this list.
-func (l *ImmutableFloat64ArrayList) ToMutable() *Float64ArrayList {
-	return Float64ArrayListOf(l.ToSlice()...)
+func (l *ImmutableFloat64) ToMutable() *Float64 {
+	return Float64Of(l.ToSlice()...)
 }

@@ -24,8 +24,8 @@ From the target collection's directory:
 ```
 
 Currently supported: `arraylist`, `interval`, `hashset`, `stack`, `deque`,
-`treeset`, `priority_queue`, `bag`, `treemap`. Float-ordered collections
-(`arraylist`, `treeset`, `priority_queue`, `bag`, `treemap`) also emit a
+`treeset`, `priorityqueue`, `bag`, `treemap`. Float-ordered collections
+(`arraylist`, `treeset`, `priorityqueue`, `bag`, `treemap`) also emit a
 `cmp_float.go` from the single shared `genCmpFloat` template, so the IEEE
 total-order comparator has exactly one source of truth.
 

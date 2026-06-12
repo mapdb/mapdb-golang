@@ -6,127 +6,118 @@ import (
 	"iter"
 )
 
-// ImmutableFloat32ArrayList is an immutable view of a Float32ArrayList.
-type ImmutableFloat32ArrayList struct {
-	delegate *Float32ArrayList
+// ImmutableFloat32 is an immutable view of a Float32.
+type ImmutableFloat32 struct {
+	delegate *Float32
 }
 
-// NewImmutableFloat32ArrayList creates an immutable list from the given values.
-func NewImmutableFloat32ArrayList(values ...float32) *ImmutableFloat32ArrayList {
-	return &ImmutableFloat32ArrayList{delegate: Float32ArrayListOf(values...)}
+// NewImmutableFloat32 creates an immutable list from the given values.
+func NewImmutableFloat32(values ...float32) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: Float32Of(values...)}
 }
 
-// ImmutableFloat32ArrayListFrom creates an immutable copy of a mutable list.
-func ImmutableFloat32ArrayListFrom(l *Float32ArrayList) *ImmutableFloat32ArrayList {
-	copy := Float32ArrayListOf(l.ToSlice()...)
-	return &ImmutableFloat32ArrayList{delegate: copy}
+// ImmutableFloat32From creates an immutable copy of a mutable list.
+func ImmutableFloat32From(l *Float32) *ImmutableFloat32 {
+	copy := Float32Of(l.ToSlice()...)
+	return &ImmutableFloat32{delegate: copy}
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *ImmutableFloat32ArrayList) Get(index int) (float32, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *ImmutableFloat32) Get(index int) float32 {
 	return l.delegate.Get(index)
 }
 
-// Size returns the number of elements.
-func (l *ImmutableFloat32ArrayList) Size() int {
-	return l.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *ImmutableFloat32ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *ImmutableFloat32ArrayList) IsEmpty() bool {
-	return l.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use l.Len() == 0 to test for
+// emptiness.
+func (l *ImmutableFloat32) Len() int { return l.delegate.Len() }
 
 // Contains returns true if the list contains the given value.
-func (l *ImmutableFloat32ArrayList) Contains(value float32) bool {
+func (l *ImmutableFloat32) Contains(value float32) bool {
 	return l.delegate.Contains(value)
 }
 
 // IndexOf returns the index of the first occurrence, or -1.
-func (l *ImmutableFloat32ArrayList) IndexOf(value float32) int {
+func (l *ImmutableFloat32) IndexOf(value float32) int {
 	return l.delegate.IndexOf(value)
 }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *ImmutableFloat32ArrayList) All() iter.Seq[float32] {
+func (l *ImmutableFloat32) All() iter.Seq[float32] {
 	return l.delegate.All()
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *ImmutableFloat32ArrayList) AllWithIndex() iter.Seq2[int, float32] {
+func (l *ImmutableFloat32) AllWithIndex() iter.Seq2[int, float32] {
 	return l.delegate.AllWithIndex()
 }
 
 // ForEach calls the given function for each element.
-func (l *ImmutableFloat32ArrayList) ForEach(f func(float32)) {
+func (l *ImmutableFloat32) ForEach(f func(float32)) {
 	l.delegate.ForEach(f)
 }
 
 // Select returns a new immutable list with elements satisfying the predicate.
-func (l *ImmutableFloat32ArrayList) Select(predicate func(float32) bool) *ImmutableFloat32ArrayList {
-	return &ImmutableFloat32ArrayList{delegate: l.delegate.Select(predicate)}
+func (l *ImmutableFloat32) Select(predicate func(float32) bool) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: l.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable list with elements not satisfying the predicate.
-func (l *ImmutableFloat32ArrayList) Reject(predicate func(float32) bool) *ImmutableFloat32ArrayList {
-	return &ImmutableFloat32ArrayList{delegate: l.delegate.Reject(predicate)}
+func (l *ImmutableFloat32) Reject(predicate func(float32) bool) *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: l.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element satisfying the predicate, or zero and false.
-func (l *ImmutableFloat32ArrayList) Detect(predicate func(float32) bool) (float32, bool) {
+func (l *ImmutableFloat32) Detect(predicate func(float32) bool) (float32, bool) {
 	return l.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *ImmutableFloat32ArrayList) AnySatisfy(predicate func(float32) bool) bool {
+func (l *ImmutableFloat32) AnySatisfy(predicate func(float32) bool) bool {
 	return l.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *ImmutableFloat32ArrayList) AllSatisfy(predicate func(float32) bool) bool {
+func (l *ImmutableFloat32) AllSatisfy(predicate func(float32) bool) bool {
 	return l.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *ImmutableFloat32ArrayList) NoneSatisfy(predicate func(float32) bool) bool {
+func (l *ImmutableFloat32) NoneSatisfy(predicate func(float32) bool) bool {
 	return l.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (l *ImmutableFloat32ArrayList) Count(predicate func(float32) bool) int {
+func (l *ImmutableFloat32) Count(predicate func(float32) bool) int {
 	return l.delegate.Count(predicate)
 }
 
 // Reversed returns a new immutable list in reverse order.
-func (l *ImmutableFloat32ArrayList) Reversed() *ImmutableFloat32ArrayList {
-	return &ImmutableFloat32ArrayList{delegate: l.delegate.Reversed()}
+func (l *ImmutableFloat32) Reversed() *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: l.delegate.Reversed()}
 }
 
 // Distinct returns a new immutable list with duplicates removed.
-func (l *ImmutableFloat32ArrayList) Distinct() *ImmutableFloat32ArrayList {
-	return &ImmutableFloat32ArrayList{delegate: l.delegate.Distinct()}
+func (l *ImmutableFloat32) Distinct() *ImmutableFloat32 {
+	return &ImmutableFloat32{delegate: l.delegate.Distinct()}
 }
 
 // ToSlice returns a copy of all elements as a slice.
-func (l *ImmutableFloat32ArrayList) ToSlice() []float32 {
+func (l *ImmutableFloat32) ToSlice() []float32 {
 	return l.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (l *ImmutableFloat32ArrayList) String() string {
+func (l *ImmutableFloat32) String() string {
 	return l.delegate.String()
 }
 
 // Equals returns true if the other immutable list has the same elements in order.
-func (l *ImmutableFloat32ArrayList) Equals(other *ImmutableFloat32ArrayList) bool {
+func (l *ImmutableFloat32) Equals(other *ImmutableFloat32) bool {
 	return l.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this list.
-func (l *ImmutableFloat32ArrayList) ToMutable() *Float32ArrayList {
-	return Float32ArrayListOf(l.ToSlice()...)
+func (l *ImmutableFloat32) ToMutable() *Float32 {
+	return Float32Of(l.ToSlice()...)
 }

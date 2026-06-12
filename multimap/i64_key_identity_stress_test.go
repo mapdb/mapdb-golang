@@ -19,8 +19,8 @@ const i64StressN = 5000
 // ...} family. Every member shares the low 32 bits (==1).
 func highBitKey(i int) int64 { return (int64(i) << 32) | 1 }
 
-func TestInt64ListMultimapHighBitKeyIdentityAtScale(t *testing.T) {
-	m := NewInt64Int32ListMultimap()
+func TestInt64ListHighBitKeyIdentityAtScale(t *testing.T) {
+	m := NewInt64Int32List()
 	for i := 0; i < i64StressN; i++ {
 		m.Put(highBitKey(i), int32(i))
 	}
@@ -42,8 +42,8 @@ func TestInt64ListMultimapHighBitKeyIdentityAtScale(t *testing.T) {
 	}
 }
 
-func TestInt64SetMultimapHighBitKeyIdentityAtScale(t *testing.T) {
-	m := NewInt64Int32SetMultimap()
+func TestInt64SetHighBitKeyIdentityAtScale(t *testing.T) {
+	m := NewInt64Int32Set()
 	for i := 0; i < i64StressN; i++ {
 		m.Put(highBitKey(i), int32(i))
 	}

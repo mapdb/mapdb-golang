@@ -9,28 +9,28 @@ import (
 )
 
 const (
-	objectCharHashMapDefaultCapacity = 16
+	objectCharDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// ObjectCharHashMap is an open-addressing hash map with generic comparable keys and uint16 values.
+// ObjectChar is an open-addressing hash map with generic comparable keys and uint16 values.
 // The value type is specialized to avoid boxing overhead.
-type ObjectCharHashMap[K comparable] struct {
+type ObjectChar[K comparable] struct {
 	keys     []K
 	values   []uint16
 	occupied []bool
 	size     int
 }
 
-// NewObjectCharHashMap creates a new empty ObjectCharHashMap with default capacity.
-func NewObjectCharHashMap[K comparable]() *ObjectCharHashMap[K] {
-	return NewObjectCharHashMapWithCapacity[K](objectCharHashMapDefaultCapacity)
+// NewObjectChar creates a new empty ObjectChar with default capacity.
+func NewObjectChar[K comparable]() *ObjectChar[K] {
+	return NewObjectCharWithCapacity[K](objectCharDefaultCapacity)
 }
 
-// NewObjectCharHashMapWithCapacity creates a new empty ObjectCharHashMap with the given initial capacity.
-func NewObjectCharHashMapWithCapacity[K comparable](capacity int) *ObjectCharHashMap[K] {
-	cap := nextPowerOfTwoObjectCharHashMap(capacity)
-	return &ObjectCharHashMap[K]{
+// NewObjectCharWithCapacity creates a new empty ObjectChar with the given initial capacity.
+func NewObjectCharWithCapacity[K comparable](capacity int) *ObjectChar[K] {
+	cap := nextPowerOfTwoObjectChar(capacity)
+	return &ObjectChar[K]{
 		keys:     make([]K, cap),
 		values:   make([]uint16, cap),
 		occupied: make([]bool, cap),
@@ -39,7 +39,7 @@ func NewObjectCharHashMapWithCapacity[K comparable](capacity int) *ObjectCharHas
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *ObjectCharHashMap[K]) Put(key K, value uint16) (uint16, bool) {
+func (m *ObjectChar[K]) Put(key K, value uint16) (uint16, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -65,7 +65,7 @@ func (m *ObjectCharHashMap[K]) Put(key K, value uint16) (uint16, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *ObjectCharHashMap[K]) Get(key K) (uint16, bool) {
+func (m *ObjectChar[K]) Get(key K) (uint16, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0, false
@@ -85,7 +85,7 @@ func (m *ObjectCharHashMap[K]) Get(key K) (uint16, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *ObjectCharHashMap[K]) GetOrDefault(key K, defaultValue uint16) uint16 {
+func (m *ObjectChar[K]) GetOrDefault(key K, defaultValue uint16) uint16 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -93,7 +93,7 @@ func (m *ObjectCharHashMap[K]) GetOrDefault(key K, defaultValue uint16) uint16 {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *ObjectCharHashMap[K]) Remove(key K) (uint16, bool) {
+func (m *ObjectChar[K]) Remove(key K) (uint16, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0, false
@@ -112,7 +112,7 @@ func (m *ObjectCharHashMap[K]) Remove(key K) (uint16, bool) {
 			m.keys[idx] = zeroK
 			m.values[idx] = 0
 			m.size--
-			m.rehashFromObjectCharHashMap(idx, mask)
+			m.rehashFromObjectChar(idx, mask)
 			return old, true
 		}
 		idx = (idx + 1) & mask
@@ -120,27 +120,18 @@ func (m *ObjectCharHashMap[K]) Remove(key K) (uint16, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ObjectCharHashMap[K]) ContainsKey(key K) bool {
+func (m *ObjectChar[K]) ContainsKey(key K) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *ObjectCharHashMap[K]) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ObjectChar[K]) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ObjectCharHashMap[K]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ObjectCharHashMap[K]) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *ObjectCharHashMap[K]) Clear() {
+func (m *ObjectChar[K]) Clear() {
 	var zeroK K
 	for i := range m.occupied {
 		m.occupied[i] = false
@@ -151,7 +142,7 @@ func (m *ObjectCharHashMap[K]) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ObjectCharHashMap[K]) All() iter.Seq2[K, uint16] {
+func (m *ObjectChar[K]) All() iter.Seq2[K, uint16] {
 	return func(yield func(K, uint16) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -164,7 +155,7 @@ func (m *ObjectCharHashMap[K]) All() iter.Seq2[K, uint16] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ObjectCharHashMap[K]) Keys() iter.Seq[K] {
+func (m *ObjectChar[K]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -177,7 +168,7 @@ func (m *ObjectCharHashMap[K]) Keys() iter.Seq[K] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ObjectCharHashMap[K]) Values() iter.Seq[uint16] {
+func (m *ObjectChar[K]) Values() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -190,7 +181,7 @@ func (m *ObjectCharHashMap[K]) Values() iter.Seq[uint16] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ObjectCharHashMap[K]) ForEach(f func(K, uint16)) {
+func (m *ObjectChar[K]) ForEach(f func(K, uint16)) {
 	for i := range m.occupied {
 		if m.occupied[i] {
 			f(m.keys[i], m.values[i])
@@ -199,8 +190,8 @@ func (m *ObjectCharHashMap[K]) ForEach(f func(K, uint16)) {
 }
 
 // Select returns a new map containing only entries that satisfy the predicate.
-func (m *ObjectCharHashMap[K]) Select(predicate func(K, uint16) bool) *ObjectCharHashMap[K] {
-	result := NewObjectCharHashMap[K]()
+func (m *ObjectChar[K]) Select(predicate func(K, uint16) bool) *ObjectChar[K] {
+	result := NewObjectChar[K]()
 	for i := range m.occupied {
 		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -210,8 +201,8 @@ func (m *ObjectCharHashMap[K]) Select(predicate func(K, uint16) bool) *ObjectCha
 }
 
 // Reject returns a new map containing only entries that do not satisfy the predicate.
-func (m *ObjectCharHashMap[K]) Reject(predicate func(K, uint16) bool) *ObjectCharHashMap[K] {
-	result := NewObjectCharHashMap[K]()
+func (m *ObjectChar[K]) Reject(predicate func(K, uint16) bool) *ObjectChar[K] {
+	result := NewObjectChar[K]()
 	for i := range m.occupied {
 		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -221,7 +212,7 @@ func (m *ObjectCharHashMap[K]) Reject(predicate func(K, uint16) bool) *ObjectCha
 }
 
 // String returns a string representation of the map.
-func (m *ObjectCharHashMap[K]) String() string {
+func (m *ObjectChar[K]) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -241,17 +232,17 @@ func (m *ObjectCharHashMap[K]) String() string {
 	return sb.String()
 }
 
-func (m *ObjectCharHashMap[K]) needsResize() bool {
+func (m *ObjectChar[K]) needsResize() bool {
 	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *ObjectCharHashMap[K]) resize() {
+func (m *ObjectChar[K]) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	oldOccupied := m.occupied
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = objectCharHashMapDefaultCapacity
+		newCap = objectCharDefaultCapacity
 	}
 	m.keys = make([]K, newCap)
 	m.values = make([]uint16, newCap)
@@ -265,7 +256,7 @@ func (m *ObjectCharHashMap[K]) resize() {
 	}
 }
 
-func (m *ObjectCharHashMap[K]) rehashFromObjectCharHashMap(deleted int, mask int) {
+func (m *ObjectChar[K]) rehashFromObjectChar(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(hashComparable(m.keys[idx])) & mask
@@ -284,7 +275,7 @@ func (m *ObjectCharHashMap[K]) rehashFromObjectCharHashMap(deleted int, mask int
 	}
 }
 
-func nextPowerOfTwoObjectCharHashMap(n int) int {
+func nextPowerOfTwoObjectChar(n int) int {
 	if n <= 0 {
 		return 16
 	}

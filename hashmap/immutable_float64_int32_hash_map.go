@@ -6,136 +6,127 @@ import (
 	"iter"
 )
 
-// ImmutableFloat64Int32HashMap is an immutable view of a Float64Int32HashMap.
+// ImmutableFloat64Int32 is an immutable view of a Float64Int32.
 // It exposes only read operations. Any attempt to modify requires
 // creating a mutable copy first via ToMutable().
-type ImmutableFloat64Int32HashMap struct {
-	delegate *Float64Int32HashMap
+type ImmutableFloat64Int32 struct {
+	delegate *Float64Int32
 }
 
-// NewImmutableFloat64Int32HashMap creates an immutable map from key-value pairs.
-func NewImmutableFloat64Int32HashMap(pairs ...struct {
+// NewImmutableFloat64Int32 creates an immutable map from key-value pairs.
+func NewImmutableFloat64Int32(pairs ...struct {
 	Key   float64
 	Value int32
-}) *ImmutableFloat64Int32HashMap {
-	m := NewFloat64Int32HashMapWithCapacity(len(pairs) * 2)
+}) *ImmutableFloat64Int32 {
+	m := NewFloat64Int32WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
-	return &ImmutableFloat64Int32HashMap{delegate: m}
+	return &ImmutableFloat64Int32{delegate: m}
 }
 
-// ImmutableFloat64Int32HashMapFrom creates an immutable copy of a mutable map.
-func ImmutableFloat64Int32HashMapFrom(m *Float64Int32HashMap) *ImmutableFloat64Int32HashMap {
-	copy := NewFloat64Int32HashMapWithCapacity(m.Size() * 2)
+// ImmutableFloat64Int32From creates an immutable copy of a mutable map.
+func ImmutableFloat64Int32From(m *Float64Int32) *ImmutableFloat64Int32 {
+	copy := NewFloat64Int32WithCapacity(m.Len() * 2)
 	m.ForEach(func(k float64, v int32) {
 		copy.Put(k, v)
 	})
-	return &ImmutableFloat64Int32HashMap{delegate: copy}
+	return &ImmutableFloat64Int32{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableFloat64Int32HashMap) Get(key float64) (int32, bool) {
+func (m *ImmutableFloat64Int32) Get(key float64) (int32, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableFloat64Int32HashMap) GetOrDefault(key float64, defaultValue int32) int32 {
+func (m *ImmutableFloat64Int32) GetOrDefault(key float64, defaultValue int32) int32 {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableFloat64Int32HashMap) ContainsKey(key float64) bool {
+func (m *ImmutableFloat64Int32) ContainsKey(key float64) bool {
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *ImmutableFloat64Int32HashMap) ContainsValue(value int32) bool {
+func (m *ImmutableFloat64Int32) ContainsValue(value int32) bool {
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableFloat64Int32HashMap) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableFloat64Int32HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableFloat64Int32HashMap) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableFloat64Int32) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableFloat64Int32HashMap) All() iter.Seq2[float64, int32] {
+func (m *ImmutableFloat64Int32) All() iter.Seq2[float64, int32] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableFloat64Int32HashMap) Keys() iter.Seq[float64] {
+func (m *ImmutableFloat64Int32) Keys() iter.Seq[float64] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableFloat64Int32HashMap) Values() iter.Seq[int32] {
+func (m *ImmutableFloat64Int32) Values() iter.Seq[int32] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableFloat64Int32HashMap) ForEach(f func(float64, int32)) {
+func (m *ImmutableFloat64Int32) ForEach(f func(float64, int32)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries that satisfy the predicate.
-func (m *ImmutableFloat64Int32HashMap) Select(predicate func(float64, int32) bool) *ImmutableFloat64Int32HashMap {
-	return &ImmutableFloat64Int32HashMap{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableFloat64Int32) Select(predicate func(float64, int32) bool) *ImmutableFloat64Int32 {
+	return &ImmutableFloat64Int32{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries that do not satisfy the predicate.
-func (m *ImmutableFloat64Int32HashMap) Reject(predicate func(float64, int32) bool) *ImmutableFloat64Int32HashMap {
-	return &ImmutableFloat64Int32HashMap{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableFloat64Int32) Reject(predicate func(float64, int32) bool) *ImmutableFloat64Int32 {
+	return &ImmutableFloat64Int32{delegate: m.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *ImmutableFloat64Int32HashMap) AnySatisfy(predicate func(float64, int32) bool) bool {
+func (m *ImmutableFloat64Int32) AnySatisfy(predicate func(float64, int32) bool) bool {
 	return m.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *ImmutableFloat64Int32HashMap) AllSatisfy(predicate func(float64, int32) bool) bool {
+func (m *ImmutableFloat64Int32) AllSatisfy(predicate func(float64, int32) bool) bool {
 	return m.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *ImmutableFloat64Int32HashMap) NoneSatisfy(predicate func(float64, int32) bool) bool {
+func (m *ImmutableFloat64Int32) NoneSatisfy(predicate func(float64, int32) bool) bool {
 	return m.delegate.NoneSatisfy(predicate)
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *ImmutableFloat64Int32HashMap) KeysToSlice() []float64 {
+func (m *ImmutableFloat64Int32) KeysToSlice() []float64 {
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *ImmutableFloat64Int32HashMap) ValuesToSlice() []int32 {
+func (m *ImmutableFloat64Int32) ValuesToSlice() []int32 {
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *ImmutableFloat64Int32HashMap) String() string {
+func (m *ImmutableFloat64Int32) String() string {
 	return m.delegate.String()
 }
 
 // Equals returns true if the other immutable map has the same entries.
-func (m *ImmutableFloat64Int32HashMap) Equals(other *ImmutableFloat64Int32HashMap) bool {
+func (m *ImmutableFloat64Int32) Equals(other *ImmutableFloat64Int32) bool {
 	return m.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableFloat64Int32HashMap) ToMutable() *Float64Int32HashMap {
-	copy := NewFloat64Int32HashMapWithCapacity(m.Size() * 2)
+func (m *ImmutableFloat64Int32) ToMutable() *Float64Int32 {
+	copy := NewFloat64Int32WithCapacity(m.Len() * 2)
 	m.ForEach(func(k float64, v int32) {
 		copy.Put(k, v)
 	})

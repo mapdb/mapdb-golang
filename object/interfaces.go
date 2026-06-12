@@ -18,9 +18,9 @@ import "iter"
 // ── Composable sub-interfaces ─────────────────────────────────────────
 
 // Sized exposes the element count of a collection.
+// Use x.Len() == 0 to test for emptiness.
 type Sized interface {
-	Size() int
-	IsEmpty() bool
+	Len() int
 }
 
 // Iterable provides element-by-element traversal.
@@ -64,7 +64,7 @@ type MutableCollection[T comparable] interface {
 // List is the read-only interface for ordered collections with positional access.
 type List[T comparable] interface {
 	Collection[T]
-	Get(index int) (T, error)
+	Get(index int) T
 	IndexOf(value T) int
 }
 
@@ -73,7 +73,7 @@ type MutableList[T comparable] interface {
 	List[T]
 	MutableCollection[T]
 	Add(value T)
-	Set(index int, value T) (T, error)
+	Set(index int, value T) T
 }
 
 // Set is the read-only interface for collections with unique elements.
@@ -106,7 +106,7 @@ type MutableBag[T comparable] interface {
 // Stack is the read-only interface for LIFO stacks.
 type Stack[T comparable] interface {
 	Collection[T]
-	Peek() (T, error)
+	Peek() (T, bool)
 }
 
 // MutableStack extends Stack with push/pop.
@@ -114,7 +114,7 @@ type MutableStack[T comparable] interface {
 	Stack[T]
 	MutableCollection[T]
 	Push(value T)
-	Pop() (T, error)
+	Pop() (T, bool)
 }
 
 // ── Map interfaces ────────────────────────────────────────────────────
@@ -123,8 +123,7 @@ type MutableStack[T comparable] interface {
 type MapIterable[K comparable, V any] interface {
 	Get(key K) (V, bool)
 	ContainsKey(key K) bool
-	Size() int
-	IsEmpty() bool
+	Len() int
 	All() iter.Seq2[K, V]
 	Keys() iter.Seq[K]
 	Values() iter.Seq[V]

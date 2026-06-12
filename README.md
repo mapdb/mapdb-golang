@@ -6,32 +6,40 @@ High-performance primitive-specialized and generic collections for Go, inspired 
 
 Go's standard library provides `map` and `slice` — great general-purpose containers, but they box all values and lack the rich iteration API that Eclipse Collections is known for. This library provides:
 
-- **Primitive-specialized types** (`Int32ArrayList`, `Int32HashSet`, `Int32Int64HashMap`, etc.) with no interface boxing and contiguous memory layout
-- **Generic object collections** (`ArrayList[T]`, `HashSet[T]`, `HashMap[K,V]`, etc.) with the full Eclipse Collections API
+- **Primitive-specialized types** — de-stuttered so the type never repeats its package name: `arraylist.Int32`, `hashset.Int32`, `hashmap.Int32Int64`, etc. — with no interface boxing and contiguous memory layout
+- **Generic object collections** (`object.ArrayList[T]`, `object.HashSet[T]`, `object.HashMap[K,V]`, etc.) with the full Eclipse Collections API
 - Rich functional methods: `Select`, `Reject`, `Detect`, `AnySatisfy`, `AllSatisfy`, `InjectInto`, `Collect`, and more
 
 ## Primitive Collections
 
-Mutable types, one per primitive. Primitive counts by type:
+Mutable types, one per primitive. Each lives in its own package, and the type
+name no longer repeats the package name (Go de-stutter convention — `arraylist.Int32`,
+not `arraylist.Int32ArrayList`). Primitive counts by type:
 
-| Type | Example | Supported primitives |
-|------|---------|----------------------|
-| **ArrayList** | `Int32ArrayList` | 7 (int8, int16, int32, int64, uint16, float32, float64) |
-| **HashSet** | `Int32HashSet` | 8 (the above + bool) |
-| **HashBag** | `Int32HashBag` | 7 |
-| **ArrayStack** | `Int32ArrayStack` | 7 |
-| **ArrayDeque** | `Int32ArrayDeque` | 7 — ring-buffered, O(1) both ends |
-| **HashMap** | `Int32Int64HashMap` | 49 pairs (7×7) |
-| **TreeSet** | `Int32TreeSet` | 7 |
-| **TreeMap** | `Int32Int64TreeMap` | 49 pairs, NavigableMap-style API |
-| **PriorityQueue** | `Int32PriorityQueue` | 7 |
-| **BitSet** | `BitSet` | — |
-| **Pair** | `Int32Int64Pair` | 49 pairs + Object variants |
-| **Interval** | `Int32Interval` | signed int types only (4) |
+| Package | Example | Supported primitives |
+|---------|---------|----------------------|
+| `arraylist` | `arraylist.Int32` | 7 (int8, int16, int32, int64, uint16, float32, float64) |
+| `hashset` | `hashset.Int32` | 8 (the above + bool) |
+| `bag` | `bag.HashInt32`, `bag.TreeInt32` | 7 |
+| `stack` | `stack.Int32` | 7 |
+| `deque` | `deque.Int32` | 7 — ring-buffered, O(1) both ends |
+| `hashmap` | `hashmap.Int32Int64` | 49 pairs (7×7) |
+| `treeset` | `treeset.Int32` | 7 |
+| `treemap` | `treemap.Int32Int64` | 49 pairs, NavigableMap-style API |
+| `priorityqueue` | `priorityqueue.Int32` | 7 |
+| `sentinelhashmap` | `sentinelhashmap.Int32Int32` | open-addressed, sentinel-key |
+| `bitset` | `bitset.BitSet` | — |
+| `tuple` | `tuple.Int32Int64Pair` | 49 pairs + Object variants |
+| `interval` | `interval.Int32` | signed int types only (4) |
 
 `uint16` is the Go mapping of Java's `char` — it flows through every template that supports unsigned arithmetic. `bool` is supported on HashSet today; extending it to the other containers is tracked as follow-up work (requires gating out the Sort / Sum / Min / Max / BinarySearch paths in the individual templates).
 
-Every mutable type has an `Immutable` counterpart (`ImmutableInt32ArrayList`, etc.) obtained via `ToImmutable()`. A `Synchronized` wrapper exposes the full mutable surface under an internal `sync.RWMutex` so reads, writes, and callback-based functional methods can be mixed freely from multiple goroutines.
+The bag package keeps a discriminator (hash- vs tree-backed) in front of the
+primitive: `bag.HashInt32` and `bag.TreeInt32`. The multimap package keeps the
+list-vs-set discriminator after the key/value names: `multimap.Int32Int32List`
+and `multimap.Int32Int32Set`.
+
+Every mutable type has an `Immutable` counterpart (`arraylist.ImmutableInt32`, etc.) obtained via `ToImmutable()`. A `Synchronized` wrapper exposes the full mutable surface under an internal `sync.RWMutex` so reads, writes, and callback-based functional methods can be mixed freely from multiple goroutines. The base (open-addressed and map-backed) types are usable from their zero value (lazy-initialized on first write), except the `BiMap` types, which must be created via their `New…BiMap` constructors; the `Synchronized*` wrappers are construct-only — use their `NewSynchronized*` constructors.
 
 ## Object Collections
 
@@ -82,10 +90,13 @@ import (
     "github.com/mapdb/mapdb-golang/object"
 )
 
-// Primitive ArrayList
-list := arraylist.Int32ArrayListOf(3, 1, 4, 1, 5)
+// Primitive ArrayList (de-stuttered: arraylist.Int32, not Int32ArrayList)
+list := arraylist.Int32Of(3, 1, 4, 1, 5)
 list.Sort()
 selected := list.Select(func(v int32) bool { return v > 2 })
+first := list.Get(0) // panics on out-of-range index, like a native slice
+_ = first
+_ = list.Len() // Len(), not Size(); use list.Len() == 0 for emptiness
 
 // Generic ArrayList
 names := object.NewArrayList[string]()

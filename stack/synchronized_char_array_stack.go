@@ -8,30 +8,30 @@ import (
 	"unsafe"
 )
 
-// SynchronizedCharArrayStack is a thread-safe wrapper around CharArrayStack.
+// SynchronizedChar is a thread-safe wrapper around Char.
 //
 // Read methods hold an RLock; writes hold a Lock. Callback methods
 // (ForEach/Select/…) snapshot under RLock and run the callback
 // unlocked so it can safely re-enter the wrapper.
-type SynchronizedCharArrayStack struct {
-	delegate *CharArrayStack
+type SynchronizedChar struct {
+	delegate *Char
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedCharArrayStack creates a new thread-safe empty stack.
-func NewSynchronizedCharArrayStack() *SynchronizedCharArrayStack {
-	return &SynchronizedCharArrayStack{delegate: NewCharArrayStack()}
+// NewSynchronizedChar creates a new thread-safe empty stack.
+func NewSynchronizedChar() *SynchronizedChar {
+	return &SynchronizedChar{delegate: NewChar()}
 }
 
-// NewSynchronizedCharArrayStackFrom wraps an existing stack. The
+// NewSynchronizedCharFrom wraps an existing stack. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedCharArrayStackFrom(s *CharArrayStack) *SynchronizedCharArrayStack {
-	return &SynchronizedCharArrayStack{delegate: s}
+func NewSynchronizedCharFrom(s *Char) *SynchronizedChar {
+	return &SynchronizedChar{delegate: s}
 }
 
 // snapshot copies the stack contents under RLock. The returned slice
 // is ordered the same way the delegate's ToSlice would order it.
-func (s *SynchronizedCharArrayStack) snapshot() []uint16 {
+func (s *SynchronizedChar) snapshot() []uint16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -39,19 +39,19 @@ func (s *SynchronizedCharArrayStack) snapshot() []uint16 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedCharArrayStack) Push(value uint16) {
+func (s *SynchronizedChar) Push(value uint16) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Push(value)
 }
 
-func (s *SynchronizedCharArrayStack) Pop() (uint16, error) {
+func (s *SynchronizedChar) Pop() (uint16, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Pop()
 }
 
-func (s *SynchronizedCharArrayStack) Clear() {
+func (s *SynchronizedChar) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -59,47 +59,38 @@ func (s *SynchronizedCharArrayStack) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedCharArrayStack) Peek() (uint16, error) {
+func (s *SynchronizedChar) Peek() (uint16, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
 }
 
-func (s *SynchronizedCharArrayStack) PeekAt(index int) (uint16, error) {
+func (s *SynchronizedChar) PeekAt(index int) uint16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.PeekAt(index)
 }
 
-func (s *SynchronizedCharArrayStack) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedChar) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedCharArrayStack) Len() int { return s.Size() }
-
-func (s *SynchronizedCharArrayStack) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedCharArrayStack) Contains(value uint16) bool {
+func (s *SynchronizedChar) Contains(value uint16) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedCharArrayStack) ToSlice() []uint16 {
+func (s *SynchronizedChar) ToSlice() []uint16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedCharArrayStack) String() string {
+func (s *SynchronizedChar) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -107,7 +98,7 @@ func (s *SynchronizedCharArrayStack) String() string {
 
 // ── iteration ────────────────────────────────────────────────────────
 
-func (s *SynchronizedCharArrayStack) All() iter.Seq[uint16] {
+func (s *SynchronizedChar) All() iter.Seq[uint16] {
 	snapshot := s.snapshot()
 	return func(yield func(uint16) bool) {
 		for _, v := range snapshot {
@@ -120,13 +111,13 @@ func (s *SynchronizedCharArrayStack) All() iter.Seq[uint16] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedCharArrayStack) ForEach(f func(uint16)) {
+func (s *SynchronizedChar) ForEach(f func(uint16)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedCharArrayStack) AnySatisfy(predicate func(uint16) bool) bool {
+func (s *SynchronizedChar) AnySatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -135,7 +126,7 @@ func (s *SynchronizedCharArrayStack) AnySatisfy(predicate func(uint16) bool) boo
 	return false
 }
 
-func (s *SynchronizedCharArrayStack) AllSatisfy(predicate func(uint16) bool) bool {
+func (s *SynchronizedChar) AllSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -144,7 +135,7 @@ func (s *SynchronizedCharArrayStack) AllSatisfy(predicate func(uint16) bool) boo
 	return true
 }
 
-func (s *SynchronizedCharArrayStack) NoneSatisfy(predicate func(uint16) bool) bool {
+func (s *SynchronizedChar) NoneSatisfy(predicate func(uint16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -153,7 +144,7 @@ func (s *SynchronizedCharArrayStack) NoneSatisfy(predicate func(uint16) bool) bo
 	return true
 }
 
-func (s *SynchronizedCharArrayStack) Count(predicate func(uint16) bool) int {
+func (s *SynchronizedChar) Count(predicate func(uint16) bool) int {
 	n := 0
 	for _, v := range s.snapshot() {
 		if predicate(v) {
@@ -163,7 +154,7 @@ func (s *SynchronizedCharArrayStack) Count(predicate func(uint16) bool) int {
 	return n
 }
 
-func (s *SynchronizedCharArrayStack) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (s *SynchronizedChar) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -173,7 +164,7 @@ func (s *SynchronizedCharArrayStack) Detect(predicate func(uint16) bool) (uint16
 	return zero, false
 }
 
-func (s *SynchronizedCharArrayStack) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
+func (s *SynchronizedChar) InjectInto(initial uint16, f func(uint16, uint16) uint16) uint16 {
 	acc := initial
 	for _, v := range s.snapshot() {
 		acc = f(acc, v)
@@ -183,13 +174,13 @@ func (s *SynchronizedCharArrayStack) InjectInto(initial uint16, f func(uint16, u
 
 // ── functional that return a new stack ───────────────────────────────
 
-func (s *SynchronizedCharArrayStack) Select(predicate func(uint16) bool) *CharArrayStack {
+func (s *SynchronizedChar) Select(predicate func(uint16) bool) *Char {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Select(predicate)
 }
 
-func (s *SynchronizedCharArrayStack) Reject(predicate func(uint16) bool) *CharArrayStack {
+func (s *SynchronizedChar) Reject(predicate func(uint16) bool) *Char {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Reject(predicate)
@@ -197,23 +188,23 @@ func (s *SynchronizedCharArrayStack) Reject(predicate func(uint16) bool) *CharAr
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedCharArrayStack) With(value uint16) *SynchronizedCharArrayStack {
+func (s *SynchronizedChar) AddReturning(value uint16) *SynchronizedChar {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedCharArrayStack) WithAll(values ...uint16) *SynchronizedCharArrayStack {
+func (s *SynchronizedChar) AddAllReturning(values ...uint16) *SynchronizedChar {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (s *SynchronizedCharArrayStack) ToImmutable() *ImmutableCharArrayStack {
+func (s *SynchronizedChar) ToImmutable() *ImmutableChar {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -221,7 +212,7 @@ func (s *SynchronizedCharArrayStack) ToImmutable() *ImmutableCharArrayStack {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (s *SynchronizedCharArrayStack) Equals(other *SynchronizedCharArrayStack) bool {
+func (s *SynchronizedChar) Equals(other *SynchronizedChar) bool {
 	if s == other {
 		s.mu.RLock()
 		defer s.mu.RUnlock()

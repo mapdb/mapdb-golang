@@ -1,12 +1,11 @@
-
 package multimap
 
 import (
 	"testing"
 )
 
-func TestFloat64Int32ListMultimap_Generated_PutGet(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_PutGet(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	m.Put(2.0, 3)
@@ -21,16 +20,16 @@ func TestFloat64Int32ListMultimap_Generated_PutGet(t *testing.T) {
 	if len(m.Get(99.0)) != 0 {
 		t.Errorf("Get(99.0) len = %d, want 0", len(m.Get(99.0)))
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
 	if m.KeysCount() != 2 {
 		t.Errorf("KeysCount() = %d, want 2", m.KeysCount())
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_GetAll(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_GetAll(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	vals := m.GetAll(1.0)
@@ -39,8 +38,8 @@ func TestFloat64Int32ListMultimap_Generated_GetAll(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_GetDoesNotAlias(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_GetDoesNotAlias(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	vals := m.Get(1.0)
@@ -50,8 +49,8 @@ func TestFloat64Int32ListMultimap_Generated_GetDoesNotAlias(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_RemoveAll(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_RemoveAll(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	m.Put(2.0, 3)
@@ -59,8 +58,8 @@ func TestFloat64Int32ListMultimap_Generated_RemoveAll(t *testing.T) {
 	if len(removed) != 2 {
 		t.Errorf("RemoveAll returned %d values, want 2", len(removed))
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size() = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size() = %d, want 1", m.Len())
 	}
 	if m.KeysCount() != 1 {
 		t.Errorf("KeysCount() = %d, want 1", m.KeysCount())
@@ -70,8 +69,8 @@ func TestFloat64Int32ListMultimap_Generated_RemoveAll(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_ContainsKey(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_ContainsKey(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	if !m.ContainsKey(1.0) {
 		t.Errorf("ContainsKey(1.0) = false, want true")
@@ -81,8 +80,8 @@ func TestFloat64Int32ListMultimap_Generated_ContainsKey(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_ContainsKeyValue(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_ContainsKeyValue(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	if !m.ContainsKeyValue(1.0, 1) {
@@ -93,21 +92,21 @@ func TestFloat64Int32ListMultimap_Generated_ContainsKeyValue(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_Clear(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_Clear(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(2.0, 2)
 	m.Clear()
-	if !m.IsEmpty() {
+	if m.Len() != 0 {
 		t.Errorf("IsEmpty() = false after Clear, want true")
 	}
-	if m.Size() != 0 {
-		t.Errorf("Size() = %d after Clear, want 0", m.Size())
+	if m.Len() != 0 {
+		t.Errorf("Size() = %d after Clear, want 0", m.Len())
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_ForEach(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_ForEach(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	m.Put(2.0, 3)
@@ -120,8 +119,8 @@ func TestFloat64Int32ListMultimap_Generated_ForEach(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_ForEachKeyValues(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_ForEachKeyValues(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	m.Put(2.0, 3)
@@ -141,23 +140,23 @@ func TestFloat64Int32ListMultimap_Generated_ForEachKeyValues(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_SelectReject(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_SelectReject(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	m.Put(2.0, 3)
 	sel := m.Select(func(_ float64, v int32) bool { return v == 1 })
-	if sel.Size() != 1 {
-		t.Errorf("Select size = %d, want 1", sel.Size())
+	if sel.Len() != 1 {
+		t.Errorf("Select size = %d, want 1", sel.Len())
 	}
 	rej := m.Reject(func(_ float64, v int32) bool { return v == 1 })
-	if rej.Size() != 2 {
-		t.Errorf("Reject size = %d, want 2", rej.Size())
+	if rej.Len() != 2 {
+		t.Errorf("Reject size = %d, want 2", rej.Len())
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_KeysValues(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_KeysValues(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	m.Put(1.0, 2)
 	m.Put(2.0, 3)
@@ -171,11 +170,11 @@ func TestFloat64Int32ListMultimap_Generated_KeysValues(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_Equals(t *testing.T) {
-	m1 := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_Equals(t *testing.T) {
+	m1 := NewFloat64Int32List()
 	m1.Put(1.0, 1)
 	m1.Put(1.0, 2)
-	m2 := NewFloat64Int32ListMultimap()
+	m2 := NewFloat64Int32List()
 	m2.Put(1.0, 1)
 	m2.Put(1.0, 2)
 	if !m1.Equals(m2) {
@@ -183,8 +182,8 @@ func TestFloat64Int32ListMultimap_Generated_Equals(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_String(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
+func TestFloat64Int32List_Generated_String(t *testing.T) {
+	m := NewFloat64Int32List()
 	m.Put(1.0, 1)
 	s := m.String()
 	if len(s) == 0 {
@@ -192,14 +191,14 @@ func TestFloat64Int32ListMultimap_Generated_String(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32ListMultimap_Generated_FluentAPI(t *testing.T) {
-	m := NewFloat64Int32ListMultimap()
-	m.WithKeyValue(1.0, 1).WithKeyValue(1.0, 2).WithKeyValue(2.0, 3)
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+func TestFloat64Int32List_Generated_FluentAPI(t *testing.T) {
+	m := NewFloat64Int32List()
+	m.PutReturning(1.0, 1).PutReturning(1.0, 2).PutReturning(2.0, 3)
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
-	m.WithoutKey(1.0)
-	if m.Size() != 1 {
-		t.Errorf("Size() = %d after WithoutKey, want 1", m.Size())
+	m.RemoveKeyReturning(1.0)
+	if m.Len() != 1 {
+		t.Errorf("Size() = %d after RemoveKeyReturning, want 1", m.Len())
 	}
 }

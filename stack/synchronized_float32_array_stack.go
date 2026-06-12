@@ -8,30 +8,30 @@ import (
 	"unsafe"
 )
 
-// SynchronizedFloat32ArrayStack is a thread-safe wrapper around Float32ArrayStack.
+// SynchronizedFloat32 is a thread-safe wrapper around Float32.
 //
 // Read methods hold an RLock; writes hold a Lock. Callback methods
 // (ForEach/Select/…) snapshot under RLock and run the callback
 // unlocked so it can safely re-enter the wrapper.
-type SynchronizedFloat32ArrayStack struct {
-	delegate *Float32ArrayStack
+type SynchronizedFloat32 struct {
+	delegate *Float32
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedFloat32ArrayStack creates a new thread-safe empty stack.
-func NewSynchronizedFloat32ArrayStack() *SynchronizedFloat32ArrayStack {
-	return &SynchronizedFloat32ArrayStack{delegate: NewFloat32ArrayStack()}
+// NewSynchronizedFloat32 creates a new thread-safe empty stack.
+func NewSynchronizedFloat32() *SynchronizedFloat32 {
+	return &SynchronizedFloat32{delegate: NewFloat32()}
 }
 
-// NewSynchronizedFloat32ArrayStackFrom wraps an existing stack. The
+// NewSynchronizedFloat32From wraps an existing stack. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedFloat32ArrayStackFrom(s *Float32ArrayStack) *SynchronizedFloat32ArrayStack {
-	return &SynchronizedFloat32ArrayStack{delegate: s}
+func NewSynchronizedFloat32From(s *Float32) *SynchronizedFloat32 {
+	return &SynchronizedFloat32{delegate: s}
 }
 
 // snapshot copies the stack contents under RLock. The returned slice
 // is ordered the same way the delegate's ToSlice would order it.
-func (s *SynchronizedFloat32ArrayStack) snapshot() []float32 {
+func (s *SynchronizedFloat32) snapshot() []float32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -39,19 +39,19 @@ func (s *SynchronizedFloat32ArrayStack) snapshot() []float32 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32ArrayStack) Push(value float32) {
+func (s *SynchronizedFloat32) Push(value float32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Push(value)
 }
 
-func (s *SynchronizedFloat32ArrayStack) Pop() (float32, error) {
+func (s *SynchronizedFloat32) Pop() (float32, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Pop()
 }
 
-func (s *SynchronizedFloat32ArrayStack) Clear() {
+func (s *SynchronizedFloat32) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -59,47 +59,38 @@ func (s *SynchronizedFloat32ArrayStack) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32ArrayStack) Peek() (float32, error) {
+func (s *SynchronizedFloat32) Peek() (float32, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
 }
 
-func (s *SynchronizedFloat32ArrayStack) PeekAt(index int) (float32, error) {
+func (s *SynchronizedFloat32) PeekAt(index int) float32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.PeekAt(index)
 }
 
-func (s *SynchronizedFloat32ArrayStack) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedFloat32) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedFloat32ArrayStack) Len() int { return s.Size() }
-
-func (s *SynchronizedFloat32ArrayStack) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedFloat32ArrayStack) Contains(value float32) bool {
+func (s *SynchronizedFloat32) Contains(value float32) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedFloat32ArrayStack) ToSlice() []float32 {
+func (s *SynchronizedFloat32) ToSlice() []float32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedFloat32ArrayStack) String() string {
+func (s *SynchronizedFloat32) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -107,7 +98,7 @@ func (s *SynchronizedFloat32ArrayStack) String() string {
 
 // ── iteration ────────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32ArrayStack) All() iter.Seq[float32] {
+func (s *SynchronizedFloat32) All() iter.Seq[float32] {
 	snapshot := s.snapshot()
 	return func(yield func(float32) bool) {
 		for _, v := range snapshot {
@@ -120,13 +111,13 @@ func (s *SynchronizedFloat32ArrayStack) All() iter.Seq[float32] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedFloat32ArrayStack) ForEach(f func(float32)) {
+func (s *SynchronizedFloat32) ForEach(f func(float32)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedFloat32ArrayStack) AnySatisfy(predicate func(float32) bool) bool {
+func (s *SynchronizedFloat32) AnySatisfy(predicate func(float32) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -135,7 +126,7 @@ func (s *SynchronizedFloat32ArrayStack) AnySatisfy(predicate func(float32) bool)
 	return false
 }
 
-func (s *SynchronizedFloat32ArrayStack) AllSatisfy(predicate func(float32) bool) bool {
+func (s *SynchronizedFloat32) AllSatisfy(predicate func(float32) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -144,7 +135,7 @@ func (s *SynchronizedFloat32ArrayStack) AllSatisfy(predicate func(float32) bool)
 	return true
 }
 
-func (s *SynchronizedFloat32ArrayStack) NoneSatisfy(predicate func(float32) bool) bool {
+func (s *SynchronizedFloat32) NoneSatisfy(predicate func(float32) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -153,7 +144,7 @@ func (s *SynchronizedFloat32ArrayStack) NoneSatisfy(predicate func(float32) bool
 	return true
 }
 
-func (s *SynchronizedFloat32ArrayStack) Count(predicate func(float32) bool) int {
+func (s *SynchronizedFloat32) Count(predicate func(float32) bool) int {
 	n := 0
 	for _, v := range s.snapshot() {
 		if predicate(v) {
@@ -163,7 +154,7 @@ func (s *SynchronizedFloat32ArrayStack) Count(predicate func(float32) bool) int 
 	return n
 }
 
-func (s *SynchronizedFloat32ArrayStack) Detect(predicate func(float32) bool) (float32, bool) {
+func (s *SynchronizedFloat32) Detect(predicate func(float32) bool) (float32, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -173,7 +164,7 @@ func (s *SynchronizedFloat32ArrayStack) Detect(predicate func(float32) bool) (fl
 	return zero, false
 }
 
-func (s *SynchronizedFloat32ArrayStack) InjectInto(initial float32, f func(float32, float32) float32) float32 {
+func (s *SynchronizedFloat32) InjectInto(initial float32, f func(float32, float32) float32) float32 {
 	acc := initial
 	for _, v := range s.snapshot() {
 		acc = f(acc, v)
@@ -183,13 +174,13 @@ func (s *SynchronizedFloat32ArrayStack) InjectInto(initial float32, f func(float
 
 // ── functional that return a new stack ───────────────────────────────
 
-func (s *SynchronizedFloat32ArrayStack) Select(predicate func(float32) bool) *Float32ArrayStack {
+func (s *SynchronizedFloat32) Select(predicate func(float32) bool) *Float32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Select(predicate)
 }
 
-func (s *SynchronizedFloat32ArrayStack) Reject(predicate func(float32) bool) *Float32ArrayStack {
+func (s *SynchronizedFloat32) Reject(predicate func(float32) bool) *Float32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Reject(predicate)
@@ -197,23 +188,23 @@ func (s *SynchronizedFloat32ArrayStack) Reject(predicate func(float32) bool) *Fl
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedFloat32ArrayStack) With(value float32) *SynchronizedFloat32ArrayStack {
+func (s *SynchronizedFloat32) AddReturning(value float32) *SynchronizedFloat32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedFloat32ArrayStack) WithAll(values ...float32) *SynchronizedFloat32ArrayStack {
+func (s *SynchronizedFloat32) AddAllReturning(values ...float32) *SynchronizedFloat32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (s *SynchronizedFloat32ArrayStack) ToImmutable() *ImmutableFloat32ArrayStack {
+func (s *SynchronizedFloat32) ToImmutable() *ImmutableFloat32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -221,7 +212,7 @@ func (s *SynchronizedFloat32ArrayStack) ToImmutable() *ImmutableFloat32ArrayStac
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (s *SynchronizedFloat32ArrayStack) Equals(other *SynchronizedFloat32ArrayStack) bool {
+func (s *SynchronizedFloat32) Equals(other *SynchronizedFloat32) bool {
 	if s == other {
 		s.mu.RLock()
 		defer s.mu.RUnlock()

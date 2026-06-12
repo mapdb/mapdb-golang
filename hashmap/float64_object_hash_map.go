@@ -10,28 +10,28 @@ import (
 )
 
 const (
-	float64ObjectHashMapDefaultCapacity = 16
+	float64ObjectDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// Float64ObjectHashMap is an open-addressing hash map with float64 keys and generic values.
+// Float64Object is an open-addressing hash map with float64 keys and generic values.
 // The key type is specialized to avoid boxing overhead.
-type Float64ObjectHashMap[V any] struct {
+type Float64Object[V any] struct {
 	keys     []float64
 	values   []V
 	occupied []bool
 	size     int
 }
 
-// NewFloat64ObjectHashMap creates a new empty Float64ObjectHashMap with default capacity.
-func NewFloat64ObjectHashMap[V any]() *Float64ObjectHashMap[V] {
-	return NewFloat64ObjectHashMapWithCapacity[V](float64ObjectHashMapDefaultCapacity)
+// NewFloat64Object creates a new empty Float64Object with default capacity.
+func NewFloat64Object[V any]() *Float64Object[V] {
+	return NewFloat64ObjectWithCapacity[V](float64ObjectDefaultCapacity)
 }
 
-// NewFloat64ObjectHashMapWithCapacity creates a new empty Float64ObjectHashMap with the given initial capacity.
-func NewFloat64ObjectHashMapWithCapacity[V any](capacity int) *Float64ObjectHashMap[V] {
-	cap := nextPowerOfTwoFloat64ObjectHashMap(capacity)
-	return &Float64ObjectHashMap[V]{
+// NewFloat64ObjectWithCapacity creates a new empty Float64Object with the given initial capacity.
+func NewFloat64ObjectWithCapacity[V any](capacity int) *Float64Object[V] {
+	cap := nextPowerOfTwoFloat64Object(capacity)
+	return &Float64Object[V]{
 		keys:     make([]float64, cap),
 		values:   make([]V, cap),
 		occupied: make([]bool, cap),
@@ -40,7 +40,7 @@ func NewFloat64ObjectHashMapWithCapacity[V any](capacity int) *Float64ObjectHash
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Float64ObjectHashMap[V]) Put(key float64, value V) (V, bool) {
+func (m *Float64Object[V]) Put(key float64, value V) (V, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -67,7 +67,7 @@ func (m *Float64ObjectHashMap[V]) Put(key float64, value V) (V, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Float64ObjectHashMap[V]) Get(key float64) (V, bool) {
+func (m *Float64Object[V]) Get(key float64) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -89,7 +89,7 @@ func (m *Float64ObjectHashMap[V]) Get(key float64) (V, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Float64ObjectHashMap[V]) GetOrDefault(key float64, defaultValue V) V {
+func (m *Float64Object[V]) GetOrDefault(key float64, defaultValue V) V {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -97,7 +97,7 @@ func (m *Float64ObjectHashMap[V]) GetOrDefault(key float64, defaultValue V) V {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Float64ObjectHashMap[V]) Remove(key float64) (V, bool) {
+func (m *Float64Object[V]) Remove(key float64) (V, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		var zero V
@@ -126,27 +126,18 @@ func (m *Float64ObjectHashMap[V]) Remove(key float64) (V, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Float64ObjectHashMap[V]) ContainsKey(key float64) bool {
+func (m *Float64Object[V]) ContainsKey(key float64) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Float64ObjectHashMap[V]) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float64Object[V]) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float64ObjectHashMap[V]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Float64ObjectHashMap[V]) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Float64ObjectHashMap[V]) Clear() {
+func (m *Float64Object[V]) Clear() {
 	var zeroV V
 	for i := range m.occupied {
 		m.occupied[i] = false
@@ -157,7 +148,7 @@ func (m *Float64ObjectHashMap[V]) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Float64ObjectHashMap[V]) All() iter.Seq2[float64, V] {
+func (m *Float64Object[V]) All() iter.Seq2[float64, V] {
 	return func(yield func(float64, V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -170,7 +161,7 @@ func (m *Float64ObjectHashMap[V]) All() iter.Seq2[float64, V] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Float64ObjectHashMap[V]) Keys() iter.Seq[float64] {
+func (m *Float64Object[V]) Keys() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -183,7 +174,7 @@ func (m *Float64ObjectHashMap[V]) Keys() iter.Seq[float64] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Float64ObjectHashMap[V]) Values() iter.Seq[V] {
+func (m *Float64Object[V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -196,7 +187,7 @@ func (m *Float64ObjectHashMap[V]) Values() iter.Seq[V] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Float64ObjectHashMap[V]) ForEach(f func(float64, V)) {
+func (m *Float64Object[V]) ForEach(f func(float64, V)) {
 	for i := range m.occupied {
 		if m.occupied[i] {
 			f(m.keys[i], m.values[i])
@@ -205,8 +196,8 @@ func (m *Float64ObjectHashMap[V]) ForEach(f func(float64, V)) {
 }
 
 // Select returns a new map containing only entries that satisfy the predicate.
-func (m *Float64ObjectHashMap[V]) Select(predicate func(float64, V) bool) *Float64ObjectHashMap[V] {
-	result := NewFloat64ObjectHashMap[V]()
+func (m *Float64Object[V]) Select(predicate func(float64, V) bool) *Float64Object[V] {
+	result := NewFloat64Object[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -216,8 +207,8 @@ func (m *Float64ObjectHashMap[V]) Select(predicate func(float64, V) bool) *Float
 }
 
 // Reject returns a new map containing only entries that do not satisfy the predicate.
-func (m *Float64ObjectHashMap[V]) Reject(predicate func(float64, V) bool) *Float64ObjectHashMap[V] {
-	result := NewFloat64ObjectHashMap[V]()
+func (m *Float64Object[V]) Reject(predicate func(float64, V) bool) *Float64Object[V] {
+	result := NewFloat64Object[V]()
 	for i := range m.occupied {
 		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -227,7 +218,7 @@ func (m *Float64ObjectHashMap[V]) Reject(predicate func(float64, V) bool) *Float
 }
 
 // String returns a string representation of the map.
-func (m *Float64ObjectHashMap[V]) String() string {
+func (m *Float64Object[V]) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -247,22 +238,22 @@ func (m *Float64ObjectHashMap[V]) String() string {
 	return sb.String()
 }
 
-func (m *Float64ObjectHashMap[V]) hashKey(key float64) uint64 {
+func (m *Float64Object[V]) hashKey(key float64) uint64 {
 	h := math.Float64bits(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Float64ObjectHashMap[V]) needsResize() bool {
+func (m *Float64Object[V]) needsResize() bool {
 	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *Float64ObjectHashMap[V]) resize() {
+func (m *Float64Object[V]) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	oldOccupied := m.occupied
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = float64ObjectHashMapDefaultCapacity
+		newCap = float64ObjectDefaultCapacity
 	}
 	m.keys = make([]float64, newCap)
 	m.values = make([]V, newCap)
@@ -276,7 +267,7 @@ func (m *Float64ObjectHashMap[V]) resize() {
 	}
 }
 
-func (m *Float64ObjectHashMap[V]) rehashFrom(deleted int, mask int) {
+func (m *Float64Object[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(m.hashKey(m.keys[idx])) & mask
@@ -295,7 +286,7 @@ func (m *Float64ObjectHashMap[V]) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoFloat64ObjectHashMap(n int) int {
+func nextPowerOfTwoFloat64Object(n int) int {
 	if n <= 0 {
 		return 16
 	}

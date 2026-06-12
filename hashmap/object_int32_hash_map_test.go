@@ -4,34 +4,34 @@ import (
 	"testing"
 )
 
-func TestObjectInt32HashMap_PutGet(t *testing.T) {
-	m := NewObjectInt32HashMap[string]()
+func TestObjectInt32_PutGet(t *testing.T) {
+	m := NewObjectInt32[string]()
 	m.Put("hello", 1)
 	m.Put("world", 2)
 
 	if v, ok := m.Get("hello"); !ok || v != 1 {
 		t.Errorf("Get(hello) = (%d, %v), want (1, true)", v, ok)
 	}
-	if m.Size() != 2 {
-		t.Errorf("Size() = %d, want 2", m.Size())
+	if m.Len() != 2 {
+		t.Errorf("Size() = %d, want 2", m.Len())
 	}
 }
 
-func TestObjectInt32HashMap_Remove(t *testing.T) {
-	m := NewObjectInt32HashMap[string]()
+func TestObjectInt32_Remove(t *testing.T) {
+	m := NewObjectInt32[string]()
 	m.Put("a", 10)
 	m.Put("b", 20)
 	old, ok := m.Remove("a")
 	if !ok || old != 10 {
 		t.Errorf("Remove(a) = (%d, %v), want (10, true)", old, ok)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size after remove = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size after remove = %d, want 1", m.Len())
 	}
 }
 
-func TestObjectInt32HashMap_All(t *testing.T) {
-	m := NewObjectInt32HashMap[string]()
+func TestObjectInt32_All(t *testing.T) {
+	m := NewObjectInt32[string]()
 	m.Put("x", 100)
 	m.Put("y", 200)
 

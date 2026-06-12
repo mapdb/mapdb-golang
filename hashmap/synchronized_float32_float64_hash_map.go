@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedFloat32Float64HashMap is a thread-safe wrapper around Float32Float64HashMap.
+// SynchronizedFloat32Float64 is a thread-safe wrapper around Float32Float64.
 //
 // Read methods hold RLock; writes hold Lock. Functional methods
 // (ForEach, Select, AnySatisfy, …) snapshot (keys, values) under
@@ -19,29 +19,29 @@ import (
 // hold the write lock while invoking the callback — the callback
 // must not re-enter the wrapper in that case. This matches the
 // Java EC synchronized-collection convention.
-type SynchronizedFloat32Float64HashMap struct {
-	delegate *Float32Float64HashMap
+type SynchronizedFloat32Float64 struct {
+	delegate *Float32Float64
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedFloat32Float64HashMap wraps a mutable map with synchronization.
-func NewSynchronizedFloat32Float64HashMap() *SynchronizedFloat32Float64HashMap {
-	return &SynchronizedFloat32Float64HashMap{delegate: NewFloat32Float64HashMap()}
+// NewSynchronizedFloat32Float64 wraps a mutable map with synchronization.
+func NewSynchronizedFloat32Float64() *SynchronizedFloat32Float64 {
+	return &SynchronizedFloat32Float64{delegate: NewFloat32Float64()}
 }
 
-// NewSynchronizedFloat32Float64HashMapWithCapacity wraps a new map with the given initial capacity.
-func NewSynchronizedFloat32Float64HashMapWithCapacity(capacity int) *SynchronizedFloat32Float64HashMap {
-	return &SynchronizedFloat32Float64HashMap{delegate: NewFloat32Float64HashMapWithCapacity(capacity)}
+// NewSynchronizedFloat32Float64WithCapacity wraps a new map with the given initial capacity.
+func NewSynchronizedFloat32Float64WithCapacity(capacity int) *SynchronizedFloat32Float64 {
+	return &SynchronizedFloat32Float64{delegate: NewFloat32Float64WithCapacity(capacity)}
 }
 
-// NewSynchronizedFloat32Float64HashMapFrom wraps an existing map with synchronization.
+// NewSynchronizedFloat32Float64From wraps an existing map with synchronization.
 // The wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedFloat32Float64HashMapFrom(m *Float32Float64HashMap) *SynchronizedFloat32Float64HashMap {
-	return &SynchronizedFloat32Float64HashMap{delegate: m}
+func NewSynchronizedFloat32Float64From(m *Float32Float64) *SynchronizedFloat32Float64 {
+	return &SynchronizedFloat32Float64{delegate: m}
 }
 
 // snapshot returns (keys, values) slices in matching order, taken under RLock.
-func (m *SynchronizedFloat32Float64HashMap) snapshot() (keys []float32, values []float64) {
+func (m *SynchronizedFloat32Float64) snapshot() (keys []float32, values []float64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.KeysToSlice(), m.delegate.ValuesToSlice()
@@ -50,21 +50,21 @@ func (m *SynchronizedFloat32Float64HashMap) snapshot() (keys []float32, values [
 // ── writes ────────────────────────────────────────────────────────────
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *SynchronizedFloat32Float64HashMap) Put(key float32, value float64) (float64, bool) {
+func (m *SynchronizedFloat32Float64) Put(key float32, value float64) (float64, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.Put(key, value)
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if found.
-func (m *SynchronizedFloat32Float64HashMap) Remove(key float32) (float64, bool) {
+func (m *SynchronizedFloat32Float64) Remove(key float32) (float64, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.Remove(key)
 }
 
 // Clear removes all entries.
-func (m *SynchronizedFloat32Float64HashMap) Clear() {
+func (m *SynchronizedFloat32Float64) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delegate.Clear()
@@ -72,7 +72,7 @@ func (m *SynchronizedFloat32Float64HashMap) Clear() {
 
 // AddToValue increments the value for the given key by `amount`,
 // inserting it if absent. Holds the write lock; returns the new value.
-func (m *SynchronizedFloat32Float64HashMap) AddToValue(key float32, amount float64) float64 {
+func (m *SynchronizedFloat32Float64) AddToValue(key float32, amount float64) float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.AddToValue(key, amount)
@@ -81,7 +81,7 @@ func (m *SynchronizedFloat32Float64HashMap) AddToValue(key float32, amount float
 // UpdateValue applies f to the current (or initial) value under the
 // write lock. The callback must not re-enter this wrapper — it will
 // deadlock. Prefer Get + Put on caller side if re-entry is needed.
-func (m *SynchronizedFloat32Float64HashMap) UpdateValue(key float32, initial float64, f func(float64) float64) float64 {
+func (m *SynchronizedFloat32Float64) UpdateValue(key float32, initial float64, f func(float64) float64) float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.UpdateValue(key, initial, f)
@@ -90,74 +90,63 @@ func (m *SynchronizedFloat32Float64HashMap) UpdateValue(key float32, initial flo
 // ── simple reads ──────────────────────────────────────────────────────
 
 // Get returns the value for the given key and true if found.
-func (m *SynchronizedFloat32Float64HashMap) Get(key float32) (float64, bool) {
+func (m *SynchronizedFloat32Float64) Get(key float32) (float64, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *SynchronizedFloat32Float64HashMap) GetOrDefault(key float32, defaultValue float64) float64 {
+func (m *SynchronizedFloat32Float64) GetOrDefault(key float32, defaultValue float64) float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *SynchronizedFloat32Float64HashMap) ContainsKey(key float32) bool {
+func (m *SynchronizedFloat32Float64) ContainsKey(key float32) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if any entry's value matches.
-func (m *SynchronizedFloat32Float64HashMap) ContainsValue(value float64) bool {
+func (m *SynchronizedFloat32Float64) ContainsValue(value float64) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *SynchronizedFloat32Float64HashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *SynchronizedFloat32Float64) Len() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *SynchronizedFloat32Float64HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *SynchronizedFloat32Float64HashMap) IsEmpty() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.delegate.IsEmpty()
+	return m.delegate.Len()
 }
 
 // SumOfValues returns the sum of all values, under RLock.
-func (m *SynchronizedFloat32Float64HashMap) SumOfValues() float64 {
+func (m *SynchronizedFloat32Float64) SumOfValues() float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.SumOfValues()
 }
 
 // KeysToSlice returns a copy of all keys.
-func (m *SynchronizedFloat32Float64HashMap) KeysToSlice() []float32 {
+func (m *SynchronizedFloat32Float64) KeysToSlice() []float32 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns a copy of all values.
-func (m *SynchronizedFloat32Float64HashMap) ValuesToSlice() []float64 {
+func (m *SynchronizedFloat32Float64) ValuesToSlice() []float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *SynchronizedFloat32Float64HashMap) String() string {
+func (m *SynchronizedFloat32Float64) String() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.String()
@@ -167,7 +156,7 @@ func (m *SynchronizedFloat32Float64HashMap) String() string {
 
 // All returns an iter.Seq2 over a snapshot of all key-value pairs.
 // Iteration is lock-free.
-func (m *SynchronizedFloat32Float64HashMap) All() iter.Seq2[float32, float64] {
+func (m *SynchronizedFloat32Float64) All() iter.Seq2[float32, float64] {
 	keys, values := m.snapshot()
 	return func(yield func(float32, float64) bool) {
 		for i := range keys {
@@ -179,7 +168,7 @@ func (m *SynchronizedFloat32Float64HashMap) All() iter.Seq2[float32, float64] {
 }
 
 // Keys returns an iter.Seq over a snapshot of keys.
-func (m *SynchronizedFloat32Float64HashMap) Keys() iter.Seq[float32] {
+func (m *SynchronizedFloat32Float64) Keys() iter.Seq[float32] {
 	keys, _ := m.snapshot()
 	return func(yield func(float32) bool) {
 		for _, k := range keys {
@@ -191,7 +180,7 @@ func (m *SynchronizedFloat32Float64HashMap) Keys() iter.Seq[float32] {
 }
 
 // Values returns an iter.Seq over a snapshot of values.
-func (m *SynchronizedFloat32Float64HashMap) Values() iter.Seq[float64] {
+func (m *SynchronizedFloat32Float64) Values() iter.Seq[float64] {
 	_, values := m.snapshot()
 	return func(yield func(float64) bool) {
 		for _, v := range values {
@@ -205,7 +194,7 @@ func (m *SynchronizedFloat32Float64HashMap) Values() iter.Seq[float64] {
 // ── functional (callback) methods over snapshot ──────────────────────
 
 // ForEach iterates entries over a snapshot. Callback runs unlocked.
-func (m *SynchronizedFloat32Float64HashMap) ForEach(f func(float32, float64)) {
+func (m *SynchronizedFloat32Float64) ForEach(f func(float32, float64)) {
 	keys, values := m.snapshot()
 	for i := range keys {
 		f(keys[i], values[i])
@@ -213,7 +202,7 @@ func (m *SynchronizedFloat32Float64HashMap) ForEach(f func(float32, float64)) {
 }
 
 // ForEachKey iterates keys over a snapshot. Callback runs unlocked.
-func (m *SynchronizedFloat32Float64HashMap) ForEachKey(f func(float32)) {
+func (m *SynchronizedFloat32Float64) ForEachKey(f func(float32)) {
 	keys, _ := m.snapshot()
 	for _, k := range keys {
 		f(k)
@@ -221,7 +210,7 @@ func (m *SynchronizedFloat32Float64HashMap) ForEachKey(f func(float32)) {
 }
 
 // ForEachValue iterates values over a snapshot. Callback runs unlocked.
-func (m *SynchronizedFloat32Float64HashMap) ForEachValue(f func(float64)) {
+func (m *SynchronizedFloat32Float64) ForEachValue(f func(float64)) {
 	_, values := m.snapshot()
 	for _, v := range values {
 		f(v)
@@ -229,7 +218,7 @@ func (m *SynchronizedFloat32Float64HashMap) ForEachValue(f func(float64)) {
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *SynchronizedFloat32Float64HashMap) AnySatisfy(predicate func(float32, float64) bool) bool {
+func (m *SynchronizedFloat32Float64) AnySatisfy(predicate func(float32, float64) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -240,7 +229,7 @@ func (m *SynchronizedFloat32Float64HashMap) AnySatisfy(predicate func(float32, f
 }
 
 // AllSatisfy returns true if every entry satisfies the predicate.
-func (m *SynchronizedFloat32Float64HashMap) AllSatisfy(predicate func(float32, float64) bool) bool {
+func (m *SynchronizedFloat32Float64) AllSatisfy(predicate func(float32, float64) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if !predicate(keys[i], values[i]) {
@@ -251,7 +240,7 @@ func (m *SynchronizedFloat32Float64HashMap) AllSatisfy(predicate func(float32, f
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *SynchronizedFloat32Float64HashMap) NoneSatisfy(predicate func(float32, float64) bool) bool {
+func (m *SynchronizedFloat32Float64) NoneSatisfy(predicate func(float32, float64) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -262,7 +251,7 @@ func (m *SynchronizedFloat32Float64HashMap) NoneSatisfy(predicate func(float32, 
 }
 
 // Count returns the number of entries satisfying the predicate.
-func (m *SynchronizedFloat32Float64HashMap) Count(predicate func(float32, float64) bool) int {
+func (m *SynchronizedFloat32Float64) Count(predicate func(float32, float64) bool) int {
 	keys, values := m.snapshot()
 	n := 0
 	for i := range keys {
@@ -274,7 +263,7 @@ func (m *SynchronizedFloat32Float64HashMap) Count(predicate func(float32, float6
 }
 
 // Detect returns any entry satisfying the predicate, or zero values and false.
-func (m *SynchronizedFloat32Float64HashMap) Detect(predicate func(float32, float64) bool) (float32, float64, bool) {
+func (m *SynchronizedFloat32Float64) Detect(predicate func(float32, float64) bool) (float32, float64, bool) {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -287,7 +276,7 @@ func (m *SynchronizedFloat32Float64HashMap) Detect(predicate func(float32, float
 }
 
 // InjectInto folds entries into an accumulator, callback unlocked.
-func (m *SynchronizedFloat32Float64HashMap) InjectInto(initial float64, f func(float64, float32, float64) float64) float64 {
+func (m *SynchronizedFloat32Float64) InjectInto(initial float64, f func(float64, float32, float64) float64) float64 {
 	keys, values := m.snapshot()
 	acc := initial
 	for i := range keys {
@@ -299,9 +288,9 @@ func (m *SynchronizedFloat32Float64HashMap) InjectInto(initial float64, f func(f
 // ── functional that return a new map ─────────────────────────────────
 
 // Select returns a new (unsynchronized) map with entries satisfying predicate.
-func (m *SynchronizedFloat32Float64HashMap) Select(predicate func(float32, float64) bool) *Float32Float64HashMap {
+func (m *SynchronizedFloat32Float64) Select(predicate func(float32, float64) bool) *Float32Float64 {
 	keys, values := m.snapshot()
-	result := NewFloat32Float64HashMap()
+	result := NewFloat32Float64()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
 			result.Put(keys[i], values[i])
@@ -311,9 +300,9 @@ func (m *SynchronizedFloat32Float64HashMap) Select(predicate func(float32, float
 }
 
 // Reject returns a new (unsynchronized) map with entries NOT satisfying predicate.
-func (m *SynchronizedFloat32Float64HashMap) Reject(predicate func(float32, float64) bool) *Float32Float64HashMap {
+func (m *SynchronizedFloat32Float64) Reject(predicate func(float32, float64) bool) *Float32Float64 {
 	keys, values := m.snapshot()
-	result := NewFloat32Float64HashMap()
+	result := NewFloat32Float64()
 	for i := range keys {
 		if !predicate(keys[i], values[i]) {
 			result.Put(keys[i], values[i])
@@ -324,24 +313,24 @@ func (m *SynchronizedFloat32Float64HashMap) Reject(predicate func(float32, float
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (m *SynchronizedFloat32Float64HashMap) WithKeyValue(key float32, value float64) *SynchronizedFloat32Float64HashMap {
+func (m *SynchronizedFloat32Float64) PutReturning(key float32, value float64) *SynchronizedFloat32Float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.delegate.WithKeyValue(key, value)
+	m.delegate.PutReturning(key, value)
 	return m
 }
 
-func (m *SynchronizedFloat32Float64HashMap) WithoutKey(key float32) *SynchronizedFloat32Float64HashMap {
+func (m *SynchronizedFloat32Float64) RemoveKeyReturning(key float32) *SynchronizedFloat32Float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.delegate.WithoutKey(key)
+	m.delegate.RemoveKeyReturning(key)
 	return m
 }
 
 // WithoutAllKeys is variadic for caller convenience; internally the
 // slice is passed straight through since the underlying method already
 // accepts a slice.
-func (m *SynchronizedFloat32Float64HashMap) WithoutAllKeys(keys ...float32) *SynchronizedFloat32Float64HashMap {
+func (m *SynchronizedFloat32Float64) WithoutAllKeys(keys ...float32) *SynchronizedFloat32Float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delegate.WithoutAllKeys(keys)
@@ -350,7 +339,7 @@ func (m *SynchronizedFloat32Float64HashMap) WithoutAllKeys(keys ...float32) *Syn
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (m *SynchronizedFloat32Float64HashMap) ToImmutable() *ImmutableFloat32Float64HashMap {
+func (m *SynchronizedFloat32Float64) ToImmutable() *ImmutableFloat32Float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ToImmutable()
@@ -358,7 +347,7 @@ func (m *SynchronizedFloat32Float64HashMap) ToImmutable() *ImmutableFloat32Float
 
 // Equals compares by contents. Locks acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (m *SynchronizedFloat32Float64HashMap) Equals(other *SynchronizedFloat32Float64HashMap) bool {
+func (m *SynchronizedFloat32Float64) Equals(other *SynchronizedFloat32Float64) bool {
 	if m == other {
 		m.mu.RLock()
 		defer m.mu.RUnlock()

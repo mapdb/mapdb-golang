@@ -10,20 +10,20 @@ import (
 )
 
 const (
-	float64Float64SentinelHashMapDefaultCapacity = 16
+	float64Float64DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
-	float64Float64SentinelHashMapEmptyKey   = float64(0)
-	float64Float64SentinelHashMapRemovedKey = float64(1)
-	// float64Float64SentinelHashMapNegZeroBits is the IEEE-754 bit pattern of -0.0, routed to a
+	float64Float64EmptyKey   = float64(0)
+	float64Float64RemovedKey = float64(1)
+	// float64Float64NegZeroBits is the IEEE-754 bit pattern of -0.0, routed to a
 	// dedicated field so -0.0 stays distinct from +0.0 (which collides with
 	// the empty sentinel) and from the table.
-	float64Float64SentinelHashMapNegZeroBits = uint64(0x8000000000000000)
+	float64Float64NegZeroBits = uint64(0x8000000000000000)
 )
 
-// Float64Float64SentinelHashMap is a sentinel-based open-addressing hash map with float64 keys and float64 values.
+// Float64Float64 is a sentinel-based open-addressing hash map with float64 keys and float64 values.
 // It uses sentinel values (0=empty, 1=removed) to track slot state.
 // Keys 0 and 1 are stored separately in dedicated fields.
-type Float64Float64SentinelHashMap struct {
+type Float64Float64 struct {
 	keys   []float64
 	values []float64
 	size   int
@@ -38,15 +38,15 @@ type Float64Float64SentinelHashMap struct {
 	oneKeyValue       float64
 }
 
-// NewFloat64Float64SentinelHashMap creates a new empty Float64Float64SentinelHashMap with default capacity.
-func NewFloat64Float64SentinelHashMap() *Float64Float64SentinelHashMap {
-	return NewFloat64Float64SentinelHashMapWithCapacity(float64Float64SentinelHashMapDefaultCapacity)
+// NewFloat64Float64 creates a new empty Float64Float64 with default capacity.
+func NewFloat64Float64() *Float64Float64 {
+	return NewFloat64Float64WithCapacity(float64Float64DefaultCapacity)
 }
 
-// NewFloat64Float64SentinelHashMapWithCapacity creates a new empty Float64Float64SentinelHashMap with the given initial capacity.
-func NewFloat64Float64SentinelHashMapWithCapacity(capacity int) *Float64Float64SentinelHashMap {
-	cap := nextPowerOfTwoFloat64Float64SentinelHashMap(capacity)
-	return &Float64Float64SentinelHashMap{
+// NewFloat64Float64WithCapacity creates a new empty Float64Float64 with the given initial capacity.
+func NewFloat64Float64WithCapacity(capacity int) *Float64Float64 {
+	cap := nextPowerOfTwoFloat64Float64(capacity)
+	return &Float64Float64{
 		keys:   make([]float64, cap),
 		values: make([]float64, cap),
 		size:   0,
@@ -54,8 +54,8 @@ func NewFloat64Float64SentinelHashMapWithCapacity(capacity int) *Float64Float64S
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Float64Float64SentinelHashMap) Put(key float64, value float64) (float64, bool) {
-	if math.Float64bits(key) == math.Float64bits(float64Float64SentinelHashMapEmptyKey) {
+func (m *Float64Float64) Put(key float64, value float64) (float64, bool) {
+	if math.Float64bits(key) == math.Float64bits(float64Float64EmptyKey) {
 		old := m.zeroKeyValue
 		existed := m.zeroKeyPresent
 		m.zeroKeyValue = value
@@ -65,7 +65,7 @@ func (m *Float64Float64SentinelHashMap) Put(key float64, value float64) (float64
 		}
 		return old, existed
 	}
-	if math.Float64bits(key) == float64Float64SentinelHashMapNegZeroBits {
+	if math.Float64bits(key) == float64Float64NegZeroBits {
 		old := m.negZeroKeyValue
 		existed := m.negZeroKeyPresent
 		m.negZeroKeyValue = value
@@ -75,7 +75,7 @@ func (m *Float64Float64SentinelHashMap) Put(key float64, value float64) (float64
 		}
 		return old, existed
 	}
-	if key == float64Float64SentinelHashMapRemovedKey {
+	if key == float64Float64RemovedKey {
 		old := m.oneKeyValue
 		existed := m.oneKeyPresent
 		m.oneKeyValue = value
@@ -88,15 +88,15 @@ func (m *Float64Float64SentinelHashMap) Put(key float64, value float64) (float64
 	return m.putRegular(key, value)
 }
 
-func (m *Float64Float64SentinelHashMap) putRegular(key float64, value float64) (float64, bool) {
+func (m *Float64Float64) putRegular(key float64, value float64) (float64, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
 	cap := len(m.keys)
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := float64Float64SentinelHashMapEmptyKey
-	removed := float64Float64SentinelHashMapRemovedKey
+	empty := float64Float64EmptyKey
+	removed := float64Float64RemovedKey
 	firstRemoved := -1
 
 	for {
@@ -127,20 +127,20 @@ func (m *Float64Float64SentinelHashMap) putRegular(key float64, value float64) (
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Float64Float64SentinelHashMap) Get(key float64) (float64, bool) {
-	if math.Float64bits(key) == math.Float64bits(float64Float64SentinelHashMapEmptyKey) {
+func (m *Float64Float64) Get(key float64) (float64, bool) {
+	if math.Float64bits(key) == math.Float64bits(float64Float64EmptyKey) {
 		if m.zeroKeyPresent {
 			return m.zeroKeyValue, true
 		}
 		return 0.0, false
 	}
-	if math.Float64bits(key) == float64Float64SentinelHashMapNegZeroBits {
+	if math.Float64bits(key) == float64Float64NegZeroBits {
 		if m.negZeroKeyPresent {
 			return m.negZeroKeyValue, true
 		}
 		return 0.0, false
 	}
-	if key == float64Float64SentinelHashMapRemovedKey {
+	if key == float64Float64RemovedKey {
 		if m.oneKeyPresent {
 			return m.oneKeyValue, true
 		}
@@ -152,7 +152,7 @@ func (m *Float64Float64SentinelHashMap) Get(key float64) (float64, bool) {
 	}
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := float64Float64SentinelHashMapEmptyKey
+	empty := float64Float64EmptyKey
 
 	for {
 		k := m.keys[idx]
@@ -167,7 +167,7 @@ func (m *Float64Float64SentinelHashMap) Get(key float64) (float64, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Float64Float64SentinelHashMap) GetOrDefault(key float64, defaultValue float64) float64 {
+func (m *Float64Float64) GetOrDefault(key float64, defaultValue float64) float64 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -175,8 +175,8 @@ func (m *Float64Float64SentinelHashMap) GetOrDefault(key float64, defaultValue f
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Float64Float64SentinelHashMap) Remove(key float64) (float64, bool) {
-	if math.Float64bits(key) == math.Float64bits(float64Float64SentinelHashMapEmptyKey) {
+func (m *Float64Float64) Remove(key float64) (float64, bool) {
+	if math.Float64bits(key) == math.Float64bits(float64Float64EmptyKey) {
 		if m.zeroKeyPresent {
 			old := m.zeroKeyValue
 			m.zeroKeyPresent = false
@@ -186,7 +186,7 @@ func (m *Float64Float64SentinelHashMap) Remove(key float64) (float64, bool) {
 		}
 		return 0.0, false
 	}
-	if math.Float64bits(key) == float64Float64SentinelHashMapNegZeroBits {
+	if math.Float64bits(key) == float64Float64NegZeroBits {
 		if m.negZeroKeyPresent {
 			old := m.negZeroKeyValue
 			m.negZeroKeyPresent = false
@@ -196,7 +196,7 @@ func (m *Float64Float64SentinelHashMap) Remove(key float64) (float64, bool) {
 		}
 		return 0.0, false
 	}
-	if key == float64Float64SentinelHashMapRemovedKey {
+	if key == float64Float64RemovedKey {
 		if m.oneKeyPresent {
 			old := m.oneKeyValue
 			m.oneKeyPresent = false
@@ -209,14 +209,14 @@ func (m *Float64Float64SentinelHashMap) Remove(key float64) (float64, bool) {
 	return m.removeRegular(key)
 }
 
-func (m *Float64Float64SentinelHashMap) removeRegular(key float64) (float64, bool) {
+func (m *Float64Float64) removeRegular(key float64) (float64, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0.0, false
 	}
 	mask := cap - 1
 	idx := int(m.hashKey(key)) & mask
-	empty := float64Float64SentinelHashMapEmptyKey
+	empty := float64Float64EmptyKey
 
 	for {
 		k := m.keys[idx]
@@ -225,7 +225,7 @@ func (m *Float64Float64SentinelHashMap) removeRegular(key float64) (float64, boo
 		}
 		if math.Float64bits(k) == math.Float64bits(key) {
 			old := m.values[idx]
-			m.keys[idx] = float64Float64SentinelHashMapRemovedKey
+			m.keys[idx] = float64Float64RemovedKey
 			m.values[idx] = 0.0
 			m.size--
 			return old, true
@@ -235,15 +235,15 @@ func (m *Float64Float64SentinelHashMap) removeRegular(key float64) (float64, boo
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Float64Float64SentinelHashMap) ContainsKey(key float64) bool {
+func (m *Float64Float64) ContainsKey(key float64) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Float64Float64SentinelHashMap) ContainsValue(value float64) bool {
-	empty := float64Float64SentinelHashMapEmptyKey
-	removed := float64Float64SentinelHashMapRemovedKey
+func (m *Float64Float64) ContainsValue(value float64) bool {
+	empty := float64Float64EmptyKey
+	removed := float64Float64RemovedKey
 	if m.zeroKeyPresent && math.Float64bits(m.zeroKeyValue) == math.Float64bits(value) {
 		return true
 	}
@@ -261,22 +261,13 @@ func (m *Float64Float64SentinelHashMap) ContainsValue(value float64) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Float64Float64SentinelHashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float64Float64) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float64Float64SentinelHashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Float64Float64SentinelHashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Float64Float64SentinelHashMap) Clear() {
+func (m *Float64Float64) Clear() {
 	for i := range m.keys {
 		m.keys[i] = 0.0
 		m.values[i] = 0.0
@@ -291,7 +282,7 @@ func (m *Float64Float64SentinelHashMap) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Float64Float64SentinelHashMap) All() iter.Seq2[float64, float64] {
+func (m *Float64Float64) All() iter.Seq2[float64, float64] {
 	return func(yield func(float64, float64) bool) {
 		if m.zeroKeyPresent {
 			if !yield(0.0, m.zeroKeyValue) {
@@ -304,12 +295,12 @@ func (m *Float64Float64SentinelHashMap) All() iter.Seq2[float64, float64] {
 			}
 		}
 		if m.oneKeyPresent {
-			if !yield(float64Float64SentinelHashMapRemovedKey, m.oneKeyValue) {
+			if !yield(float64Float64RemovedKey, m.oneKeyValue) {
 				return
 			}
 		}
-		empty := float64Float64SentinelHashMapEmptyKey
-		removed := float64Float64SentinelHashMapRemovedKey
+		empty := float64Float64EmptyKey
+		removed := float64Float64RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.keys[i], m.values[i]) {
@@ -321,7 +312,7 @@ func (m *Float64Float64SentinelHashMap) All() iter.Seq2[float64, float64] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Float64Float64SentinelHashMap) Keys() iter.Seq[float64] {
+func (m *Float64Float64) Keys() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
 		if m.zeroKeyPresent {
 			if !yield(0.0) {
@@ -334,12 +325,12 @@ func (m *Float64Float64SentinelHashMap) Keys() iter.Seq[float64] {
 			}
 		}
 		if m.oneKeyPresent {
-			if !yield(float64Float64SentinelHashMapRemovedKey) {
+			if !yield(float64Float64RemovedKey) {
 				return
 			}
 		}
-		empty := float64Float64SentinelHashMapEmptyKey
-		removed := float64Float64SentinelHashMapRemovedKey
+		empty := float64Float64EmptyKey
+		removed := float64Float64RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.keys[i]) {
@@ -351,7 +342,7 @@ func (m *Float64Float64SentinelHashMap) Keys() iter.Seq[float64] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Float64Float64SentinelHashMap) Values() iter.Seq[float64] {
+func (m *Float64Float64) Values() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
 		if m.zeroKeyPresent {
 			if !yield(m.zeroKeyValue) {
@@ -368,8 +359,8 @@ func (m *Float64Float64SentinelHashMap) Values() iter.Seq[float64] {
 				return
 			}
 		}
-		empty := float64Float64SentinelHashMapEmptyKey
-		removed := float64Float64SentinelHashMapRemovedKey
+		empty := float64Float64EmptyKey
+		removed := float64Float64RemovedKey
 		for i := range m.keys {
 			if m.keys[i] != empty && m.keys[i] != removed {
 				if !yield(m.values[i]) {
@@ -381,15 +372,15 @@ func (m *Float64Float64SentinelHashMap) Values() iter.Seq[float64] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Float64Float64SentinelHashMap) ForEach(f func(float64, float64)) {
+func (m *Float64Float64) ForEach(f func(float64, float64)) {
 	for k, v := range m.All() {
 		f(k, v)
 	}
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *Float64Float64SentinelHashMap) Select(predicate func(float64, float64) bool) *Float64Float64SentinelHashMap {
-	result := NewFloat64Float64SentinelHashMap()
+func (m *Float64Float64) Select(predicate func(float64, float64) bool) *Float64Float64 {
+	result := NewFloat64Float64()
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			result.Put(k, v)
@@ -399,8 +390,8 @@ func (m *Float64Float64SentinelHashMap) Select(predicate func(float64, float64) 
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *Float64Float64SentinelHashMap) Reject(predicate func(float64, float64) bool) *Float64Float64SentinelHashMap {
-	result := NewFloat64Float64SentinelHashMap()
+func (m *Float64Float64) Reject(predicate func(float64, float64) bool) *Float64Float64 {
+	result := NewFloat64Float64()
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			result.Put(k, v)
@@ -410,7 +401,7 @@ func (m *Float64Float64SentinelHashMap) Reject(predicate func(float64, float64) 
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *Float64Float64SentinelHashMap) AnySatisfy(predicate func(float64, float64) bool) bool {
+func (m *Float64Float64) AnySatisfy(predicate func(float64, float64) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return true
@@ -420,7 +411,7 @@ func (m *Float64Float64SentinelHashMap) AnySatisfy(predicate func(float64, float
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *Float64Float64SentinelHashMap) AllSatisfy(predicate func(float64, float64) bool) bool {
+func (m *Float64Float64) AllSatisfy(predicate func(float64, float64) bool) bool {
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			return false
@@ -430,12 +421,12 @@ func (m *Float64Float64SentinelHashMap) AllSatisfy(predicate func(float64, float
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *Float64Float64SentinelHashMap) NoneSatisfy(predicate func(float64, float64) bool) bool {
+func (m *Float64Float64) NoneSatisfy(predicate func(float64, float64) bool) bool {
 	return !m.AnySatisfy(predicate)
 }
 
 // String returns a string representation of the map.
-func (m *Float64Float64SentinelHashMap) String() string {
+func (m *Float64Float64) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -453,12 +444,12 @@ func (m *Float64Float64SentinelHashMap) String() string {
 	return sb.String()
 }
 
-func (m *Float64Float64SentinelHashMap) hashKey(key float64) uint64 {
+func (m *Float64Float64) hashKey(key float64) uint64 {
 	h := math.Float64bits(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Float64Float64SentinelHashMap) needsResize() bool {
+func (m *Float64Float64) needsResize() bool {
 	// Count only regular entries (not sentinel entries) for load factor
 	regularEntries := m.size
 	if m.zeroKeyPresent {
@@ -473,16 +464,15 @@ func (m *Float64Float64SentinelHashMap) needsResize() bool {
 	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *Float64Float64SentinelHashMap) resize() {
+func (m *Float64Float64) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = float64Float64SentinelHashMapDefaultCapacity
+		newCap = float64Float64DefaultCapacity
 	}
 
 	// Save sentinel state
-	savedSize := m.size
 	savedZeroPresent := m.zeroKeyPresent
 	savedZeroValue := m.zeroKeyValue
 	savedNegZeroPresent := m.negZeroKeyPresent
@@ -505,21 +495,20 @@ func (m *Float64Float64SentinelHashMap) resize() {
 		m.Put(math.Copysign(0, -1), savedNegZeroValue)
 	}
 	if savedOnePresent {
-		m.Put(float64Float64SentinelHashMapRemovedKey, savedOneValue)
+		m.Put(float64Float64RemovedKey, savedOneValue)
 	}
 
 	// Re-insert regular entries
-	empty := float64Float64SentinelHashMapEmptyKey
-	removed := float64Float64SentinelHashMapRemovedKey
+	empty := float64Float64EmptyKey
+	removed := float64Float64RemovedKey
 	for i := range oldKeys {
 		if oldKeys[i] != empty && oldKeys[i] != removed {
 			m.Put(oldKeys[i], oldValues[i])
 		}
 	}
-	_ = savedSize
 }
 
-func nextPowerOfTwoFloat64Float64SentinelHashMap(n int) int {
+func nextPowerOfTwoFloat64Float64(n int) int {
 	if n <= 0 {
 		return 16
 	}

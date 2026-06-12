@@ -6,82 +6,73 @@ import (
 	"sync"
 )
 
-// SynchronizedInt8ArrayDeque is a thread-safe wrapper around Int8ArrayDeque.
-type SynchronizedInt8ArrayDeque struct {
-	delegate *Int8ArrayDeque
+// SynchronizedInt8 is a thread-safe wrapper around Int8.
+type SynchronizedInt8 struct {
+	delegate *Int8
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt8ArrayDeque creates a new thread-safe empty deque.
-func NewSynchronizedInt8ArrayDeque() *SynchronizedInt8ArrayDeque {
-	return &SynchronizedInt8ArrayDeque{delegate: NewInt8ArrayDeque()}
+// NewSynchronizedInt8 creates a new thread-safe empty deque.
+func NewSynchronizedInt8() *SynchronizedInt8 {
+	return &SynchronizedInt8{delegate: NewInt8()}
 }
 
-func (d *SynchronizedInt8ArrayDeque) AddFirst(value int8) {
+func (d *SynchronizedInt8) AddFirst(value int8) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddFirst(value)
 }
 
-func (d *SynchronizedInt8ArrayDeque) AddLast(value int8) {
+func (d *SynchronizedInt8) AddLast(value int8) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddLast(value)
 }
 
-func (d *SynchronizedInt8ArrayDeque) RemoveFirst() (int8, error) {
+func (d *SynchronizedInt8) RemoveFirst() (int8, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveFirst()
 }
 
-func (d *SynchronizedInt8ArrayDeque) RemoveLast() (int8, error) {
+func (d *SynchronizedInt8) RemoveLast() (int8, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveLast()
 }
 
-func (d *SynchronizedInt8ArrayDeque) PeekFirst() (int8, error) {
+func (d *SynchronizedInt8) PeekFirst() (int8, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekFirst()
 }
 
-func (d *SynchronizedInt8ArrayDeque) PeekLast() (int8, error) {
+func (d *SynchronizedInt8) PeekLast() (int8, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekLast()
 }
 
-func (d *SynchronizedInt8ArrayDeque) Size() int {
+// Len returns the number of elements. Use d.Len() == 0 to test for emptiness.
+func (d *SynchronizedInt8) Len() int {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.delegate.Size()
+	return d.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *SynchronizedInt8ArrayDeque) Len() int { return d.Size() }
-
-func (d *SynchronizedInt8ArrayDeque) IsEmpty() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.delegate.IsEmpty()
-}
-
-func (d *SynchronizedInt8ArrayDeque) Clear() {
+func (d *SynchronizedInt8) Clear() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.Clear()
 }
 
-func (d *SynchronizedInt8ArrayDeque) Contains(value int8) bool {
+func (d *SynchronizedInt8) Contains(value int8) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.Contains(value)
 }
 
-func (d *SynchronizedInt8ArrayDeque) ForEach(f func(int8)) {
+func (d *SynchronizedInt8) ForEach(f func(int8)) {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -90,7 +81,7 @@ func (d *SynchronizedInt8ArrayDeque) ForEach(f func(int8)) {
 	}
 }
 
-func (d *SynchronizedInt8ArrayDeque) AnySatisfy(predicate func(int8) bool) bool {
+func (d *SynchronizedInt8) AnySatisfy(predicate func(int8) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -102,7 +93,7 @@ func (d *SynchronizedInt8ArrayDeque) AnySatisfy(predicate func(int8) bool) bool 
 	return false
 }
 
-func (d *SynchronizedInt8ArrayDeque) AllSatisfy(predicate func(int8) bool) bool {
+func (d *SynchronizedInt8) AllSatisfy(predicate func(int8) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -114,13 +105,13 @@ func (d *SynchronizedInt8ArrayDeque) AllSatisfy(predicate func(int8) bool) bool 
 	return true
 }
 
-func (d *SynchronizedInt8ArrayDeque) ToSlice() []int8 {
+func (d *SynchronizedInt8) ToSlice() []int8 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
 }
 
-func (d *SynchronizedInt8ArrayDeque) Equals(other *SynchronizedInt8ArrayDeque) bool {
+func (d *SynchronizedInt8) Equals(other *SynchronizedInt8) bool {
 	d.mu.RLock()
 	thisSlice := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -138,7 +129,7 @@ func (d *SynchronizedInt8ArrayDeque) Equals(other *SynchronizedInt8ArrayDeque) b
 	return true
 }
 
-func (d *SynchronizedInt8ArrayDeque) String() string {
+func (d *SynchronizedInt8) String() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.String()

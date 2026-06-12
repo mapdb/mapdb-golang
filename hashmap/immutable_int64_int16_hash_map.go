@@ -6,136 +6,127 @@ import (
 	"iter"
 )
 
-// ImmutableInt64Int16HashMap is an immutable view of a Int64Int16HashMap.
+// ImmutableInt64Int16 is an immutable view of a Int64Int16.
 // It exposes only read operations. Any attempt to modify requires
 // creating a mutable copy first via ToMutable().
-type ImmutableInt64Int16HashMap struct {
-	delegate *Int64Int16HashMap
+type ImmutableInt64Int16 struct {
+	delegate *Int64Int16
 }
 
-// NewImmutableInt64Int16HashMap creates an immutable map from key-value pairs.
-func NewImmutableInt64Int16HashMap(pairs ...struct {
+// NewImmutableInt64Int16 creates an immutable map from key-value pairs.
+func NewImmutableInt64Int16(pairs ...struct {
 	Key   int64
 	Value int16
-}) *ImmutableInt64Int16HashMap {
-	m := NewInt64Int16HashMapWithCapacity(len(pairs) * 2)
+}) *ImmutableInt64Int16 {
+	m := NewInt64Int16WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
-	return &ImmutableInt64Int16HashMap{delegate: m}
+	return &ImmutableInt64Int16{delegate: m}
 }
 
-// ImmutableInt64Int16HashMapFrom creates an immutable copy of a mutable map.
-func ImmutableInt64Int16HashMapFrom(m *Int64Int16HashMap) *ImmutableInt64Int16HashMap {
-	copy := NewInt64Int16HashMapWithCapacity(m.Size() * 2)
+// ImmutableInt64Int16From creates an immutable copy of a mutable map.
+func ImmutableInt64Int16From(m *Int64Int16) *ImmutableInt64Int16 {
+	copy := NewInt64Int16WithCapacity(m.Len() * 2)
 	m.ForEach(func(k int64, v int16) {
 		copy.Put(k, v)
 	})
-	return &ImmutableInt64Int16HashMap{delegate: copy}
+	return &ImmutableInt64Int16{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableInt64Int16HashMap) Get(key int64) (int16, bool) {
+func (m *ImmutableInt64Int16) Get(key int64) (int16, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableInt64Int16HashMap) GetOrDefault(key int64, defaultValue int16) int16 {
+func (m *ImmutableInt64Int16) GetOrDefault(key int64, defaultValue int16) int16 {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableInt64Int16HashMap) ContainsKey(key int64) bool {
+func (m *ImmutableInt64Int16) ContainsKey(key int64) bool {
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *ImmutableInt64Int16HashMap) ContainsValue(value int16) bool {
+func (m *ImmutableInt64Int16) ContainsValue(value int16) bool {
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableInt64Int16HashMap) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableInt64Int16HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableInt64Int16HashMap) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableInt64Int16) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableInt64Int16HashMap) All() iter.Seq2[int64, int16] {
+func (m *ImmutableInt64Int16) All() iter.Seq2[int64, int16] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableInt64Int16HashMap) Keys() iter.Seq[int64] {
+func (m *ImmutableInt64Int16) Keys() iter.Seq[int64] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableInt64Int16HashMap) Values() iter.Seq[int16] {
+func (m *ImmutableInt64Int16) Values() iter.Seq[int16] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableInt64Int16HashMap) ForEach(f func(int64, int16)) {
+func (m *ImmutableInt64Int16) ForEach(f func(int64, int16)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries that satisfy the predicate.
-func (m *ImmutableInt64Int16HashMap) Select(predicate func(int64, int16) bool) *ImmutableInt64Int16HashMap {
-	return &ImmutableInt64Int16HashMap{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableInt64Int16) Select(predicate func(int64, int16) bool) *ImmutableInt64Int16 {
+	return &ImmutableInt64Int16{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries that do not satisfy the predicate.
-func (m *ImmutableInt64Int16HashMap) Reject(predicate func(int64, int16) bool) *ImmutableInt64Int16HashMap {
-	return &ImmutableInt64Int16HashMap{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableInt64Int16) Reject(predicate func(int64, int16) bool) *ImmutableInt64Int16 {
+	return &ImmutableInt64Int16{delegate: m.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *ImmutableInt64Int16HashMap) AnySatisfy(predicate func(int64, int16) bool) bool {
+func (m *ImmutableInt64Int16) AnySatisfy(predicate func(int64, int16) bool) bool {
 	return m.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *ImmutableInt64Int16HashMap) AllSatisfy(predicate func(int64, int16) bool) bool {
+func (m *ImmutableInt64Int16) AllSatisfy(predicate func(int64, int16) bool) bool {
 	return m.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *ImmutableInt64Int16HashMap) NoneSatisfy(predicate func(int64, int16) bool) bool {
+func (m *ImmutableInt64Int16) NoneSatisfy(predicate func(int64, int16) bool) bool {
 	return m.delegate.NoneSatisfy(predicate)
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *ImmutableInt64Int16HashMap) KeysToSlice() []int64 {
+func (m *ImmutableInt64Int16) KeysToSlice() []int64 {
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *ImmutableInt64Int16HashMap) ValuesToSlice() []int16 {
+func (m *ImmutableInt64Int16) ValuesToSlice() []int16 {
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *ImmutableInt64Int16HashMap) String() string {
+func (m *ImmutableInt64Int16) String() string {
 	return m.delegate.String()
 }
 
 // Equals returns true if the other immutable map has the same entries.
-func (m *ImmutableInt64Int16HashMap) Equals(other *ImmutableInt64Int16HashMap) bool {
+func (m *ImmutableInt64Int16) Equals(other *ImmutableInt64Int16) bool {
 	return m.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableInt64Int16HashMap) ToMutable() *Int64Int16HashMap {
-	copy := NewInt64Int16HashMapWithCapacity(m.Size() * 2)
+func (m *ImmutableInt64Int16) ToMutable() *Int64Int16 {
+	copy := NewInt64Int16WithCapacity(m.Len() * 2)
 	m.ForEach(func(k int64, v int16) {
 		copy.Put(k, v)
 	})

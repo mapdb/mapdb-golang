@@ -6,87 +6,78 @@ import (
 	"iter"
 )
 
-// ImmutableFloat64ObjectHashMap is an immutable view of a Float64ObjectHashMap.
-type ImmutableFloat64ObjectHashMap[V any] struct {
-	delegate *Float64ObjectHashMap[V]
+// ImmutableFloat64Object is an immutable view of a Float64Object.
+type ImmutableFloat64Object[V any] struct {
+	delegate *Float64Object[V]
 }
 
-// NewImmutableFloat64ObjectHashMapFrom creates an immutable float64-object map by copying entries from a mutable map.
-func NewImmutableFloat64ObjectHashMapFrom[V any](m *Float64ObjectHashMap[V]) *ImmutableFloat64ObjectHashMap[V] {
-	copy := NewFloat64ObjectHashMapWithCapacity[V](m.Size() * 2)
+// NewImmutableFloat64ObjectFrom creates an immutable float64-object map by copying entries from a mutable map.
+func NewImmutableFloat64ObjectFrom[V any](m *Float64Object[V]) *ImmutableFloat64Object[V] {
+	copy := NewFloat64ObjectWithCapacity[V](m.Len() * 2)
 	m.ForEach(func(k float64, v V) {
 		copy.Put(k, v)
 	})
-	return &ImmutableFloat64ObjectHashMap[V]{delegate: copy}
+	return &ImmutableFloat64Object[V]{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableFloat64ObjectHashMap[V]) Get(key float64) (V, bool) {
+func (m *ImmutableFloat64Object[V]) Get(key float64) (V, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableFloat64ObjectHashMap[V]) GetOrDefault(key float64, defaultValue V) V {
+func (m *ImmutableFloat64Object[V]) GetOrDefault(key float64, defaultValue V) V {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableFloat64ObjectHashMap[V]) ContainsKey(key float64) bool {
+func (m *ImmutableFloat64Object[V]) ContainsKey(key float64) bool {
 	return m.delegate.ContainsKey(key)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableFloat64ObjectHashMap[V]) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableFloat64ObjectHashMap[V]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableFloat64ObjectHashMap[V]) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableFloat64Object[V]) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableFloat64ObjectHashMap[V]) All() iter.Seq2[float64, V] {
+func (m *ImmutableFloat64Object[V]) All() iter.Seq2[float64, V] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableFloat64ObjectHashMap[V]) Keys() iter.Seq[float64] {
+func (m *ImmutableFloat64Object[V]) Keys() iter.Seq[float64] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableFloat64ObjectHashMap[V]) Values() iter.Seq[V] {
+func (m *ImmutableFloat64Object[V]) Values() iter.Seq[V] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableFloat64ObjectHashMap[V]) ForEach(f func(float64, V)) {
+func (m *ImmutableFloat64Object[V]) ForEach(f func(float64, V)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries satisfying the predicate.
-func (m *ImmutableFloat64ObjectHashMap[V]) Select(predicate func(float64, V) bool) *ImmutableFloat64ObjectHashMap[V] {
-	return &ImmutableFloat64ObjectHashMap[V]{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableFloat64Object[V]) Select(predicate func(float64, V) bool) *ImmutableFloat64Object[V] {
+	return &ImmutableFloat64Object[V]{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries not satisfying the predicate.
-func (m *ImmutableFloat64ObjectHashMap[V]) Reject(predicate func(float64, V) bool) *ImmutableFloat64ObjectHashMap[V] {
-	return &ImmutableFloat64ObjectHashMap[V]{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableFloat64Object[V]) Reject(predicate func(float64, V) bool) *ImmutableFloat64Object[V] {
+	return &ImmutableFloat64Object[V]{delegate: m.delegate.Reject(predicate)}
 }
 
 // String returns a string representation.
-func (m *ImmutableFloat64ObjectHashMap[V]) String() string {
+func (m *ImmutableFloat64Object[V]) String() string {
 	return m.delegate.String()
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableFloat64ObjectHashMap[V]) ToMutable() *Float64ObjectHashMap[V] {
-	copy := NewFloat64ObjectHashMapWithCapacity[V](m.Size() * 2)
+func (m *ImmutableFloat64Object[V]) ToMutable() *Float64Object[V] {
+	copy := NewFloat64ObjectWithCapacity[V](m.Len() * 2)
 	m.ForEach(func(k float64, v V) {
 		copy.Put(k, v)
 	})

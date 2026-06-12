@@ -9,38 +9,38 @@ import (
 )
 
 const (
-	boolHashSetDefaultCapacity = 16
+	boolDefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-type boolHashSetEntry struct {
+type boolEntry struct {
 	key      bool
 	occupied bool
 }
 
-// BoolHashSet is an open-addressing hash set for bool values.
-type BoolHashSet struct {
-	entries []boolHashSetEntry
+// Bool is an open-addressing hash set for bool values.
+type Bool struct {
+	entries []boolEntry
 	size    int
 }
 
-// NewBoolHashSet creates a new empty BoolHashSet.
-func NewBoolHashSet() *BoolHashSet {
-	return NewBoolHashSetWithCapacity(boolHashSetDefaultCapacity)
+// NewBool creates a new empty Bool.
+func NewBool() *Bool {
+	return NewBoolWithCapacity(boolDefaultCapacity)
 }
 
-// NewBoolHashSetWithCapacity creates a new empty BoolHashSet with the given initial capacity.
-func NewBoolHashSetWithCapacity(capacity int) *BoolHashSet {
-	cap := nextPowerOfTwoBoolHashSet(capacity)
-	return &BoolHashSet{
-		entries: make([]boolHashSetEntry, cap),
+// NewBoolWithCapacity creates a new empty Bool with the given initial capacity.
+func NewBoolWithCapacity(capacity int) *Bool {
+	cap := nextPowerOfTwoBool(capacity)
+	return &Bool{
+		entries: make([]boolEntry, cap),
 		size:    0,
 	}
 }
 
-// BoolHashSetOf creates a new BoolHashSet from the given values.
-func BoolHashSetOf(values ...bool) *BoolHashSet {
-	s := NewBoolHashSetWithCapacity(len(values) * 2)
+// BoolOf creates a new Bool from the given values.
+func BoolOf(values ...bool) *Bool {
+	s := NewBoolWithCapacity(len(values) * 2)
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -48,7 +48,7 @@ func BoolHashSetOf(values ...bool) *BoolHashSet {
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).
-func (s *BoolHashSet) Add(value bool) bool {
+func (s *Bool) Add(value bool) bool {
 	if s.needsResize() {
 		s.resize()
 	}
@@ -71,14 +71,14 @@ func (s *BoolHashSet) Add(value bool) bool {
 }
 
 // AddAll inserts all values into the set.
-func (s *BoolHashSet) AddAll(values ...bool) {
+func (s *Bool) AddAll(values ...bool) {
 	for _, v := range values {
 		s.Add(v)
 	}
 }
 
 // Remove removes a value from the set. Returns true if the value was found and removed.
-func (s *BoolHashSet) Remove(value bool) bool {
+func (s *Bool) Remove(value bool) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -91,7 +91,7 @@ func (s *BoolHashSet) Remove(value bool) bool {
 			return false
 		}
 		if s.entries[idx].key == value {
-			s.entries[idx] = boolHashSetEntry{}
+			s.entries[idx] = boolEntry{}
 			s.size--
 			s.rehashFrom(idx, mask)
 			return true
@@ -101,7 +101,7 @@ func (s *BoolHashSet) Remove(value bool) bool {
 }
 
 // Contains returns true if the set contains the given value.
-func (s *BoolHashSet) Contains(value bool) bool {
+func (s *Bool) Contains(value bool) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -120,30 +120,21 @@ func (s *BoolHashSet) Contains(value bool) bool {
 	}
 }
 
-// Size returns the number of elements in the set.
-func (s *BoolHashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Bool) Len() int {
 	return s.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *BoolHashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *BoolHashSet) IsEmpty() bool {
-	return s.size == 0
-}
-
 // Clear removes all elements from the set.
-func (s *BoolHashSet) Clear() {
+func (s *Bool) Clear() {
 	for i := range s.entries {
-		s.entries[i] = boolHashSetEntry{}
+		s.entries[i] = boolEntry{}
 	}
 	s.size = 0
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *BoolHashSet) All() iter.Seq[bool] {
+func (s *Bool) All() iter.Seq[bool] {
 	return func(yield func(bool) bool) {
 		for i := range s.entries {
 			if s.entries[i].occupied {
@@ -156,7 +147,7 @@ func (s *BoolHashSet) All() iter.Seq[bool] {
 }
 
 // ForEach calls the given function for each element.
-func (s *BoolHashSet) ForEach(f func(bool)) {
+func (s *Bool) ForEach(f func(bool)) {
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			f(s.entries[i].key)
@@ -165,8 +156,8 @@ func (s *BoolHashSet) ForEach(f func(bool)) {
 }
 
 // Select returns a new set containing only elements that satisfy the predicate.
-func (s *BoolHashSet) Select(predicate func(bool) bool) *BoolHashSet {
-	result := NewBoolHashSet()
+func (s *Bool) Select(predicate func(bool) bool) *Bool {
+	result := NewBool()
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -176,8 +167,8 @@ func (s *BoolHashSet) Select(predicate func(bool) bool) *BoolHashSet {
 }
 
 // Reject returns a new set containing only elements that do not satisfy the predicate.
-func (s *BoolHashSet) Reject(predicate func(bool) bool) *BoolHashSet {
-	result := NewBoolHashSet()
+func (s *Bool) Reject(predicate func(bool) bool) *Bool {
+	result := NewBool()
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -187,7 +178,7 @@ func (s *BoolHashSet) Reject(predicate func(bool) bool) *BoolHashSet {
 }
 
 // Detect returns the first element that satisfies the predicate, or zero value and false.
-func (s *BoolHashSet) Detect(predicate func(bool) bool) (bool, bool) {
+func (s *Bool) Detect(predicate func(bool) bool) (bool, bool) {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return s.entries[i].key, true
@@ -197,7 +188,7 @@ func (s *BoolHashSet) Detect(predicate func(bool) bool) (bool, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *BoolHashSet) AnySatisfy(predicate func(bool) bool) bool {
+func (s *Bool) AnySatisfy(predicate func(bool) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return true
@@ -207,7 +198,7 @@ func (s *BoolHashSet) AnySatisfy(predicate func(bool) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *BoolHashSet) AllSatisfy(predicate func(bool) bool) bool {
+func (s *Bool) AllSatisfy(predicate func(bool) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			return false
@@ -217,7 +208,7 @@ func (s *BoolHashSet) AllSatisfy(predicate func(bool) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *BoolHashSet) NoneSatisfy(predicate func(bool) bool) bool {
+func (s *Bool) NoneSatisfy(predicate func(bool) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return false
@@ -227,8 +218,8 @@ func (s *BoolHashSet) NoneSatisfy(predicate func(bool) bool) bool {
 }
 
 // Union returns a new set containing all elements from both sets.
-func (s *BoolHashSet) Union(other *BoolHashSet) *BoolHashSet {
-	result := NewBoolHashSetWithCapacity((s.size + other.size) * 2)
+func (s *Bool) Union(other *Bool) *Bool {
+	result := NewBoolWithCapacity((s.size + other.size) * 2)
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			result.Add(s.entries[i].key)
@@ -243,8 +234,8 @@ func (s *BoolHashSet) Union(other *BoolHashSet) *BoolHashSet {
 }
 
 // Intersect returns a new set containing only elements present in both sets.
-func (s *BoolHashSet) Intersect(other *BoolHashSet) *BoolHashSet {
-	result := NewBoolHashSet()
+func (s *Bool) Intersect(other *Bool) *Bool {
+	result := NewBool()
 	smaller, larger := s, other
 	if s.size > other.size {
 		smaller, larger = other, s
@@ -258,8 +249,8 @@ func (s *BoolHashSet) Intersect(other *BoolHashSet) *BoolHashSet {
 }
 
 // Difference returns a new set containing elements in this set but not in the other.
-func (s *BoolHashSet) Difference(other *BoolHashSet) *BoolHashSet {
-	result := NewBoolHashSet()
+func (s *Bool) Difference(other *Bool) *Bool {
+	result := NewBool()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -269,8 +260,8 @@ func (s *BoolHashSet) Difference(other *BoolHashSet) *BoolHashSet {
 }
 
 // SymmetricDifference returns a new set containing elements in either set but not both.
-func (s *BoolHashSet) SymmetricDifference(other *BoolHashSet) *BoolHashSet {
-	result := NewBoolHashSet()
+func (s *Bool) SymmetricDifference(other *Bool) *Bool {
+	result := NewBool()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -285,7 +276,7 @@ func (s *BoolHashSet) SymmetricDifference(other *BoolHashSet) *BoolHashSet {
 }
 
 // ToSlice returns all elements as a slice.
-func (s *BoolHashSet) ToSlice() []bool {
+func (s *Bool) ToSlice() []bool {
 	result := make([]bool, 0, s.size)
 	for i := range s.entries {
 		if s.entries[i].occupied {
@@ -295,26 +286,26 @@ func (s *BoolHashSet) ToSlice() []bool {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *BoolHashSet) With(value bool) *BoolHashSet {
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Bool) AddReturning(value bool) *Bool {
 	s.Add(value)
 	return s
 }
 
-// Without returns the set after removing the value (fluent API).
-func (s *BoolHashSet) Without(value bool) *BoolHashSet {
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Bool) RemoveReturning(value bool) *Bool {
 	s.Remove(value)
 	return s
 }
 
-// WithAll returns the set after adding all values (fluent API).
-func (s *BoolHashSet) WithAll(values ...bool) *BoolHashSet {
+// AddAllReturning adds all values to the set and returns the receiver (mutating, fluent).
+func (s *Bool) AddAllReturning(values ...bool) *Bool {
 	s.AddAll(values...)
 	return s
 }
 
-// WithoutAll returns the set after removing all given values (fluent API).
-func (s *BoolHashSet) WithoutAll(values ...bool) *BoolHashSet {
+// RemoveAllReturning removes all given values from the set and returns the receiver (mutating, fluent).
+func (s *Bool) RemoveAllReturning(values ...bool) *Bool {
 	for _, v := range values {
 		s.Remove(v)
 	}
@@ -322,12 +313,12 @@ func (s *BoolHashSet) WithoutAll(values ...bool) *BoolHashSet {
 }
 
 // ToImmutable returns an immutable copy of this set.
-func (s *BoolHashSet) ToImmutable() *ImmutableBoolHashSet {
-	return ImmutableBoolHashSetFrom(s)
+func (s *Bool) ToImmutable() *ImmutableBool {
+	return ImmutableBoolFrom(s)
 }
 
 // String returns a string representation of the set.
-func (s *BoolHashSet) String() string {
+func (s *Bool) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -348,7 +339,7 @@ func (s *BoolHashSet) String() string {
 }
 
 // Equals returns true if the other set has the same elements.
-func (s *BoolHashSet) Equals(other *BoolHashSet) bool {
+func (s *Bool) Equals(other *Bool) bool {
 	if s.size != other.size {
 		return false
 	}
@@ -360,24 +351,24 @@ func (s *BoolHashSet) Equals(other *BoolHashSet) bool {
 	return true
 }
 
-func (s *BoolHashSet) hash(value bool) uint64 {
+func (s *Bool) hash(value bool) uint64 {
 	if value {
 		return 1
 	}
 	return 0
 }
 
-func (s *BoolHashSet) needsResize() bool {
+func (s *Bool) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
 
-func (s *BoolHashSet) resize() {
+func (s *Bool) resize() {
 	oldEntries := s.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = boolHashSetDefaultCapacity
+		newCap = boolDefaultCapacity
 	}
-	s.entries = make([]boolHashSetEntry, newCap)
+	s.entries = make([]boolEntry, newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -387,7 +378,7 @@ func (s *BoolHashSet) resize() {
 	}
 }
 
-func (s *BoolHashSet) rehashFrom(deleted int, mask int) {
+func (s *Bool) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
@@ -396,7 +387,7 @@ func (s *BoolHashSet) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			s.entries[deleted] = s.entries[idx]
-			s.entries[idx] = boolHashSetEntry{}
+			s.entries[idx] = boolEntry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -406,7 +397,7 @@ func (s *BoolHashSet) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoBoolHashSet(n int) int {
+func nextPowerOfTwoBool(n int) int {
 	if n <= 0 {
 		return 16
 	}

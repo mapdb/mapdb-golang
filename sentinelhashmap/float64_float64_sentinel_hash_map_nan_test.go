@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestFloat64Float64SentinelHashMap_NaNKey(t *testing.T) {
-	m := NewFloat64Float64SentinelHashMap()
+func TestFloat64Float64_NaNKey(t *testing.T) {
+	m := NewFloat64Float64()
 	nan := math.NaN()
 	m.Put(nan, 42.0)
 
@@ -17,13 +17,13 @@ func TestFloat64Float64SentinelHashMap_NaNKey(t *testing.T) {
 	if !m.ContainsKey(nan) {
 		t.Error("ContainsKey(NaN) should be true")
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size = %d, want 1", m.Len())
 	}
 }
 
-func TestFloat64Float64SentinelHashMap_NaNValue(t *testing.T) {
-	m := NewFloat64Float64SentinelHashMap()
+func TestFloat64Float64_NaNValue(t *testing.T) {
+	m := NewFloat64Float64()
 	nan := math.NaN()
 	m.Put(2.5, nan)
 	if !m.ContainsValue(nan) {
@@ -31,8 +31,8 @@ func TestFloat64Float64SentinelHashMap_NaNValue(t *testing.T) {
 	}
 }
 
-func TestFloat64Float64SentinelHashMap_NaNRemove(t *testing.T) {
-	m := NewFloat64Float64SentinelHashMap()
+func TestFloat64Float64_NaNRemove(t *testing.T) {
+	m := NewFloat64Float64()
 	nan := math.NaN()
 	m.Put(nan, 99.0)
 	if old, ok := m.Remove(nan); !ok || old != 99.0 {

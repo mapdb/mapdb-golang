@@ -6,87 +6,78 @@ import (
 	"iter"
 )
 
-// ImmutableCharObjectHashMap is an immutable view of a CharObjectHashMap.
-type ImmutableCharObjectHashMap[V any] struct {
-	delegate *CharObjectHashMap[V]
+// ImmutableCharObject is an immutable view of a CharObject.
+type ImmutableCharObject[V any] struct {
+	delegate *CharObject[V]
 }
 
-// NewImmutableCharObjectHashMapFrom creates an immutable uint16-object map by copying entries from a mutable map.
-func NewImmutableCharObjectHashMapFrom[V any](m *CharObjectHashMap[V]) *ImmutableCharObjectHashMap[V] {
-	copy := NewCharObjectHashMapWithCapacity[V](m.Size() * 2)
+// NewImmutableCharObjectFrom creates an immutable uint16-object map by copying entries from a mutable map.
+func NewImmutableCharObjectFrom[V any](m *CharObject[V]) *ImmutableCharObject[V] {
+	copy := NewCharObjectWithCapacity[V](m.Len() * 2)
 	m.ForEach(func(k uint16, v V) {
 		copy.Put(k, v)
 	})
-	return &ImmutableCharObjectHashMap[V]{delegate: copy}
+	return &ImmutableCharObject[V]{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableCharObjectHashMap[V]) Get(key uint16) (V, bool) {
+func (m *ImmutableCharObject[V]) Get(key uint16) (V, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableCharObjectHashMap[V]) GetOrDefault(key uint16, defaultValue V) V {
+func (m *ImmutableCharObject[V]) GetOrDefault(key uint16, defaultValue V) V {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableCharObjectHashMap[V]) ContainsKey(key uint16) bool {
+func (m *ImmutableCharObject[V]) ContainsKey(key uint16) bool {
 	return m.delegate.ContainsKey(key)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableCharObjectHashMap[V]) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableCharObjectHashMap[V]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableCharObjectHashMap[V]) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableCharObject[V]) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableCharObjectHashMap[V]) All() iter.Seq2[uint16, V] {
+func (m *ImmutableCharObject[V]) All() iter.Seq2[uint16, V] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableCharObjectHashMap[V]) Keys() iter.Seq[uint16] {
+func (m *ImmutableCharObject[V]) Keys() iter.Seq[uint16] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableCharObjectHashMap[V]) Values() iter.Seq[V] {
+func (m *ImmutableCharObject[V]) Values() iter.Seq[V] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableCharObjectHashMap[V]) ForEach(f func(uint16, V)) {
+func (m *ImmutableCharObject[V]) ForEach(f func(uint16, V)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries satisfying the predicate.
-func (m *ImmutableCharObjectHashMap[V]) Select(predicate func(uint16, V) bool) *ImmutableCharObjectHashMap[V] {
-	return &ImmutableCharObjectHashMap[V]{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableCharObject[V]) Select(predicate func(uint16, V) bool) *ImmutableCharObject[V] {
+	return &ImmutableCharObject[V]{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries not satisfying the predicate.
-func (m *ImmutableCharObjectHashMap[V]) Reject(predicate func(uint16, V) bool) *ImmutableCharObjectHashMap[V] {
-	return &ImmutableCharObjectHashMap[V]{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableCharObject[V]) Reject(predicate func(uint16, V) bool) *ImmutableCharObject[V] {
+	return &ImmutableCharObject[V]{delegate: m.delegate.Reject(predicate)}
 }
 
 // String returns a string representation.
-func (m *ImmutableCharObjectHashMap[V]) String() string {
+func (m *ImmutableCharObject[V]) String() string {
 	return m.delegate.String()
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableCharObjectHashMap[V]) ToMutable() *CharObjectHashMap[V] {
-	copy := NewCharObjectHashMapWithCapacity[V](m.Size() * 2)
+func (m *ImmutableCharObject[V]) ToMutable() *CharObject[V] {
+	copy := NewCharObjectWithCapacity[V](m.Len() * 2)
 	m.ForEach(func(k uint16, v V) {
 		copy.Put(k, v)
 	})

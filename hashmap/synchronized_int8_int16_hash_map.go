@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt8Int16HashMap is a thread-safe wrapper around Int8Int16HashMap.
+// SynchronizedInt8Int16 is a thread-safe wrapper around Int8Int16.
 //
 // Read methods hold RLock; writes hold Lock. Functional methods
 // (ForEach, Select, AnySatisfy, …) snapshot (keys, values) under
@@ -19,29 +19,29 @@ import (
 // hold the write lock while invoking the callback — the callback
 // must not re-enter the wrapper in that case. This matches the
 // Java EC synchronized-collection convention.
-type SynchronizedInt8Int16HashMap struct {
-	delegate *Int8Int16HashMap
+type SynchronizedInt8Int16 struct {
+	delegate *Int8Int16
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt8Int16HashMap wraps a mutable map with synchronization.
-func NewSynchronizedInt8Int16HashMap() *SynchronizedInt8Int16HashMap {
-	return &SynchronizedInt8Int16HashMap{delegate: NewInt8Int16HashMap()}
+// NewSynchronizedInt8Int16 wraps a mutable map with synchronization.
+func NewSynchronizedInt8Int16() *SynchronizedInt8Int16 {
+	return &SynchronizedInt8Int16{delegate: NewInt8Int16()}
 }
 
-// NewSynchronizedInt8Int16HashMapWithCapacity wraps a new map with the given initial capacity.
-func NewSynchronizedInt8Int16HashMapWithCapacity(capacity int) *SynchronizedInt8Int16HashMap {
-	return &SynchronizedInt8Int16HashMap{delegate: NewInt8Int16HashMapWithCapacity(capacity)}
+// NewSynchronizedInt8Int16WithCapacity wraps a new map with the given initial capacity.
+func NewSynchronizedInt8Int16WithCapacity(capacity int) *SynchronizedInt8Int16 {
+	return &SynchronizedInt8Int16{delegate: NewInt8Int16WithCapacity(capacity)}
 }
 
-// NewSynchronizedInt8Int16HashMapFrom wraps an existing map with synchronization.
+// NewSynchronizedInt8Int16From wraps an existing map with synchronization.
 // The wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedInt8Int16HashMapFrom(m *Int8Int16HashMap) *SynchronizedInt8Int16HashMap {
-	return &SynchronizedInt8Int16HashMap{delegate: m}
+func NewSynchronizedInt8Int16From(m *Int8Int16) *SynchronizedInt8Int16 {
+	return &SynchronizedInt8Int16{delegate: m}
 }
 
 // snapshot returns (keys, values) slices in matching order, taken under RLock.
-func (m *SynchronizedInt8Int16HashMap) snapshot() (keys []int8, values []int16) {
+func (m *SynchronizedInt8Int16) snapshot() (keys []int8, values []int16) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.KeysToSlice(), m.delegate.ValuesToSlice()
@@ -50,21 +50,21 @@ func (m *SynchronizedInt8Int16HashMap) snapshot() (keys []int8, values []int16) 
 // ── writes ────────────────────────────────────────────────────────────
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *SynchronizedInt8Int16HashMap) Put(key int8, value int16) (int16, bool) {
+func (m *SynchronizedInt8Int16) Put(key int8, value int16) (int16, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.Put(key, value)
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if found.
-func (m *SynchronizedInt8Int16HashMap) Remove(key int8) (int16, bool) {
+func (m *SynchronizedInt8Int16) Remove(key int8) (int16, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.Remove(key)
 }
 
 // Clear removes all entries.
-func (m *SynchronizedInt8Int16HashMap) Clear() {
+func (m *SynchronizedInt8Int16) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delegate.Clear()
@@ -72,7 +72,7 @@ func (m *SynchronizedInt8Int16HashMap) Clear() {
 
 // AddToValue increments the value for the given key by `amount`,
 // inserting it if absent. Holds the write lock; returns the new value.
-func (m *SynchronizedInt8Int16HashMap) AddToValue(key int8, amount int16) int16 {
+func (m *SynchronizedInt8Int16) AddToValue(key int8, amount int16) int16 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.AddToValue(key, amount)
@@ -81,7 +81,7 @@ func (m *SynchronizedInt8Int16HashMap) AddToValue(key int8, amount int16) int16 
 // UpdateValue applies f to the current (or initial) value under the
 // write lock. The callback must not re-enter this wrapper — it will
 // deadlock. Prefer Get + Put on caller side if re-entry is needed.
-func (m *SynchronizedInt8Int16HashMap) UpdateValue(key int8, initial int16, f func(int16) int16) int16 {
+func (m *SynchronizedInt8Int16) UpdateValue(key int8, initial int16, f func(int16) int16) int16 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.delegate.UpdateValue(key, initial, f)
@@ -90,74 +90,63 @@ func (m *SynchronizedInt8Int16HashMap) UpdateValue(key int8, initial int16, f fu
 // ── simple reads ──────────────────────────────────────────────────────
 
 // Get returns the value for the given key and true if found.
-func (m *SynchronizedInt8Int16HashMap) Get(key int8) (int16, bool) {
+func (m *SynchronizedInt8Int16) Get(key int8) (int16, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *SynchronizedInt8Int16HashMap) GetOrDefault(key int8, defaultValue int16) int16 {
+func (m *SynchronizedInt8Int16) GetOrDefault(key int8, defaultValue int16) int16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *SynchronizedInt8Int16HashMap) ContainsKey(key int8) bool {
+func (m *SynchronizedInt8Int16) ContainsKey(key int8) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if any entry's value matches.
-func (m *SynchronizedInt8Int16HashMap) ContainsValue(value int16) bool {
+func (m *SynchronizedInt8Int16) ContainsValue(value int16) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *SynchronizedInt8Int16HashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *SynchronizedInt8Int16) Len() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *SynchronizedInt8Int16HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *SynchronizedInt8Int16HashMap) IsEmpty() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.delegate.IsEmpty()
+	return m.delegate.Len()
 }
 
 // SumOfValues returns the sum of all values, under RLock.
-func (m *SynchronizedInt8Int16HashMap) SumOfValues() int16 {
+func (m *SynchronizedInt8Int16) SumOfValues() int16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.SumOfValues()
 }
 
 // KeysToSlice returns a copy of all keys.
-func (m *SynchronizedInt8Int16HashMap) KeysToSlice() []int8 {
+func (m *SynchronizedInt8Int16) KeysToSlice() []int8 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns a copy of all values.
-func (m *SynchronizedInt8Int16HashMap) ValuesToSlice() []int16 {
+func (m *SynchronizedInt8Int16) ValuesToSlice() []int16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *SynchronizedInt8Int16HashMap) String() string {
+func (m *SynchronizedInt8Int16) String() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.String()
@@ -167,7 +156,7 @@ func (m *SynchronizedInt8Int16HashMap) String() string {
 
 // All returns an iter.Seq2 over a snapshot of all key-value pairs.
 // Iteration is lock-free.
-func (m *SynchronizedInt8Int16HashMap) All() iter.Seq2[int8, int16] {
+func (m *SynchronizedInt8Int16) All() iter.Seq2[int8, int16] {
 	keys, values := m.snapshot()
 	return func(yield func(int8, int16) bool) {
 		for i := range keys {
@@ -179,7 +168,7 @@ func (m *SynchronizedInt8Int16HashMap) All() iter.Seq2[int8, int16] {
 }
 
 // Keys returns an iter.Seq over a snapshot of keys.
-func (m *SynchronizedInt8Int16HashMap) Keys() iter.Seq[int8] {
+func (m *SynchronizedInt8Int16) Keys() iter.Seq[int8] {
 	keys, _ := m.snapshot()
 	return func(yield func(int8) bool) {
 		for _, k := range keys {
@@ -191,7 +180,7 @@ func (m *SynchronizedInt8Int16HashMap) Keys() iter.Seq[int8] {
 }
 
 // Values returns an iter.Seq over a snapshot of values.
-func (m *SynchronizedInt8Int16HashMap) Values() iter.Seq[int16] {
+func (m *SynchronizedInt8Int16) Values() iter.Seq[int16] {
 	_, values := m.snapshot()
 	return func(yield func(int16) bool) {
 		for _, v := range values {
@@ -205,7 +194,7 @@ func (m *SynchronizedInt8Int16HashMap) Values() iter.Seq[int16] {
 // ── functional (callback) methods over snapshot ──────────────────────
 
 // ForEach iterates entries over a snapshot. Callback runs unlocked.
-func (m *SynchronizedInt8Int16HashMap) ForEach(f func(int8, int16)) {
+func (m *SynchronizedInt8Int16) ForEach(f func(int8, int16)) {
 	keys, values := m.snapshot()
 	for i := range keys {
 		f(keys[i], values[i])
@@ -213,7 +202,7 @@ func (m *SynchronizedInt8Int16HashMap) ForEach(f func(int8, int16)) {
 }
 
 // ForEachKey iterates keys over a snapshot. Callback runs unlocked.
-func (m *SynchronizedInt8Int16HashMap) ForEachKey(f func(int8)) {
+func (m *SynchronizedInt8Int16) ForEachKey(f func(int8)) {
 	keys, _ := m.snapshot()
 	for _, k := range keys {
 		f(k)
@@ -221,7 +210,7 @@ func (m *SynchronizedInt8Int16HashMap) ForEachKey(f func(int8)) {
 }
 
 // ForEachValue iterates values over a snapshot. Callback runs unlocked.
-func (m *SynchronizedInt8Int16HashMap) ForEachValue(f func(int16)) {
+func (m *SynchronizedInt8Int16) ForEachValue(f func(int16)) {
 	_, values := m.snapshot()
 	for _, v := range values {
 		f(v)
@@ -229,7 +218,7 @@ func (m *SynchronizedInt8Int16HashMap) ForEachValue(f func(int16)) {
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *SynchronizedInt8Int16HashMap) AnySatisfy(predicate func(int8, int16) bool) bool {
+func (m *SynchronizedInt8Int16) AnySatisfy(predicate func(int8, int16) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -240,7 +229,7 @@ func (m *SynchronizedInt8Int16HashMap) AnySatisfy(predicate func(int8, int16) bo
 }
 
 // AllSatisfy returns true if every entry satisfies the predicate.
-func (m *SynchronizedInt8Int16HashMap) AllSatisfy(predicate func(int8, int16) bool) bool {
+func (m *SynchronizedInt8Int16) AllSatisfy(predicate func(int8, int16) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if !predicate(keys[i], values[i]) {
@@ -251,7 +240,7 @@ func (m *SynchronizedInt8Int16HashMap) AllSatisfy(predicate func(int8, int16) bo
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *SynchronizedInt8Int16HashMap) NoneSatisfy(predicate func(int8, int16) bool) bool {
+func (m *SynchronizedInt8Int16) NoneSatisfy(predicate func(int8, int16) bool) bool {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -262,7 +251,7 @@ func (m *SynchronizedInt8Int16HashMap) NoneSatisfy(predicate func(int8, int16) b
 }
 
 // Count returns the number of entries satisfying the predicate.
-func (m *SynchronizedInt8Int16HashMap) Count(predicate func(int8, int16) bool) int {
+func (m *SynchronizedInt8Int16) Count(predicate func(int8, int16) bool) int {
 	keys, values := m.snapshot()
 	n := 0
 	for i := range keys {
@@ -274,7 +263,7 @@ func (m *SynchronizedInt8Int16HashMap) Count(predicate func(int8, int16) bool) i
 }
 
 // Detect returns any entry satisfying the predicate, or zero values and false.
-func (m *SynchronizedInt8Int16HashMap) Detect(predicate func(int8, int16) bool) (int8, int16, bool) {
+func (m *SynchronizedInt8Int16) Detect(predicate func(int8, int16) bool) (int8, int16, bool) {
 	keys, values := m.snapshot()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
@@ -287,7 +276,7 @@ func (m *SynchronizedInt8Int16HashMap) Detect(predicate func(int8, int16) bool) 
 }
 
 // InjectInto folds entries into an accumulator, callback unlocked.
-func (m *SynchronizedInt8Int16HashMap) InjectInto(initial int16, f func(int16, int8, int16) int16) int16 {
+func (m *SynchronizedInt8Int16) InjectInto(initial int16, f func(int16, int8, int16) int16) int16 {
 	keys, values := m.snapshot()
 	acc := initial
 	for i := range keys {
@@ -299,9 +288,9 @@ func (m *SynchronizedInt8Int16HashMap) InjectInto(initial int16, f func(int16, i
 // ── functional that return a new map ─────────────────────────────────
 
 // Select returns a new (unsynchronized) map with entries satisfying predicate.
-func (m *SynchronizedInt8Int16HashMap) Select(predicate func(int8, int16) bool) *Int8Int16HashMap {
+func (m *SynchronizedInt8Int16) Select(predicate func(int8, int16) bool) *Int8Int16 {
 	keys, values := m.snapshot()
-	result := NewInt8Int16HashMap()
+	result := NewInt8Int16()
 	for i := range keys {
 		if predicate(keys[i], values[i]) {
 			result.Put(keys[i], values[i])
@@ -311,9 +300,9 @@ func (m *SynchronizedInt8Int16HashMap) Select(predicate func(int8, int16) bool) 
 }
 
 // Reject returns a new (unsynchronized) map with entries NOT satisfying predicate.
-func (m *SynchronizedInt8Int16HashMap) Reject(predicate func(int8, int16) bool) *Int8Int16HashMap {
+func (m *SynchronizedInt8Int16) Reject(predicate func(int8, int16) bool) *Int8Int16 {
 	keys, values := m.snapshot()
-	result := NewInt8Int16HashMap()
+	result := NewInt8Int16()
 	for i := range keys {
 		if !predicate(keys[i], values[i]) {
 			result.Put(keys[i], values[i])
@@ -324,24 +313,24 @@ func (m *SynchronizedInt8Int16HashMap) Reject(predicate func(int8, int16) bool) 
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (m *SynchronizedInt8Int16HashMap) WithKeyValue(key int8, value int16) *SynchronizedInt8Int16HashMap {
+func (m *SynchronizedInt8Int16) PutReturning(key int8, value int16) *SynchronizedInt8Int16 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.delegate.WithKeyValue(key, value)
+	m.delegate.PutReturning(key, value)
 	return m
 }
 
-func (m *SynchronizedInt8Int16HashMap) WithoutKey(key int8) *SynchronizedInt8Int16HashMap {
+func (m *SynchronizedInt8Int16) RemoveKeyReturning(key int8) *SynchronizedInt8Int16 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.delegate.WithoutKey(key)
+	m.delegate.RemoveKeyReturning(key)
 	return m
 }
 
 // WithoutAllKeys is variadic for caller convenience; internally the
 // slice is passed straight through since the underlying method already
 // accepts a slice.
-func (m *SynchronizedInt8Int16HashMap) WithoutAllKeys(keys ...int8) *SynchronizedInt8Int16HashMap {
+func (m *SynchronizedInt8Int16) WithoutAllKeys(keys ...int8) *SynchronizedInt8Int16 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delegate.WithoutAllKeys(keys)
@@ -350,7 +339,7 @@ func (m *SynchronizedInt8Int16HashMap) WithoutAllKeys(keys ...int8) *Synchronize
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (m *SynchronizedInt8Int16HashMap) ToImmutable() *ImmutableInt8Int16HashMap {
+func (m *SynchronizedInt8Int16) ToImmutable() *ImmutableInt8Int16 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.delegate.ToImmutable()
@@ -358,7 +347,7 @@ func (m *SynchronizedInt8Int16HashMap) ToImmutable() *ImmutableInt8Int16HashMap 
 
 // Equals compares by contents. Locks acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (m *SynchronizedInt8Int16HashMap) Equals(other *SynchronizedInt8Int16HashMap) bool {
+func (m *SynchronizedInt8Int16) Equals(other *SynchronizedInt8Int16) bool {
 	if m == other {
 		m.mu.RLock()
 		defer m.mu.RUnlock()

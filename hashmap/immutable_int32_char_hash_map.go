@@ -6,136 +6,127 @@ import (
 	"iter"
 )
 
-// ImmutableInt32CharHashMap is an immutable view of a Int32CharHashMap.
+// ImmutableInt32Char is an immutable view of a Int32Char.
 // It exposes only read operations. Any attempt to modify requires
 // creating a mutable copy first via ToMutable().
-type ImmutableInt32CharHashMap struct {
-	delegate *Int32CharHashMap
+type ImmutableInt32Char struct {
+	delegate *Int32Char
 }
 
-// NewImmutableInt32CharHashMap creates an immutable map from key-value pairs.
-func NewImmutableInt32CharHashMap(pairs ...struct {
+// NewImmutableInt32Char creates an immutable map from key-value pairs.
+func NewImmutableInt32Char(pairs ...struct {
 	Key   int32
 	Value uint16
-}) *ImmutableInt32CharHashMap {
-	m := NewInt32CharHashMapWithCapacity(len(pairs) * 2)
+}) *ImmutableInt32Char {
+	m := NewInt32CharWithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
-	return &ImmutableInt32CharHashMap{delegate: m}
+	return &ImmutableInt32Char{delegate: m}
 }
 
-// ImmutableInt32CharHashMapFrom creates an immutable copy of a mutable map.
-func ImmutableInt32CharHashMapFrom(m *Int32CharHashMap) *ImmutableInt32CharHashMap {
-	copy := NewInt32CharHashMapWithCapacity(m.Size() * 2)
+// ImmutableInt32CharFrom creates an immutable copy of a mutable map.
+func ImmutableInt32CharFrom(m *Int32Char) *ImmutableInt32Char {
+	copy := NewInt32CharWithCapacity(m.Len() * 2)
 	m.ForEach(func(k int32, v uint16) {
 		copy.Put(k, v)
 	})
-	return &ImmutableInt32CharHashMap{delegate: copy}
+	return &ImmutableInt32Char{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableInt32CharHashMap) Get(key int32) (uint16, bool) {
+func (m *ImmutableInt32Char) Get(key int32) (uint16, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableInt32CharHashMap) GetOrDefault(key int32, defaultValue uint16) uint16 {
+func (m *ImmutableInt32Char) GetOrDefault(key int32, defaultValue uint16) uint16 {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableInt32CharHashMap) ContainsKey(key int32) bool {
+func (m *ImmutableInt32Char) ContainsKey(key int32) bool {
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *ImmutableInt32CharHashMap) ContainsValue(value uint16) bool {
+func (m *ImmutableInt32Char) ContainsValue(value uint16) bool {
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableInt32CharHashMap) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableInt32CharHashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableInt32CharHashMap) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableInt32Char) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableInt32CharHashMap) All() iter.Seq2[int32, uint16] {
+func (m *ImmutableInt32Char) All() iter.Seq2[int32, uint16] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableInt32CharHashMap) Keys() iter.Seq[int32] {
+func (m *ImmutableInt32Char) Keys() iter.Seq[int32] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableInt32CharHashMap) Values() iter.Seq[uint16] {
+func (m *ImmutableInt32Char) Values() iter.Seq[uint16] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableInt32CharHashMap) ForEach(f func(int32, uint16)) {
+func (m *ImmutableInt32Char) ForEach(f func(int32, uint16)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries that satisfy the predicate.
-func (m *ImmutableInt32CharHashMap) Select(predicate func(int32, uint16) bool) *ImmutableInt32CharHashMap {
-	return &ImmutableInt32CharHashMap{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableInt32Char) Select(predicate func(int32, uint16) bool) *ImmutableInt32Char {
+	return &ImmutableInt32Char{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries that do not satisfy the predicate.
-func (m *ImmutableInt32CharHashMap) Reject(predicate func(int32, uint16) bool) *ImmutableInt32CharHashMap {
-	return &ImmutableInt32CharHashMap{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableInt32Char) Reject(predicate func(int32, uint16) bool) *ImmutableInt32Char {
+	return &ImmutableInt32Char{delegate: m.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *ImmutableInt32CharHashMap) AnySatisfy(predicate func(int32, uint16) bool) bool {
+func (m *ImmutableInt32Char) AnySatisfy(predicate func(int32, uint16) bool) bool {
 	return m.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *ImmutableInt32CharHashMap) AllSatisfy(predicate func(int32, uint16) bool) bool {
+func (m *ImmutableInt32Char) AllSatisfy(predicate func(int32, uint16) bool) bool {
 	return m.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *ImmutableInt32CharHashMap) NoneSatisfy(predicate func(int32, uint16) bool) bool {
+func (m *ImmutableInt32Char) NoneSatisfy(predicate func(int32, uint16) bool) bool {
 	return m.delegate.NoneSatisfy(predicate)
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *ImmutableInt32CharHashMap) KeysToSlice() []int32 {
+func (m *ImmutableInt32Char) KeysToSlice() []int32 {
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *ImmutableInt32CharHashMap) ValuesToSlice() []uint16 {
+func (m *ImmutableInt32Char) ValuesToSlice() []uint16 {
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *ImmutableInt32CharHashMap) String() string {
+func (m *ImmutableInt32Char) String() string {
 	return m.delegate.String()
 }
 
 // Equals returns true if the other immutable map has the same entries.
-func (m *ImmutableInt32CharHashMap) Equals(other *ImmutableInt32CharHashMap) bool {
+func (m *ImmutableInt32Char) Equals(other *ImmutableInt32Char) bool {
 	return m.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableInt32CharHashMap) ToMutable() *Int32CharHashMap {
-	copy := NewInt32CharHashMapWithCapacity(m.Size() * 2)
+func (m *ImmutableInt32Char) ToMutable() *Int32Char {
+	copy := NewInt32CharWithCapacity(m.Len() * 2)
 	m.ForEach(func(k int32, v uint16) {
 		copy.Put(k, v)
 	})

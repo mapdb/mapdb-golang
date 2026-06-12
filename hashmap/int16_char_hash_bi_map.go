@@ -8,26 +8,26 @@ import (
 	"strings"
 )
 
-// Int16CharHashBiMap is a bidirectional map with int16 keys and uint16 values.
+// Int16CharBiMap is a bidirectional map with int16 keys and uint16 values.
 // Both key-to-value and value-to-key lookups are O(1).
-type Int16CharHashBiMap struct {
-	forward *Int16CharHashMap
-	reverse *CharInt16HashMap
+type Int16CharBiMap struct {
+	forward *Int16Char
+	reverse *CharInt16
 }
 
-// NewInt16CharHashBiMap creates a new empty Int16CharHashBiMap with default capacity.
-func NewInt16CharHashBiMap() *Int16CharHashBiMap {
-	return &Int16CharHashBiMap{
-		forward: NewInt16CharHashMap(),
-		reverse: NewCharInt16HashMap(),
+// NewInt16CharBiMap creates a new empty Int16CharBiMap with default capacity.
+func NewInt16CharBiMap() *Int16CharBiMap {
+	return &Int16CharBiMap{
+		forward: NewInt16Char(),
+		reverse: NewCharInt16(),
 	}
 }
 
-// NewInt16CharHashBiMapWithCapacity creates a new empty Int16CharHashBiMap with the given initial capacity.
-func NewInt16CharHashBiMapWithCapacity(capacity int) *Int16CharHashBiMap {
-	return &Int16CharHashBiMap{
-		forward: NewInt16CharHashMapWithCapacity(capacity),
-		reverse: NewCharInt16HashMapWithCapacity(capacity),
+// NewInt16CharBiMapWithCapacity creates a new empty Int16CharBiMap with the given initial capacity.
+func NewInt16CharBiMapWithCapacity(capacity int) *Int16CharBiMap {
+	return &Int16CharBiMap{
+		forward: NewInt16CharWithCapacity(capacity),
+		reverse: NewCharInt16WithCapacity(capacity),
 	}
 }
 
@@ -35,7 +35,7 @@ func NewInt16CharHashBiMapWithCapacity(capacity int) *Int16CharHashBiMap {
 // If the key already existed, the old value mapping is removed from the reverse map.
 // If the value already existed as a value for a different key, that old key mapping is removed.
 // Returns the previous value and true if the key existed.
-func (m *Int16CharHashBiMap) Put(key int16, value uint16) (uint16, bool) {
+func (m *Int16CharBiMap) Put(key int16, value uint16) (uint16, bool) {
 	// If this value is already mapped to a different key, remove that old key->value pair
 	if oldKey, ok := m.reverse.Get(value); ok {
 		if !(oldKey == key) {
@@ -55,18 +55,18 @@ func (m *Int16CharHashBiMap) Put(key int16, value uint16) (uint16, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Int16CharHashBiMap) Get(key int16) (uint16, bool) {
+func (m *Int16CharBiMap) Get(key int16) (uint16, bool) {
 	return m.forward.Get(key)
 }
 
 // GetKey returns the key for the given value and true if found, or the zero value and false if not.
-func (m *Int16CharHashBiMap) GetKey(value uint16) (int16, bool) {
+func (m *Int16CharBiMap) GetKey(value uint16) (int16, bool) {
 	return m.reverse.Get(value)
 }
 
 // Remove deletes the entry for the given key from both directions.
 // Returns the previous value and true if the key existed.
-func (m *Int16CharHashBiMap) Remove(key int16) (uint16, bool) {
+func (m *Int16CharBiMap) Remove(key int16) (uint16, bool) {
 	oldVal, existed := m.forward.Remove(key)
 	if existed {
 		m.reverse.Remove(oldVal)
@@ -76,7 +76,7 @@ func (m *Int16CharHashBiMap) Remove(key int16) (uint16, bool) {
 
 // RemoveValue deletes the entry for the given value from both directions.
 // Returns the previous key and true if the value existed.
-func (m *Int16CharHashBiMap) RemoveValue(value uint16) (int16, bool) {
+func (m *Int16CharBiMap) RemoveValue(value uint16) (int16, bool) {
 	oldKey, existed := m.reverse.Remove(value)
 	if existed {
 		m.forward.Remove(oldKey)
@@ -85,53 +85,44 @@ func (m *Int16CharHashBiMap) RemoveValue(value uint16) (int16, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Int16CharHashBiMap) ContainsKey(key int16) bool {
+func (m *Int16CharBiMap) ContainsKey(key int16) bool {
 	return m.forward.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Int16CharHashBiMap) ContainsValue(value uint16) bool {
+func (m *Int16CharBiMap) ContainsValue(value uint16) bool {
 	return m.reverse.ContainsKey(value)
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Int16CharHashBiMap) Size() int {
-	return m.forward.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Int16CharHashBiMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Int16CharHashBiMap) IsEmpty() bool {
-	return m.forward.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Int16CharBiMap) Len() int {
+	return m.forward.Len()
 }
 
 // Clear removes all entries from both directions.
-func (m *Int16CharHashBiMap) Clear() {
+func (m *Int16CharBiMap) Clear() {
 	m.forward.Clear()
 	m.reverse.Clear()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Int16CharHashBiMap) ForEach(f func(int16, uint16)) {
+func (m *Int16CharBiMap) ForEach(f func(int16, uint16)) {
 	m.forward.ForEach(f)
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Int16CharHashBiMap) Keys() iter.Seq[int16] {
+func (m *Int16CharBiMap) Keys() iter.Seq[int16] {
 	return m.forward.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Int16CharHashBiMap) Values() iter.Seq[uint16] {
+func (m *Int16CharBiMap) Values() iter.Seq[uint16] {
 	return m.forward.Values()
 }
 
-// Inverse returns a new CharInt16HashBiMap with keys and values swapped.
-func (m *Int16CharHashBiMap) Inverse() *CharInt16HashBiMap {
-	result := NewCharInt16HashBiMap()
+// Inverse returns a new CharInt16BiMap with keys and values swapped.
+func (m *Int16CharBiMap) Inverse() *CharInt16BiMap {
+	result := NewCharInt16BiMap()
 	m.forward.ForEach(func(k int16, v uint16) {
 		result.Put(v, k)
 	})
@@ -139,8 +130,8 @@ func (m *Int16CharHashBiMap) Inverse() *CharInt16HashBiMap {
 }
 
 // String returns a string representation of the bi-map.
-func (m *Int16CharHashBiMap) String() string {
-	if m.forward.Size() == 0 {
+func (m *Int16CharBiMap) String() string {
+	if m.forward.Len() == 0 {
 		return "{}"
 	}
 	var sb strings.Builder
@@ -158,6 +149,6 @@ func (m *Int16CharHashBiMap) String() string {
 }
 
 // Equals returns true if the other bi-map has the same key-value pairs.
-func (m *Int16CharHashBiMap) Equals(other *Int16CharHashBiMap) bool {
+func (m *Int16CharBiMap) Equals(other *Int16CharBiMap) bool {
 	return m.forward.Equals(other.forward)
 }

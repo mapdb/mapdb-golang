@@ -10,43 +10,43 @@ import (
 )
 
 const (
-	float64Int16HashMapDefaultCapacity = 16
+	float64Int16DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// float64Int16HashMapEntry holds a single slot in the hash map for cache locality.
-type float64Int16HashMapEntry struct {
+// float64Int16Entry holds a single slot in the hash map for cache locality.
+type float64Int16Entry struct {
 	key      float64
 	value    int16
 	occupied bool
 }
 
-// Float64Int16HashMap is an open-addressing hash map with float64 keys and int16 values.
-type Float64Int16HashMap struct {
-	entries []float64Int16HashMapEntry
+// Float64Int16 is an open-addressing hash map with float64 keys and int16 values.
+type Float64Int16 struct {
+	entries []float64Int16Entry
 	size    int
 }
 
-// NewFloat64Int16HashMap creates a new empty Float64Int16HashMap with default capacity.
-func NewFloat64Int16HashMap() *Float64Int16HashMap {
-	return NewFloat64Int16HashMapWithCapacity(float64Int16HashMapDefaultCapacity)
+// NewFloat64Int16 creates a new empty Float64Int16 with default capacity.
+func NewFloat64Int16() *Float64Int16 {
+	return NewFloat64Int16WithCapacity(float64Int16DefaultCapacity)
 }
 
-// NewFloat64Int16HashMapWithCapacity creates a new empty Float64Int16HashMap with the given initial capacity.
-func NewFloat64Int16HashMapWithCapacity(capacity int) *Float64Int16HashMap {
-	cap := nextPowerOfTwoFloat64Int16HashMap(capacity)
-	return &Float64Int16HashMap{
-		entries: make([]float64Int16HashMapEntry, cap),
+// NewFloat64Int16WithCapacity creates a new empty Float64Int16 with the given initial capacity.
+func NewFloat64Int16WithCapacity(capacity int) *Float64Int16 {
+	cap := nextPowerOfTwoFloat64Int16(capacity)
+	return &Float64Int16{
+		entries: make([]float64Int16Entry, cap),
 		size:    0,
 	}
 }
 
-// Float64Int16HashMapOf creates a new Float64Int16HashMap from key-value pairs.
-func Float64Int16HashMapOf(pairs ...struct {
+// Float64Int16Of creates a new Float64Int16 from key-value pairs.
+func Float64Int16Of(pairs ...struct {
 	Key   float64
 	Value int16
-}) *Float64Int16HashMap {
-	m := NewFloat64Int16HashMapWithCapacity(len(pairs) * 2)
+}) *Float64Int16 {
+	m := NewFloat64Int16WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
@@ -54,7 +54,7 @@ func Float64Int16HashMapOf(pairs ...struct {
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Float64Int16HashMap) Put(key float64, value int16) (int16, bool) {
+func (m *Float64Int16) Put(key float64, value int16) (int16, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -80,7 +80,7 @@ func (m *Float64Int16HashMap) Put(key float64, value int16) (int16, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *Float64Int16HashMap) Get(key float64) (int16, bool) {
+func (m *Float64Int16) Get(key float64) (int16, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -100,7 +100,7 @@ func (m *Float64Int16HashMap) Get(key float64) (int16, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *Float64Int16HashMap) GetOrDefault(key float64, defaultValue int16) int16 {
+func (m *Float64Int16) GetOrDefault(key float64, defaultValue int16) int16 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -108,7 +108,7 @@ func (m *Float64Int16HashMap) GetOrDefault(key float64, defaultValue int16) int1
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *Float64Int16HashMap) Remove(key float64) (int16, bool) {
+func (m *Float64Int16) Remove(key float64) (int16, bool) {
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -139,13 +139,13 @@ func (m *Float64Int16HashMap) Remove(key float64) (int16, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Float64Int16HashMap) ContainsKey(key float64) bool {
+func (m *Float64Int16) ContainsKey(key float64) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *Float64Int16HashMap) ContainsValue(value int16) bool {
+func (m *Float64Int16) ContainsValue(value int16) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && m.entries[i].value == value {
 			return true
@@ -154,30 +154,21 @@ func (m *Float64Int16HashMap) ContainsValue(value int16) bool {
 	return false
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *Float64Int16HashMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float64Int16) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float64Int16HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *Float64Int16HashMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *Float64Int16HashMap) Clear() {
+func (m *Float64Int16) Clear() {
 	for i := range m.entries {
-		m.entries[i] = float64Int16HashMapEntry{}
+		m.entries[i] = float64Int16Entry{}
 	}
 	m.size = 0
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *Float64Int16HashMap) All() iter.Seq2[float64, int16] {
+func (m *Float64Int16) All() iter.Seq2[float64, int16] {
 	return func(yield func(float64, int16) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -190,7 +181,7 @@ func (m *Float64Int16HashMap) All() iter.Seq2[float64, int16] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *Float64Int16HashMap) Keys() iter.Seq[float64] {
+func (m *Float64Int16) Keys() iter.Seq[float64] {
 	return func(yield func(float64) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -203,7 +194,7 @@ func (m *Float64Int16HashMap) Keys() iter.Seq[float64] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *Float64Int16HashMap) Values() iter.Seq[int16] {
+func (m *Float64Int16) Values() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for i := range m.entries {
 			if m.entries[i].occupied {
@@ -216,7 +207,7 @@ func (m *Float64Int16HashMap) Values() iter.Seq[int16] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *Float64Int16HashMap) ForEach(f func(float64, int16)) {
+func (m *Float64Int16) ForEach(f func(float64, int16)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key, m.entries[i].value)
@@ -225,7 +216,7 @@ func (m *Float64Int16HashMap) ForEach(f func(float64, int16)) {
 }
 
 // ForEachKey calls the given function for each key.
-func (m *Float64Int16HashMap) ForEachKey(f func(float64)) {
+func (m *Float64Int16) ForEachKey(f func(float64)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].key)
@@ -234,7 +225,7 @@ func (m *Float64Int16HashMap) ForEachKey(f func(float64)) {
 }
 
 // ForEachValue calls the given function for each value.
-func (m *Float64Int16HashMap) ForEachValue(f func(int16)) {
+func (m *Float64Int16) ForEachValue(f func(int16)) {
 	for i := range m.entries {
 		if m.entries[i].occupied {
 			f(m.entries[i].value)
@@ -243,8 +234,8 @@ func (m *Float64Int16HashMap) ForEachValue(f func(int16)) {
 }
 
 // Select returns a new map containing only the key-value pairs that satisfy the predicate.
-func (m *Float64Int16HashMap) Select(predicate func(float64, int16) bool) *Float64Int16HashMap {
-	result := NewFloat64Int16HashMap()
+func (m *Float64Int16) Select(predicate func(float64, int16) bool) *Float64Int16 {
+	result := NewFloat64Int16()
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -254,8 +245,8 @@ func (m *Float64Int16HashMap) Select(predicate func(float64, int16) bool) *Float
 }
 
 // Reject returns a new map containing only the key-value pairs that do not satisfy the predicate.
-func (m *Float64Int16HashMap) Reject(predicate func(float64, int16) bool) *Float64Int16HashMap {
-	result := NewFloat64Int16HashMap()
+func (m *Float64Int16) Reject(predicate func(float64, int16) bool) *Float64Int16 {
+	result := NewFloat64Int16()
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
@@ -265,7 +256,7 @@ func (m *Float64Int16HashMap) Reject(predicate func(float64, int16) bool) *Float
 }
 
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
-func (m *Float64Int16HashMap) Detect(predicate func(float64, int16) bool) (float64, int16, bool) {
+func (m *Float64Int16) Detect(predicate func(float64, int16) bool) (float64, int16, bool) {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
@@ -275,7 +266,7 @@ func (m *Float64Int16HashMap) Detect(predicate func(float64, int16) bool) (float
 }
 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
-func (m *Float64Int16HashMap) AnySatisfy(predicate func(float64, int16) bool) bool {
+func (m *Float64Int16) AnySatisfy(predicate func(float64, int16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
@@ -285,7 +276,7 @@ func (m *Float64Int16HashMap) AnySatisfy(predicate func(float64, int16) bool) bo
 }
 
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
-func (m *Float64Int16HashMap) AllSatisfy(predicate func(float64, int16) bool) bool {
+func (m *Float64Int16) AllSatisfy(predicate func(float64, int16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -295,7 +286,7 @@ func (m *Float64Int16HashMap) AllSatisfy(predicate func(float64, int16) bool) bo
 }
 
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
-func (m *Float64Int16HashMap) NoneSatisfy(predicate func(float64, int16) bool) bool {
+func (m *Float64Int16) NoneSatisfy(predicate func(float64, int16) bool) bool {
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
@@ -305,7 +296,7 @@ func (m *Float64Int16HashMap) NoneSatisfy(predicate func(float64, int16) bool) b
 }
 
 // Count returns the number of key-value pairs that satisfy the predicate.
-func (m *Float64Int16HashMap) Count(predicate func(float64, int16) bool) int {
+func (m *Float64Int16) Count(predicate func(float64, int16) bool) int {
 	count := 0
 	for i := range m.entries {
 		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
@@ -316,7 +307,7 @@ func (m *Float64Int16HashMap) Count(predicate func(float64, int16) bool) int {
 }
 
 // String returns a string representation of the map.
-func (m *Float64Int16HashMap) String() string {
+func (m *Float64Int16) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -337,7 +328,7 @@ func (m *Float64Int16HashMap) String() string {
 }
 
 // Equals returns true if the other map has the same key-value pairs.
-func (m *Float64Int16HashMap) Equals(other *Float64Int16HashMap) bool {
+func (m *Float64Int16) Equals(other *Float64Int16) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -353,7 +344,7 @@ func (m *Float64Int16HashMap) Equals(other *Float64Int16HashMap) bool {
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *Float64Int16HashMap) KeysToSlice() []float64 {
+func (m *Float64Int16) KeysToSlice() []float64 {
 	result := make([]float64, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -364,7 +355,7 @@ func (m *Float64Int16HashMap) KeysToSlice() []float64 {
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *Float64Int16HashMap) ValuesToSlice() []int16 {
+func (m *Float64Int16) ValuesToSlice() []int16 {
 	result := make([]int16, 0, m.size)
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -375,12 +366,12 @@ func (m *Float64Int16HashMap) ValuesToSlice() []int16 {
 }
 
 // ToImmutable returns an immutable copy of this map.
-func (m *Float64Int16HashMap) ToImmutable() *ImmutableFloat64Int16HashMap {
-	return ImmutableFloat64Int16HashMapFrom(m)
+func (m *Float64Int16) ToImmutable() *ImmutableFloat64Int16 {
+	return ImmutableFloat64Int16From(m)
 }
 
 // InjectInto performs a left fold over all key-value pairs.
-func (m *Float64Int16HashMap) InjectInto(initial int16, f func(int16, float64, int16) int16) int16 {
+func (m *Float64Int16) InjectInto(initial int16, f func(int16, float64, int16) int16) int16 {
 	result := initial
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -393,7 +384,7 @@ func (m *Float64Int16HashMap) InjectInto(initial int16, f func(int16, float64, i
 // AddToValue adds the given amount to the value for the key.
 // If the key is not present, inserts it with the given amount as value.
 // Returns the new value.
-func (m *Float64Int16HashMap) AddToValue(key float64, amount int16) int16 {
+func (m *Float64Int16) AddToValue(key float64, amount int16) int16 {
 	if v, ok := m.Get(key); ok {
 		newVal := v + amount
 		m.Put(key, newVal)
@@ -406,7 +397,7 @@ func (m *Float64Int16HashMap) AddToValue(key float64, amount int16) int16 {
 // UpdateValue updates the value for the key using the function.
 // If key is absent, inserts initialValue first then applies the function.
 // Returns the new value.
-func (m *Float64Int16HashMap) UpdateValue(key float64, initialValue int16, f func(int16) int16) int16 {
+func (m *Float64Int16) UpdateValue(key float64, initialValue int16, f func(int16) int16) int16 {
 	if v, ok := m.Get(key); ok {
 		newVal := f(v)
 		m.Put(key, newVal)
@@ -417,20 +408,20 @@ func (m *Float64Int16HashMap) UpdateValue(key float64, initialValue int16, f fun
 	return newVal
 }
 
-// WithKeyValue returns the map after putting the key-value pair (fluent API).
-func (m *Float64Int16HashMap) WithKeyValue(key float64, value int16) *Float64Int16HashMap {
+// PutReturning returns the map after putting the key-value pair (fluent API).
+func (m *Float64Int16) PutReturning(key float64, value int16) *Float64Int16 {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey returns the map after removing the key (fluent API).
-func (m *Float64Int16HashMap) WithoutKey(key float64) *Float64Int16HashMap {
+// RemoveKeyReturning returns the map after removing the key (fluent API).
+func (m *Float64Int16) RemoveKeyReturning(key float64) *Float64Int16 {
 	m.Remove(key)
 	return m
 }
 
 // WithoutAllKeys removes all given keys (fluent API).
-func (m *Float64Int16HashMap) WithoutAllKeys(keys []float64) *Float64Int16HashMap {
+func (m *Float64Int16) WithoutAllKeys(keys []float64) *Float64Int16 {
 	for _, k := range keys {
 		m.Remove(k)
 	}
@@ -438,7 +429,7 @@ func (m *Float64Int16HashMap) WithoutAllKeys(keys []float64) *Float64Int16HashMa
 }
 
 // SumOfValues returns the sum of all values.
-func (m *Float64Int16HashMap) SumOfValues() int16 {
+func (m *Float64Int16) SumOfValues() int16 {
 	var sum int16
 	for i := range m.entries {
 		if m.entries[i].occupied {
@@ -450,19 +441,19 @@ func (m *Float64Int16HashMap) SumOfValues() int16 {
 
 // Entry returns a handle for in-place check-and-modify operations on the
 // given key. The handle is not thread-safe: external synchronisation (the
-// SynchronizedFloat64Int16HashMap wrapper's Lock / RLock, or your own mutex) is required
+// SynchronizedFloat64Int16 wrapper's Lock / RLock, or your own mutex) is required
 // when multiple goroutines share the same underlying map. The name is
 // modelled on Rust's std::collections::hash_map::Entry, not on Java's
 // ConcurrentMap.compute; there is no internal locking, no CAS, and no
 // atomicity guarantee across callback invocation.
-func (m *Float64Int16HashMap) Entry(key float64) Float64Int16Entry {
+func (m *Float64Int16) Entry(key float64) Float64Int16Entry {
 	return Float64Int16Entry{m: m, key: key}
 }
 
 // Float64Int16Entry provides in-place check-and-modify operations for a single
-// key. Not thread-safe — see Float64Int16HashMap.Entry.
+// key. Not thread-safe — see Float64Int16.Entry.
 type Float64Int16Entry struct {
-	m   *Float64Int16HashMap
+	m   *Float64Int16
 	key float64
 }
 
@@ -523,22 +514,22 @@ func (e Float64Int16Entry) AndModify(f func(*int16)) Float64Int16Entry {
 	}
 }
 
-func (m *Float64Int16HashMap) hashKey(key float64) uint64 {
+func (m *Float64Int16) hashKey(key float64) uint64 {
 	h := math.Float64bits(key) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (m *Float64Int16HashMap) needsResize() bool {
+func (m *Float64Int16) needsResize() bool {
 	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
 }
 
-func (m *Float64Int16HashMap) resize() {
+func (m *Float64Int16) resize() {
 	oldEntries := m.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = float64Int16HashMapDefaultCapacity
+		newCap = float64Int16DefaultCapacity
 	}
-	m.entries = make([]float64Int16HashMapEntry, newCap)
+	m.entries = make([]float64Int16Entry, newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -549,7 +540,7 @@ func (m *Float64Int16HashMap) resize() {
 }
 
 // rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *Float64Int16HashMap) rehashFrom(deleted int, mask int) {
+func (m *Float64Int16) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
@@ -558,7 +549,7 @@ func (m *Float64Int16HashMap) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = float64Int16HashMapEntry{}
+			m.entries[idx] = float64Int16Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -568,7 +559,7 @@ func (m *Float64Int16HashMap) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoFloat64Int16HashMap(n int) int {
+func nextPowerOfTwoFloat64Int16(n int) int {
 	if n <= 0 {
 		return 16
 	}

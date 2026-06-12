@@ -171,8 +171,8 @@ func TestPetKata_GetPeopleWithCats(t *testing.T) {
 	_ = people // TODO: replace with people.Select(...)
 	catPeople := NewArrayList[Person]()
 
-	if catPeople.Size() != 3 {
-		t.Errorf("Select(hasCat) size = %d, want 3", catPeople.Size())
+	if catPeople.Len() != 3 {
+		t.Errorf("Select(hasCat) size = %d, want 3", catPeople.Len())
 	}
 	names := NewHashSet[string]()
 	catPeople.ForEach(func(p Person) { names.Add(p.FirstName) })
@@ -190,8 +190,8 @@ func TestPetKata_GetPeopleWithoutCats(t *testing.T) {
 	_ = people // TODO: replace with people.Reject(...)
 	noCatPeople := NewArrayList[Person]()
 
-	if noCatPeople.Size() != 4 {
-		t.Errorf("Reject(hasCat) size = %d, want 4", noCatPeople.Size())
+	if noCatPeople.Len() != 4 {
+		t.Errorf("Reject(hasCat) size = %d, want 4", noCatPeople.Len())
 	}
 }
 
@@ -209,8 +209,8 @@ func TestPetKata_FindMarySmith(t *testing.T) {
 	if mary.FullName() != "Mary Smith" {
 		t.Errorf("Detect found %q, want 'Mary Smith'", mary.FullName())
 	}
-	if mary.Pets.Size() != 1 {
-		t.Errorf("Mary has %d pets, want 1", mary.Pets.Size())
+	if mary.Pets.Len() != 1 {
+		t.Errorf("Mary has %d pets, want 1", mary.Pets.Len())
 	}
 }
 
@@ -221,8 +221,8 @@ func TestPetKata_CollectAllPetNames(t *testing.T) {
 	petNames := NewArrayList[string]()
 	_ = people // TODO: iterate people and their pets, adding each pet name to petNames
 
-	if petNames.Size() != 11 {
-		t.Errorf("total pet names = %d, want 11", petNames.Size())
+	if petNames.Len() != 11 {
+		t.Errorf("total pet names = %d, want 11", petNames.Len())
 	}
 	if !petNames.Contains("Tabby") {
 		t.Error("missing pet name Tabby")
@@ -248,8 +248,8 @@ func TestPetKata_CountPetTypes(t *testing.T) {
 	if petTypeBag.OccurrencesOf(HAMSTER) != 2 {
 		t.Errorf("HAMSTER occurrences = %d, want 2", petTypeBag.OccurrencesOf(HAMSTER))
 	}
-	if petTypeBag.Size() != 11 {
-		t.Errorf("total pet type bag size = %d, want 11", petTypeBag.Size())
+	if petTypeBag.Len() != 11 {
+		t.Errorf("total pet type bag size = %d, want 11", petTypeBag.Len())
 	}
 
 	top := petTypeBag.TopOccurrences(2)
@@ -268,8 +268,8 @@ func TestPetKata_UniquePetTypes(t *testing.T) {
 	petTypes := NewHashSet[PetType]()
 	_ = people // TODO: populate petTypes
 
-	if petTypes.Size() != 6 {
-		t.Errorf("unique pet types = %d, want 6", petTypes.Size())
+	if petTypes.Len() != 6 {
+		t.Errorf("unique pet types = %d, want 6", petTypes.Len())
 	}
 	for _, pt := range []PetType{CAT, DOG, HAMSTER, TURTLE, BIRD, SNAKE} {
 		if !petTypes.Contains(pt) {

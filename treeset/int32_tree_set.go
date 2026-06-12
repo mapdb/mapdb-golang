@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	int32TreeSetNodeRed   = false
-	int32TreeSetNodeBlack = true
+	int32NodeRed   = false
+	int32NodeBlack = true
 )
 
-type int32TreeSetNode struct {
+type int32Node struct {
 	key    int32
-	left   *int32TreeSetNode
-	right  *int32TreeSetNode
-	parent *int32TreeSetNode
+	left   *int32Node
+	right  *int32Node
+	parent *int32Node
 	color  bool
 }
 
-// Int32TreeSet is a sorted set of int32 values, backed by a red-black tree.
-type Int32TreeSet struct {
-	root *int32TreeSetNode
+// Int32 is a sorted set of int32 values, backed by a red-black tree.
+type Int32 struct {
+	root *int32Node
 	size int
 }
 
-// NewInt32TreeSet creates a new empty sorted set.
-func NewInt32TreeSet() *Int32TreeSet {
-	return &Int32TreeSet{}
+// NewInt32 creates a new empty sorted set.
+func NewInt32() *Int32 {
+	return &Int32{}
 }
 
-// Int32TreeSetOf creates a new sorted set from the given values.
-func Int32TreeSetOf(values ...int32) *Int32TreeSet {
-	s := NewInt32TreeSet()
+// Int32Of creates a new sorted set from the given values.
+func Int32Of(values ...int32) *Int32 {
+	s := NewInt32()
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -42,9 +42,9 @@ func Int32TreeSetOf(values ...int32) *Int32TreeSet {
 }
 
 // Add inserts a value. Returns true if added (not already present).
-func (s *Int32TreeSet) Add(value int32) bool {
+func (s *Int32) Add(value int32) bool {
 	if s.root == nil {
-		s.root = &int32TreeSetNode{key: value, color: int32TreeSetNodeBlack}
+		s.root = &int32Node{key: value, color: int32NodeBlack}
 		s.size++
 		return true
 	}
@@ -52,7 +52,7 @@ func (s *Int32TreeSet) Add(value int32) bool {
 	for {
 		if value < node.key {
 			if node.left == nil {
-				node.left = &int32TreeSetNode{key: value, parent: node, color: int32TreeSetNodeRed}
+				node.left = &int32Node{key: value, parent: node, color: int32NodeRed}
 				s.fixAfterInsert(node.left)
 				s.size++
 				return true
@@ -60,7 +60,7 @@ func (s *Int32TreeSet) Add(value int32) bool {
 			node = node.left
 		} else if value > node.key {
 			if node.right == nil {
-				node.right = &int32TreeSetNode{key: value, parent: node, color: int32TreeSetNodeRed}
+				node.right = &int32Node{key: value, parent: node, color: int32NodeRed}
 				s.fixAfterInsert(node.right)
 				s.size++
 				return true
@@ -73,7 +73,7 @@ func (s *Int32TreeSet) Add(value int32) bool {
 }
 
 // Remove removes a value. Returns true if found and removed.
-func (s *Int32TreeSet) Remove(value int32) bool {
+func (s *Int32) Remove(value int32) bool {
 	node := s.findNode(value)
 	if node == nil {
 		return false
@@ -84,25 +84,18 @@ func (s *Int32TreeSet) Remove(value int32) bool {
 }
 
 // Contains returns true if the set contains the value.
-func (s *Int32TreeSet) Contains(value int32) bool {
+func (s *Int32) Contains(value int32) bool {
 	return s.findNode(value) != nil
 }
 
-// Size returns the number of elements.
-func (s *Int32TreeSet) Size() int { return s.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int32TreeSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set is empty.
-func (s *Int32TreeSet) IsEmpty() bool { return s.size == 0 }
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Int32) Len() int { return s.size }
 
 // Clear removes all elements.
-func (s *Int32TreeSet) Clear() { s.root = nil; s.size = 0 }
+func (s *Int32) Clear() { s.root = nil; s.size = 0 }
 
 // Min returns the smallest element, or zero and false if empty.
-func (s *Int32TreeSet) Min() (int32, bool) {
+func (s *Int32) Min() (int32, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -110,7 +103,7 @@ func (s *Int32TreeSet) Min() (int32, bool) {
 }
 
 // Max returns the largest element, or zero and false if empty.
-func (s *Int32TreeSet) Max() (int32, bool) {
+func (s *Int32) Max() (int32, bool) {
 	if s.root == nil {
 		return 0, false
 	}
@@ -118,8 +111,8 @@ func (s *Int32TreeSet) Max() (int32, bool) {
 }
 
 // Floor returns the largest element <= value, or zero and false.
-func (s *Int32TreeSet) Floor(value int32) (int32, bool) {
-	var result *int32TreeSetNode
+func (s *Int32) Floor(value int32) (int32, bool) {
+	var result *int32Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -139,8 +132,8 @@ func (s *Int32TreeSet) Floor(value int32) (int32, bool) {
 }
 
 // Ceiling returns the smallest element >= value, or zero and false.
-func (s *Int32TreeSet) Ceiling(value int32) (int32, bool) {
-	var result *int32TreeSetNode
+func (s *Int32) Ceiling(value int32) (int32, bool) {
+	var result *int32Node
 	node := s.root
 	for node != nil {
 		if value == node.key {
@@ -160,10 +153,10 @@ func (s *Int32TreeSet) Ceiling(value int32) (int32, bool) {
 }
 
 // All returns an iter.Seq that yields elements in ascending order.
-func (s *Int32TreeSet) All() iter.Seq[int32] {
+func (s *Int32) All() iter.Seq[int32] {
 	return func(yield func(int32) bool) {
-		var inorder func(node *int32TreeSetNode) bool
-		inorder = func(node *int32TreeSetNode) bool {
+		var inorder func(node *int32Node) bool
+		inorder = func(node *int32Node) bool {
 			if node == nil {
 				return true
 			}
@@ -180,7 +173,7 @@ func (s *Int32TreeSet) All() iter.Seq[int32] {
 }
 
 // RangeValues returns an iter.Seq that yields elements in [from, to).
-func (s *Int32TreeSet) RangeValues(from, to int32) iter.Seq[int32] {
+func (s *Int32) RangeValues(from, to int32) iter.Seq[int32] {
 	return func(yield func(int32) bool) {
 		for v := range s.All() {
 			if v < from {
@@ -197,15 +190,15 @@ func (s *Int32TreeSet) RangeValues(from, to int32) iter.Seq[int32] {
 }
 
 // ForEach calls the function for each element in ascending order.
-func (s *Int32TreeSet) ForEach(f func(int32)) {
+func (s *Int32) ForEach(f func(int32)) {
 	for v := range s.All() {
 		f(v)
 	}
 }
 
 // Select returns a new sorted set with elements satisfying the predicate.
-func (s *Int32TreeSet) Select(predicate func(int32) bool) *Int32TreeSet {
-	result := NewInt32TreeSet()
+func (s *Int32) Select(predicate func(int32) bool) *Int32 {
+	result := NewInt32()
 	for v := range s.All() {
 		if predicate(v) {
 			result.Add(v)
@@ -215,8 +208,8 @@ func (s *Int32TreeSet) Select(predicate func(int32) bool) *Int32TreeSet {
 }
 
 // Reject returns a new sorted set with elements NOT satisfying the predicate.
-func (s *Int32TreeSet) Reject(predicate func(int32) bool) *Int32TreeSet {
-	result := NewInt32TreeSet()
+func (s *Int32) Reject(predicate func(int32) bool) *Int32 {
+	result := NewInt32()
 	for v := range s.All() {
 		if !predicate(v) {
 			result.Add(v)
@@ -226,7 +219,7 @@ func (s *Int32TreeSet) Reject(predicate func(int32) bool) *Int32TreeSet {
 }
 
 // Detect returns the first element satisfying the predicate, or (zero, false) if none.
-func (s *Int32TreeSet) Detect(predicate func(int32) bool) (int32, bool) {
+func (s *Int32) Detect(predicate func(int32) bool) (int32, bool) {
 	for v := range s.All() {
 		if predicate(v) {
 			return v, true
@@ -237,7 +230,7 @@ func (s *Int32TreeSet) Detect(predicate func(int32) bool) (int32, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int32TreeSet) AnySatisfy(predicate func(int32) bool) bool {
+func (s *Int32) AnySatisfy(predicate func(int32) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return true
@@ -247,7 +240,7 @@ func (s *Int32TreeSet) AnySatisfy(predicate func(int32) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int32TreeSet) AllSatisfy(predicate func(int32) bool) bool {
+func (s *Int32) AllSatisfy(predicate func(int32) bool) bool {
 	for v := range s.All() {
 		if !predicate(v) {
 			return false
@@ -257,7 +250,7 @@ func (s *Int32TreeSet) AllSatisfy(predicate func(int32) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int32TreeSet) NoneSatisfy(predicate func(int32) bool) bool {
+func (s *Int32) NoneSatisfy(predicate func(int32) bool) bool {
 	for v := range s.All() {
 		if predicate(v) {
 			return false
@@ -267,7 +260,7 @@ func (s *Int32TreeSet) NoneSatisfy(predicate func(int32) bool) bool {
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *Int32TreeSet) Count(predicate func(int32) bool) int {
+func (s *Int32) Count(predicate func(int32) bool) int {
 	c := 0
 	for v := range s.All() {
 		if predicate(v) {
@@ -278,8 +271,8 @@ func (s *Int32TreeSet) Count(predicate func(int32) bool) int {
 }
 
 // Union returns a new sorted set with elements from both sets.
-func (s *Int32TreeSet) Union(other *Int32TreeSet) *Int32TreeSet {
-	result := NewInt32TreeSet()
+func (s *Int32) Union(other *Int32) *Int32 {
+	result := NewInt32()
 	for v := range s.All() {
 		result.Add(v)
 	}
@@ -290,8 +283,8 @@ func (s *Int32TreeSet) Union(other *Int32TreeSet) *Int32TreeSet {
 }
 
 // Intersect returns a new sorted set with elements in both sets.
-func (s *Int32TreeSet) Intersect(other *Int32TreeSet) *Int32TreeSet {
-	result := NewInt32TreeSet()
+func (s *Int32) Intersect(other *Int32) *Int32 {
+	result := NewInt32()
 	for v := range s.All() {
 		if other.Contains(v) {
 			result.Add(v)
@@ -301,8 +294,8 @@ func (s *Int32TreeSet) Intersect(other *Int32TreeSet) *Int32TreeSet {
 }
 
 // Difference returns a new sorted set with elements in this but not other.
-func (s *Int32TreeSet) Difference(other *Int32TreeSet) *Int32TreeSet {
-	result := NewInt32TreeSet()
+func (s *Int32) Difference(other *Int32) *Int32 {
+	result := NewInt32()
 	for v := range s.All() {
 		if !other.Contains(v) {
 			result.Add(v)
@@ -312,7 +305,7 @@ func (s *Int32TreeSet) Difference(other *Int32TreeSet) *Int32TreeSet {
 }
 
 // ToSlice returns elements as a sorted slice.
-func (s *Int32TreeSet) ToSlice() []int32 {
+func (s *Int32) ToSlice() []int32 {
 	result := make([]int32, 0, s.size)
 	for v := range s.All() {
 		result = append(result, v)
@@ -320,14 +313,14 @@ func (s *Int32TreeSet) ToSlice() []int32 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *Int32TreeSet) With(value int32) *Int32TreeSet { s.Add(value); return s }
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Int32) AddReturning(value int32) *Int32 { s.Add(value); return s }
 
-// Without returns the set after removing the value (fluent API).
-func (s *Int32TreeSet) Without(value int32) *Int32TreeSet { s.Remove(value); return s }
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Int32) RemoveReturning(value int32) *Int32 { s.Remove(value); return s }
 
 // String returns a string representation in sorted order.
-func (s *Int32TreeSet) String() string {
+func (s *Int32) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -347,7 +340,7 @@ func (s *Int32TreeSet) String() string {
 
 // --- Red-black tree internals (same as TreeMap) ---
 
-func (s *Int32TreeSet) findNode(key int32) *int32TreeSetNode {
+func (s *Int32) findNode(key int32) *int32Node {
 	node := s.root
 	for node != nil {
 		if key < node.key {
@@ -360,20 +353,20 @@ func (s *Int32TreeSet) findNode(key int32) *int32TreeSetNode {
 	}
 	return nil
 }
-func (s *Int32TreeSet) minNode(node *int32TreeSetNode) *int32TreeSetNode {
+func (s *Int32) minNode(node *int32Node) *int32Node {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
-func (s *Int32TreeSet) maxNode(node *int32TreeSetNode) *int32TreeSetNode {
+func (s *Int32) maxNode(node *int32Node) *int32Node {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (s *Int32TreeSet) rotateLeft(x *int32TreeSetNode) {
+func (s *Int32) rotateLeft(x *int32Node) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -390,7 +383,7 @@ func (s *Int32TreeSet) rotateLeft(x *int32TreeSetNode) {
 	y.left = x
 	x.parent = y
 }
-func (s *Int32TreeSet) rotateRight(x *int32TreeSetNode) {
+func (s *Int32) rotateRight(x *int32Node) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -408,52 +401,52 @@ func (s *Int32TreeSet) rotateRight(x *int32TreeSetNode) {
 	x.parent = y
 }
 
-func (s *Int32TreeSet) fixAfterInsert(z *int32TreeSetNode) {
-	for z.parent != nil && z.parent.color == int32TreeSetNodeRed {
+func (s *Int32) fixAfterInsert(z *int32Node) {
+	for z.parent != nil && z.parent.color == int32NodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
-			if y != nil && y.color == int32TreeSetNodeRed {
-				z.parent.color = int32TreeSetNodeBlack
-				y.color = int32TreeSetNodeBlack
-				z.parent.parent.color = int32TreeSetNodeRed
+			if y != nil && y.color == int32NodeRed {
+				z.parent.color = int32NodeBlack
+				y.color = int32NodeBlack
+				z.parent.parent.color = int32NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.right {
 					z = z.parent
 					s.rotateLeft(z)
 				}
-				z.parent.color = int32TreeSetNodeBlack
-				z.parent.parent.color = int32TreeSetNodeRed
+				z.parent.color = int32NodeBlack
+				z.parent.parent.color = int32NodeRed
 				s.rotateRight(z.parent.parent)
 			}
 		} else {
 			y := z.parent.parent.left
-			if y != nil && y.color == int32TreeSetNodeRed {
-				z.parent.color = int32TreeSetNodeBlack
-				y.color = int32TreeSetNodeBlack
-				z.parent.parent.color = int32TreeSetNodeRed
+			if y != nil && y.color == int32NodeRed {
+				z.parent.color = int32NodeBlack
+				y.color = int32NodeBlack
+				z.parent.parent.color = int32NodeRed
 				z = z.parent.parent
 			} else {
 				if z == z.parent.left {
 					z = z.parent
 					s.rotateRight(z)
 				}
-				z.parent.color = int32TreeSetNodeBlack
-				z.parent.parent.color = int32TreeSetNodeRed
+				z.parent.color = int32NodeBlack
+				z.parent.parent.color = int32NodeRed
 				s.rotateLeft(z.parent.parent)
 			}
 		}
 	}
-	s.root.color = int32TreeSetNodeBlack
+	s.root.color = int32NodeBlack
 }
 
-func (s *Int32TreeSet) deleteNode(z *int32TreeSetNode) {
+func (s *Int32) deleteNode(z *int32Node) {
 	if z.left != nil && z.right != nil {
 		succ := s.minNode(z.right)
 		z.key = succ.key
 		z = succ
 	}
-	var child *int32TreeSetNode
+	var child *int32Node
 	if z.left != nil {
 		child = z.left
 	} else {
@@ -468,13 +461,13 @@ func (s *Int32TreeSet) deleteNode(z *int32TreeSetNode) {
 		} else {
 			z.parent.right = child
 		}
-		if z.color == int32TreeSetNodeBlack {
+		if z.color == int32NodeBlack {
 			s.fixAfterDelete(child)
 		}
 	} else if z.parent == nil {
 		s.root = nil
 	} else {
-		if z.color == int32TreeSetNodeBlack {
+		if z.color == int32NodeBlack {
 			s.fixAfterDelete(z)
 		}
 		if z.parent != nil {
@@ -487,17 +480,17 @@ func (s *Int32TreeSet) deleteNode(z *int32TreeSetNode) {
 	}
 }
 
-func (s *Int32TreeSet) fixAfterDelete(x *int32TreeSetNode) {
-	for x != s.root && x.color == int32TreeSetNodeBlack {
+func (s *Int32) fixAfterDelete(x *int32Node) {
+	for x != s.root && x.color == int32NodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right
 			if w == nil {
 				x = x.parent
 				continue
 			}
-			if w.color == int32TreeSetNodeRed {
-				w.color = int32TreeSetNodeBlack
-				x.parent.color = int32TreeSetNodeRed
+			if w.color == int32NodeRed {
+				w.color = int32NodeBlack
+				x.parent.color = int32NodeRed
 				s.rotateLeft(x.parent)
 				w = x.parent.right
 			}
@@ -505,24 +498,24 @@ func (s *Int32TreeSet) fixAfterDelete(x *int32TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int32TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int32TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int32NodeBlack
+			rb := w.right == nil || w.right.color == int32NodeBlack
 			if lb && rb {
-				w.color = int32TreeSetNodeRed
+				w.color = int32NodeRed
 				x = x.parent
 			} else {
 				if rb {
 					if w.left != nil {
-						w.left.color = int32TreeSetNodeBlack
+						w.left.color = int32NodeBlack
 					}
-					w.color = int32TreeSetNodeRed
+					w.color = int32NodeRed
 					s.rotateRight(w)
 					w = x.parent.right
 				}
 				w.color = x.parent.color
-				x.parent.color = int32TreeSetNodeBlack
+				x.parent.color = int32NodeBlack
 				if w.right != nil {
-					w.right.color = int32TreeSetNodeBlack
+					w.right.color = int32NodeBlack
 				}
 				s.rotateLeft(x.parent)
 				x = s.root
@@ -533,9 +526,9 @@ func (s *Int32TreeSet) fixAfterDelete(x *int32TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			if w.color == int32TreeSetNodeRed {
-				w.color = int32TreeSetNodeBlack
-				x.parent.color = int32TreeSetNodeRed
+			if w.color == int32NodeRed {
+				w.color = int32NodeBlack
+				x.parent.color = int32NodeRed
 				s.rotateRight(x.parent)
 				w = x.parent.left
 			}
@@ -543,29 +536,29 @@ func (s *Int32TreeSet) fixAfterDelete(x *int32TreeSetNode) {
 				x = x.parent
 				continue
 			}
-			lb := w.left == nil || w.left.color == int32TreeSetNodeBlack
-			rb := w.right == nil || w.right.color == int32TreeSetNodeBlack
+			lb := w.left == nil || w.left.color == int32NodeBlack
+			rb := w.right == nil || w.right.color == int32NodeBlack
 			if lb && rb {
-				w.color = int32TreeSetNodeRed
+				w.color = int32NodeRed
 				x = x.parent
 			} else {
 				if lb {
 					if w.right != nil {
-						w.right.color = int32TreeSetNodeBlack
+						w.right.color = int32NodeBlack
 					}
-					w.color = int32TreeSetNodeRed
+					w.color = int32NodeRed
 					s.rotateLeft(w)
 					w = x.parent.left
 				}
 				w.color = x.parent.color
-				x.parent.color = int32TreeSetNodeBlack
+				x.parent.color = int32NodeBlack
 				if w.left != nil {
-					w.left.color = int32TreeSetNodeBlack
+					w.left.color = int32NodeBlack
 				}
 				s.rotateRight(x.parent)
 				x = s.root
 			}
 		}
 	}
-	x.color = int32TreeSetNodeBlack
+	x.color = int32NodeBlack
 }

@@ -38,8 +38,8 @@ func TestExample_HTTPHeaders(t *testing.T) {
 
 	// Overwriting with different case
 	headers.Put("content-TYPE", "text/html")
-	if headers.Size() != 3 {
-		t.Fatalf("expected 3 entries, got %d", headers.Size())
+	if headers.Len() != 3 {
+		t.Fatalf("expected 3 entries, got %d", headers.Len())
 	}
 	if ct, _ := headers.Get("Content-Type"); ct != "text/html" {
 		t.Fatalf("expected overwrite; got %s", ct)
@@ -75,8 +75,8 @@ func TestExample_DeduplicateUsers(t *testing.T) {
 	unique.Add(User{"bob@example.com", "Bob", "source-a", 3})
 	unique.Add(User{"Alice@Example.Com", "Alice", "source-c", 0})
 
-	if unique.Size() != 2 {
-		t.Fatalf("expected 2 unique users (alice, bob), got %d", unique.Size())
+	if unique.Len() != 2 {
+		t.Fatalf("expected 2 unique users (alice, bob), got %d", unique.Len())
 	}
 }
 
@@ -177,7 +177,7 @@ func TestExample_NormalizedGrouping(t *testing.T) {
 	m.Put("NEW  YORK", 3) // merges with above
 	m.Put("Boston", 10)
 
-	if m.Size() != 2 {
-		t.Fatalf("expected 2 distinct cities, got %d", m.Size())
+	if m.Len() != 2 {
+		t.Fatalf("expected 2 distinct cities, got %d", m.Len())
 	}
 }

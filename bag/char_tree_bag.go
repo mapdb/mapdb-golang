@@ -3,36 +3,37 @@
 package bag
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
-	"sort"
+	"slices"
 	"strings"
 )
 
-// CharTreeBagEntry holds a value and its occurrence count in a CharTreeBag.
-type CharTreeBagEntry struct {
+// TreeCharEntry holds a value and its occurrence count in a TreeChar.
+type TreeCharEntry struct {
 	value uint16
 	count int
 }
 
-// CharTreeBag is a sorted bag (multiset) that counts occurrences of uint16 values.
+// TreeChar is a sorted bag (multiset) that counts occurrences of uint16 values.
 // Backed by a sorted slice of entries with binary search for O(log n) lookup.
-type CharTreeBag struct {
-	entries []CharTreeBagEntry
+type TreeChar struct {
+	entries []TreeCharEntry
 	size    int // total count including duplicates
 }
 
-// NewCharTreeBag creates a new empty CharTreeBag.
-func NewCharTreeBag() *CharTreeBag {
-	return &CharTreeBag{
+// NewTreeChar creates a new empty TreeChar.
+func NewTreeChar() *TreeChar {
+	return &TreeChar{
 		entries: nil,
 		size:    0,
 	}
 }
 
-// CharTreeBagOf creates a new CharTreeBag from the given values.
-func CharTreeBagOf(values ...uint16) *CharTreeBag {
-	b := NewCharTreeBag()
+// TreeCharOf creates a new TreeChar from the given values.
+func TreeCharOf(values ...uint16) *TreeChar {
+	b := NewTreeChar()
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -41,7 +42,7 @@ func CharTreeBagOf(values ...uint16) *CharTreeBag {
 
 // search returns the index where value is or would be inserted.
 // Returns (index, found).
-func (b *CharTreeBag) search(value uint16) (int, bool) {
+func (b *TreeChar) search(value uint16) (int, bool) {
 	lo, hi := 0, len(b.entries)
 	for lo < hi {
 		mid := lo + (hi-lo)/2
@@ -57,7 +58,7 @@ func (b *CharTreeBag) search(value uint16) (int, bool) {
 }
 
 // Add adds one occurrence of the value.
-func (b *CharTreeBag) Add(value uint16) {
+func (b *TreeChar) Add(value uint16) {
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
@@ -65,17 +66,17 @@ func (b *CharTreeBag) Add(value uint16) {
 		return
 	}
 	// Insert at idx to keep sorted order
-	b.entries = append(b.entries, CharTreeBagEntry{})
+	b.entries = append(b.entries, TreeCharEntry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = CharTreeBagEntry{value: value, count: 1}
+	b.entries[idx] = TreeCharEntry{value: value, count: 1}
 	b.size++
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
 // Returns the new count for this value. Panics if occurrences is negative.
-func (b *CharTreeBag) AddOccurrences(value uint16, occurrences int) int {
+func (b *TreeChar) AddOccurrences(value uint16, occurrences int) int {
 	if occurrences < 0 {
-		panic(fmt.Sprintf("CharTreeBag: cannot add negative occurrences: %d", occurrences))
+		panic(fmt.Sprintf("TreeChar: cannot add negative occurrences: %d", occurrences))
 	}
 	if occurrences == 0 {
 		idx, found := b.search(value)
@@ -90,15 +91,15 @@ func (b *CharTreeBag) AddOccurrences(value uint16, occurrences int) int {
 		b.size += occurrences
 		return b.entries[idx].count
 	}
-	b.entries = append(b.entries, CharTreeBagEntry{})
+	b.entries = append(b.entries, TreeCharEntry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
-	b.entries[idx] = CharTreeBagEntry{value: value, count: occurrences}
+	b.entries[idx] = TreeCharEntry{value: value, count: occurrences}
 	b.size += occurrences
 	return occurrences
 }
 
 // Remove removes one occurrence of the value. Returns true if the value was present.
-func (b *CharTreeBag) Remove(value uint16) bool {
+func (b *TreeChar) Remove(value uint16) bool {
 	idx, found := b.search(value)
 	if !found {
 		return false
@@ -113,7 +114,7 @@ func (b *CharTreeBag) Remove(value uint16) bool {
 }
 
 // RemoveOccurrences removes the given number of occurrences. Returns true if any were removed.
-func (b *CharTreeBag) RemoveOccurrences(value uint16, occurrences int) bool {
+func (b *TreeChar) RemoveOccurrences(value uint16, occurrences int) bool {
 	if occurrences <= 0 {
 		return false
 	}
@@ -132,7 +133,7 @@ func (b *CharTreeBag) RemoveOccurrences(value uint16, occurrences int) bool {
 }
 
 // RemoveAll removes all occurrences of the value. Returns the previous count.
-func (b *CharTreeBag) RemoveAll(value uint16) int {
+func (b *TreeChar) RemoveAll(value uint16) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -144,7 +145,7 @@ func (b *CharTreeBag) RemoveAll(value uint16) int {
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *CharTreeBag) OccurrencesOf(value uint16) int {
+func (b *TreeChar) OccurrencesOf(value uint16) int {
 	idx, found := b.search(value)
 	if !found {
 		return 0
@@ -153,38 +154,32 @@ func (b *CharTreeBag) OccurrencesOf(value uint16) int {
 }
 
 // Contains returns true if the bag contains at least one occurrence of the value.
-func (b *CharTreeBag) Contains(value uint16) bool {
+func (b *TreeChar) Contains(value uint16) bool {
 	_, found := b.search(value)
 	return found
 }
 
-// Size returns the total number of elements including duplicates.
-func (b *CharTreeBag) Size() int {
+// Len returns the total number of elements including duplicates.
+func (b *TreeChar) Len() int {
 	return b.size
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *CharTreeBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *CharTreeBag) SizeDistinct() int {
+func (b *TreeChar) SizeDistinct() int {
 	return len(b.entries)
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *CharTreeBag) IsEmpty() bool {
-	return b.size == 0
-}
-
 // Clear removes all elements from the bag.
-func (b *CharTreeBag) Clear() {
+func (b *TreeChar) Clear() {
 	b.entries = nil
 	b.size = 0
 }
 
 // Min returns the smallest element, or zero value and false if empty.
-func (b *CharTreeBag) Min() (uint16, bool) {
+func (b *TreeChar) Min() (uint16, bool) {
 	if len(b.entries) == 0 {
 		return 0, false
 	}
@@ -192,7 +187,7 @@ func (b *CharTreeBag) Min() (uint16, bool) {
 }
 
 // Max returns the largest element, or zero value and false if empty.
-func (b *CharTreeBag) Max() (uint16, bool) {
+func (b *TreeChar) Max() (uint16, bool) {
 	if len(b.entries) == 0 {
 		return 0, false
 	}
@@ -200,7 +195,7 @@ func (b *CharTreeBag) Max() (uint16, bool) {
 }
 
 // All returns an iter.Seq that yields each element once per occurrence, in sorted order.
-func (b *CharTreeBag) All() iter.Seq[uint16] {
+func (b *TreeChar) All() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for _, entry := range b.entries {
 			for i := 0; i < entry.count; i++ {
@@ -213,7 +208,7 @@ func (b *CharTreeBag) All() iter.Seq[uint16] {
 }
 
 // AllDistinct returns an iter.Seq that yields each distinct element once, in sorted order.
-func (b *CharTreeBag) AllDistinct() iter.Seq[uint16] {
+func (b *TreeChar) AllDistinct() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value) {
@@ -224,7 +219,7 @@ func (b *CharTreeBag) AllDistinct() iter.Seq[uint16] {
 }
 
 // AllWithOccurrences returns an iter.Seq2 that yields (value, count) pairs in sorted order.
-func (b *CharTreeBag) AllWithOccurrences() iter.Seq2[uint16, int] {
+func (b *TreeChar) AllWithOccurrences() iter.Seq2[uint16, int] {
 	return func(yield func(uint16, int) bool) {
 		for _, entry := range b.entries {
 			if !yield(entry.value, entry.count) {
@@ -235,7 +230,7 @@ func (b *CharTreeBag) AllWithOccurrences() iter.Seq2[uint16, int] {
 }
 
 // ForEach calls the given function for each element (once per occurrence), in sorted order.
-func (b *CharTreeBag) ForEach(f func(uint16)) {
+func (b *TreeChar) ForEach(f func(uint16)) {
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
 			f(entry.value)
@@ -244,15 +239,15 @@ func (b *CharTreeBag) ForEach(f func(uint16)) {
 }
 
 // ForEachWithOccurrences calls the given function with each distinct element and its count, in sorted order.
-func (b *CharTreeBag) ForEachWithOccurrences(f func(uint16, int)) {
+func (b *TreeChar) ForEachWithOccurrences(f func(uint16, int)) {
 	for _, entry := range b.entries {
 		f(entry.value, entry.count)
 	}
 }
 
 // Select returns a new tree bag containing only elements that satisfy the predicate.
-func (b *CharTreeBag) Select(predicate func(uint16) bool) *CharTreeBag {
-	result := NewCharTreeBag()
+func (b *TreeChar) Select(predicate func(uint16) bool) *TreeChar {
+	result := NewTreeChar()
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -262,8 +257,8 @@ func (b *CharTreeBag) Select(predicate func(uint16) bool) *CharTreeBag {
 }
 
 // Reject returns a new tree bag containing only elements that do not satisfy the predicate.
-func (b *CharTreeBag) Reject(predicate func(uint16) bool) *CharTreeBag {
-	result := NewCharTreeBag()
+func (b *TreeChar) Reject(predicate func(uint16) bool) *TreeChar {
+	result := NewTreeChar()
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			result.AddOccurrences(entry.value, entry.count)
@@ -273,7 +268,7 @@ func (b *CharTreeBag) Reject(predicate func(uint16) bool) *CharTreeBag {
 }
 
 // Detect returns the first distinct element (in sorted order) that satisfies the predicate, or zero value and false.
-func (b *CharTreeBag) Detect(predicate func(uint16) bool) (uint16, bool) {
+func (b *TreeChar) Detect(predicate func(uint16) bool) (uint16, bool) {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return entry.value, true
@@ -283,7 +278,7 @@ func (b *CharTreeBag) Detect(predicate func(uint16) bool) (uint16, bool) {
 }
 
 // AnySatisfy returns true if any distinct element satisfies the predicate.
-func (b *CharTreeBag) AnySatisfy(predicate func(uint16) bool) bool {
+func (b *TreeChar) AnySatisfy(predicate func(uint16) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return true
@@ -293,7 +288,7 @@ func (b *CharTreeBag) AnySatisfy(predicate func(uint16) bool) bool {
 }
 
 // AllSatisfy returns true if all distinct elements satisfy the predicate.
-func (b *CharTreeBag) AllSatisfy(predicate func(uint16) bool) bool {
+func (b *TreeChar) AllSatisfy(predicate func(uint16) bool) bool {
 	for _, entry := range b.entries {
 		if !predicate(entry.value) {
 			return false
@@ -303,7 +298,7 @@ func (b *CharTreeBag) AllSatisfy(predicate func(uint16) bool) bool {
 }
 
 // NoneSatisfy returns true if no distinct element satisfies the predicate.
-func (b *CharTreeBag) NoneSatisfy(predicate func(uint16) bool) bool {
+func (b *TreeChar) NoneSatisfy(predicate func(uint16) bool) bool {
 	for _, entry := range b.entries {
 		if predicate(entry.value) {
 			return false
@@ -313,15 +308,15 @@ func (b *CharTreeBag) NoneSatisfy(predicate func(uint16) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
-func (b *CharTreeBag) TopOccurrences(n int) []struct {
+func (b *TreeChar) TopOccurrences(n int) []struct {
 	Value uint16
 	Count int
 } {
 	// Copy entries and sort by count descending
-	sorted := make([]CharTreeBagEntry, len(b.entries))
+	sorted := make([]TreeCharEntry, len(b.entries))
 	copy(sorted, b.entries)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].count > sorted[j].count
+	slices.SortFunc(sorted, func(a, b TreeCharEntry) int {
+		return cmp.Compare(b.count, a.count)
 	})
 	if n > len(sorted) {
 		n = len(sorted)
@@ -338,7 +333,7 @@ func (b *CharTreeBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (elements repeated per occurrence count), in sorted order.
-func (b *CharTreeBag) ToSlice() []uint16 {
+func (b *TreeChar) ToSlice() []uint16 {
 	result := make([]uint16, 0, b.size)
 	for _, entry := range b.entries {
 		for i := 0; i < entry.count; i++ {
@@ -349,7 +344,7 @@ func (b *CharTreeBag) ToSlice() []uint16 {
 }
 
 // ToSortedSlice returns all distinct elements as a sorted slice.
-func (b *CharTreeBag) ToSortedSlice() []uint16 {
+func (b *TreeChar) ToSortedSlice() []uint16 {
 	result := make([]uint16, 0, len(b.entries))
 	for _, entry := range b.entries {
 		result = append(result, entry.value)
@@ -358,19 +353,19 @@ func (b *CharTreeBag) ToSortedSlice() []uint16 {
 }
 
 // With returns the bag after adding one occurrence of the value (fluent API).
-func (b *CharTreeBag) With(value uint16) *CharTreeBag {
+func (b *TreeChar) AddReturning(value uint16) *TreeChar {
 	b.Add(value)
 	return b
 }
 
 // Without returns the bag after removing all occurrences of the value (fluent API).
-func (b *CharTreeBag) Without(value uint16) *CharTreeBag {
+func (b *TreeChar) RemoveReturning(value uint16) *TreeChar {
 	b.RemoveAll(value)
 	return b
 }
 
 // WithAll returns the bag after adding all values (fluent API).
-func (b *CharTreeBag) WithAll(values ...uint16) *CharTreeBag {
+func (b *TreeChar) AddAllReturning(values ...uint16) *TreeChar {
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -378,7 +373,7 @@ func (b *CharTreeBag) WithAll(values ...uint16) *CharTreeBag {
 }
 
 // WithoutAll removes all occurrences of the given values (fluent API).
-func (b *CharTreeBag) WithoutAll(values ...uint16) *CharTreeBag {
+func (b *TreeChar) RemoveAllReturning(values ...uint16) *TreeChar {
 	for _, v := range values {
 		b.RemoveAll(v)
 	}
@@ -386,7 +381,7 @@ func (b *CharTreeBag) WithoutAll(values ...uint16) *CharTreeBag {
 }
 
 // String returns a string representation of the bag in sorted order.
-func (b *CharTreeBag) String() string {
+func (b *TreeChar) String() string {
 	if b.size == 0 {
 		return "{}"
 	}
@@ -405,7 +400,7 @@ func (b *CharTreeBag) String() string {
 }
 
 // Equals returns true if the other tree bag has the same elements with the same counts.
-func (b *CharTreeBag) Equals(other *CharTreeBag) bool {
+func (b *TreeChar) Equals(other *TreeChar) bool {
 	if b.size != other.size || len(b.entries) != len(other.entries) {
 		return false
 	}

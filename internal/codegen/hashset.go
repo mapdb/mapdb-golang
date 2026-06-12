@@ -113,38 +113,38 @@ import (
 )
 
 const (
-	{{.SnakeName}}HashSetDefaultCapacity = 16
+	{{.SnakeName}}DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-type {{.SnakeName}}HashSetEntry struct {
+type {{.SnakeName}}Entry struct {
 	key      {{.GoType}}
 	occupied bool
 }
 
-// {{.Name}}HashSet is an open-addressing hash set for {{.GoType}} values.
-type {{.Name}}HashSet struct {
-	entries []{{.SnakeName}}HashSetEntry
+// {{.Name}} is an open-addressing hash set for {{.GoType}} values.
+type {{.Name}} struct {
+	entries []{{.SnakeName}}Entry
 	size    int
 }
 
-// New{{.Name}}HashSet creates a new empty {{.Name}}HashSet.
-func New{{.Name}}HashSet() *{{.Name}}HashSet {
-	return New{{.Name}}HashSetWithCapacity({{.SnakeName}}HashSetDefaultCapacity)
+// New{{.Name}} creates a new empty {{.Name}}.
+func New{{.Name}}() *{{.Name}} {
+	return New{{.Name}}WithCapacity({{.SnakeName}}DefaultCapacity)
 }
 
-// New{{.Name}}HashSetWithCapacity creates a new empty {{.Name}}HashSet with the given initial capacity.
-func New{{.Name}}HashSetWithCapacity(capacity int) *{{.Name}}HashSet {
-	cap := nextPowerOfTwo{{.Name}}HashSet(capacity)
-	return &{{.Name}}HashSet{
-		entries: make([]{{.SnakeName}}HashSetEntry, cap),
+// New{{.Name}}WithCapacity creates a new empty {{.Name}} with the given initial capacity.
+func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
+	cap := nextPowerOfTwo{{.Name}}(capacity)
+	return &{{.Name}}{
+		entries: make([]{{.SnakeName}}Entry, cap),
 		size:    0,
 	}
 }
 
-// {{.Name}}HashSetOf creates a new {{.Name}}HashSet from the given values.
-func {{.Name}}HashSetOf(values ...{{.GoType}}) *{{.Name}}HashSet {
-	s := New{{.Name}}HashSetWithCapacity(len(values) * 2)
+// {{.Name}}Of creates a new {{.Name}} from the given values.
+func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
+	s := New{{.Name}}WithCapacity(len(values) * 2)
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -152,7 +152,7 @@ func {{.Name}}HashSetOf(values ...{{.GoType}}) *{{.Name}}HashSet {
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).
-func (s *{{.Name}}HashSet) Add(value {{.GoType}}) bool {
+func (s *{{.Name}}) Add(value {{.GoType}}) bool {
 	if s.needsResize() {
 		s.resize()
 	}
@@ -175,14 +175,14 @@ func (s *{{.Name}}HashSet) Add(value {{.GoType}}) bool {
 }
 
 // AddAll inserts all values into the set.
-func (s *{{.Name}}HashSet) AddAll(values ...{{.GoType}}) {
+func (s *{{.Name}}) AddAll(values ...{{.GoType}}) {
 	for _, v := range values {
 		s.Add(v)
 	}
 }
 
 // Remove removes a value from the set. Returns true if the value was found and removed.
-func (s *{{.Name}}HashSet) Remove(value {{.GoType}}) bool {
+func (s *{{.Name}}) Remove(value {{.GoType}}) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -195,7 +195,7 @@ func (s *{{.Name}}HashSet) Remove(value {{.GoType}}) bool {
 			return false
 		}
 		if {{if .IsFloat}}{{.BitsFn}}(s.entries[idx].key) == {{.BitsFn}}(value){{else}}s.entries[idx].key == value{{end}} {
-			s.entries[idx] = {{.SnakeName}}HashSetEntry{}
+			s.entries[idx] = {{.SnakeName}}Entry{}
 			s.size--
 			s.rehashFrom(idx, mask)
 			return true
@@ -205,7 +205,7 @@ func (s *{{.Name}}HashSet) Remove(value {{.GoType}}) bool {
 }
 
 // Contains returns true if the set contains the given value.
-func (s *{{.Name}}HashSet) Contains(value {{.GoType}}) bool {
+func (s *{{.Name}}) Contains(value {{.GoType}}) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -224,30 +224,21 @@ func (s *{{.Name}}HashSet) Contains(value {{.GoType}}) bool {
 	}
 }
 
-// Size returns the number of elements in the set.
-func (s *{{.Name}}HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *{{.Name}}) Len() int {
 	return s.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *{{.Name}}HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *{{.Name}}HashSet) IsEmpty() bool {
-	return s.size == 0
-}
-
 // Clear removes all elements from the set.
-func (s *{{.Name}}HashSet) Clear() {
+func (s *{{.Name}}) Clear() {
 	for i := range s.entries {
-		s.entries[i] = {{.SnakeName}}HashSetEntry{}
+		s.entries[i] = {{.SnakeName}}Entry{}
 	}
 	s.size = 0
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *{{.Name}}HashSet) All() iter.Seq[{{.GoType}}] {
+func (s *{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 		for i := range s.entries {
 			if s.entries[i].occupied {
@@ -260,7 +251,7 @@ func (s *{{.Name}}HashSet) All() iter.Seq[{{.GoType}}] {
 }
 
 // ForEach calls the given function for each element.
-func (s *{{.Name}}HashSet) ForEach(f func({{.GoType}})) {
+func (s *{{.Name}}) ForEach(f func({{.GoType}})) {
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			f(s.entries[i].key)
@@ -269,8 +260,8 @@ func (s *{{.Name}}HashSet) ForEach(f func({{.GoType}})) {
 }
 
 // Select returns a new set containing only elements that satisfy the predicate.
-func (s *{{.Name}}HashSet) Select(predicate func({{.GoType}}) bool) *{{.Name}}HashSet {
-	result := New{{.Name}}HashSet()
+func (s *{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -280,8 +271,8 @@ func (s *{{.Name}}HashSet) Select(predicate func({{.GoType}}) bool) *{{.Name}}Ha
 }
 
 // Reject returns a new set containing only elements that do not satisfy the predicate.
-func (s *{{.Name}}HashSet) Reject(predicate func({{.GoType}}) bool) *{{.Name}}HashSet {
-	result := New{{.Name}}HashSet()
+func (s *{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -291,7 +282,7 @@ func (s *{{.Name}}HashSet) Reject(predicate func({{.GoType}}) bool) *{{.Name}}Ha
 }
 
 // Detect returns the first element that satisfies the predicate, or zero value and false.
-func (s *{{.Name}}HashSet) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (s *{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return s.entries[i].key, true
@@ -301,7 +292,7 @@ func (s *{{.Name}}HashSet) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *{{.Name}}HashSet) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return true
@@ -311,7 +302,7 @@ func (s *{{.Name}}HashSet) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *{{.Name}}HashSet) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			return false
@@ -321,7 +312,7 @@ func (s *{{.Name}}HashSet) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *{{.Name}}HashSet) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return false
@@ -331,8 +322,8 @@ func (s *{{.Name}}HashSet) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // Union returns a new set containing all elements from both sets.
-func (s *{{.Name}}HashSet) Union(other *{{.Name}}HashSet) *{{.Name}}HashSet {
-	result := New{{.Name}}HashSetWithCapacity((s.size + other.size) * 2)
+func (s *{{.Name}}) Union(other *{{.Name}}) *{{.Name}} {
+	result := New{{.Name}}WithCapacity((s.size + other.size) * 2)
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			result.Add(s.entries[i].key)
@@ -347,8 +338,8 @@ func (s *{{.Name}}HashSet) Union(other *{{.Name}}HashSet) *{{.Name}}HashSet {
 }
 
 // Intersect returns a new set containing only elements present in both sets.
-func (s *{{.Name}}HashSet) Intersect(other *{{.Name}}HashSet) *{{.Name}}HashSet {
-	result := New{{.Name}}HashSet()
+func (s *{{.Name}}) Intersect(other *{{.Name}}) *{{.Name}} {
+	result := New{{.Name}}()
 	smaller, larger := s, other
 	if s.size > other.size {
 		smaller, larger = other, s
@@ -362,8 +353,8 @@ func (s *{{.Name}}HashSet) Intersect(other *{{.Name}}HashSet) *{{.Name}}HashSet 
 }
 
 // Difference returns a new set containing elements in this set but not in the other.
-func (s *{{.Name}}HashSet) Difference(other *{{.Name}}HashSet) *{{.Name}}HashSet {
-	result := New{{.Name}}HashSet()
+func (s *{{.Name}}) Difference(other *{{.Name}}) *{{.Name}} {
+	result := New{{.Name}}()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -373,8 +364,8 @@ func (s *{{.Name}}HashSet) Difference(other *{{.Name}}HashSet) *{{.Name}}HashSet
 }
 
 // SymmetricDifference returns a new set containing elements in either set but not both.
-func (s *{{.Name}}HashSet) SymmetricDifference(other *{{.Name}}HashSet) *{{.Name}}HashSet {
-	result := New{{.Name}}HashSet()
+func (s *{{.Name}}) SymmetricDifference(other *{{.Name}}) *{{.Name}} {
+	result := New{{.Name}}()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -389,7 +380,7 @@ func (s *{{.Name}}HashSet) SymmetricDifference(other *{{.Name}}HashSet) *{{.Name
 }
 
 // ToSlice returns all elements as a slice.
-func (s *{{.Name}}HashSet) ToSlice() []{{.GoType}} {
+func (s *{{.Name}}) ToSlice() []{{.GoType}} {
 	result := make([]{{.GoType}}, 0, s.size)
 	for i := range s.entries {
 		if s.entries[i].occupied {
@@ -399,26 +390,26 @@ func (s *{{.Name}}HashSet) ToSlice() []{{.GoType}} {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *{{.Name}}HashSet) With(value {{.GoType}}) *{{.Name}}HashSet {
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) AddReturning(value {{.GoType}}) *{{.Name}} {
 	s.Add(value)
 	return s
 }
 
-// Without returns the set after removing the value (fluent API).
-func (s *{{.Name}}HashSet) Without(value {{.GoType}}) *{{.Name}}HashSet {
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) RemoveReturning(value {{.GoType}}) *{{.Name}} {
 	s.Remove(value)
 	return s
 }
 
-// WithAll returns the set after adding all values (fluent API).
-func (s *{{.Name}}HashSet) WithAll(values ...{{.GoType}}) *{{.Name}}HashSet {
+// AddAllReturning adds all values to the set and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) AddAllReturning(values ...{{.GoType}}) *{{.Name}} {
 	s.AddAll(values...)
 	return s
 }
 
-// WithoutAll returns the set after removing all given values (fluent API).
-func (s *{{.Name}}HashSet) WithoutAll(values ...{{.GoType}}) *{{.Name}}HashSet {
+// RemoveAllReturning removes all given values from the set and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) RemoveAllReturning(values ...{{.GoType}}) *{{.Name}} {
 	for _, v := range values {
 		s.Remove(v)
 	}
@@ -426,12 +417,12 @@ func (s *{{.Name}}HashSet) WithoutAll(values ...{{.GoType}}) *{{.Name}}HashSet {
 }
 
 // ToImmutable returns an immutable copy of this set.
-func (s *{{.Name}}HashSet) ToImmutable() *Immutable{{.Name}}HashSet {
-	return Immutable{{.Name}}HashSetFrom(s)
+func (s *{{.Name}}) ToImmutable() *Immutable{{.Name}} {
+	return Immutable{{.Name}}From(s)
 }
 
 // String returns a string representation of the set.
-func (s *{{.Name}}HashSet) String() string {
+func (s *{{.Name}}) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -452,7 +443,7 @@ func (s *{{.Name}}HashSet) String() string {
 }
 
 // Equals returns true if the other set has the same elements.
-func (s *{{.Name}}HashSet) Equals(other *{{.Name}}HashSet) bool {
+func (s *{{.Name}}) Equals(other *{{.Name}}) bool {
 	if s.size != other.size {
 		return false
 	}
@@ -464,7 +455,7 @@ func (s *{{.Name}}HashSet) Equals(other *{{.Name}}HashSet) bool {
 	return true
 }
 
-func (s *{{.Name}}HashSet) hash(value {{.GoType}}) uint64 {
+func (s *{{.Name}}) hash(value {{.GoType}}) uint64 {
 {{- if .IsBool}}
 	if value {
 		return 1
@@ -476,17 +467,17 @@ func (s *{{.Name}}HashSet) hash(value {{.GoType}}) uint64 {
 {{- end}}
 }
 
-func (s *{{.Name}}HashSet) needsResize() bool {
+func (s *{{.Name}}) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
 
-func (s *{{.Name}}HashSet) resize() {
+func (s *{{.Name}}) resize() {
 	oldEntries := s.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = {{.SnakeName}}HashSetDefaultCapacity
+		newCap = {{.SnakeName}}DefaultCapacity
 	}
-	s.entries = make([]{{.SnakeName}}HashSetEntry, newCap)
+	s.entries = make([]{{.SnakeName}}Entry, newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -496,7 +487,7 @@ func (s *{{.Name}}HashSet) resize() {
 	}
 }
 
-func (s *{{.Name}}HashSet) rehashFrom(deleted int, mask int) {
+func (s *{{.Name}}) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
@@ -505,7 +496,7 @@ func (s *{{.Name}}HashSet) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			s.entries[deleted] = s.entries[idx]
-			s.entries[idx] = {{.SnakeName}}HashSetEntry{}
+			s.entries[idx] = {{.SnakeName}}Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -515,7 +506,7 @@ func (s *{{.Name}}HashSet) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwo{{.Name}}HashSet(n int) int {
+func nextPowerOfTwo{{.Name}}(n int) int {
 	if n <= 0 {
 		return 16
 	}
@@ -537,109 +528,100 @@ import (
 	"iter"
 )
 
-// Immutable{{.Name}}HashSet is an immutable view of a {{.Name}}HashSet.
-type Immutable{{.Name}}HashSet struct {
-	delegate *{{.Name}}HashSet
+// Immutable{{.Name}} is an immutable view of a {{.Name}}.
+type Immutable{{.Name}} struct {
+	delegate *{{.Name}}
 }
 
-// NewImmutable{{.Name}}HashSet creates an immutable set from the given values.
-func NewImmutable{{.Name}}HashSet(values ...{{.GoType}}) *Immutable{{.Name}}HashSet {
-	return &Immutable{{.Name}}HashSet{delegate: {{.Name}}HashSetOf(values...)}
+// NewImmutable{{.Name}} creates an immutable set from the given values.
+func NewImmutable{{.Name}}(values ...{{.GoType}}) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: {{.Name}}Of(values...)}
 }
 
-// Immutable{{.Name}}HashSetFrom creates an immutable copy of a mutable set.
-func Immutable{{.Name}}HashSetFrom(s *{{.Name}}HashSet) *Immutable{{.Name}}HashSet {
-	copy := {{.Name}}HashSetOf(s.ToSlice()...)
-	return &Immutable{{.Name}}HashSet{delegate: copy}
+// Immutable{{.Name}}From creates an immutable copy of a mutable set.
+func Immutable{{.Name}}From(s *{{.Name}}) *Immutable{{.Name}} {
+	copy := {{.Name}}Of(s.ToSlice()...)
+	return &Immutable{{.Name}}{delegate: copy}
 }
 
 // Contains returns true if the set contains the given value.
-func (s *Immutable{{.Name}}HashSet) Contains(value {{.GoType}}) bool {
+func (s *Immutable{{.Name}}) Contains(value {{.GoType}}) bool {
 	return s.delegate.Contains(value)
 }
 
-// Size returns the number of elements.
-func (s *Immutable{{.Name}}HashSet) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Immutable{{.Name}}HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *Immutable{{.Name}}HashSet) IsEmpty() bool {
-	return s.delegate.IsEmpty()
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Immutable{{.Name}}) Len() int {
+	return s.delegate.Len()
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *Immutable{{.Name}}HashSet) All() iter.Seq[{{.GoType}}] {
+func (s *Immutable{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element.
-func (s *Immutable{{.Name}}HashSet) ForEach(f func({{.GoType}})) {
+func (s *Immutable{{.Name}}) ForEach(f func({{.GoType}})) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable set with elements satisfying the predicate.
-func (s *Immutable{{.Name}}HashSet) Select(predicate func({{.GoType}}) bool) *Immutable{{.Name}}HashSet {
-	return &Immutable{{.Name}}HashSet{delegate: s.delegate.Select(predicate)}
+func (s *Immutable{{.Name}}) Select(predicate func({{.GoType}}) bool) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable set with elements not satisfying the predicate.
-func (s *Immutable{{.Name}}HashSet) Reject(predicate func({{.GoType}}) bool) *Immutable{{.Name}}HashSet {
-	return &Immutable{{.Name}}HashSet{delegate: s.delegate.Reject(predicate)}
+func (s *Immutable{{.Name}}) Reject(predicate func({{.GoType}}) bool) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: s.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Immutable{{.Name}}HashSet) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Immutable{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Immutable{{.Name}}HashSet) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Immutable{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Immutable{{.Name}}HashSet) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Immutable{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Union returns a new immutable set with elements from both sets.
-func (s *Immutable{{.Name}}HashSet) Union(other *Immutable{{.Name}}HashSet) *Immutable{{.Name}}HashSet {
-	return &Immutable{{.Name}}HashSet{delegate: s.delegate.Union(other.delegate)}
+func (s *Immutable{{.Name}}) Union(other *Immutable{{.Name}}) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: s.delegate.Union(other.delegate)}
 }
 
 // Intersect returns a new immutable set with elements in both sets.
-func (s *Immutable{{.Name}}HashSet) Intersect(other *Immutable{{.Name}}HashSet) *Immutable{{.Name}}HashSet {
-	return &Immutable{{.Name}}HashSet{delegate: s.delegate.Intersect(other.delegate)}
+func (s *Immutable{{.Name}}) Intersect(other *Immutable{{.Name}}) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: s.delegate.Intersect(other.delegate)}
 }
 
 // Difference returns a new immutable set with elements in this but not other.
-func (s *Immutable{{.Name}}HashSet) Difference(other *Immutable{{.Name}}HashSet) *Immutable{{.Name}}HashSet {
-	return &Immutable{{.Name}}HashSet{delegate: s.delegate.Difference(other.delegate)}
+func (s *Immutable{{.Name}}) Difference(other *Immutable{{.Name}}) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: s.delegate.Difference(other.delegate)}
 }
 
 // ToSlice returns all elements as a slice.
-func (s *Immutable{{.Name}}HashSet) ToSlice() []{{.GoType}} {
+func (s *Immutable{{.Name}}) ToSlice() []{{.GoType}} {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *Immutable{{.Name}}HashSet) String() string {
+func (s *Immutable{{.Name}}) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable set has the same elements.
-func (s *Immutable{{.Name}}HashSet) Equals(other *Immutable{{.Name}}HashSet) bool {
+func (s *Immutable{{.Name}}) Equals(other *Immutable{{.Name}}) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this set.
-func (s *Immutable{{.Name}}HashSet) ToMutable() *{{.Name}}HashSet {
-	return {{.Name}}HashSetOf(s.ToSlice()...)
+func (s *Immutable{{.Name}}) ToMutable() *{{.Name}} {
+	return {{.Name}}Of(s.ToSlice()...)
 }
 `
 
@@ -651,7 +633,7 @@ import (
 	"unsafe"
 )
 
-// Synchronized{{.Name}}HashSet is a thread-safe wrapper around {{.Name}}HashSet.
+// Synchronized{{.Name}} is a thread-safe wrapper around {{.Name}}.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take a
 // caller-supplied function (Select, ForEach, AnySatisfy, …) snapshot
@@ -660,36 +642,36 @@ import (
 // without deadlocking.
 //
 // Methods that return a new set (Select, Reject, Union, Intersect,
-// Difference, SymmetricDifference) return an unwrapped *{{.Name}}HashSet;
+// Difference, SymmetricDifference) return an unwrapped *{{.Name}};
 // the caller owns it.
-type Synchronized{{.Name}}HashSet struct {
-	delegate *{{.Name}}HashSet
+type Synchronized{{.Name}} struct {
+	delegate *{{.Name}}
 	mu       sync.RWMutex
 }
 
-// NewSynchronized{{.Name}}HashSet creates a new thread-safe empty set.
-func NewSynchronized{{.Name}}HashSet() *Synchronized{{.Name}}HashSet {
-	return &Synchronized{{.Name}}HashSet{delegate: New{{.Name}}HashSet()}
+// NewSynchronized{{.Name}} creates a new thread-safe empty set.
+func NewSynchronized{{.Name}}() *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: New{{.Name}}()}
 }
 
-// NewSynchronized{{.Name}}HashSetFrom wraps an existing set. The
+// NewSynchronized{{.Name}}From wraps an existing set. The
 // wrapper takes ownership — callers must not mutate the delegate
 // directly without locking.
-func NewSynchronized{{.Name}}HashSetFrom(s *{{.Name}}HashSet) *Synchronized{{.Name}}HashSet {
-	return &Synchronized{{.Name}}HashSet{delegate: s}
+func NewSynchronized{{.Name}}From(s *{{.Name}}) *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: s}
 }
 
-// Synchronized{{.Name}}HashSetOf constructs a synchronized set from values.
-func Synchronized{{.Name}}HashSetOf(values ...{{.GoType}}) *Synchronized{{.Name}}HashSet {
-	s := New{{.Name}}HashSet()
+// Synchronized{{.Name}}Of constructs a synchronized set from values.
+func Synchronized{{.Name}}Of(values ...{{.GoType}}) *Synchronized{{.Name}} {
+	s := New{{.Name}}()
 	for _, v := range values {
 		s.Add(v)
 	}
-	return &Synchronized{{.Name}}HashSet{delegate: s}
+	return &Synchronized{{.Name}}{delegate: s}
 }
 
 // snapshot returns a defensive copy of the set's elements under RLock.
-func (s *Synchronized{{.Name}}HashSet) snapshot() []{{.GoType}} {
+func (s *Synchronized{{.Name}}) snapshot() []{{.GoType}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -697,25 +679,25 @@ func (s *Synchronized{{.Name}}HashSet) snapshot() []{{.GoType}} {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}HashSet) Add(value {{.GoType}}) bool {
+func (s *Synchronized{{.Name}}) Add(value {{.GoType}}) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Add(value)
 }
 
-func (s *Synchronized{{.Name}}HashSet) AddAll(values ...{{.GoType}}) {
+func (s *Synchronized{{.Name}}) AddAll(values ...{{.GoType}}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.AddAll(values...)
 }
 
-func (s *Synchronized{{.Name}}HashSet) Remove(value {{.GoType}}) bool {
+func (s *Synchronized{{.Name}}) Remove(value {{.GoType}}) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Remove(value)
 }
 
-func (s *Synchronized{{.Name}}HashSet) Clear() {
+func (s *Synchronized{{.Name}}) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -723,35 +705,26 @@ func (s *Synchronized{{.Name}}HashSet) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}HashSet) Contains(value {{.GoType}}) bool {
+func (s *Synchronized{{.Name}}) Contains(value {{.GoType}}) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *Synchronized{{.Name}}HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Synchronized{{.Name}}) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Synchronized{{.Name}}HashSet) Len() int { return s.Size() }
-
-func (s *Synchronized{{.Name}}HashSet) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *Synchronized{{.Name}}HashSet) ToSlice() []{{.GoType}} {
+func (s *Synchronized{{.Name}}) ToSlice() []{{.GoType}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *Synchronized{{.Name}}HashSet) String() string {
+func (s *Synchronized{{.Name}}) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -760,7 +733,7 @@ func (s *Synchronized{{.Name}}HashSet) String() string {
 // ── iteration ────────────────────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (s *Synchronized{{.Name}}HashSet) All() iter.Seq[{{.GoType}}] {
+func (s *Synchronized{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	snapshot := s.snapshot()
 	return func(yield func({{.GoType}}) bool) {
 		for _, v := range snapshot {
@@ -773,13 +746,13 @@ func (s *Synchronized{{.Name}}HashSet) All() iter.Seq[{{.GoType}}] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}HashSet) ForEach(f func({{.GoType}})) {
+func (s *Synchronized{{.Name}}) ForEach(f func({{.GoType}})) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *Synchronized{{.Name}}HashSet) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Synchronized{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -788,7 +761,7 @@ func (s *Synchronized{{.Name}}HashSet) AnySatisfy(predicate func({{.GoType}}) bo
 	return false
 }
 
-func (s *Synchronized{{.Name}}HashSet) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Synchronized{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -797,7 +770,7 @@ func (s *Synchronized{{.Name}}HashSet) AllSatisfy(predicate func({{.GoType}}) bo
 	return true
 }
 
-func (s *Synchronized{{.Name}}HashSet) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Synchronized{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -806,7 +779,7 @@ func (s *Synchronized{{.Name}}HashSet) NoneSatisfy(predicate func({{.GoType}}) b
 	return true
 }
 
-func (s *Synchronized{{.Name}}HashSet) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (s *Synchronized{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -818,9 +791,9 @@ func (s *Synchronized{{.Name}}HashSet) Detect(predicate func({{.GoType}}) bool) 
 
 // ── functional that return a new set ─────────────────────────────────
 
-func (s *Synchronized{{.Name}}HashSet) Select(predicate func({{.GoType}}) bool) *{{.Name}}HashSet {
+func (s *Synchronized{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
 	snapshot := s.snapshot()
-	result := New{{.Name}}HashSet()
+	result := New{{.Name}}()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -829,9 +802,9 @@ func (s *Synchronized{{.Name}}HashSet) Select(predicate func({{.GoType}}) bool) 
 	return result
 }
 
-func (s *Synchronized{{.Name}}HashSet) Reject(predicate func({{.GoType}}) bool) *{{.Name}}HashSet {
+func (s *Synchronized{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
 	snapshot := s.snapshot()
-	result := New{{.Name}}HashSet()
+	result := New{{.Name}}()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -844,7 +817,7 @@ func (s *Synchronized{{.Name}}HashSet) Reject(predicate func({{.GoType}}) bool) 
 
 // lockPair acquires two RLocks in pointer-address order and returns
 // a release function. Guarantees no A.op(B) ⟷ B.op(A) deadlock.
-func (s *Synchronized{{.Name}}HashSet) lockPair(other *Synchronized{{.Name}}HashSet) func() {
+func (s *Synchronized{{.Name}}) lockPair(other *Synchronized{{.Name}}) func() {
 	if s == other {
 		s.mu.RLock()
 		return func() { s.mu.RUnlock() }
@@ -858,25 +831,25 @@ func (s *Synchronized{{.Name}}HashSet) lockPair(other *Synchronized{{.Name}}Hash
 	return func() { second.mu.RUnlock(); first.mu.RUnlock() }
 }
 
-func (s *Synchronized{{.Name}}HashSet) Union(other *Synchronized{{.Name}}HashSet) *{{.Name}}HashSet {
+func (s *Synchronized{{.Name}}) Union(other *Synchronized{{.Name}}) *{{.Name}} {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Union(other.delegate)
 }
 
-func (s *Synchronized{{.Name}}HashSet) Intersect(other *Synchronized{{.Name}}HashSet) *{{.Name}}HashSet {
+func (s *Synchronized{{.Name}}) Intersect(other *Synchronized{{.Name}}) *{{.Name}} {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Intersect(other.delegate)
 }
 
-func (s *Synchronized{{.Name}}HashSet) Difference(other *Synchronized{{.Name}}HashSet) *{{.Name}}HashSet {
+func (s *Synchronized{{.Name}}) Difference(other *Synchronized{{.Name}}) *{{.Name}} {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Difference(other.delegate)
 }
 
-func (s *Synchronized{{.Name}}HashSet) SymmetricDifference(other *Synchronized{{.Name}}HashSet) *{{.Name}}HashSet {
+func (s *Synchronized{{.Name}}) SymmetricDifference(other *Synchronized{{.Name}}) *{{.Name}} {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.SymmetricDifference(other.delegate)
@@ -884,37 +857,41 @@ func (s *Synchronized{{.Name}}HashSet) SymmetricDifference(other *Synchronized{{
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}HashSet) With(value {{.GoType}}) *Synchronized{{.Name}}HashSet {
+// AddReturning adds the value and returns the receiver (mutating, fluent).
+func (s *Synchronized{{.Name}}) AddReturning(value {{.GoType}}) *Synchronized{{.Name}} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *Synchronized{{.Name}}HashSet) WithAll(values ...{{.GoType}}) *Synchronized{{.Name}}HashSet {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (s *Synchronized{{.Name}}) AddAllReturning(values ...{{.GoType}}) *Synchronized{{.Name}} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
-func (s *Synchronized{{.Name}}HashSet) Without(value {{.GoType}}) *Synchronized{{.Name}}HashSet {
+// RemoveReturning removes the value and returns the receiver (mutating, fluent).
+func (s *Synchronized{{.Name}}) RemoveReturning(value {{.GoType}}) *Synchronized{{.Name}} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.Without(value)
+	s.delegate.RemoveReturning(value)
 	return s
 }
 
-func (s *Synchronized{{.Name}}HashSet) WithoutAll(values ...{{.GoType}}) *Synchronized{{.Name}}HashSet {
+// RemoveAllReturning removes all given values and returns the receiver (mutating, fluent).
+func (s *Synchronized{{.Name}}) RemoveAllReturning(values ...{{.GoType}}) *Synchronized{{.Name}} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithoutAll(values...)
+	s.delegate.RemoveAllReturning(values...)
 	return s
 }
 
 // ── conversions ───────────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}HashSet) ToImmutable() *Immutable{{.Name}}HashSet {
+func (s *Synchronized{{.Name}}) ToImmutable() *Immutable{{.Name}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -922,7 +899,7 @@ func (s *Synchronized{{.Name}}HashSet) ToImmutable() *Immutable{{.Name}}HashSet 
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent deadlocks under concurrent A.Equals(B) / B.Equals(A).
-func (s *Synchronized{{.Name}}HashSet) Equals(other *Synchronized{{.Name}}HashSet) bool {
+func (s *Synchronized{{.Name}}) Equals(other *Synchronized{{.Name}}) bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Equals(other.delegate)

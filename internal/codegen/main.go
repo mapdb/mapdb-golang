@@ -13,7 +13,7 @@
 //	//go:generate go run ../internal/codegen <collection>
 //
 // where <collection> is one of: arraylist, interval, hashset, stack, deque,
-// treeset, treemap, hashmap, sentinelhashmap, multimap, priority_queue, bag,
+// treeset, treemap, hashmap, sentinelhashmap, multimap, priorityqueue, bag,
 // tuple.
 //
 // Drift guard: `go generate ./... && git diff --exit-code` is sufficient.
@@ -51,7 +51,7 @@ func main() {
 		err = genSentinelHashMap()
 	case "multimap":
 		err = genMultimap()
-	case "priority_queue":
+	case "priorityqueue":
 		err = genPriorityQueue()
 	case "bag":
 		err = genBag()

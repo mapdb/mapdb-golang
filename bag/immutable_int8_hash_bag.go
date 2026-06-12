@@ -6,111 +6,105 @@ import (
 	"iter"
 )
 
-// ImmutableInt8HashBag is an immutable view of a Int8HashBag.
-type ImmutableInt8HashBag struct {
-	delegate *Int8HashBag
+// ImmutableHashInt8 is an immutable view of a HashInt8.
+type ImmutableHashInt8 struct {
+	delegate *HashInt8
 }
 
-// NewImmutableInt8HashBag creates an immutable bag from the given values.
-func NewImmutableInt8HashBag(values ...int8) *ImmutableInt8HashBag {
-	return &ImmutableInt8HashBag{delegate: Int8HashBagOf(values...)}
+// NewImmutableHashInt8 creates an immutable bag from the given values.
+func NewImmutableHashInt8(values ...int8) *ImmutableHashInt8 {
+	return &ImmutableHashInt8{delegate: HashInt8Of(values...)}
 }
 
-// ImmutableInt8HashBagFrom creates an immutable copy of a mutable bag.
-func ImmutableInt8HashBagFrom(b *Int8HashBag) *ImmutableInt8HashBag {
-	copy := NewInt8HashBag()
+// ImmutableHashInt8From creates an immutable copy of a mutable bag.
+func ImmutableHashInt8From(b *HashInt8) *ImmutableHashInt8 {
+	copy := NewHashInt8()
 	b.ForEachWithOccurrences(func(v int8, count int) {
 		copy.AddOccurrences(v, count)
 	})
-	return &ImmutableInt8HashBag{delegate: copy}
+	return &ImmutableHashInt8{delegate: copy}
 }
 
 // OccurrencesOf returns the number of occurrences of the value.
-func (b *ImmutableInt8HashBag) OccurrencesOf(value int8) int {
+func (b *ImmutableHashInt8) OccurrencesOf(value int8) int {
 	return b.delegate.OccurrencesOf(value)
 }
 
 // Contains returns true if the bag contains at least one occurrence.
-func (b *ImmutableInt8HashBag) Contains(value int8) bool {
+func (b *ImmutableHashInt8) Contains(value int8) bool {
 	return b.delegate.Contains(value)
 }
 
 // Size returns the total count including duplicates.
-func (b *ImmutableInt8HashBag) Size() int {
-	return b.delegate.Size()
+func (b *ImmutableHashInt8) Len() int {
+	return b.delegate.Len()
 }
 
 // Len returns the number of elements. It is an alias for Size, matching
 // Go convention (sort.Interface, container/list, bytes.Buffer).
-func (b *ImmutableInt8HashBag) Len() int { return b.Size() }
 
 // SizeDistinct returns the number of distinct elements.
-func (b *ImmutableInt8HashBag) SizeDistinct() int {
+func (b *ImmutableHashInt8) SizeDistinct() int {
 	return b.delegate.SizeDistinct()
 }
 
-// IsEmpty returns true if the bag contains no elements.
-func (b *ImmutableInt8HashBag) IsEmpty() bool {
-	return b.delegate.IsEmpty()
-}
-
 // All returns an iter.Seq yielding each element once per occurrence.
-func (b *ImmutableInt8HashBag) All() iter.Seq[int8] {
+func (b *ImmutableHashInt8) All() iter.Seq[int8] {
 	return b.delegate.All()
 }
 
 // AllDistinct returns an iter.Seq yielding each distinct element once.
-func (b *ImmutableInt8HashBag) AllDistinct() iter.Seq[int8] {
+func (b *ImmutableHashInt8) AllDistinct() iter.Seq[int8] {
 	return b.delegate.AllDistinct()
 }
 
 // AllWithOccurrences returns an iter.Seq2 yielding (value, count) pairs.
-func (b *ImmutableInt8HashBag) AllWithOccurrences() iter.Seq2[int8, int] {
+func (b *ImmutableHashInt8) AllWithOccurrences() iter.Seq2[int8, int] {
 	return b.delegate.AllWithOccurrences()
 }
 
 // ForEach calls the function for each element (once per occurrence).
-func (b *ImmutableInt8HashBag) ForEach(f func(int8)) {
+func (b *ImmutableHashInt8) ForEach(f func(int8)) {
 	b.delegate.ForEach(f)
 }
 
 // ForEachWithOccurrences calls the function with each distinct element and its count.
-func (b *ImmutableInt8HashBag) ForEachWithOccurrences(f func(int8, int)) {
+func (b *ImmutableHashInt8) ForEachWithOccurrences(f func(int8, int)) {
 	b.delegate.ForEachWithOccurrences(f)
 }
 
 // Select returns a new immutable bag with elements satisfying the predicate.
-func (b *ImmutableInt8HashBag) Select(predicate func(int8) bool) *ImmutableInt8HashBag {
-	return &ImmutableInt8HashBag{delegate: b.delegate.Select(predicate)}
+func (b *ImmutableHashInt8) Select(predicate func(int8) bool) *ImmutableHashInt8 {
+	return &ImmutableHashInt8{delegate: b.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable bag with elements not satisfying the predicate.
-func (b *ImmutableInt8HashBag) Reject(predicate func(int8) bool) *ImmutableInt8HashBag {
-	return &ImmutableInt8HashBag{delegate: b.delegate.Reject(predicate)}
+func (b *ImmutableHashInt8) Reject(predicate func(int8) bool) *ImmutableHashInt8 {
+	return &ImmutableHashInt8{delegate: b.delegate.Reject(predicate)}
 }
 
 // Detect returns the first distinct element satisfying the predicate, or zero and false.
-func (b *ImmutableInt8HashBag) Detect(predicate func(int8) bool) (int8, bool) {
+func (b *ImmutableHashInt8) Detect(predicate func(int8) bool) (int8, bool) {
 	return b.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (b *ImmutableInt8HashBag) AnySatisfy(predicate func(int8) bool) bool {
+func (b *ImmutableHashInt8) AnySatisfy(predicate func(int8) bool) bool {
 	return b.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (b *ImmutableInt8HashBag) AllSatisfy(predicate func(int8) bool) bool {
+func (b *ImmutableHashInt8) AllSatisfy(predicate func(int8) bool) bool {
 	return b.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (b *ImmutableInt8HashBag) NoneSatisfy(predicate func(int8) bool) bool {
+func (b *ImmutableHashInt8) NoneSatisfy(predicate func(int8) bool) bool {
 	return b.delegate.NoneSatisfy(predicate)
 }
 
 // TopOccurrences returns the n elements with the highest counts.
-func (b *ImmutableInt8HashBag) TopOccurrences(n int) []struct {
+func (b *ImmutableHashInt8) TopOccurrences(n int) []struct {
 	Value int8
 	Count int
 } {
@@ -118,23 +112,23 @@ func (b *ImmutableInt8HashBag) TopOccurrences(n int) []struct {
 }
 
 // ToSlice returns all elements as a slice (repeated per count).
-func (b *ImmutableInt8HashBag) ToSlice() []int8 {
+func (b *ImmutableHashInt8) ToSlice() []int8 {
 	return b.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (b *ImmutableInt8HashBag) String() string {
+func (b *ImmutableHashInt8) String() string {
 	return b.delegate.String()
 }
 
 // Equals returns true if the other immutable bag has the same elements and counts.
-func (b *ImmutableInt8HashBag) Equals(other *ImmutableInt8HashBag) bool {
+func (b *ImmutableHashInt8) Equals(other *ImmutableHashInt8) bool {
 	return b.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this bag.
-func (b *ImmutableInt8HashBag) ToMutable() *Int8HashBag {
-	copy := NewInt8HashBag()
+func (b *ImmutableHashInt8) ToMutable() *HashInt8 {
+	copy := NewHashInt8()
 	b.ForEachWithOccurrences(func(v int8, count int) {
 		copy.AddOccurrences(v, count)
 	})

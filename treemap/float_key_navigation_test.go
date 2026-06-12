@@ -10,14 +10,14 @@ import (
 // RangeKeys/HeadMap/TailMap bounds. The previous raw ==/</>= comparisons
 // conflated +0.0/-0.0 keys and excluded NaN from navigation.
 
-func TestFloat64Int32TreeMapFloorCeilingSignedZero(t *testing.T) {
+func TestFloat64Int32FloorCeilingSignedZero(t *testing.T) {
 	negZero := math.Copysign(0, -1)
 	posZero := 0.0
-	m := NewFloat64Int32TreeMap()
+	m := NewFloat64Int32()
 	m.Put(negZero, 10)
 	m.Put(posZero, 20)
-	if m.Size() != 2 {
-		t.Fatalf("expected distinct -0.0/+0.0 keys (size 2), got %d", m.Size())
+	if m.Len() != 2 {
+		t.Fatalf("expected distinct -0.0/+0.0 keys (size 2), got %d", m.Len())
 	}
 	// Floor(+0.0) hits the +0.0 key exactly -> value 20.
 	if k, v, ok := m.Floor(posZero); !ok || math.Float64bits(k) != math.Float64bits(posZero) || v != 20 {
@@ -29,9 +29,9 @@ func TestFloat64Int32TreeMapFloorCeilingSignedZero(t *testing.T) {
 	}
 }
 
-func TestFloat32Int32TreeMapNaNIsMaxKey(t *testing.T) {
+func TestFloat32Int32NaNIsMaxKey(t *testing.T) {
 	nan := float32(math.NaN())
-	m := NewFloat32Int32TreeMap()
+	m := NewFloat32Int32()
 	m.Put(1, 1)
 	m.Put(float32(math.Inf(1)), 2)
 	m.Put(nan, 3)
@@ -43,10 +43,10 @@ func TestFloat32Int32TreeMapNaNIsMaxKey(t *testing.T) {
 	}
 }
 
-func TestFloat64Int32TreeMapRangeKeysTotalOrder(t *testing.T) {
+func TestFloat64Int32RangeKeysTotalOrder(t *testing.T) {
 	negZero := math.Copysign(0, -1)
 	posZero := 0.0
-	m := NewFloat64Int32TreeMap()
+	m := NewFloat64Int32()
 	m.Put(-1, 1)
 	m.Put(negZero, 2)
 	m.Put(posZero, 3)
@@ -67,10 +67,10 @@ func TestFloat64Int32TreeMapRangeKeysTotalOrder(t *testing.T) {
 
 // HeadMap/TailMap route their bounds through the same total-order comparator as
 // RangeKeys; assert the signed-zero split directly through those entry points.
-func TestFloat64Int32TreeMapHeadTailMapSignedZero(t *testing.T) {
+func TestFloat64Int32HeadTailMapSignedZero(t *testing.T) {
 	negZero := math.Copysign(0, -1)
 	posZero := 0.0
-	m := NewFloat64Int32TreeMap()
+	m := NewFloat64Int32()
 	m.Put(-1, 1)
 	m.Put(negZero, 2)
 	m.Put(posZero, 3)

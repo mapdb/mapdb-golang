@@ -10,38 +10,38 @@ import (
 )
 
 const (
-	float32HashSetDefaultCapacity = 16
+	float32DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-type float32HashSetEntry struct {
+type float32Entry struct {
 	key      float32
 	occupied bool
 }
 
-// Float32HashSet is an open-addressing hash set for float32 values.
-type Float32HashSet struct {
-	entries []float32HashSetEntry
+// Float32 is an open-addressing hash set for float32 values.
+type Float32 struct {
+	entries []float32Entry
 	size    int
 }
 
-// NewFloat32HashSet creates a new empty Float32HashSet.
-func NewFloat32HashSet() *Float32HashSet {
-	return NewFloat32HashSetWithCapacity(float32HashSetDefaultCapacity)
+// NewFloat32 creates a new empty Float32.
+func NewFloat32() *Float32 {
+	return NewFloat32WithCapacity(float32DefaultCapacity)
 }
 
-// NewFloat32HashSetWithCapacity creates a new empty Float32HashSet with the given initial capacity.
-func NewFloat32HashSetWithCapacity(capacity int) *Float32HashSet {
-	cap := nextPowerOfTwoFloat32HashSet(capacity)
-	return &Float32HashSet{
-		entries: make([]float32HashSetEntry, cap),
+// NewFloat32WithCapacity creates a new empty Float32 with the given initial capacity.
+func NewFloat32WithCapacity(capacity int) *Float32 {
+	cap := nextPowerOfTwoFloat32(capacity)
+	return &Float32{
+		entries: make([]float32Entry, cap),
 		size:    0,
 	}
 }
 
-// Float32HashSetOf creates a new Float32HashSet from the given values.
-func Float32HashSetOf(values ...float32) *Float32HashSet {
-	s := NewFloat32HashSetWithCapacity(len(values) * 2)
+// Float32Of creates a new Float32 from the given values.
+func Float32Of(values ...float32) *Float32 {
+	s := NewFloat32WithCapacity(len(values) * 2)
 	for _, v := range values {
 		s.Add(v)
 	}
@@ -49,7 +49,7 @@ func Float32HashSetOf(values ...float32) *Float32HashSet {
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).
-func (s *Float32HashSet) Add(value float32) bool {
+func (s *Float32) Add(value float32) bool {
 	if s.needsResize() {
 		s.resize()
 	}
@@ -72,14 +72,14 @@ func (s *Float32HashSet) Add(value float32) bool {
 }
 
 // AddAll inserts all values into the set.
-func (s *Float32HashSet) AddAll(values ...float32) {
+func (s *Float32) AddAll(values ...float32) {
 	for _, v := range values {
 		s.Add(v)
 	}
 }
 
 // Remove removes a value from the set. Returns true if the value was found and removed.
-func (s *Float32HashSet) Remove(value float32) bool {
+func (s *Float32) Remove(value float32) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -92,7 +92,7 @@ func (s *Float32HashSet) Remove(value float32) bool {
 			return false
 		}
 		if math.Float32bits(s.entries[idx].key) == math.Float32bits(value) {
-			s.entries[idx] = float32HashSetEntry{}
+			s.entries[idx] = float32Entry{}
 			s.size--
 			s.rehashFrom(idx, mask)
 			return true
@@ -102,7 +102,7 @@ func (s *Float32HashSet) Remove(value float32) bool {
 }
 
 // Contains returns true if the set contains the given value.
-func (s *Float32HashSet) Contains(value float32) bool {
+func (s *Float32) Contains(value float32) bool {
 	cap := len(s.entries)
 	if cap == 0 {
 		return false
@@ -121,30 +121,21 @@ func (s *Float32HashSet) Contains(value float32) bool {
 	}
 }
 
-// Size returns the number of elements in the set.
-func (s *Float32HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Float32) Len() int {
 	return s.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Float32HashSet) Len() int { return s.Size() }
-
-// IsEmpty returns true if the set contains no elements.
-func (s *Float32HashSet) IsEmpty() bool {
-	return s.size == 0
-}
-
 // Clear removes all elements from the set.
-func (s *Float32HashSet) Clear() {
+func (s *Float32) Clear() {
 	for i := range s.entries {
-		s.entries[i] = float32HashSetEntry{}
+		s.entries[i] = float32Entry{}
 	}
 	s.size = 0
 }
 
 // All returns an iter.Seq that yields all elements.
-func (s *Float32HashSet) All() iter.Seq[float32] {
+func (s *Float32) All() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for i := range s.entries {
 			if s.entries[i].occupied {
@@ -157,7 +148,7 @@ func (s *Float32HashSet) All() iter.Seq[float32] {
 }
 
 // ForEach calls the given function for each element.
-func (s *Float32HashSet) ForEach(f func(float32)) {
+func (s *Float32) ForEach(f func(float32)) {
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			f(s.entries[i].key)
@@ -166,8 +157,8 @@ func (s *Float32HashSet) ForEach(f func(float32)) {
 }
 
 // Select returns a new set containing only elements that satisfy the predicate.
-func (s *Float32HashSet) Select(predicate func(float32) bool) *Float32HashSet {
-	result := NewFloat32HashSet()
+func (s *Float32) Select(predicate func(float32) bool) *Float32 {
+	result := NewFloat32()
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -177,8 +168,8 @@ func (s *Float32HashSet) Select(predicate func(float32) bool) *Float32HashSet {
 }
 
 // Reject returns a new set containing only elements that do not satisfy the predicate.
-func (s *Float32HashSet) Reject(predicate func(float32) bool) *Float32HashSet {
-	result := NewFloat32HashSet()
+func (s *Float32) Reject(predicate func(float32) bool) *Float32 {
+	result := NewFloat32()
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -188,7 +179,7 @@ func (s *Float32HashSet) Reject(predicate func(float32) bool) *Float32HashSet {
 }
 
 // Detect returns the first element that satisfies the predicate, or zero value and false.
-func (s *Float32HashSet) Detect(predicate func(float32) bool) (float32, bool) {
+func (s *Float32) Detect(predicate func(float32) bool) (float32, bool) {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return s.entries[i].key, true
@@ -198,7 +189,7 @@ func (s *Float32HashSet) Detect(predicate func(float32) bool) (float32, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Float32HashSet) AnySatisfy(predicate func(float32) bool) bool {
+func (s *Float32) AnySatisfy(predicate func(float32) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return true
@@ -208,7 +199,7 @@ func (s *Float32HashSet) AnySatisfy(predicate func(float32) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Float32HashSet) AllSatisfy(predicate func(float32) bool) bool {
+func (s *Float32) AllSatisfy(predicate func(float32) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && !predicate(s.entries[i].key) {
 			return false
@@ -218,7 +209,7 @@ func (s *Float32HashSet) AllSatisfy(predicate func(float32) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Float32HashSet) NoneSatisfy(predicate func(float32) bool) bool {
+func (s *Float32) NoneSatisfy(predicate func(float32) bool) bool {
 	for i := range s.entries {
 		if s.entries[i].occupied && predicate(s.entries[i].key) {
 			return false
@@ -228,8 +219,8 @@ func (s *Float32HashSet) NoneSatisfy(predicate func(float32) bool) bool {
 }
 
 // Union returns a new set containing all elements from both sets.
-func (s *Float32HashSet) Union(other *Float32HashSet) *Float32HashSet {
-	result := NewFloat32HashSetWithCapacity((s.size + other.size) * 2)
+func (s *Float32) Union(other *Float32) *Float32 {
+	result := NewFloat32WithCapacity((s.size + other.size) * 2)
 	for i := range s.entries {
 		if s.entries[i].occupied {
 			result.Add(s.entries[i].key)
@@ -244,8 +235,8 @@ func (s *Float32HashSet) Union(other *Float32HashSet) *Float32HashSet {
 }
 
 // Intersect returns a new set containing only elements present in both sets.
-func (s *Float32HashSet) Intersect(other *Float32HashSet) *Float32HashSet {
-	result := NewFloat32HashSet()
+func (s *Float32) Intersect(other *Float32) *Float32 {
+	result := NewFloat32()
 	smaller, larger := s, other
 	if s.size > other.size {
 		smaller, larger = other, s
@@ -259,8 +250,8 @@ func (s *Float32HashSet) Intersect(other *Float32HashSet) *Float32HashSet {
 }
 
 // Difference returns a new set containing elements in this set but not in the other.
-func (s *Float32HashSet) Difference(other *Float32HashSet) *Float32HashSet {
-	result := NewFloat32HashSet()
+func (s *Float32) Difference(other *Float32) *Float32 {
+	result := NewFloat32()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -270,8 +261,8 @@ func (s *Float32HashSet) Difference(other *Float32HashSet) *Float32HashSet {
 }
 
 // SymmetricDifference returns a new set containing elements in either set but not both.
-func (s *Float32HashSet) SymmetricDifference(other *Float32HashSet) *Float32HashSet {
-	result := NewFloat32HashSet()
+func (s *Float32) SymmetricDifference(other *Float32) *Float32 {
+	result := NewFloat32()
 	for i := range s.entries {
 		if s.entries[i].occupied && !other.Contains(s.entries[i].key) {
 			result.Add(s.entries[i].key)
@@ -286,7 +277,7 @@ func (s *Float32HashSet) SymmetricDifference(other *Float32HashSet) *Float32Hash
 }
 
 // ToSlice returns all elements as a slice.
-func (s *Float32HashSet) ToSlice() []float32 {
+func (s *Float32) ToSlice() []float32 {
 	result := make([]float32, 0, s.size)
 	for i := range s.entries {
 		if s.entries[i].occupied {
@@ -296,26 +287,26 @@ func (s *Float32HashSet) ToSlice() []float32 {
 	return result
 }
 
-// With returns the set after adding the value (fluent API).
-func (s *Float32HashSet) With(value float32) *Float32HashSet {
+// AddReturning adds the value to the set and returns the receiver (mutating, fluent).
+func (s *Float32) AddReturning(value float32) *Float32 {
 	s.Add(value)
 	return s
 }
 
-// Without returns the set after removing the value (fluent API).
-func (s *Float32HashSet) Without(value float32) *Float32HashSet {
+// RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
+func (s *Float32) RemoveReturning(value float32) *Float32 {
 	s.Remove(value)
 	return s
 }
 
-// WithAll returns the set after adding all values (fluent API).
-func (s *Float32HashSet) WithAll(values ...float32) *Float32HashSet {
+// AddAllReturning adds all values to the set and returns the receiver (mutating, fluent).
+func (s *Float32) AddAllReturning(values ...float32) *Float32 {
 	s.AddAll(values...)
 	return s
 }
 
-// WithoutAll returns the set after removing all given values (fluent API).
-func (s *Float32HashSet) WithoutAll(values ...float32) *Float32HashSet {
+// RemoveAllReturning removes all given values from the set and returns the receiver (mutating, fluent).
+func (s *Float32) RemoveAllReturning(values ...float32) *Float32 {
 	for _, v := range values {
 		s.Remove(v)
 	}
@@ -323,12 +314,12 @@ func (s *Float32HashSet) WithoutAll(values ...float32) *Float32HashSet {
 }
 
 // ToImmutable returns an immutable copy of this set.
-func (s *Float32HashSet) ToImmutable() *ImmutableFloat32HashSet {
-	return ImmutableFloat32HashSetFrom(s)
+func (s *Float32) ToImmutable() *ImmutableFloat32 {
+	return ImmutableFloat32From(s)
 }
 
 // String returns a string representation of the set.
-func (s *Float32HashSet) String() string {
+func (s *Float32) String() string {
 	if s.size == 0 {
 		return "{}"
 	}
@@ -349,7 +340,7 @@ func (s *Float32HashSet) String() string {
 }
 
 // Equals returns true if the other set has the same elements.
-func (s *Float32HashSet) Equals(other *Float32HashSet) bool {
+func (s *Float32) Equals(other *Float32) bool {
 	if s.size != other.size {
 		return false
 	}
@@ -361,22 +352,22 @@ func (s *Float32HashSet) Equals(other *Float32HashSet) bool {
 	return true
 }
 
-func (s *Float32HashSet) hash(value float32) uint64 {
+func (s *Float32) hash(value float32) uint64 {
 	h := uint64(math.Float32bits(value)) * 0x9E3779B97F4A7C15
 	return h ^ (h >> 32)
 }
 
-func (s *Float32HashSet) needsResize() bool {
+func (s *Float32) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
 
-func (s *Float32HashSet) resize() {
+func (s *Float32) resize() {
 	oldEntries := s.entries
 	newCap := len(oldEntries) * 2
 	if newCap == 0 {
-		newCap = float32HashSetDefaultCapacity
+		newCap = float32DefaultCapacity
 	}
-	s.entries = make([]float32HashSetEntry, newCap)
+	s.entries = make([]float32Entry, newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -386,7 +377,7 @@ func (s *Float32HashSet) resize() {
 	}
 }
 
-func (s *Float32HashSet) rehashFrom(deleted int, mask int) {
+func (s *Float32) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
@@ -395,7 +386,7 @@ func (s *Float32HashSet) rehashFrom(deleted int, mask int) {
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
 			s.entries[deleted] = s.entries[idx]
-			s.entries[idx] = float32HashSetEntry{}
+			s.entries[idx] = float32Entry{}
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
@@ -405,7 +396,7 @@ func (s *Float32HashSet) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwoFloat32HashSet(n int) int {
+func nextPowerOfTwoFloat32(n int) int {
 	if n <= 0 {
 		return 16
 	}

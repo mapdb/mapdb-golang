@@ -1,4 +1,3 @@
-
 package collection
 
 import (
@@ -14,11 +13,9 @@ import (
 
 // Float32Sized exposes the element count of a collection.
 type Float32Sized interface {
-	// Size returns the number of elements.
-	Size() int
-
-	// IsEmpty returns true if the collection contains no elements.
-	IsEmpty() bool
+	// Len returns the number of elements. Use x.Len() == 0 to test for
+	// emptiness.
+	Len() int
 }
 
 // Float32Iterable provides element-by-element traversal.
@@ -92,8 +89,8 @@ type Float32MutableCollection interface {
 type Float32List interface {
 	Float32Collection
 
-	// Get returns the element at the given index, or an error if out of bounds.
-	Get(index int) (float32, error)
+	// Get returns the element at the given index. It panics on out-of-range index.
+	Get(index int) float32
 
 	// IndexOf returns the index of the first occurrence of value, or -1 if absent.
 	IndexOf(value float32) int
@@ -108,8 +105,9 @@ type Float32MutableList interface {
 	// Add appends a value to the end of the list.
 	Add(value float32)
 
-	// Set replaces the element at the given index. Returns the previous value or an error.
-	Set(index int, value float32) (float32, error)
+	// Set sets the value at the given index, returning the previous value.
+	// It panics on out-of-range index.
+	Set(index int, value float32) float32
 }
 
 // Float32Set marker interface for set-like collections (uniqueness implied).
@@ -155,8 +153,8 @@ type Float32MutableBag interface {
 type Float32Stack interface {
 	Float32Collection
 
-	// Peek returns the top of the stack without removing it.
-	Peek() (float32, error)
+	// Peek returns the top element without removing it. The bool is false if empty.
+	Peek() (float32, bool)
 }
 
 // Float32MutableStack mutable LIFO stack with Push and Pop.
@@ -168,6 +166,6 @@ type Float32MutableStack interface {
 	// Push pushes a value onto the top of the stack.
 	Push(value float32)
 
-	// Pop pops and returns the top of the stack, or an error if empty.
-	Pop() (float32, error)
+	// Pop removes and returns the top element. The bool is false if empty.
+	Pop() (float32, bool)
 }

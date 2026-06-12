@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// SynchronizedFloat64HashSet is a thread-safe wrapper around Float64HashSet.
+// SynchronizedFloat64 is a thread-safe wrapper around Float64.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take a
 // caller-supplied function (Select, ForEach, AnySatisfy, …) snapshot
@@ -17,36 +17,36 @@ import (
 // without deadlocking.
 //
 // Methods that return a new set (Select, Reject, Union, Intersect,
-// Difference, SymmetricDifference) return an unwrapped *Float64HashSet;
+// Difference, SymmetricDifference) return an unwrapped *Float64;
 // the caller owns it.
-type SynchronizedFloat64HashSet struct {
-	delegate *Float64HashSet
+type SynchronizedFloat64 struct {
+	delegate *Float64
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedFloat64HashSet creates a new thread-safe empty set.
-func NewSynchronizedFloat64HashSet() *SynchronizedFloat64HashSet {
-	return &SynchronizedFloat64HashSet{delegate: NewFloat64HashSet()}
+// NewSynchronizedFloat64 creates a new thread-safe empty set.
+func NewSynchronizedFloat64() *SynchronizedFloat64 {
+	return &SynchronizedFloat64{delegate: NewFloat64()}
 }
 
-// NewSynchronizedFloat64HashSetFrom wraps an existing set. The
+// NewSynchronizedFloat64From wraps an existing set. The
 // wrapper takes ownership — callers must not mutate the delegate
 // directly without locking.
-func NewSynchronizedFloat64HashSetFrom(s *Float64HashSet) *SynchronizedFloat64HashSet {
-	return &SynchronizedFloat64HashSet{delegate: s}
+func NewSynchronizedFloat64From(s *Float64) *SynchronizedFloat64 {
+	return &SynchronizedFloat64{delegate: s}
 }
 
-// SynchronizedFloat64HashSetOf constructs a synchronized set from values.
-func SynchronizedFloat64HashSetOf(values ...float64) *SynchronizedFloat64HashSet {
-	s := NewFloat64HashSet()
+// SynchronizedFloat64Of constructs a synchronized set from values.
+func SynchronizedFloat64Of(values ...float64) *SynchronizedFloat64 {
+	s := NewFloat64()
 	for _, v := range values {
 		s.Add(v)
 	}
-	return &SynchronizedFloat64HashSet{delegate: s}
+	return &SynchronizedFloat64{delegate: s}
 }
 
 // snapshot returns a defensive copy of the set's elements under RLock.
-func (s *SynchronizedFloat64HashSet) snapshot() []float64 {
+func (s *SynchronizedFloat64) snapshot() []float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -54,25 +54,25 @@ func (s *SynchronizedFloat64HashSet) snapshot() []float64 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat64HashSet) Add(value float64) bool {
+func (s *SynchronizedFloat64) Add(value float64) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Add(value)
 }
 
-func (s *SynchronizedFloat64HashSet) AddAll(values ...float64) {
+func (s *SynchronizedFloat64) AddAll(values ...float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.AddAll(values...)
 }
 
-func (s *SynchronizedFloat64HashSet) Remove(value float64) bool {
+func (s *SynchronizedFloat64) Remove(value float64) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Remove(value)
 }
 
-func (s *SynchronizedFloat64HashSet) Clear() {
+func (s *SynchronizedFloat64) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -80,35 +80,26 @@ func (s *SynchronizedFloat64HashSet) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat64HashSet) Contains(value float64) bool {
+func (s *SynchronizedFloat64) Contains(value float64) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedFloat64HashSet) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedFloat64) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedFloat64HashSet) Len() int { return s.Size() }
-
-func (s *SynchronizedFloat64HashSet) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedFloat64HashSet) ToSlice() []float64 {
+func (s *SynchronizedFloat64) ToSlice() []float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedFloat64HashSet) String() string {
+func (s *SynchronizedFloat64) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -117,7 +108,7 @@ func (s *SynchronizedFloat64HashSet) String() string {
 // ── iteration ────────────────────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (s *SynchronizedFloat64HashSet) All() iter.Seq[float64] {
+func (s *SynchronizedFloat64) All() iter.Seq[float64] {
 	snapshot := s.snapshot()
 	return func(yield func(float64) bool) {
 		for _, v := range snapshot {
@@ -130,13 +121,13 @@ func (s *SynchronizedFloat64HashSet) All() iter.Seq[float64] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedFloat64HashSet) ForEach(f func(float64)) {
+func (s *SynchronizedFloat64) ForEach(f func(float64)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedFloat64HashSet) AnySatisfy(predicate func(float64) bool) bool {
+func (s *SynchronizedFloat64) AnySatisfy(predicate func(float64) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -145,7 +136,7 @@ func (s *SynchronizedFloat64HashSet) AnySatisfy(predicate func(float64) bool) bo
 	return false
 }
 
-func (s *SynchronizedFloat64HashSet) AllSatisfy(predicate func(float64) bool) bool {
+func (s *SynchronizedFloat64) AllSatisfy(predicate func(float64) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -154,7 +145,7 @@ func (s *SynchronizedFloat64HashSet) AllSatisfy(predicate func(float64) bool) bo
 	return true
 }
 
-func (s *SynchronizedFloat64HashSet) NoneSatisfy(predicate func(float64) bool) bool {
+func (s *SynchronizedFloat64) NoneSatisfy(predicate func(float64) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -163,7 +154,7 @@ func (s *SynchronizedFloat64HashSet) NoneSatisfy(predicate func(float64) bool) b
 	return true
 }
 
-func (s *SynchronizedFloat64HashSet) Detect(predicate func(float64) bool) (float64, bool) {
+func (s *SynchronizedFloat64) Detect(predicate func(float64) bool) (float64, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -175,9 +166,9 @@ func (s *SynchronizedFloat64HashSet) Detect(predicate func(float64) bool) (float
 
 // ── functional that return a new set ─────────────────────────────────
 
-func (s *SynchronizedFloat64HashSet) Select(predicate func(float64) bool) *Float64HashSet {
+func (s *SynchronizedFloat64) Select(predicate func(float64) bool) *Float64 {
 	snapshot := s.snapshot()
-	result := NewFloat64HashSet()
+	result := NewFloat64()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -186,9 +177,9 @@ func (s *SynchronizedFloat64HashSet) Select(predicate func(float64) bool) *Float
 	return result
 }
 
-func (s *SynchronizedFloat64HashSet) Reject(predicate func(float64) bool) *Float64HashSet {
+func (s *SynchronizedFloat64) Reject(predicate func(float64) bool) *Float64 {
 	snapshot := s.snapshot()
-	result := NewFloat64HashSet()
+	result := NewFloat64()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -201,7 +192,7 @@ func (s *SynchronizedFloat64HashSet) Reject(predicate func(float64) bool) *Float
 
 // lockPair acquires two RLocks in pointer-address order and returns
 // a release function. Guarantees no A.op(B) ⟷ B.op(A) deadlock.
-func (s *SynchronizedFloat64HashSet) lockPair(other *SynchronizedFloat64HashSet) func() {
+func (s *SynchronizedFloat64) lockPair(other *SynchronizedFloat64) func() {
 	if s == other {
 		s.mu.RLock()
 		return func() { s.mu.RUnlock() }
@@ -215,25 +206,25 @@ func (s *SynchronizedFloat64HashSet) lockPair(other *SynchronizedFloat64HashSet)
 	return func() { second.mu.RUnlock(); first.mu.RUnlock() }
 }
 
-func (s *SynchronizedFloat64HashSet) Union(other *SynchronizedFloat64HashSet) *Float64HashSet {
+func (s *SynchronizedFloat64) Union(other *SynchronizedFloat64) *Float64 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Union(other.delegate)
 }
 
-func (s *SynchronizedFloat64HashSet) Intersect(other *SynchronizedFloat64HashSet) *Float64HashSet {
+func (s *SynchronizedFloat64) Intersect(other *SynchronizedFloat64) *Float64 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Intersect(other.delegate)
 }
 
-func (s *SynchronizedFloat64HashSet) Difference(other *SynchronizedFloat64HashSet) *Float64HashSet {
+func (s *SynchronizedFloat64) Difference(other *SynchronizedFloat64) *Float64 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Difference(other.delegate)
 }
 
-func (s *SynchronizedFloat64HashSet) SymmetricDifference(other *SynchronizedFloat64HashSet) *Float64HashSet {
+func (s *SynchronizedFloat64) SymmetricDifference(other *SynchronizedFloat64) *Float64 {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.SymmetricDifference(other.delegate)
@@ -241,37 +232,41 @@ func (s *SynchronizedFloat64HashSet) SymmetricDifference(other *SynchronizedFloa
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedFloat64HashSet) With(value float64) *SynchronizedFloat64HashSet {
+// AddReturning adds the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat64) AddReturning(value float64) *SynchronizedFloat64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedFloat64HashSet) WithAll(values ...float64) *SynchronizedFloat64HashSet {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat64) AddAllReturning(values ...float64) *SynchronizedFloat64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
-func (s *SynchronizedFloat64HashSet) Without(value float64) *SynchronizedFloat64HashSet {
+// RemoveReturning removes the value and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat64) RemoveReturning(value float64) *SynchronizedFloat64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.Without(value)
+	s.delegate.RemoveReturning(value)
 	return s
 }
 
-func (s *SynchronizedFloat64HashSet) WithoutAll(values ...float64) *SynchronizedFloat64HashSet {
+// RemoveAllReturning removes all given values and returns the receiver (mutating, fluent).
+func (s *SynchronizedFloat64) RemoveAllReturning(values ...float64) *SynchronizedFloat64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithoutAll(values...)
+	s.delegate.RemoveAllReturning(values...)
 	return s
 }
 
 // ── conversions ───────────────────────────────────────────────────────
 
-func (s *SynchronizedFloat64HashSet) ToImmutable() *ImmutableFloat64HashSet {
+func (s *SynchronizedFloat64) ToImmutable() *ImmutableFloat64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -279,7 +274,7 @@ func (s *SynchronizedFloat64HashSet) ToImmutable() *ImmutableFloat64HashSet {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent deadlocks under concurrent A.Equals(B) / B.Equals(A).
-func (s *SynchronizedFloat64HashSet) Equals(other *SynchronizedFloat64HashSet) bool {
+func (s *SynchronizedFloat64) Equals(other *SynchronizedFloat64) bool {
 	release := s.lockPair(other)
 	defer release()
 	return s.delegate.Equals(other.delegate)

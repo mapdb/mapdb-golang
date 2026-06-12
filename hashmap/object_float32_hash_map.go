@@ -9,28 +9,28 @@ import (
 )
 
 const (
-	objectFloat32HashMapDefaultCapacity = 16
+	objectFloat32DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// ObjectFloat32HashMap is an open-addressing hash map with generic comparable keys and float32 values.
+// ObjectFloat32 is an open-addressing hash map with generic comparable keys and float32 values.
 // The value type is specialized to avoid boxing overhead.
-type ObjectFloat32HashMap[K comparable] struct {
+type ObjectFloat32[K comparable] struct {
 	keys     []K
 	values   []float32
 	occupied []bool
 	size     int
 }
 
-// NewObjectFloat32HashMap creates a new empty ObjectFloat32HashMap with default capacity.
-func NewObjectFloat32HashMap[K comparable]() *ObjectFloat32HashMap[K] {
-	return NewObjectFloat32HashMapWithCapacity[K](objectFloat32HashMapDefaultCapacity)
+// NewObjectFloat32 creates a new empty ObjectFloat32 with default capacity.
+func NewObjectFloat32[K comparable]() *ObjectFloat32[K] {
+	return NewObjectFloat32WithCapacity[K](objectFloat32DefaultCapacity)
 }
 
-// NewObjectFloat32HashMapWithCapacity creates a new empty ObjectFloat32HashMap with the given initial capacity.
-func NewObjectFloat32HashMapWithCapacity[K comparable](capacity int) *ObjectFloat32HashMap[K] {
-	cap := nextPowerOfTwoObjectFloat32HashMap(capacity)
-	return &ObjectFloat32HashMap[K]{
+// NewObjectFloat32WithCapacity creates a new empty ObjectFloat32 with the given initial capacity.
+func NewObjectFloat32WithCapacity[K comparable](capacity int) *ObjectFloat32[K] {
+	cap := nextPowerOfTwoObjectFloat32(capacity)
+	return &ObjectFloat32[K]{
 		keys:     make([]K, cap),
 		values:   make([]float32, cap),
 		occupied: make([]bool, cap),
@@ -39,7 +39,7 @@ func NewObjectFloat32HashMapWithCapacity[K comparable](capacity int) *ObjectFloa
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *ObjectFloat32HashMap[K]) Put(key K, value float32) (float32, bool) {
+func (m *ObjectFloat32[K]) Put(key K, value float32) (float32, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -65,7 +65,7 @@ func (m *ObjectFloat32HashMap[K]) Put(key K, value float32) (float32, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *ObjectFloat32HashMap[K]) Get(key K) (float32, bool) {
+func (m *ObjectFloat32[K]) Get(key K) (float32, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0.0, false
@@ -85,7 +85,7 @@ func (m *ObjectFloat32HashMap[K]) Get(key K) (float32, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *ObjectFloat32HashMap[K]) GetOrDefault(key K, defaultValue float32) float32 {
+func (m *ObjectFloat32[K]) GetOrDefault(key K, defaultValue float32) float32 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -93,7 +93,7 @@ func (m *ObjectFloat32HashMap[K]) GetOrDefault(key K, defaultValue float32) floa
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *ObjectFloat32HashMap[K]) Remove(key K) (float32, bool) {
+func (m *ObjectFloat32[K]) Remove(key K) (float32, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0.0, false
@@ -112,7 +112,7 @@ func (m *ObjectFloat32HashMap[K]) Remove(key K) (float32, bool) {
 			m.keys[idx] = zeroK
 			m.values[idx] = 0.0
 			m.size--
-			m.rehashFromObjectFloat32HashMap(idx, mask)
+			m.rehashFromObjectFloat32(idx, mask)
 			return old, true
 		}
 		idx = (idx + 1) & mask
@@ -120,27 +120,18 @@ func (m *ObjectFloat32HashMap[K]) Remove(key K) (float32, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ObjectFloat32HashMap[K]) ContainsKey(key K) bool {
+func (m *ObjectFloat32[K]) ContainsKey(key K) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *ObjectFloat32HashMap[K]) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ObjectFloat32[K]) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ObjectFloat32HashMap[K]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ObjectFloat32HashMap[K]) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *ObjectFloat32HashMap[K]) Clear() {
+func (m *ObjectFloat32[K]) Clear() {
 	var zeroK K
 	for i := range m.occupied {
 		m.occupied[i] = false
@@ -151,7 +142,7 @@ func (m *ObjectFloat32HashMap[K]) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ObjectFloat32HashMap[K]) All() iter.Seq2[K, float32] {
+func (m *ObjectFloat32[K]) All() iter.Seq2[K, float32] {
 	return func(yield func(K, float32) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -164,7 +155,7 @@ func (m *ObjectFloat32HashMap[K]) All() iter.Seq2[K, float32] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ObjectFloat32HashMap[K]) Keys() iter.Seq[K] {
+func (m *ObjectFloat32[K]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -177,7 +168,7 @@ func (m *ObjectFloat32HashMap[K]) Keys() iter.Seq[K] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ObjectFloat32HashMap[K]) Values() iter.Seq[float32] {
+func (m *ObjectFloat32[K]) Values() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -190,7 +181,7 @@ func (m *ObjectFloat32HashMap[K]) Values() iter.Seq[float32] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ObjectFloat32HashMap[K]) ForEach(f func(K, float32)) {
+func (m *ObjectFloat32[K]) ForEach(f func(K, float32)) {
 	for i := range m.occupied {
 		if m.occupied[i] {
 			f(m.keys[i], m.values[i])
@@ -199,8 +190,8 @@ func (m *ObjectFloat32HashMap[K]) ForEach(f func(K, float32)) {
 }
 
 // Select returns a new map containing only entries that satisfy the predicate.
-func (m *ObjectFloat32HashMap[K]) Select(predicate func(K, float32) bool) *ObjectFloat32HashMap[K] {
-	result := NewObjectFloat32HashMap[K]()
+func (m *ObjectFloat32[K]) Select(predicate func(K, float32) bool) *ObjectFloat32[K] {
+	result := NewObjectFloat32[K]()
 	for i := range m.occupied {
 		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -210,8 +201,8 @@ func (m *ObjectFloat32HashMap[K]) Select(predicate func(K, float32) bool) *Objec
 }
 
 // Reject returns a new map containing only entries that do not satisfy the predicate.
-func (m *ObjectFloat32HashMap[K]) Reject(predicate func(K, float32) bool) *ObjectFloat32HashMap[K] {
-	result := NewObjectFloat32HashMap[K]()
+func (m *ObjectFloat32[K]) Reject(predicate func(K, float32) bool) *ObjectFloat32[K] {
+	result := NewObjectFloat32[K]()
 	for i := range m.occupied {
 		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -221,7 +212,7 @@ func (m *ObjectFloat32HashMap[K]) Reject(predicate func(K, float32) bool) *Objec
 }
 
 // String returns a string representation of the map.
-func (m *ObjectFloat32HashMap[K]) String() string {
+func (m *ObjectFloat32[K]) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -241,17 +232,17 @@ func (m *ObjectFloat32HashMap[K]) String() string {
 	return sb.String()
 }
 
-func (m *ObjectFloat32HashMap[K]) needsResize() bool {
+func (m *ObjectFloat32[K]) needsResize() bool {
 	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *ObjectFloat32HashMap[K]) resize() {
+func (m *ObjectFloat32[K]) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	oldOccupied := m.occupied
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = objectFloat32HashMapDefaultCapacity
+		newCap = objectFloat32DefaultCapacity
 	}
 	m.keys = make([]K, newCap)
 	m.values = make([]float32, newCap)
@@ -265,7 +256,7 @@ func (m *ObjectFloat32HashMap[K]) resize() {
 	}
 }
 
-func (m *ObjectFloat32HashMap[K]) rehashFromObjectFloat32HashMap(deleted int, mask int) {
+func (m *ObjectFloat32[K]) rehashFromObjectFloat32(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(hashComparable(m.keys[idx])) & mask
@@ -284,7 +275,7 @@ func (m *ObjectFloat32HashMap[K]) rehashFromObjectFloat32HashMap(deleted int, ma
 	}
 }
 
-func nextPowerOfTwoObjectFloat32HashMap(n int) int {
+func nextPowerOfTwoObjectFloat32(n int) int {
 	if n <= 0 {
 		return 16
 	}

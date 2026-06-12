@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestFloat64Float64HashMap_NaN(t *testing.T) {
-	m := NewFloat64Float64HashMap()
+func TestFloat64Float64_NaN(t *testing.T) {
+	m := NewFloat64Float64()
 	nan := math.NaN()
 	m.Put(nan, 42.0)
 
@@ -19,13 +19,13 @@ func TestFloat64Float64HashMap_NaN(t *testing.T) {
 	if !m.ContainsKey(nan) {
 		t.Error("ContainsKey(NaN) should be true")
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size = %d, want 1", m.Len())
 	}
 }
 
-func TestFloat64Float64HashMap_NegativeZero(t *testing.T) {
-	m := NewFloat64Float64HashMap()
+func TestFloat64Float64_NegativeZero(t *testing.T) {
+	m := NewFloat64Float64()
 	posZero := 0.0
 	negZero := math.Copysign(0, -1) // -0.0
 
@@ -33,13 +33,13 @@ func TestFloat64Float64HashMap_NegativeZero(t *testing.T) {
 	m.Put(negZero, 2.0)
 
 	// +0.0 and -0.0 have different bit patterns, so they are different keys
-	if m.Size() != 2 {
-		t.Logf("Size = %d (bit-level: +0 and -0 are different keys)", m.Size())
+	if m.Len() != 2 {
+		t.Logf("Size = %d (bit-level: +0 and -0 are different keys)", m.Len())
 	}
 }
 
-func TestFloat64Float64HashMap_Infinity(t *testing.T) {
-	m := NewFloat64Float64HashMap()
+func TestFloat64Float64_Infinity(t *testing.T) {
+	m := NewFloat64Float64()
 	m.Put(math.Inf(1), 1.0)
 	m.Put(math.Inf(-1), 2.0)
 
@@ -51,8 +51,8 @@ func TestFloat64Float64HashMap_Infinity(t *testing.T) {
 	}
 }
 
-func TestFloat64Float64HashMap_NaNValue(t *testing.T) {
-	m := NewFloat64Float64HashMap()
+func TestFloat64Float64_NaNValue(t *testing.T) {
+	m := NewFloat64Float64()
 	nan := math.NaN()
 	m.Put(1.0, nan)
 

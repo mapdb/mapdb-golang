@@ -1,4 +1,3 @@
-
 package hashmap
 
 import (
@@ -6,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestCharFloat32HashMap_Generated_PutGet(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_PutGet(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
@@ -18,13 +17,13 @@ func TestCharFloat32HashMap_Generated_PutGet(t *testing.T) {
 	if v, ok := m.Get(99); ok || v != 0.0 {
 		t.Errorf("Get(99) = (%v, %v), want (0.0, false)", v, ok)
 	}
-	if m.Size() != 3 {
-		t.Errorf("Size() = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Errorf("Size() = %d, want 3", m.Len())
 	}
 }
 
-func TestCharFloat32HashMap_Generated_PutOverwrite(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_PutOverwrite(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	old, existed := m.Put(1, 2.0)
 	if !existed || old != 1.0 {
@@ -35,8 +34,8 @@ func TestCharFloat32HashMap_Generated_PutOverwrite(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Remove(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Remove(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -44,8 +43,8 @@ func TestCharFloat32HashMap_Generated_Remove(t *testing.T) {
 	if !ok || old != 1.0 {
 		t.Errorf("Remove(1) = (%v, %v), want (1.0, true)", old, ok)
 	}
-	if m.Size() != 1 {
-		t.Errorf("Size after remove = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Errorf("Size after remove = %d, want 1", m.Len())
 	}
 	if m.ContainsKey(1) {
 		t.Error("ContainsKey(1) should be false after remove")
@@ -57,8 +56,8 @@ func TestCharFloat32HashMap_Generated_Remove(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_ContainsKey(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_ContainsKey(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	if !m.ContainsKey(1) {
 		t.Error("ContainsKey(1) should be true")
@@ -68,8 +67,8 @@ func TestCharFloat32HashMap_Generated_ContainsKey(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_ContainsValue(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_ContainsValue(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	if !m.ContainsValue(1.0) {
 		t.Error("ContainsValue(1.0) should be true")
@@ -79,8 +78,8 @@ func TestCharFloat32HashMap_Generated_ContainsValue(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_GetOrDefault(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_GetOrDefault(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	if v := m.GetOrDefault(1, 3.0); v != 1.0 {
 		t.Errorf("GetOrDefault existing = %v, want 1.0", v)
@@ -90,29 +89,29 @@ func TestCharFloat32HashMap_Generated_GetOrDefault(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_IsEmpty(t *testing.T) {
-	m := NewCharFloat32HashMap()
-	if !m.IsEmpty() {
+func TestCharFloat32_Generated_IsEmpty(t *testing.T) {
+	m := NewCharFloat32()
+	if m.Len() != 0 {
 		t.Error("New map should be empty")
 	}
 	m.Put(1, 1.0)
-	if m.IsEmpty() {
+	if m.Len() == 0 {
 		t.Error("Map with entry should not be empty")
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Clear(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Clear(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Clear()
-	if m.Size() != 0 || !m.IsEmpty() {
-		t.Errorf("After Clear: size=%d, empty=%v", m.Size(), m.IsEmpty())
+	if m.Len() != 0 {
+		t.Errorf("After Clear: size=%d, empty=%v", m.Len(), m.Len() == 0)
 	}
 }
 
-func TestCharFloat32HashMap_Generated_All(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_All(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -125,8 +124,8 @@ func TestCharFloat32HashMap_Generated_All(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Keys(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Keys(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -139,8 +138,8 @@ func TestCharFloat32HashMap_Generated_Keys(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Values(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Values(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -153,32 +152,32 @@ func TestCharFloat32HashMap_Generated_Values(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Select(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Select(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
 
 	selected := m.Select(func(k uint16, v float32) bool { return v > 1.0 })
-	if selected.Size() != 2 {
-		t.Errorf("Select size = %d, want 2", selected.Size())
+	if selected.Len() != 2 {
+		t.Errorf("Select size = %d, want 2", selected.Len())
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Reject(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Reject(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
 
 	rejected := m.Reject(func(k uint16, v float32) bool { return v > 1.0 })
-	if rejected.Size() != 1 {
-		t.Errorf("Reject size = %d, want 1", rejected.Size())
+	if rejected.Len() != 1 {
+		t.Errorf("Reject size = %d, want 1", rejected.Len())
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Detect(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Detect(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -188,8 +187,8 @@ func TestCharFloat32HashMap_Generated_Detect(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_AnySatisfy(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_AnySatisfy(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -201,8 +200,8 @@ func TestCharFloat32HashMap_Generated_AnySatisfy(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_AllSatisfy(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_AllSatisfy(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -214,8 +213,8 @@ func TestCharFloat32HashMap_Generated_AllSatisfy(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_NoneSatisfy(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_NoneSatisfy(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 
@@ -224,8 +223,8 @@ func TestCharFloat32HashMap_Generated_NoneSatisfy(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Count(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Count(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
 	m.Put(3, 3.0)
@@ -235,8 +234,8 @@ func TestCharFloat32HashMap_Generated_Count(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Entry(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Entry(t *testing.T) {
+	m := NewCharFloat32()
 	v := m.Entry(1).OrInsert(1.0)
 	if !(math.Float32bits(v) == math.Float32bits(1.0)) {
 		t.Errorf("OrInsert = %v, want 1.0", v)
@@ -247,13 +246,13 @@ func TestCharFloat32HashMap_Generated_Entry(t *testing.T) {
 	}
 }
 
-// TestCharFloat32HashMap_Generated_AndModify_ResizeDetection forces a resize from
+// TestCharFloat32_Generated_AndModify_ResizeDetection forces a resize from
 // within the AndModify callback and verifies the template's
 // "do not mutate the map from within AndModify" guard fires, so that
 // silent data loss through a dangling pointer into the pre-resize
 // entries slice cannot happen.
-func TestCharFloat32HashMap_Generated_AndModify_ResizeDetection(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_AndModify_ResizeDetection(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	defer func() {
 		if r := recover(); r == nil {
@@ -268,30 +267,30 @@ func TestCharFloat32HashMap_Generated_AndModify_ResizeDetection(t *testing.T) {
 	})
 }
 
-func TestCharFloat32HashMap_Generated_WithKeyValue(t *testing.T) {
-	m := NewCharFloat32HashMap()
-	m2 := m.WithKeyValue(1, 1.0)
-	if m2.Size() != 1 {
-		t.Errorf("WithKeyValue: size = %d, want 1", m2.Size())
+func TestCharFloat32_Generated_PutReturning(t *testing.T) {
+	m := NewCharFloat32()
+	m2 := m.PutReturning(1, 1.0)
+	if m2.Len() != 1 {
+		t.Errorf("PutReturning: size = %d, want 1", m2.Len())
 	}
 }
 
-func TestCharFloat32HashMap_Generated_WithoutKey(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_RemoveKeyReturning(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	m.Put(2, 2.0)
-	m2 := m.WithoutKey(1)
+	m2 := m.RemoveKeyReturning(1)
 	if m2.ContainsKey(1) {
-		t.Error("WithoutKey: should not contain removed key")
+		t.Error("RemoveKeyReturning: should not contain removed key")
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Equals(t *testing.T) {
-	m1 := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Equals(t *testing.T) {
+	m1 := NewCharFloat32()
 	m1.Put(1, 1.0)
 	m1.Put(2, 2.0)
 
-	m2 := NewCharFloat32HashMap()
+	m2 := NewCharFloat32()
 	m2.Put(2, 2.0)
 	m2.Put(1, 1.0)
 
@@ -299,28 +298,28 @@ func TestCharFloat32HashMap_Generated_Equals(t *testing.T) {
 		t.Error("Equal maps should be equal")
 	}
 
-	m3 := NewCharFloat32HashMap()
+	m3 := NewCharFloat32()
 	m3.Put(1, 1.0)
 	if m1.Equals(m3) {
 		t.Error("Different maps should not be equal")
 	}
 }
 
-func TestCharFloat32HashMap_Generated_String(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_String(t *testing.T) {
+	m := NewCharFloat32()
 	m.Put(1, 1.0)
 	if m.String() == "" {
 		t.Error("String should not be empty")
 	}
 }
 
-func TestCharFloat32HashMap_Generated_Resize(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_Generated_Resize(t *testing.T) {
+	m := NewCharFloat32()
 	for i := uint16(0); i < 100; i++ {
 		m.Put(i, float32(i))
 	}
-	if m.Size() != 100 {
-		t.Errorf("Size = %d, want 100", m.Size())
+	if m.Len() != 100 {
+		t.Errorf("Size = %d, want 100", m.Len())
 	}
 	for i := uint16(0); i < 100; i++ {
 		v, ok := m.Get(i)
@@ -330,8 +329,8 @@ func TestCharFloat32HashMap_Generated_Resize(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_NaNValue_ContainsValue(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_NaNValue_ContainsValue(t *testing.T) {
+	m := NewCharFloat32()
 	nan := float32(math.NaN())
 	m.Put(1, nan)
 	if !m.ContainsValue(nan) {
@@ -339,8 +338,8 @@ func TestCharFloat32HashMap_NaNValue_ContainsValue(t *testing.T) {
 	}
 }
 
-func TestCharFloat32HashMap_NaNValue_GetReturnsNaN(t *testing.T) {
-	m := NewCharFloat32HashMap()
+func TestCharFloat32_NaNValue_GetReturnsNaN(t *testing.T) {
+	m := NewCharFloat32()
 	nan := float32(math.NaN())
 	m.Put(1, nan)
 	v, ok := m.Get(1)

@@ -19,8 +19,8 @@ func TestZeroValueHashSet(t *testing.T) {
 	if !s.Add(1) || s.Add(1) {
 		t.Fatal("Add semantics wrong on zero value")
 	}
-	if s.Size() != 1 {
-		t.Fatalf("Size() = %d, want 1", s.Size())
+	if s.Len() != 1 {
+		t.Fatalf("Size() = %d, want 1", s.Len())
 	}
 }
 
@@ -28,24 +28,24 @@ func TestZeroValueHashBag(t *testing.T) {
 	var b HashBag[int]
 	b.Add(1)
 	b.AddOccurrences(2, 3)
-	if b.Size() != 4 {
-		t.Fatalf("Size() = %d, want 4", b.Size())
+	if b.Len() != 4 {
+		t.Fatalf("Size() = %d, want 4", b.Len())
 	}
 }
 
 func TestZeroValueLinkedHashMap(t *testing.T) {
 	var m LinkedHashMap[int, int]
 	m.Put(1, 2)
-	if m.Size() != 1 {
-		t.Fatalf("Size() = %d, want 1", m.Size())
+	if m.Len() != 1 {
+		t.Fatalf("Size() = %d, want 1", m.Len())
 	}
 }
 
 func TestZeroValueLinkedHashSet(t *testing.T) {
 	var s LinkedHashSet[int]
 	s.Add(1)
-	if s.Size() != 1 {
-		t.Fatalf("Size() = %d, want 1", s.Size())
+	if s.Len() != 1 {
+		t.Fatalf("Size() = %d, want 1", s.Len())
 	}
 }
 
@@ -61,7 +61,7 @@ func TestZeroValueHashMultimap(t *testing.T) {
 	var m HashMultimap[int, int]
 	m.Put(1, 10)
 	m.PutAll(1, 20, 30)
-	if m.Size() != 3 {
-		t.Fatalf("Size() = %d, want 3", m.Size())
+	if m.Len() != 3 {
+		t.Fatalf("Size() = %d, want 3", m.Len())
 	}
 }

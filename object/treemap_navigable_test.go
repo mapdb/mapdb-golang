@@ -118,8 +118,8 @@ func TestTreeMap_PollFirstEntry(t *testing.T) {
 	if m.ContainsKey(10) {
 		t.Error("10 should be removed after PollFirstEntry")
 	}
-	if m.Size() != 4 {
-		t.Errorf("Size after PollFirst = %d, want 4", m.Size())
+	if m.Len() != 4 {
+		t.Errorf("Size after PollFirst = %d, want 4", m.Len())
 	}
 }
 

@@ -12,18 +12,18 @@ import (
 
 func TestHashSet_NewEmpty(t *testing.T) {
 	s := NewHashSet[int]()
-	if s.Size() != 0 {
-		t.Errorf("Size() = %d, want 0", s.Size())
+	if s.Len() != 0 {
+		t.Errorf("Size() = %d, want 0", s.Len())
 	}
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("IsEmpty() = false, want true")
 	}
 }
 
 func TestHashSet_NewHashSetFrom(t *testing.T) {
 	s := NewHashSetFrom(1, 2, 3, 2)
-	if s.Size() != 3 {
-		t.Errorf("Size() = %d, want 3 (duplicates ignored)", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size() = %d, want 3 (duplicates ignored)", s.Len())
 	}
 }
 
@@ -33,8 +33,8 @@ func TestHashSet_Add(t *testing.T) {
 		if !s.Add(1) {
 			t.Error("Add(1) = false, want true")
 		}
-		if s.Size() != 1 {
-			t.Errorf("Size() = %d, want 1", s.Size())
+		if s.Len() != 1 {
+			t.Errorf("Size() = %d, want 1", s.Len())
 		}
 	})
 
@@ -43,8 +43,8 @@ func TestHashSet_Add(t *testing.T) {
 		if s.Add(1) {
 			t.Error("Add(1) = true, want false (duplicate)")
 		}
-		if s.Size() != 2 {
-			t.Errorf("Size() = %d, want 2", s.Size())
+		if s.Len() != 2 {
+			t.Errorf("Size() = %d, want 2", s.Len())
 		}
 	})
 }
@@ -55,8 +55,8 @@ func TestHashSet_Remove(t *testing.T) {
 		if !s.Remove(2) {
 			t.Error("Remove(2) = false, want true")
 		}
-		if s.Size() != 2 {
-			t.Errorf("Size() = %d, want 2", s.Size())
+		if s.Len() != 2 {
+			t.Errorf("Size() = %d, want 2", s.Len())
 		}
 		if s.Contains(2) {
 			t.Error("Contains(2) after Remove = true")
@@ -85,8 +85,8 @@ func TestHashSet_Union(t *testing.T) {
 	a := NewHashSetFrom(1, 2, 3)
 	b := NewHashSetFrom(3, 4, 5)
 	u := a.Union(b)
-	if u.Size() != 5 {
-		t.Errorf("Union size = %d, want 5", u.Size())
+	if u.Len() != 5 {
+		t.Errorf("Union size = %d, want 5", u.Len())
 	}
 	for _, v := range []int{1, 2, 3, 4, 5} {
 		if !u.Contains(v) {
@@ -99,8 +99,8 @@ func TestHashSet_Intersect(t *testing.T) {
 	a := NewHashSetFrom(1, 2, 3, 4)
 	b := NewHashSetFrom(3, 4, 5, 6)
 	inter := a.Intersect(b)
-	if inter.Size() != 2 {
-		t.Errorf("Intersect size = %d, want 2", inter.Size())
+	if inter.Len() != 2 {
+		t.Errorf("Intersect size = %d, want 2", inter.Len())
 	}
 	if !inter.Contains(3) || !inter.Contains(4) {
 		t.Error("Intersect missing expected elements")
@@ -111,8 +111,8 @@ func TestHashSet_Difference(t *testing.T) {
 	a := NewHashSetFrom(1, 2, 3, 4)
 	b := NewHashSetFrom(3, 4, 5)
 	diff := a.Difference(b)
-	if diff.Size() != 2 {
-		t.Errorf("Difference size = %d, want 2", diff.Size())
+	if diff.Len() != 2 {
+		t.Errorf("Difference size = %d, want 2", diff.Len())
 	}
 	if !diff.Contains(1) || !diff.Contains(2) {
 		t.Error("Difference missing expected elements")
@@ -123,8 +123,8 @@ func TestHashSet_SymmetricDifference(t *testing.T) {
 	a := NewHashSetFrom(1, 2, 3)
 	b := NewHashSetFrom(2, 3, 4)
 	sd := a.SymmetricDifference(b)
-	if sd.Size() != 2 {
-		t.Errorf("SymmetricDifference size = %d, want 2", sd.Size())
+	if sd.Len() != 2 {
+		t.Errorf("SymmetricDifference size = %d, want 2", sd.Len())
 	}
 	if !sd.Contains(1) || !sd.Contains(4) {
 		t.Error("SymmetricDifference missing expected elements")
@@ -137,8 +137,8 @@ func TestHashSet_SymmetricDifference(t *testing.T) {
 func TestHashSet_Select(t *testing.T) {
 	s := NewHashSetFrom(1, 2, 3, 4, 5)
 	evens := s.Select(func(v int) bool { return v%2 == 0 })
-	if evens.Size() != 2 {
-		t.Errorf("Select size = %d, want 2", evens.Size())
+	if evens.Len() != 2 {
+		t.Errorf("Select size = %d, want 2", evens.Len())
 	}
 	if !evens.Contains(2) || !evens.Contains(4) {
 		t.Error("Select missing expected even elements")
@@ -148,8 +148,8 @@ func TestHashSet_Select(t *testing.T) {
 func TestHashSet_Reject(t *testing.T) {
 	s := NewHashSetFrom(1, 2, 3, 4, 5)
 	odds := s.Reject(func(v int) bool { return v%2 == 0 })
-	if odds.Size() != 3 {
-		t.Errorf("Reject size = %d, want 3", odds.Size())
+	if odds.Len() != 3 {
+		t.Errorf("Reject size = %d, want 3", odds.Len())
 	}
 }
 
@@ -197,8 +197,8 @@ func TestHashSet_All(t *testing.T) {
 	for v := range s.All() {
 		collected.Add(v)
 	}
-	if collected.Size() != 3 {
-		t.Errorf("All yielded %d elements, want 3", collected.Size())
+	if collected.Len() != 3 {
+		t.Errorf("All yielded %d elements, want 3", collected.Len())
 	}
 }
 
@@ -237,10 +237,10 @@ func TestHashSet_NoneSatisfy(t *testing.T) {
 func TestHashSet_Clear(t *testing.T) {
 	s := NewHashSetFrom(1, 2, 3)
 	s.Clear()
-	if s.Size() != 0 {
-		t.Errorf("Size after Clear = %d, want 0", s.Size())
+	if s.Len() != 0 {
+		t.Errorf("Size after Clear = %d, want 0", s.Len())
 	}
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("IsEmpty after Clear = false")
 	}
 }
@@ -276,8 +276,8 @@ func TestHashSet_StringType(t *testing.T) {
 	s.Add("hello")
 	s.Add("world")
 	s.Add("hello") // duplicate
-	if s.Size() != 2 {
-		t.Errorf("Size() = %d, want 2", s.Size())
+	if s.Len() != 2 {
+		t.Errorf("Size() = %d, want 2", s.Len())
 	}
 	if !s.Contains("hello") || !s.Contains("world") {
 		t.Error("missing expected string elements")
@@ -285,7 +285,7 @@ func TestHashSet_StringType(t *testing.T) {
 
 	diff := NewHashSetFrom("hello", "world", "foo")
 	result := diff.Difference(s)
-	if result.Size() != 1 || !result.Contains("foo") {
+	if result.Len() != 1 || !result.Contains("foo") {
 		t.Errorf("Difference unexpected result: %v", result)
 	}
 }

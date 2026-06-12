@@ -3,123 +3,111 @@
 package stack
 
 import (
-	"fmt"
 	"iter"
 )
 
-// ImmutableInt16ArrayStack is an immutable LIFO stack of int16 values.
-type ImmutableInt16ArrayStack struct {
-	delegate *Int16ArrayStack
+// ImmutableInt16 is an immutable LIFO stack of int16 values.
+type ImmutableInt16 struct {
+	delegate *Int16
 }
 
-// NewImmutableInt16ArrayStack creates an immutable stack from the given values.
+// NewImmutableInt16 creates an immutable stack from the given values.
 // The last value becomes the top of the stack.
-func NewImmutableInt16ArrayStack(values ...int16) *ImmutableInt16ArrayStack {
-	return &ImmutableInt16ArrayStack{delegate: Int16ArrayStackOf(values...)}
+func NewImmutableInt16(values ...int16) *ImmutableInt16 {
+	return &ImmutableInt16{delegate: Int16Of(values...)}
 }
 
-// ImmutableInt16ArrayStackFrom creates an immutable copy of a mutable stack.
-func ImmutableInt16ArrayStackFrom(s *Int16ArrayStack) *ImmutableInt16ArrayStack {
-	copy := &Int16ArrayStack{items: make([]int16, len(s.items))}
+// ImmutableInt16From creates an immutable copy of a mutable stack.
+func ImmutableInt16From(s *Int16) *ImmutableInt16 {
+	copy := &Int16{items: make([]int16, len(s.items))}
 	for i := range s.items {
 		copy.items[i] = s.items[i]
 	}
-	return &ImmutableInt16ArrayStack{delegate: copy}
+	return &ImmutableInt16{delegate: copy}
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *ImmutableInt16ArrayStack) Peek() (int16, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *ImmutableInt16) Peek() (int16, bool) {
 	return s.delegate.Peek()
 }
 
-// PeekAt returns the element at the given distance from the top,
-// or an error if the index is out of bounds.
-func (s *ImmutableInt16ArrayStack) PeekAt(index int) (int16, error) {
+// PeekAt returns the element at the given distance from the top.
+// It panics if the index is out of range, like a native Go slice.
+func (s *ImmutableInt16) PeekAt(index int) int16 {
 	return s.delegate.PeekAt(index)
 }
 
-// Size returns the number of elements.
-func (s *ImmutableInt16ArrayStack) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *ImmutableInt16ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *ImmutableInt16ArrayStack) IsEmpty() bool {
-	return s.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *ImmutableInt16) Len() int { return s.delegate.Len() }
 
 // Contains returns true if the stack contains the given value.
-func (s *ImmutableInt16ArrayStack) Contains(value int16) bool {
+func (s *ImmutableInt16) Contains(value int16) bool {
 	return s.delegate.Contains(value)
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *ImmutableInt16ArrayStack) All() iter.Seq[int16] {
+func (s *ImmutableInt16) All() iter.Seq[int16] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *ImmutableInt16ArrayStack) ForEach(f func(int16)) {
+func (s *ImmutableInt16) ForEach(f func(int16)) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable stack with elements satisfying the predicate.
-func (s *ImmutableInt16ArrayStack) Select(predicate func(int16) bool) *ImmutableInt16ArrayStack {
-	return &ImmutableInt16ArrayStack{delegate: s.delegate.Select(predicate)}
+func (s *ImmutableInt16) Select(predicate func(int16) bool) *ImmutableInt16 {
+	return &ImmutableInt16{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable stack with elements not satisfying the predicate.
-func (s *ImmutableInt16ArrayStack) Reject(predicate func(int16) bool) *ImmutableInt16ArrayStack {
-	return &ImmutableInt16ArrayStack{delegate: s.delegate.Reject(predicate)}
+func (s *ImmutableInt16) Reject(predicate func(int16) bool) *ImmutableInt16 {
+	return &ImmutableInt16{delegate: s.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element from top satisfying the predicate, or zero and false.
-func (s *ImmutableInt16ArrayStack) Detect(predicate func(int16) bool) (int16, bool) {
+func (s *ImmutableInt16) Detect(predicate func(int16) bool) (int16, bool) {
 	return s.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *ImmutableInt16ArrayStack) AnySatisfy(predicate func(int16) bool) bool {
+func (s *ImmutableInt16) AnySatisfy(predicate func(int16) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *ImmutableInt16ArrayStack) AllSatisfy(predicate func(int16) bool) bool {
+func (s *ImmutableInt16) AllSatisfy(predicate func(int16) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *ImmutableInt16ArrayStack) NoneSatisfy(predicate func(int16) bool) bool {
+func (s *ImmutableInt16) NoneSatisfy(predicate func(int16) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *ImmutableInt16ArrayStack) Count(predicate func(int16) bool) int {
+func (s *ImmutableInt16) Count(predicate func(int16) bool) int {
 	return s.delegate.Count(predicate)
 }
 
 // ToSlice returns all elements as a slice (top first).
-func (s *ImmutableInt16ArrayStack) ToSlice() []int16 {
+func (s *ImmutableInt16) ToSlice() []int16 {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *ImmutableInt16ArrayStack) String() string {
+func (s *ImmutableInt16) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable stack has the same elements.
-func (s *ImmutableInt16ArrayStack) Equals(other *ImmutableInt16ArrayStack) bool {
+func (s *ImmutableInt16) Equals(other *ImmutableInt16) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this stack.
-func (s *ImmutableInt16ArrayStack) ToMutable() *Int16ArrayStack {
-	copy := &Int16ArrayStack{items: make([]int16, len(s.delegate.items))}
+func (s *ImmutableInt16) ToMutable() *Int16 {
+	copy := &Int16{items: make([]int16, len(s.delegate.items))}
 	for i := range s.delegate.items {
 		copy.items[i] = s.delegate.items[i]
 	}
@@ -128,21 +116,21 @@ func (s *ImmutableInt16ArrayStack) ToMutable() *Int16ArrayStack {
 
 // Push returns a NEW immutable stack with the value pushed on top.
 // The original stack is not modified.
-func (s *ImmutableInt16ArrayStack) Push(value int16) *ImmutableInt16ArrayStack {
+func (s *ImmutableInt16) Push(value int16) *ImmutableInt16 {
 	newItems := make([]int16, len(s.delegate.items)+1)
 	copy(newItems, s.delegate.items)
 	newItems[len(s.delegate.items)] = value
-	return &ImmutableInt16ArrayStack{delegate: &Int16ArrayStack{items: newItems}}
+	return &ImmutableInt16{delegate: &Int16{items: newItems}}
 }
 
 // Pop returns a NEW immutable stack with the top element removed, and the removed value.
-// The original stack is not modified. Returns an error if the stack is empty.
-func (s *ImmutableInt16ArrayStack) Pop() (*ImmutableInt16ArrayStack, int16, error) {
-	if s.delegate.IsEmpty() {
-		return nil, 0, fmt.Errorf("ImmutableInt16ArrayStack: Pop on empty stack")
+// The original stack is not modified. The bool is false if the stack is empty.
+func (s *ImmutableInt16) Pop() (*ImmutableInt16, int16, bool) {
+	if s.delegate.Len() == 0 {
+		return nil, 0, false
 	}
 	top := s.delegate.items[len(s.delegate.items)-1]
 	newItems := make([]int16, len(s.delegate.items)-1)
 	copy(newItems, s.delegate.items[:len(s.delegate.items)-1])
-	return &ImmutableInt16ArrayStack{delegate: &Int16ArrayStack{items: newItems}}, top, nil
+	return &ImmutableInt16{delegate: &Int16{items: newItems}}, top, true
 }

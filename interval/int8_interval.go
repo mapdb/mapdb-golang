@@ -8,61 +8,62 @@ import (
 	"strings"
 )
 
-// Int8Interval is a virtual collection representing a range of int8 values
+// Int8 is a virtual collection representing a range of int8 values
 // [from, to] with a given step. No elements are materialised in memory.
-type Int8Interval struct {
+type Int8 struct {
 	from int8
 	to   int8
 	step int8
 }
 
-// NewInt8Interval creates an interval from `from` to `to` (inclusive) with the
+// NewInt8 creates an interval from `from` to `to` (inclusive) with the
 // given step. Panics if step is zero or if the step direction doesn't match
 // the from/to direction.
-func NewInt8Interval(from, to, step int8) *Int8Interval {
+func NewInt8(from, to, step int8) *Int8 {
 	if step == 0 {
-		panic("Int8Interval: step must not be zero")
+		panic("interval.Int8: step must not be zero")
 	}
 	if from < to && step < 0 {
-		panic("Int8Interval: step must be positive when from < to")
+		panic("interval.Int8: step must be positive when from < to")
 	}
 	if from > to && step > 0 {
-		panic("Int8Interval: step must be negative when from > to")
+		panic("interval.Int8: step must be negative when from > to")
 	}
-	return &Int8Interval{from: from, to: to, step: step}
+	return &Int8{from: from, to: to, step: step}
 }
 
-// Int8IntervalFromTo creates an interval from `from` to `to` (inclusive) with
+// Int8FromTo creates an interval from `from` to `to` (inclusive) with
 // step 1 (ascending) or -1 (descending).
-func Int8IntervalFromTo(from, to int8) *Int8Interval {
+func Int8FromTo(from, to int8) *Int8 {
 	var step int8 = 1
 	if from > to {
 		step = -1
 	}
-	return &Int8Interval{from: from, to: to, step: step}
+	return &Int8{from: from, to: to, step: step}
 }
 
-// Int8IntervalOneTo creates an interval from 1 to `to` (inclusive).
-func Int8IntervalOneTo(to int8) *Int8Interval {
-	return Int8IntervalFromTo(1, to)
+// Int8OneTo creates an interval from 1 to `to` (inclusive).
+func Int8OneTo(to int8) *Int8 {
+	return Int8FromTo(1, to)
 }
 
-// Int8IntervalZeroTo creates an interval from 0 to `to` (inclusive).
-func Int8IntervalZeroTo(to int8) *Int8Interval {
-	return Int8IntervalFromTo(0, to)
+// Int8ZeroTo creates an interval from 0 to `to` (inclusive).
+func Int8ZeroTo(to int8) *Int8 {
+	return Int8FromTo(0, to)
 }
 
 // From returns the start of the interval.
-func (iv *Int8Interval) From() int8 { return iv.from }
+func (iv *Int8) From() int8 { return iv.from }
 
 // To returns the end of the interval (inclusive).
-func (iv *Int8Interval) To() int8 { return iv.to }
+func (iv *Int8) To() int8 { return iv.to }
 
 // Step returns the step.
-func (iv *Int8Interval) Step() int8 { return iv.step }
+func (iv *Int8) Step() int8 { return iv.step }
 
-// Size returns the number of elements in the interval.
-func (iv *Int8Interval) Size() int {
+// Len returns the number of elements in the interval. Use iv.Len() == 0 to
+// test for emptiness.
+func (iv *Int8) Len() int {
 	if (iv.step > 0 && iv.from > iv.to) || (iv.step < 0 && iv.from < iv.to) {
 		return 0
 	}
@@ -74,30 +75,24 @@ func (iv *Int8Interval) Size() int {
 	return int(count)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (iv *Int8Interval) Len() int { return iv.Size() }
-
-// IsEmpty returns true if the interval contains no elements.
-func (iv *Int8Interval) IsEmpty() bool { return iv.Size() == 0 }
-
 // Contains returns true if the interval contains the given value.
-func (iv *Int8Interval) Contains(value int8) bool {
+func (iv *Int8) Contains(value int8) bool {
 	if iv.step > 0 {
 		return value >= iv.from && value <= iv.to && (uint64(int64(value))-uint64(int64(iv.from)))%iv.absStep() == 0
 	}
 	return value <= iv.from && value >= iv.to && (uint64(int64(iv.from))-uint64(int64(value)))%iv.absStep() == 0
 }
 
-// Get returns the element at the given index, or an error if out of bounds.
-func (iv *Int8Interval) Get(index int) (int8, error) {
-	if index < 0 || index >= iv.Size() {
-		return 0, fmt.Errorf("Int8Interval: index out of bounds: %d (size %d)", index, iv.Size())
+// Get returns the element at the given index. It panics if the index is out
+// of bounds, matching the semantics of a native Go slice.
+func (iv *Int8) Get(index int) int8 {
+	if index < 0 || index >= iv.Len() {
+		panic(fmt.Sprintf("interval.Int8: index out of range [%d] with length %d", index, iv.Len()))
 	}
-	return int8(int64(iv.from) + int64(iv.step)*int64(index)), nil
+	return int8(int64(iv.from) + int64(iv.step)*int64(index))
 }
 
-func (iv *Int8Interval) absStep() uint64 {
+func (iv *Int8) absStep() uint64 {
 	step := int64(iv.step)
 	if step < 0 {
 		return uint64(^step) + 1
@@ -105,7 +100,7 @@ func (iv *Int8Interval) absStep() uint64 {
 	return uint64(step)
 }
 
-func (iv *Int8Interval) distance() uint64 {
+func (iv *Int8) distance() uint64 {
 	if iv.step > 0 {
 		return uint64(int64(iv.to)) - uint64(int64(iv.from))
 	}
@@ -113,15 +108,11 @@ func (iv *Int8Interval) distance() uint64 {
 }
 
 // All returns an iter.Seq that yields elements in order.
-func (iv *Int8Interval) All() iter.Seq[int8] {
+func (iv *Int8) All() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
-		size := iv.Size()
+		size := iv.Len()
 		for i := 0; i < size; i++ {
-			value, err := iv.Get(i)
-			if err != nil {
-				return
-			}
-			if !yield(value) {
+			if !yield(iv.Get(i)) {
 				return
 			}
 		}
@@ -129,14 +120,14 @@ func (iv *Int8Interval) All() iter.Seq[int8] {
 }
 
 // ForEach calls the given function for each element in order.
-func (iv *Int8Interval) ForEach(f func(int8)) {
+func (iv *Int8) ForEach(f func(int8)) {
 	for v := range iv.All() {
 		f(v)
 	}
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (iv *Int8Interval) AnySatisfy(predicate func(int8) bool) bool {
+func (iv *Int8) AnySatisfy(predicate func(int8) bool) bool {
 	for v := range iv.All() {
 		if predicate(v) {
 			return true
@@ -146,7 +137,7 @@ func (iv *Int8Interval) AnySatisfy(predicate func(int8) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (iv *Int8Interval) AllSatisfy(predicate func(int8) bool) bool {
+func (iv *Int8) AllSatisfy(predicate func(int8) bool) bool {
 	for v := range iv.All() {
 		if !predicate(v) {
 			return false
@@ -156,7 +147,7 @@ func (iv *Int8Interval) AllSatisfy(predicate func(int8) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (iv *Int8Interval) NoneSatisfy(predicate func(int8) bool) bool {
+func (iv *Int8) NoneSatisfy(predicate func(int8) bool) bool {
 	for v := range iv.All() {
 		if predicate(v) {
 			return false
@@ -166,8 +157,8 @@ func (iv *Int8Interval) NoneSatisfy(predicate func(int8) bool) bool {
 }
 
 // ToSlice returns all elements as a slice.
-func (iv *Int8Interval) ToSlice() []int8 {
-	n := iv.Size()
+func (iv *Int8) ToSlice() []int8 {
+	n := iv.Len()
 	result := make([]int8, 0, n)
 	for v := range iv.All() {
 		result = append(result, v)
@@ -176,16 +167,16 @@ func (iv *Int8Interval) ToSlice() []int8 {
 }
 
 // Reversed returns a new interval with elements in reverse order.
-func (iv *Int8Interval) Reversed() *Int8Interval {
+func (iv *Int8) Reversed() *Int8 {
 	if iv.step == int8(-1<<7) {
-		panic("Int8Interval: cannot reverse interval with minimum step")
+		panic("interval.Int8: cannot reverse interval with minimum step")
 	}
-	return &Int8Interval{from: iv.to, to: iv.from, step: -iv.step}
+	return &Int8{from: iv.to, to: iv.from, step: -iv.step}
 }
 
 // String returns a string representation of the interval.
-func (iv *Int8Interval) String() string {
-	n := iv.Size()
+func (iv *Int8) String() string {
+	n := iv.Len()
 	if n == 0 {
 		return "[]"
 	}

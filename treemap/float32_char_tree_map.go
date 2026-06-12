@@ -22,20 +22,20 @@ type float32CharTreeNode struct {
 	color  bool
 }
 
-// Float32CharTreeMap is a sorted map with float32 keys and uint16 values, backed by a red-black tree.
+// Float32Char is a sorted map with float32 keys and uint16 values, backed by a red-black tree.
 // Keys are maintained in ascending order.
-type Float32CharTreeMap struct {
+type Float32Char struct {
 	root *float32CharTreeNode
 	size int
 }
 
-// NewFloat32CharTreeMap creates a new empty sorted map.
-func NewFloat32CharTreeMap() *Float32CharTreeMap {
-	return &Float32CharTreeMap{}
+// NewFloat32Char creates a new empty sorted map.
+func NewFloat32Char() *Float32Char {
+	return &Float32Char{}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *Float32CharTreeMap) Put(key float32, value uint16) (uint16, bool) {
+func (m *Float32Char) Put(key float32, value uint16) (uint16, bool) {
 	if m.root == nil {
 		m.root = &float32CharTreeNode{key: key, value: value, color: float32CharTreeNodeBlack}
 		m.size++
@@ -68,7 +68,7 @@ func (m *Float32CharTreeMap) Put(key float32, value uint16) (uint16, bool) {
 }
 
 // Get returns the value for the key, or the zero value and false if not found.
-func (m *Float32CharTreeMap) Get(key float32) (uint16, bool) {
+func (m *Float32Char) Get(key float32) (uint16, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return 0, false
@@ -77,7 +77,7 @@ func (m *Float32CharTreeMap) Get(key float32) (uint16, bool) {
 }
 
 // GetOrDefault returns the value for the key if present, or the default value otherwise.
-func (m *Float32CharTreeMap) GetOrDefault(key float32, defaultValue uint16) uint16 {
+func (m *Float32Char) GetOrDefault(key float32, defaultValue uint16) uint16 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -85,12 +85,12 @@ func (m *Float32CharTreeMap) GetOrDefault(key float32, defaultValue uint16) uint
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *Float32CharTreeMap) ContainsKey(key float32) bool {
+func (m *Float32Char) ContainsKey(key float32) bool {
 	return m.findNode(key) != nil
 }
 
 // Remove removes the entry for the given key. Returns the previous value and true if found.
-func (m *Float32CharTreeMap) Remove(key float32) (uint16, bool) {
+func (m *Float32Char) Remove(key float32) (uint16, bool) {
 	node := m.findNode(key)
 	if node == nil {
 		return 0, false
@@ -101,28 +101,19 @@ func (m *Float32CharTreeMap) Remove(key float32) (uint16, bool) {
 	return old, true
 }
 
-// Size returns the number of entries.
-func (m *Float32CharTreeMap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *Float32Char) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Float32CharTreeMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map is empty.
-func (m *Float32CharTreeMap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries.
-func (m *Float32CharTreeMap) Clear() {
+func (m *Float32Char) Clear() {
 	m.root = nil
 	m.size = 0
 }
 
 // Min returns the smallest key and its value, or zero values and false if empty.
-func (m *Float32CharTreeMap) Min() (float32, uint16, bool) {
+func (m *Float32Char) Min() (float32, uint16, bool) {
 	if m.root == nil {
 		return 0, 0, false
 	}
@@ -131,7 +122,7 @@ func (m *Float32CharTreeMap) Min() (float32, uint16, bool) {
 }
 
 // Max returns the largest key and its value, or zero values and false if empty.
-func (m *Float32CharTreeMap) Max() (float32, uint16, bool) {
+func (m *Float32Char) Max() (float32, uint16, bool) {
 	if m.root == nil {
 		return 0, 0, false
 	}
@@ -140,7 +131,7 @@ func (m *Float32CharTreeMap) Max() (float32, uint16, bool) {
 }
 
 // Floor returns the largest key <= the given key, or zero values and false.
-func (m *Float32CharTreeMap) Floor(key float32) (float32, uint16, bool) {
+func (m *Float32Char) Floor(key float32) (float32, uint16, bool) {
 	var result *float32CharTreeNode
 	node := m.root
 	for node != nil {
@@ -161,7 +152,7 @@ func (m *Float32CharTreeMap) Floor(key float32) (float32, uint16, bool) {
 }
 
 // Ceiling returns the smallest key >= the given key, or zero values and false.
-func (m *Float32CharTreeMap) Ceiling(key float32) (float32, uint16, bool) {
+func (m *Float32Char) Ceiling(key float32) (float32, uint16, bool) {
 	var result *float32CharTreeNode
 	node := m.root
 	for node != nil {
@@ -182,7 +173,7 @@ func (m *Float32CharTreeMap) Ceiling(key float32) (float32, uint16, bool) {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs in ascending key order.
-func (m *Float32CharTreeMap) All() iter.Seq2[float32, uint16] {
+func (m *Float32Char) All() iter.Seq2[float32, uint16] {
 	return func(yield func(float32, uint16) bool) {
 		var inorder func(node *float32CharTreeNode) bool
 		inorder = func(node *float32CharTreeNode) bool {
@@ -202,7 +193,7 @@ func (m *Float32CharTreeMap) All() iter.Seq2[float32, uint16] {
 }
 
 // Keys returns an iter.Seq that yields all keys in ascending order.
-func (m *Float32CharTreeMap) Keys() iter.Seq[float32] {
+func (m *Float32Char) Keys() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for k, _ := range m.All() {
 			if !yield(k) {
@@ -213,7 +204,7 @@ func (m *Float32CharTreeMap) Keys() iter.Seq[float32] {
 }
 
 // Values returns an iter.Seq that yields all values in key order.
-func (m *Float32CharTreeMap) Values() iter.Seq[uint16] {
+func (m *Float32Char) Values() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for _, v := range m.All() {
 			if !yield(v) {
@@ -224,7 +215,7 @@ func (m *Float32CharTreeMap) Values() iter.Seq[uint16] {
 }
 
 // RangeKeys returns an iter.Seq2 that yields entries with keys in [fromKey, toKey).
-func (m *Float32CharTreeMap) RangeKeys(fromKey, toKey float32) iter.Seq2[float32, uint16] {
+func (m *Float32Char) RangeKeys(fromKey, toKey float32) iter.Seq2[float32, uint16] {
 	return func(yield func(float32, uint16) bool) {
 		for k, v := range m.All() {
 			if cmpFloat32(k, fromKey) < 0 {
@@ -242,7 +233,7 @@ func (m *Float32CharTreeMap) RangeKeys(fromKey, toKey float32) iter.Seq2[float32
 
 // Higher returns the smallest key strictly greater than `key` (and its value),
 // or zero values and false. Unlike Ceiling, never returns `key` itself.
-func (m *Float32CharTreeMap) Higher(key float32) (float32, uint16, bool) {
+func (m *Float32Char) Higher(key float32) (float32, uint16, bool) {
 	var result *float32CharTreeNode
 	node := m.root
 	for node != nil {
@@ -261,7 +252,7 @@ func (m *Float32CharTreeMap) Higher(key float32) (float32, uint16, bool) {
 
 // Lower returns the largest key strictly less than `key` (and its value),
 // or zero values and false. Unlike Floor, never returns `key` itself.
-func (m *Float32CharTreeMap) Lower(key float32) (float32, uint16, bool) {
+func (m *Float32Char) Lower(key float32) (float32, uint16, bool) {
 	var result *float32CharTreeNode
 	node := m.root
 	for node != nil {
@@ -280,7 +271,7 @@ func (m *Float32CharTreeMap) Lower(key float32) (float32, uint16, bool) {
 
 // HeadMap returns an iter.Seq2 over entries with keys strictly less than toKey.
 // Matches Java NavigableMap.headMap(toKey) (exclusive by default).
-func (m *Float32CharTreeMap) HeadMap(toKey float32) iter.Seq2[float32, uint16] {
+func (m *Float32Char) HeadMap(toKey float32) iter.Seq2[float32, uint16] {
 	return func(yield func(float32, uint16) bool) {
 		for k, v := range m.All() {
 			if cmpFloat32(k, toKey) >= 0 {
@@ -295,7 +286,7 @@ func (m *Float32CharTreeMap) HeadMap(toKey float32) iter.Seq2[float32, uint16] {
 
 // TailMap returns an iter.Seq2 over entries with keys >= fromKey.
 // Matches Java NavigableMap.tailMap(fromKey) (inclusive by default).
-func (m *Float32CharTreeMap) TailMap(fromKey float32) iter.Seq2[float32, uint16] {
+func (m *Float32Char) TailMap(fromKey float32) iter.Seq2[float32, uint16] {
 	return func(yield func(float32, uint16) bool) {
 		for k, v := range m.All() {
 			if cmpFloat32(k, fromKey) < 0 {
@@ -310,18 +301,18 @@ func (m *Float32CharTreeMap) TailMap(fromKey float32) iter.Seq2[float32, uint16]
 
 // SubMap returns an iter.Seq2 over entries with keys in [fromKey, toKey).
 // Alias for RangeKeys; exists for Java-NavigableMap API parity.
-func (m *Float32CharTreeMap) SubMap(fromKey, toKey float32) iter.Seq2[float32, uint16] {
+func (m *Float32Char) SubMap(fromKey, toKey float32) iter.Seq2[float32, uint16] {
 	return m.RangeKeys(fromKey, toKey)
 }
 
 // FirstEntry is an alias of Min — the smallest key and its value, or zero/false.
-func (m *Float32CharTreeMap) FirstEntry() (float32, uint16, bool) { return m.Min() }
+func (m *Float32Char) FirstEntry() (float32, uint16, bool) { return m.Min() }
 
 // LastEntry is an alias of Max — the largest key and its value, or zero/false.
-func (m *Float32CharTreeMap) LastEntry() (float32, uint16, bool) { return m.Max() }
+func (m *Float32Char) LastEntry() (float32, uint16, bool) { return m.Max() }
 
 // PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
-func (m *Float32CharTreeMap) PollFirstEntry() (float32, uint16, bool) {
+func (m *Float32Char) PollFirstEntry() (float32, uint16, bool) {
 	k, v, ok := m.Min()
 	if !ok {
 		return 0, 0, false
@@ -331,7 +322,7 @@ func (m *Float32CharTreeMap) PollFirstEntry() (float32, uint16, bool) {
 }
 
 // PollLastEntry removes and returns the largest entry, or zero/false if empty.
-func (m *Float32CharTreeMap) PollLastEntry() (float32, uint16, bool) {
+func (m *Float32Char) PollLastEntry() (float32, uint16, bool) {
 	k, v, ok := m.Max()
 	if !ok {
 		return 0, 0, false
@@ -341,7 +332,7 @@ func (m *Float32CharTreeMap) PollLastEntry() (float32, uint16, bool) {
 }
 
 // DescendingMap returns an iter.Seq2 over entries in descending key order.
-func (m *Float32CharTreeMap) DescendingMap() iter.Seq2[float32, uint16] {
+func (m *Float32Char) DescendingMap() iter.Seq2[float32, uint16] {
 	return func(yield func(float32, uint16) bool) {
 		var reverse func(node *float32CharTreeNode) bool
 		reverse = func(node *float32CharTreeNode) bool {
@@ -361,7 +352,7 @@ func (m *Float32CharTreeMap) DescendingMap() iter.Seq2[float32, uint16] {
 }
 
 // DescendingKeys returns an iter.Seq over keys in descending order.
-func (m *Float32CharTreeMap) DescendingKeys() iter.Seq[float32] {
+func (m *Float32Char) DescendingKeys() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for k := range m.DescendingMap() {
 			if !yield(k) {
@@ -372,15 +363,15 @@ func (m *Float32CharTreeMap) DescendingKeys() iter.Seq[float32] {
 }
 
 // ForEach calls the function for each key-value pair in ascending order.
-func (m *Float32CharTreeMap) ForEach(f func(float32, uint16)) {
+func (m *Float32Char) ForEach(f func(float32, uint16)) {
 	for k, v := range m.All() {
 		f(k, v)
 	}
 }
 
-// Select returns a new TreeMap with entries satisfying the predicate.
-func (m *Float32CharTreeMap) Select(predicate func(float32, uint16) bool) *Float32CharTreeMap {
-	result := NewFloat32CharTreeMap()
+// Select returns a new map with entries satisfying the predicate.
+func (m *Float32Char) Select(predicate func(float32, uint16) bool) *Float32Char {
+	result := NewFloat32Char()
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			result.Put(k, v)
@@ -389,9 +380,9 @@ func (m *Float32CharTreeMap) Select(predicate func(float32, uint16) bool) *Float
 	return result
 }
 
-// Reject returns a new TreeMap with entries NOT satisfying the predicate.
-func (m *Float32CharTreeMap) Reject(predicate func(float32, uint16) bool) *Float32CharTreeMap {
-	result := NewFloat32CharTreeMap()
+// Reject returns a new map with entries NOT satisfying the predicate.
+func (m *Float32Char) Reject(predicate func(float32, uint16) bool) *Float32Char {
+	result := NewFloat32Char()
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			result.Put(k, v)
@@ -401,7 +392,7 @@ func (m *Float32CharTreeMap) Reject(predicate func(float32, uint16) bool) *Float
 }
 
 // Detect returns the first entry satisfying the predicate (in key order), or (zero, zero, false).
-func (m *Float32CharTreeMap) Detect(predicate func(float32, uint16) bool) (float32, uint16, bool) {
+func (m *Float32Char) Detect(predicate func(float32, uint16) bool) (float32, uint16, bool) {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return k, v, true
@@ -413,7 +404,7 @@ func (m *Float32CharTreeMap) Detect(predicate func(float32, uint16) bool) (float
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *Float32CharTreeMap) AnySatisfy(predicate func(float32, uint16) bool) bool {
+func (m *Float32Char) AnySatisfy(predicate func(float32, uint16) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return true
@@ -423,7 +414,7 @@ func (m *Float32CharTreeMap) AnySatisfy(predicate func(float32, uint16) bool) bo
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *Float32CharTreeMap) AllSatisfy(predicate func(float32, uint16) bool) bool {
+func (m *Float32Char) AllSatisfy(predicate func(float32, uint16) bool) bool {
 	for k, v := range m.All() {
 		if !predicate(k, v) {
 			return false
@@ -433,7 +424,7 @@ func (m *Float32CharTreeMap) AllSatisfy(predicate func(float32, uint16) bool) bo
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *Float32CharTreeMap) NoneSatisfy(predicate func(float32, uint16) bool) bool {
+func (m *Float32Char) NoneSatisfy(predicate func(float32, uint16) bool) bool {
 	for k, v := range m.All() {
 		if predicate(k, v) {
 			return false
@@ -443,7 +434,7 @@ func (m *Float32CharTreeMap) NoneSatisfy(predicate func(float32, uint16) bool) b
 }
 
 // Count returns the number of entries satisfying the predicate.
-func (m *Float32CharTreeMap) Count(predicate func(float32, uint16) bool) int {
+func (m *Float32Char) Count(predicate func(float32, uint16) bool) int {
 	c := 0
 	for k, v := range m.All() {
 		if predicate(k, v) {
@@ -454,7 +445,7 @@ func (m *Float32CharTreeMap) Count(predicate func(float32, uint16) bool) int {
 }
 
 // String returns a string representation with entries in sorted key order.
-func (m *Float32CharTreeMap) String() string {
+func (m *Float32Char) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -474,7 +465,7 @@ func (m *Float32CharTreeMap) String() string {
 
 // --- Red-black tree internals ---
 
-func (m *Float32CharTreeMap) findNode(key float32) *float32CharTreeNode {
+func (m *Float32Char) findNode(key float32) *float32CharTreeNode {
 	node := m.root
 	for node != nil {
 		if cmpFloat32(key, node.key) < 0 {
@@ -488,21 +479,21 @@ func (m *Float32CharTreeMap) findNode(key float32) *float32CharTreeNode {
 	return nil
 }
 
-func (m *Float32CharTreeMap) minNode(node *float32CharTreeNode) *float32CharTreeNode {
+func (m *Float32Char) minNode(node *float32CharTreeNode) *float32CharTreeNode {
 	for node.left != nil {
 		node = node.left
 	}
 	return node
 }
 
-func (m *Float32CharTreeMap) maxNode(node *float32CharTreeNode) *float32CharTreeNode {
+func (m *Float32Char) maxNode(node *float32CharTreeNode) *float32CharTreeNode {
 	for node.right != nil {
 		node = node.right
 	}
 	return node
 }
 
-func (m *Float32CharTreeMap) rotateLeft(x *float32CharTreeNode) {
+func (m *Float32Char) rotateLeft(x *float32CharTreeNode) {
 	y := x.right
 	x.right = y.left
 	if y.left != nil {
@@ -520,7 +511,7 @@ func (m *Float32CharTreeMap) rotateLeft(x *float32CharTreeNode) {
 	x.parent = y
 }
 
-func (m *Float32CharTreeMap) rotateRight(x *float32CharTreeNode) {
+func (m *Float32Char) rotateRight(x *float32CharTreeNode) {
 	y := x.left
 	x.left = y.right
 	if y.right != nil {
@@ -538,7 +529,7 @@ func (m *Float32CharTreeMap) rotateRight(x *float32CharTreeNode) {
 	x.parent = y
 }
 
-func (m *Float32CharTreeMap) fixAfterInsert(z *float32CharTreeNode) {
+func (m *Float32Char) fixAfterInsert(z *float32CharTreeNode) {
 	for z.parent != nil && z.parent.color == float32CharTreeNodeRed {
 		if z.parent == z.parent.parent.left {
 			y := z.parent.parent.right
@@ -577,7 +568,7 @@ func (m *Float32CharTreeMap) fixAfterInsert(z *float32CharTreeNode) {
 	m.root.color = float32CharTreeNodeBlack
 }
 
-func (m *Float32CharTreeMap) deleteNode(z *float32CharTreeNode) {
+func (m *Float32Char) deleteNode(z *float32CharTreeNode) {
 	if z.left != nil && z.right != nil {
 		succ := m.minNode(z.right)
 		z.key = succ.key
@@ -618,7 +609,7 @@ func (m *Float32CharTreeMap) deleteNode(z *float32CharTreeNode) {
 	}
 }
 
-func (m *Float32CharTreeMap) fixAfterDelete(x *float32CharTreeNode) {
+func (m *Float32Char) fixAfterDelete(x *float32CharTreeNode) {
 	for x != m.root && x.color == float32CharTreeNodeBlack {
 		if x == x.parent.left {
 			w := x.parent.right

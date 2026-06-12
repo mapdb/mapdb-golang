@@ -1,4 +1,3 @@
-
 package deque
 
 import (
@@ -6,51 +5,51 @@ import (
 	"testing"
 )
 
-func TestSynchronizedInt16ArrayDeque_Generated_AddRemove(t *testing.T) {
-	d := NewSynchronizedInt16ArrayDeque()
+func TestSynchronizedInt16_Generated_AddRemove(t *testing.T) {
+	d := NewSynchronizedInt16()
 	d.AddLast(1)
 	d.AddLast(2)
 	d.AddFirst(3)
-	if d.Size() != 3 {
-		t.Errorf("Size = %d", d.Size())
+	if d.Len() != 3 {
+		t.Errorf("Size = %d", d.Len())
 	}
-	v0, err := d.RemoveFirst()
-	if err != nil || v0 != 3 {
-		t.Errorf("RemoveFirst = (%v, %v)", v0, err)
+	v0, ok := d.RemoveFirst()
+	if !ok || v0 != 3 {
+		t.Errorf("RemoveFirst = (%v, %v)", v0, ok)
 	}
-	v1, err := d.RemoveLast()
-	if err != nil || v1 != 2 {
-		t.Errorf("RemoveLast = (%v, %v)", v1, err)
+	v1, ok := d.RemoveLast()
+	if !ok || v1 != 2 {
+		t.Errorf("RemoveLast = (%v, %v)", v1, ok)
 	}
 }
 
-func TestSynchronizedInt16ArrayDeque_Generated_IsEmpty(t *testing.T) {
-	d := NewSynchronizedInt16ArrayDeque()
-	if !d.IsEmpty() {
+func TestSynchronizedInt16_Generated_IsEmpty(t *testing.T) {
+	d := NewSynchronizedInt16()
+	if d.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
 
-func TestSynchronizedInt16ArrayDeque_Generated_PeekContainsClear(t *testing.T) {
-	d := NewSynchronizedInt16ArrayDeque()
+func TestSynchronizedInt16_Generated_PeekContainsClear(t *testing.T) {
+	d := NewSynchronizedInt16()
 	d.AddLast(1)
-	if p, err := d.PeekFirst(); err != nil || p != 1 {
-		t.Errorf("PeekFirst = (%v, %v)", p, err)
+	if p, ok := d.PeekFirst(); !ok || p != 1 {
+		t.Errorf("PeekFirst = (%v, %v)", p, ok)
 	}
-	if p, err := d.PeekLast(); err != nil || p != 1 {
-		t.Errorf("PeekLast = (%v, %v)", p, err)
+	if p, ok := d.PeekLast(); !ok || p != 1 {
+		t.Errorf("PeekLast = (%v, %v)", p, ok)
 	}
 	if !d.Contains(1) {
 		t.Error("Contains should be true")
 	}
 	d.Clear()
-	if !d.IsEmpty() {
+	if d.Len() != 0 {
 		t.Error("Should be empty after Clear")
 	}
 }
 
-func TestSynchronizedInt16ArrayDeque_Generated_ForEach(t *testing.T) {
-	d := NewSynchronizedInt16ArrayDeque()
+func TestSynchronizedInt16_Generated_ForEach(t *testing.T) {
+	d := NewSynchronizedInt16()
 	d.AddLast(1)
 	d.AddLast(2)
 	count := 0
@@ -60,8 +59,8 @@ func TestSynchronizedInt16ArrayDeque_Generated_ForEach(t *testing.T) {
 	}
 }
 
-func TestSynchronizedInt16ArrayDeque_Generated_ConcurrentAccess(t *testing.T) {
-	d := NewSynchronizedInt16ArrayDeque()
+func TestSynchronizedInt16_Generated_ConcurrentAccess(t *testing.T) {
+	d := NewSynchronizedInt16()
 	var wg sync.WaitGroup
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
@@ -69,7 +68,7 @@ func TestSynchronizedInt16ArrayDeque_Generated_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
 				d.AddLast(1)
-				_ = d.Size()
+				_ = d.Len()
 				_, _ = d.RemoveFirst()
 			}
 		}()
@@ -77,8 +76,8 @@ func TestSynchronizedInt16ArrayDeque_Generated_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSynchronizedInt16ArrayDeque_Generated_String(t *testing.T) {
-	d := NewSynchronizedInt16ArrayDeque()
+func TestSynchronizedInt16_Generated_String(t *testing.T) {
+	d := NewSynchronizedInt16()
 	d.AddLast(1)
 	if d.String() == "" {
 		t.Error("empty")

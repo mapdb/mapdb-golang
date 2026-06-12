@@ -4,57 +4,55 @@ import (
 	"testing"
 )
 
-func TestInt32ArrayStack_PushPopPeek(t *testing.T) {
-	s := NewInt32ArrayStack()
+func TestInt32_PushPopPeek(t *testing.T) {
+	s := NewInt32()
 	s.Push(10)
 	s.Push(20)
 	s.Push(30)
 
-	if s.Size() != 3 {
-		t.Errorf("Size = %d, want 3", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size = %d, want 3", s.Len())
 	}
-	if p, err := s.Peek(); err != nil || p != 30 {
-		t.Errorf("Peek = (%d, %v), want (30, nil)", p, err)
+	if p, ok := s.Peek(); !ok || p != 30 {
+		t.Errorf("Peek = (%d, %v), want (30, true)", p, ok)
 	}
-	if v, err := s.Pop(); err != nil || v != 30 {
-		t.Errorf("Pop = (%d, %v), want (30, nil)", v, err)
+	if v, ok := s.Pop(); !ok || v != 30 {
+		t.Errorf("Pop = (%d, %v), want (30, true)", v, ok)
 	}
-	if v, err := s.Pop(); err != nil || v != 20 {
-		t.Errorf("Pop = (%d, %v), want (20, nil)", v, err)
+	if v, ok := s.Pop(); !ok || v != 20 {
+		t.Errorf("Pop = (%d, %v), want (20, true)", v, ok)
 	}
-	if s.Size() != 1 {
-		t.Errorf("Size after 2 pops = %d, want 1", s.Size())
-	}
-}
-
-func TestInt32ArrayStack_PopPeekEmpty(t *testing.T) {
-	s := NewInt32ArrayStack()
-	if _, err := s.Pop(); err == nil {
-		t.Error("Pop on empty stack should return an error")
-	}
-	if _, err := s.Peek(); err == nil {
-		t.Error("Peek on empty stack should return an error")
+	if s.Len() != 1 {
+		t.Errorf("Size after 2 pops = %d, want 1", s.Len())
 	}
 }
 
-func TestInt32ArrayStack_PeekAt(t *testing.T) {
-	s := Int32ArrayStackOf(10, 20, 30) // 30 is top
-	if v, err := s.PeekAt(0); err != nil || v != 30 {
-		t.Errorf("PeekAt(0) = (%d, %v), want (30, nil)", v, err)
+func TestInt32_PopPeekEmpty(t *testing.T) {
+	s := NewInt32()
+	if _, ok := s.Pop(); ok {
+		t.Error("Pop on empty stack should report not-ok")
 	}
-	if v, err := s.PeekAt(1); err != nil || v != 20 {
-		t.Errorf("PeekAt(1) = (%d, %v), want (20, nil)", v, err)
-	}
-	if v, err := s.PeekAt(2); err != nil || v != 10 {
-		t.Errorf("PeekAt(2) = (%d, %v), want (10, nil)", v, err)
-	}
-	if _, err := s.PeekAt(99); err == nil {
-		t.Error("PeekAt(99) should return an error")
+	if _, ok := s.Peek(); ok {
+		t.Error("Peek on empty stack should report not-ok")
 	}
 }
 
-func TestInt32ArrayStack_Contains(t *testing.T) {
-	s := Int32ArrayStackOf(1, 2, 3)
+func TestInt32_PeekAt(t *testing.T) {
+	s := Int32Of(10, 20, 30) // 30 is top
+	if v := s.PeekAt(0); v != 30 {
+		t.Errorf("PeekAt(0) = %v, want 30", v)
+	}
+	if v := s.PeekAt(1); v != 20 {
+		t.Errorf("PeekAt(1) = %v, want 20", v)
+	}
+	if v := s.PeekAt(2); v != 10 {
+		t.Errorf("PeekAt(2) = %v, want 10", v)
+	}
+	assertPanics(t, func() { _ = s.PeekAt(99) })
+}
+
+func TestInt32_Contains(t *testing.T) {
+	s := Int32Of(1, 2, 3)
 	if !s.Contains(2) {
 		t.Error("Contains(2) should be true")
 	}
@@ -63,8 +61,8 @@ func TestInt32ArrayStack_Contains(t *testing.T) {
 	}
 }
 
-func TestInt32ArrayStack_All(t *testing.T) {
-	s := Int32ArrayStackOf(10, 20, 30)
+func TestInt32_All(t *testing.T) {
+	s := Int32Of(10, 20, 30)
 	var result []int32
 	for v := range s.All() {
 		result = append(result, v)
@@ -75,74 +73,74 @@ func TestInt32ArrayStack_All(t *testing.T) {
 	}
 }
 
-func TestInt32ArrayStack_Select(t *testing.T) {
-	s := Int32ArrayStackOf(1, 2, 3, 4, 5)
+func TestInt32_Select(t *testing.T) {
+	s := Int32Of(1, 2, 3, 4, 5)
 	evens := s.Select(func(v int32) bool { return v%2 == 0 })
-	if evens.Size() != 2 {
-		t.Errorf("Select evens size = %d, want 2", evens.Size())
+	if evens.Len() != 2 {
+		t.Errorf("Select evens size = %d, want 2", evens.Len())
 	}
 }
 
-func TestInt32ArrayStack_Empty(t *testing.T) {
-	s := NewInt32ArrayStack()
-	if !s.IsEmpty() {
+func TestInt32_Empty(t *testing.T) {
+	s := NewInt32()
+	if s.Len() != 0 {
 		t.Error("New stack should be empty")
 	}
 }
 
-func TestInt32ArrayStack_Clear(t *testing.T) {
-	s := Int32ArrayStackOf(1, 2, 3)
+func TestInt32_Clear(t *testing.T) {
+	s := Int32Of(1, 2, 3)
 	s.Clear()
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("Stack should be empty after Clear")
 	}
 }
 
-func TestInt32ArrayStack_ToImmutable(t *testing.T) {
-	s := Int32ArrayStackOf(10, 20, 30)
+func TestInt32_ToImmutable(t *testing.T) {
+	s := Int32Of(10, 20, 30)
 	im := s.ToImmutable()
-	if p, err := im.Peek(); err != nil || p != 30 {
-		t.Errorf("Immutable Peek = (%d, %v), want (30, nil)", p, err)
+	if p, ok := im.Peek(); !ok || p != 30 {
+		t.Errorf("Immutable Peek = (%d, %v), want (30, true)", p, ok)
 	}
-	if im.Size() != 3 {
-		t.Errorf("Immutable Size = %d, want 3", im.Size())
+	if im.Len() != 3 {
+		t.Errorf("Immutable Size = %d, want 3", im.Len())
 	}
 	// Mutating original should not affect immutable
 	_, _ = s.Pop()
-	if im.Size() != 3 {
-		t.Errorf("Immutable Size after mutable Pop = %d, want 3", im.Size())
+	if im.Len() != 3 {
+		t.Errorf("Immutable Size after mutable Pop = %d, want 3", im.Len())
 	}
 }
 
-func TestImmutableInt32ArrayStack_PersistentPush(t *testing.T) {
-	im := NewImmutableInt32ArrayStack(10, 20)
+func TestImmutableInt32_PersistentPush(t *testing.T) {
+	im := NewImmutableInt32(10, 20)
 	im2 := im.Push(30)
-	if im.Size() != 2 {
-		t.Errorf("Original size = %d, want 2", im.Size())
+	if im.Len() != 2 {
+		t.Errorf("Original size = %d, want 2", im.Len())
 	}
 	p, _ := im2.Peek()
-	if im2.Size() != 3 || p != 30 {
-		t.Errorf("New stack: size=%d peek=%d, want 3/30", im2.Size(), p)
+	if im2.Len() != 3 || p != 30 {
+		t.Errorf("New stack: size=%d peek=%d, want 3/30", im2.Len(), p)
 	}
 }
 
-func TestImmutableInt32ArrayStack_PersistentPop(t *testing.T) {
-	im := NewImmutableInt32ArrayStack(10, 20, 30)
-	im2, top, err := im.Pop()
-	if err != nil || top != 30 {
-		t.Errorf("Pop = (%d, %v), want (30, nil)", top, err)
+func TestImmutableInt32_PersistentPop(t *testing.T) {
+	im := NewImmutableInt32(10, 20, 30)
+	im2, top, ok := im.Pop()
+	if !ok || top != 30 {
+		t.Errorf("Pop = (%d, %v), want (30, true)", top, ok)
 	}
-	if im.Size() != 3 {
-		t.Errorf("Original size = %d, want 3", im.Size())
+	if im.Len() != 3 {
+		t.Errorf("Original size = %d, want 3", im.Len())
 	}
 	p, _ := im2.Peek()
-	if im2.Size() != 2 || p != 20 {
-		t.Errorf("New stack: size=%d peek=%d, want 2/20", im2.Size(), p)
+	if im2.Len() != 2 || p != 20 {
+		t.Errorf("New stack: size=%d peek=%d, want 2/20", im2.Len(), p)
 	}
 }
 
-func TestInt32ArrayStack_String(t *testing.T) {
-	s := Int32ArrayStackOf(10, 20, 30)
+func TestInt32_String(t *testing.T) {
+	s := Int32Of(10, 20, 30)
 	str := s.String()
 	if str != "[30, 20, 10]" {
 		t.Errorf("String = %q, want [30, 20, 10]", str)

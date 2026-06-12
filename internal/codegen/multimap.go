@@ -145,9 +145,9 @@ import (
 	"strings"
 )
 
-// {{.MapName}}ListMultimap is a list multimap from {{.KeyType}} keys to {{.ValType}} values.
+// {{.MapName}}List is a list multimap from {{.KeyType}} keys to {{.ValType}} values.
 // Each key maps to a slice of values, preserving insertion order per key.
-type {{.MapName}}ListMultimap struct {
+type {{.MapName}}List struct {
 	data map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}
 {{- if .KeyIsFloat}}
 	keys map[{{.KeyBitsType}}]{{.KeyType}}
@@ -155,9 +155,9 @@ type {{.MapName}}ListMultimap struct {
 	size int
 }
 
-// New{{.MapName}}ListMultimap creates a new empty {{.MapName}}ListMultimap.
-func New{{.MapName}}ListMultimap() *{{.MapName}}ListMultimap {
-	return &{{.MapName}}ListMultimap{
+// New{{.MapName}}List creates a new empty {{.MapName}}List.
+func New{{.MapName}}List() *{{.MapName}}List {
+	return &{{.MapName}}List{
 		data: make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}),
 {{- if .KeyIsFloat}}
 		keys: make(map[{{.KeyBitsType}}]{{.KeyType}}),
@@ -167,7 +167,7 @@ func New{{.MapName}}ListMultimap() *{{.MapName}}ListMultimap {
 }
 
 // Put adds a value to the list for the given key.
-func (m *{{.MapName}}ListMultimap) Put(key {{.KeyType}}, value {{.ValType}}) {
+func (m *{{.MapName}}List) Put(key {{.KeyType}}, value {{.ValType}}) {
 	if m.data == nil {
 		m.data = make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}})
 {{- if .KeyIsFloat}}
@@ -185,12 +185,12 @@ func (m *{{.MapName}}ListMultimap) Put(key {{.KeyType}}, value {{.ValType}}) {
 }
 
 // Get returns a copy of the values for the given key. Returns nil if the key is absent.
-func (m *{{.MapName}}ListMultimap) Get(key {{.KeyType}}) []{{.ValType}} {
+func (m *{{.MapName}}List) Get(key {{.KeyType}}) []{{.ValType}} {
 	return m.GetAll(key)
 }
 
 // GetAll returns a copy of the values for the given key.
-func (m *{{.MapName}}ListMultimap) GetAll(key {{.KeyType}}) []{{.ValType}} {
+func (m *{{.MapName}}List) GetAll(key {{.KeyType}}) []{{.ValType}} {
 	vals := m.data[{{if .KeyIsFloat}}{{.KeyBitsFn}}(key){{else}}key{{end}}]
 	if vals == nil {
 		return nil
@@ -201,7 +201,7 @@ func (m *{{.MapName}}ListMultimap) GetAll(key {{.KeyType}}) []{{.ValType}} {
 }
 
 // RemoveAll removes all values for the given key and returns them.
-func (m *{{.MapName}}ListMultimap) RemoveAll(key {{.KeyType}}) []{{.ValType}} {
+func (m *{{.MapName}}List) RemoveAll(key {{.KeyType}}) []{{.ValType}} {
 {{- if .KeyIsFloat}}
 	kb := {{.KeyBitsFn}}(key)
 	vals, ok := m.data[kb]
@@ -222,13 +222,13 @@ func (m *{{.MapName}}ListMultimap) RemoveAll(key {{.KeyType}}) []{{.ValType}} {
 }
 
 // ContainsKey returns true if the multimap contains the given key.
-func (m *{{.MapName}}ListMultimap) ContainsKey(key {{.KeyType}}) bool {
+func (m *{{.MapName}}List) ContainsKey(key {{.KeyType}}) bool {
 	_, ok := m.data[{{if .KeyIsFloat}}{{.KeyBitsFn}}(key){{else}}key{{end}}]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
-func (m *{{.MapName}}ListMultimap) ContainsKeyValue(key {{.KeyType}}, value {{.ValType}}) bool {
+func (m *{{.MapName}}List) ContainsKeyValue(key {{.KeyType}}, value {{.ValType}}) bool {
 	vals, ok := m.data[{{if .KeyIsFloat}}{{.KeyBitsFn}}(key){{else}}key{{end}}]
 	if !ok {
 		return false
@@ -242,26 +242,17 @@ func (m *{{.MapName}}ListMultimap) ContainsKeyValue(key {{.KeyType}}, value {{.V
 }
 
 // KeysCount returns the number of distinct keys.
-func (m *{{.MapName}}ListMultimap) KeysCount() int {
+func (m *{{.MapName}}List) KeysCount() int {
 	return len(m.data)
 }
 
-// Size returns the total number of values across all keys.
-func (m *{{.MapName}}ListMultimap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *{{.MapName}}List) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *{{.MapName}}ListMultimap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the multimap contains no values.
-func (m *{{.MapName}}ListMultimap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the multimap.
-func (m *{{.MapName}}ListMultimap) Clear() {
+func (m *{{.MapName}}List) Clear() {
 	m.data = make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}})
 {{- if .KeyIsFloat}}
 	m.keys = make(map[{{.KeyBitsType}}]{{.KeyType}})
@@ -270,7 +261,7 @@ func (m *{{.MapName}}ListMultimap) Clear() {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *{{.MapName}}ListMultimap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
+func (m *{{.MapName}}List) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -282,7 +273,7 @@ func (m *{{.MapName}}ListMultimap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 }
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
-func (m *{{.MapName}}ListMultimap) ForEachKeyValues(f func({{.KeyType}}, []{{.ValType}})) {
+func (m *{{.MapName}}List) ForEachKeyValues(f func({{.KeyType}}, []{{.ValType}})) {
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -294,7 +285,7 @@ func (m *{{.MapName}}ListMultimap) ForEachKeyValues(f func({{.KeyType}}, []{{.Va
 }
 
 // Keys returns a slice of all distinct keys.
-func (m *{{.MapName}}ListMultimap) Keys() []{{.KeyType}} {
+func (m *{{.MapName}}List) Keys() []{{.KeyType}} {
 	result := make([]{{.KeyType}}, 0, len(m.data))
 {{- if .KeyIsFloat}}
 	for _, key := range m.keys {
@@ -309,7 +300,7 @@ func (m *{{.MapName}}ListMultimap) Keys() []{{.KeyType}} {
 }
 
 // Values returns a slice of all values across all keys.
-func (m *{{.MapName}}ListMultimap) Values() []{{.ValType}} {
+func (m *{{.MapName}}List) Values() []{{.ValType}} {
 	result := make([]{{.ValType}}, 0, m.size)
 	for _, vals := range m.data {
 		result = append(result, vals...)
@@ -318,8 +309,8 @@ func (m *{{.MapName}}ListMultimap) Values() []{{.ValType}} {
 }
 
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
-func (m *{{.MapName}}ListMultimap) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}ListMultimap {
-	result := New{{.MapName}}ListMultimap()
+func (m *{{.MapName}}List) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}List {
+	result := New{{.MapName}}List()
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -334,8 +325,8 @@ func (m *{{.MapName}}ListMultimap) Select(predicate func({{.KeyType}}, {{.ValTyp
 }
 
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
-func (m *{{.MapName}}ListMultimap) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}ListMultimap {
-	result := New{{.MapName}}ListMultimap()
+func (m *{{.MapName}}List) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}List {
+	result := New{{.MapName}}List()
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -350,7 +341,7 @@ func (m *{{.MapName}}ListMultimap) Reject(predicate func({{.KeyType}}, {{.ValTyp
 }
 
 // String returns a string representation of the multimap.
-func (m *{{.MapName}}ListMultimap) String() string {
+func (m *{{.MapName}}List) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -379,7 +370,7 @@ func (m *{{.MapName}}ListMultimap) String() string {
 }
 
 // Equals returns true if the other multimap has the same key-value pairs in the same order per key.
-func (m *{{.MapName}}ListMultimap) Equals(other *{{.MapName}}ListMultimap) bool {
+func (m *{{.MapName}}List) Equals(other *{{.MapName}}List) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -401,23 +392,23 @@ func (m *{{.MapName}}ListMultimap) Equals(other *{{.MapName}}ListMultimap) bool 
 }
 
 // KeysToSlice returns all distinct keys as a slice.
-func (m *{{.MapName}}ListMultimap) KeysToSlice() []{{.KeyType}} {
+func (m *{{.MapName}}List) KeysToSlice() []{{.KeyType}} {
 	return m.Keys()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *{{.MapName}}ListMultimap) ValuesToSlice() []{{.ValType}} {
+func (m *{{.MapName}}List) ValuesToSlice() []{{.ValType}} {
 	return m.Values()
 }
 
-// WithKeyValue adds a key-value pair and returns the multimap (fluent API).
-func (m *{{.MapName}}ListMultimap) WithKeyValue(key {{.KeyType}}, value {{.ValType}}) *{{.MapName}}ListMultimap {
+// PutReturning adds a key-value pair and returns the multimap (fluent API).
+func (m *{{.MapName}}List) PutReturning(key {{.KeyType}}, value {{.ValType}}) *{{.MapName}}List {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey removes all values for the key and returns the multimap (fluent API).
-func (m *{{.MapName}}ListMultimap) WithoutKey(key {{.KeyType}}) *{{.MapName}}ListMultimap {
+// RemoveKeyReturning removes all values for the key and returns the multimap (fluent API).
+func (m *{{.MapName}}List) RemoveKeyReturning(key {{.KeyType}}) *{{.MapName}}List {
 	m.RemoveAll(key)
 	return m
 }
@@ -433,9 +424,9 @@ import (
 	"strings"
 )
 
-// {{.MapName}}SetMultimap is a set multimap from {{.KeyType}} keys to {{.ValType}} values.
+// {{.MapName}}Set is a set multimap from {{.KeyType}} keys to {{.ValType}} values.
 // Each key maps to a set of unique values (duplicates on Put are silently dropped).
-type {{.MapName}}SetMultimap struct {
+type {{.MapName}}Set struct {
 	data map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}
 {{- if .KeyIsFloat}}
 	keys map[{{.KeyBitsType}}]{{.KeyType}}
@@ -443,9 +434,9 @@ type {{.MapName}}SetMultimap struct {
 	size int
 }
 
-// New{{.MapName}}SetMultimap creates a new empty {{.MapName}}SetMultimap.
-func New{{.MapName}}SetMultimap() *{{.MapName}}SetMultimap {
-	return &{{.MapName}}SetMultimap{
+// New{{.MapName}}Set creates a new empty {{.MapName}}Set.
+func New{{.MapName}}Set() *{{.MapName}}Set {
+	return &{{.MapName}}Set{
 		data: make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}),
 {{- if .KeyIsFloat}}
 		keys: make(map[{{.KeyBitsType}}]{{.KeyType}}),
@@ -456,7 +447,7 @@ func New{{.MapName}}SetMultimap() *{{.MapName}}SetMultimap {
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate
 // value for the same key is silently dropped.
-func (m *{{.MapName}}SetMultimap) Put(key {{.KeyType}}, value {{.ValType}}) {
+func (m *{{.MapName}}Set) Put(key {{.KeyType}}, value {{.ValType}}) {
 	if m.data == nil {
 		m.data = make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}})
 {{- if .KeyIsFloat}}
@@ -484,12 +475,12 @@ func (m *{{.MapName}}SetMultimap) Put(key {{.KeyType}}, value {{.ValType}}) {
 }
 
 // Get returns a copy of the values for the given key. Returns nil if the key is absent.
-func (m *{{.MapName}}SetMultimap) Get(key {{.KeyType}}) []{{.ValType}} {
+func (m *{{.MapName}}Set) Get(key {{.KeyType}}) []{{.ValType}} {
 	return m.GetAll(key)
 }
 
 // GetAll returns a copy of the values for the given key.
-func (m *{{.MapName}}SetMultimap) GetAll(key {{.KeyType}}) []{{.ValType}} {
+func (m *{{.MapName}}Set) GetAll(key {{.KeyType}}) []{{.ValType}} {
 	vals := m.data[{{if .KeyIsFloat}}{{.KeyBitsFn}}(key){{else}}key{{end}}]
 	if vals == nil {
 		return nil
@@ -500,7 +491,7 @@ func (m *{{.MapName}}SetMultimap) GetAll(key {{.KeyType}}) []{{.ValType}} {
 }
 
 // RemoveAll removes all values for the given key and returns them.
-func (m *{{.MapName}}SetMultimap) RemoveAll(key {{.KeyType}}) []{{.ValType}} {
+func (m *{{.MapName}}Set) RemoveAll(key {{.KeyType}}) []{{.ValType}} {
 {{- if .KeyIsFloat}}
 	kb := {{.KeyBitsFn}}(key)
 	vals, ok := m.data[kb]
@@ -521,13 +512,13 @@ func (m *{{.MapName}}SetMultimap) RemoveAll(key {{.KeyType}}) []{{.ValType}} {
 }
 
 // ContainsKey returns true if the multimap contains the given key.
-func (m *{{.MapName}}SetMultimap) ContainsKey(key {{.KeyType}}) bool {
+func (m *{{.MapName}}Set) ContainsKey(key {{.KeyType}}) bool {
 	_, ok := m.data[{{if .KeyIsFloat}}{{.KeyBitsFn}}(key){{else}}key{{end}}]
 	return ok
 }
 
 // ContainsKeyValue returns true if the multimap contains the given key-value pair.
-func (m *{{.MapName}}SetMultimap) ContainsKeyValue(key {{.KeyType}}, value {{.ValType}}) bool {
+func (m *{{.MapName}}Set) ContainsKeyValue(key {{.KeyType}}, value {{.ValType}}) bool {
 	vals, ok := m.data[{{if .KeyIsFloat}}{{.KeyBitsFn}}(key){{else}}key{{end}}]
 	if !ok {
 		return false
@@ -541,26 +532,17 @@ func (m *{{.MapName}}SetMultimap) ContainsKeyValue(key {{.KeyType}}, value {{.Va
 }
 
 // KeysCount returns the number of distinct keys.
-func (m *{{.MapName}}SetMultimap) KeysCount() int {
+func (m *{{.MapName}}Set) KeysCount() int {
 	return len(m.data)
 }
 
-// Size returns the total number of values across all keys.
-func (m *{{.MapName}}SetMultimap) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *{{.MapName}}Set) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *{{.MapName}}SetMultimap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the multimap contains no values.
-func (m *{{.MapName}}SetMultimap) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the multimap.
-func (m *{{.MapName}}SetMultimap) Clear() {
+func (m *{{.MapName}}Set) Clear() {
 	m.data = make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}})
 {{- if .KeyIsFloat}}
 	m.keys = make(map[{{.KeyBitsType}}]{{.KeyType}})
@@ -569,7 +551,7 @@ func (m *{{.MapName}}SetMultimap) Clear() {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *{{.MapName}}SetMultimap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
+func (m *{{.MapName}}Set) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -581,7 +563,7 @@ func (m *{{.MapName}}SetMultimap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 }
 
 // ForEachKeyValues calls the given function for each key with a copy of its values.
-func (m *{{.MapName}}SetMultimap) ForEachKeyValues(f func({{.KeyType}}, []{{.ValType}})) {
+func (m *{{.MapName}}Set) ForEachKeyValues(f func({{.KeyType}}, []{{.ValType}})) {
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -593,7 +575,7 @@ func (m *{{.MapName}}SetMultimap) ForEachKeyValues(f func({{.KeyType}}, []{{.Val
 }
 
 // Keys returns a slice of all distinct keys.
-func (m *{{.MapName}}SetMultimap) Keys() []{{.KeyType}} {
+func (m *{{.MapName}}Set) Keys() []{{.KeyType}} {
 	result := make([]{{.KeyType}}, 0, len(m.data))
 {{- if .KeyIsFloat}}
 	for _, key := range m.keys {
@@ -608,7 +590,7 @@ func (m *{{.MapName}}SetMultimap) Keys() []{{.KeyType}} {
 }
 
 // Values returns a slice of all values across all keys.
-func (m *{{.MapName}}SetMultimap) Values() []{{.ValType}} {
+func (m *{{.MapName}}Set) Values() []{{.ValType}} {
 	result := make([]{{.ValType}}, 0, m.size)
 	for _, vals := range m.data {
 		result = append(result, vals...)
@@ -617,8 +599,8 @@ func (m *{{.MapName}}SetMultimap) Values() []{{.ValType}} {
 }
 
 // Select returns a new multimap containing only key-value pairs that satisfy the predicate.
-func (m *{{.MapName}}SetMultimap) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}SetMultimap {
-	result := New{{.MapName}}SetMultimap()
+func (m *{{.MapName}}Set) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}Set {
+	result := New{{.MapName}}Set()
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -633,8 +615,8 @@ func (m *{{.MapName}}SetMultimap) Select(predicate func({{.KeyType}}, {{.ValType
 }
 
 // Reject returns a new multimap containing only key-value pairs that do not satisfy the predicate.
-func (m *{{.MapName}}SetMultimap) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}SetMultimap {
-	result := New{{.MapName}}SetMultimap()
+func (m *{{.MapName}}Set) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}}Set {
+	result := New{{.MapName}}Set()
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
 {{- if .KeyIsFloat}}
 		key := m.keys[kb]
@@ -649,7 +631,7 @@ func (m *{{.MapName}}SetMultimap) Reject(predicate func({{.KeyType}}, {{.ValType
 }
 
 // String returns a string representation of the multimap.
-func (m *{{.MapName}}SetMultimap) String() string {
+func (m *{{.MapName}}Set) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -678,7 +660,7 @@ func (m *{{.MapName}}SetMultimap) String() string {
 }
 
 // Equals returns true if the other multimap has the same key-value pairs in the same order per key.
-func (m *{{.MapName}}SetMultimap) Equals(other *{{.MapName}}SetMultimap) bool {
+func (m *{{.MapName}}Set) Equals(other *{{.MapName}}Set) bool {
 	if m.size != other.size {
 		return false
 	}
@@ -700,23 +682,23 @@ func (m *{{.MapName}}SetMultimap) Equals(other *{{.MapName}}SetMultimap) bool {
 }
 
 // KeysToSlice returns all distinct keys as a slice.
-func (m *{{.MapName}}SetMultimap) KeysToSlice() []{{.KeyType}} {
+func (m *{{.MapName}}Set) KeysToSlice() []{{.KeyType}} {
 	return m.Keys()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *{{.MapName}}SetMultimap) ValuesToSlice() []{{.ValType}} {
+func (m *{{.MapName}}Set) ValuesToSlice() []{{.ValType}} {
 	return m.Values()
 }
 
-// WithKeyValue adds a key-value pair and returns the multimap (fluent API).
-func (m *{{.MapName}}SetMultimap) WithKeyValue(key {{.KeyType}}, value {{.ValType}}) *{{.MapName}}SetMultimap {
+// PutReturning adds a key-value pair and returns the multimap (fluent API).
+func (m *{{.MapName}}Set) PutReturning(key {{.KeyType}}, value {{.ValType}}) *{{.MapName}}Set {
 	m.Put(key, value)
 	return m
 }
 
-// WithoutKey removes all values for the key and returns the multimap (fluent API).
-func (m *{{.MapName}}SetMultimap) WithoutKey(key {{.KeyType}}) *{{.MapName}}SetMultimap {
+// RemoveKeyReturning removes all values for the key and returns the multimap (fluent API).
+func (m *{{.MapName}}Set) RemoveKeyReturning(key {{.KeyType}}) *{{.MapName}}Set {
 	m.RemoveAll(key)
 	return m
 }

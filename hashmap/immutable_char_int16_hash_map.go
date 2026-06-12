@@ -6,136 +6,127 @@ import (
 	"iter"
 )
 
-// ImmutableCharInt16HashMap is an immutable view of a CharInt16HashMap.
+// ImmutableCharInt16 is an immutable view of a CharInt16.
 // It exposes only read operations. Any attempt to modify requires
 // creating a mutable copy first via ToMutable().
-type ImmutableCharInt16HashMap struct {
-	delegate *CharInt16HashMap
+type ImmutableCharInt16 struct {
+	delegate *CharInt16
 }
 
-// NewImmutableCharInt16HashMap creates an immutable map from key-value pairs.
-func NewImmutableCharInt16HashMap(pairs ...struct {
+// NewImmutableCharInt16 creates an immutable map from key-value pairs.
+func NewImmutableCharInt16(pairs ...struct {
 	Key   uint16
 	Value int16
-}) *ImmutableCharInt16HashMap {
-	m := NewCharInt16HashMapWithCapacity(len(pairs) * 2)
+}) *ImmutableCharInt16 {
+	m := NewCharInt16WithCapacity(len(pairs) * 2)
 	for _, p := range pairs {
 		m.Put(p.Key, p.Value)
 	}
-	return &ImmutableCharInt16HashMap{delegate: m}
+	return &ImmutableCharInt16{delegate: m}
 }
 
-// ImmutableCharInt16HashMapFrom creates an immutable copy of a mutable map.
-func ImmutableCharInt16HashMapFrom(m *CharInt16HashMap) *ImmutableCharInt16HashMap {
-	copy := NewCharInt16HashMapWithCapacity(m.Size() * 2)
+// ImmutableCharInt16From creates an immutable copy of a mutable map.
+func ImmutableCharInt16From(m *CharInt16) *ImmutableCharInt16 {
+	copy := NewCharInt16WithCapacity(m.Len() * 2)
 	m.ForEach(func(k uint16, v int16) {
 		copy.Put(k, v)
 	})
-	return &ImmutableCharInt16HashMap{delegate: copy}
+	return &ImmutableCharInt16{delegate: copy}
 }
 
 // Get returns the value for the given key and true if found.
-func (m *ImmutableCharInt16HashMap) Get(key uint16) (int16, bool) {
+func (m *ImmutableCharInt16) Get(key uint16) (int16, bool) {
 	return m.delegate.Get(key)
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value.
-func (m *ImmutableCharInt16HashMap) GetOrDefault(key uint16, defaultValue int16) int16 {
+func (m *ImmutableCharInt16) GetOrDefault(key uint16, defaultValue int16) int16 {
 	return m.delegate.GetOrDefault(key, defaultValue)
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ImmutableCharInt16HashMap) ContainsKey(key uint16) bool {
+func (m *ImmutableCharInt16) ContainsKey(key uint16) bool {
 	return m.delegate.ContainsKey(key)
 }
 
 // ContainsValue returns true if the map contains the given value.
-func (m *ImmutableCharInt16HashMap) ContainsValue(value int16) bool {
+func (m *ImmutableCharInt16) ContainsValue(value int16) bool {
 	return m.delegate.ContainsValue(value)
 }
 
-// Size returns the number of key-value pairs.
-func (m *ImmutableCharInt16HashMap) Size() int {
-	return m.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ImmutableCharInt16HashMap) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ImmutableCharInt16HashMap) IsEmpty() bool {
-	return m.delegate.IsEmpty()
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ImmutableCharInt16) Len() int {
+	return m.delegate.Len()
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ImmutableCharInt16HashMap) All() iter.Seq2[uint16, int16] {
+func (m *ImmutableCharInt16) All() iter.Seq2[uint16, int16] {
 	return m.delegate.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ImmutableCharInt16HashMap) Keys() iter.Seq[uint16] {
+func (m *ImmutableCharInt16) Keys() iter.Seq[uint16] {
 	return m.delegate.Keys()
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ImmutableCharInt16HashMap) Values() iter.Seq[int16] {
+func (m *ImmutableCharInt16) Values() iter.Seq[int16] {
 	return m.delegate.Values()
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ImmutableCharInt16HashMap) ForEach(f func(uint16, int16)) {
+func (m *ImmutableCharInt16) ForEach(f func(uint16, int16)) {
 	m.delegate.ForEach(f)
 }
 
 // Select returns a new immutable map with entries that satisfy the predicate.
-func (m *ImmutableCharInt16HashMap) Select(predicate func(uint16, int16) bool) *ImmutableCharInt16HashMap {
-	return &ImmutableCharInt16HashMap{delegate: m.delegate.Select(predicate)}
+func (m *ImmutableCharInt16) Select(predicate func(uint16, int16) bool) *ImmutableCharInt16 {
+	return &ImmutableCharInt16{delegate: m.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable map with entries that do not satisfy the predicate.
-func (m *ImmutableCharInt16HashMap) Reject(predicate func(uint16, int16) bool) *ImmutableCharInt16HashMap {
-	return &ImmutableCharInt16HashMap{delegate: m.delegate.Reject(predicate)}
+func (m *ImmutableCharInt16) Reject(predicate func(uint16, int16) bool) *ImmutableCharInt16 {
+	return &ImmutableCharInt16{delegate: m.delegate.Reject(predicate)}
 }
 
 // AnySatisfy returns true if any entry satisfies the predicate.
-func (m *ImmutableCharInt16HashMap) AnySatisfy(predicate func(uint16, int16) bool) bool {
+func (m *ImmutableCharInt16) AnySatisfy(predicate func(uint16, int16) bool) bool {
 	return m.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all entries satisfy the predicate.
-func (m *ImmutableCharInt16HashMap) AllSatisfy(predicate func(uint16, int16) bool) bool {
+func (m *ImmutableCharInt16) AllSatisfy(predicate func(uint16, int16) bool) bool {
 	return m.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no entry satisfies the predicate.
-func (m *ImmutableCharInt16HashMap) NoneSatisfy(predicate func(uint16, int16) bool) bool {
+func (m *ImmutableCharInt16) NoneSatisfy(predicate func(uint16, int16) bool) bool {
 	return m.delegate.NoneSatisfy(predicate)
 }
 
 // KeysToSlice returns all keys as a slice.
-func (m *ImmutableCharInt16HashMap) KeysToSlice() []uint16 {
+func (m *ImmutableCharInt16) KeysToSlice() []uint16 {
 	return m.delegate.KeysToSlice()
 }
 
 // ValuesToSlice returns all values as a slice.
-func (m *ImmutableCharInt16HashMap) ValuesToSlice() []int16 {
+func (m *ImmutableCharInt16) ValuesToSlice() []int16 {
 	return m.delegate.ValuesToSlice()
 }
 
 // String returns a string representation.
-func (m *ImmutableCharInt16HashMap) String() string {
+func (m *ImmutableCharInt16) String() string {
 	return m.delegate.String()
 }
 
 // Equals returns true if the other immutable map has the same entries.
-func (m *ImmutableCharInt16HashMap) Equals(other *ImmutableCharInt16HashMap) bool {
+func (m *ImmutableCharInt16) Equals(other *ImmutableCharInt16) bool {
 	return m.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this map.
-func (m *ImmutableCharInt16HashMap) ToMutable() *CharInt16HashMap {
-	copy := NewCharInt16HashMapWithCapacity(m.Size() * 2)
+func (m *ImmutableCharInt16) ToMutable() *CharInt16 {
+	copy := NewCharInt16WithCapacity(m.Len() * 2)
 	m.ForEach(func(k uint16, v int16) {
 		copy.Put(k, v)
 	})

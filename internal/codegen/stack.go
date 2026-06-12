@@ -93,22 +93,22 @@ import (
 	"strings"
 )
 
-// {{.Name}}ArrayStack is a LIFO (last-in, first-out) stack backed by a {{.GoType}} slice.
-type {{.Name}}ArrayStack struct {
+// {{.Name}} is a LIFO (last-in, first-out) stack backed by a {{.GoType}} slice.
+type {{.Name}} struct {
 	items []{{.GoType}}
 }
 
-// New{{.Name}}ArrayStack creates a new empty {{.Name}}ArrayStack.
-func New{{.Name}}ArrayStack() *{{.Name}}ArrayStack {
-	return &{{.Name}}ArrayStack{
+// New{{.Name}} creates a new empty {{.Name}}.
+func New{{.Name}}() *{{.Name}} {
+	return &{{.Name}}{
 		items: make([]{{.GoType}}, 0, 16),
 	}
 }
 
-// {{.Name}}ArrayStackOf creates a new {{.Name}}ArrayStack from the given values.
+// {{.Name}}Of creates a new {{.Name}} from the given values.
 // The last value becomes the top of the stack.
-func {{.Name}}ArrayStackOf(values ...{{.GoType}}) *{{.Name}}ArrayStack {
-	s := &{{.Name}}ArrayStack{
+func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
+	s := &{{.Name}}{
 		items: make([]{{.GoType}}, len(values)),
 	}
 	copy(s.items, values)
@@ -116,58 +116,50 @@ func {{.Name}}ArrayStackOf(values ...{{.GoType}}) *{{.Name}}ArrayStack {
 }
 
 // Push adds a value to the top of the stack.
-func (s *{{.Name}}ArrayStack) Push(value {{.GoType}}) {
+func (s *{{.Name}}) Push(value {{.GoType}}) {
 	s.items = append(s.items, value)
 }
 
-// Pop removes and returns the top value, or an error if the stack is empty.
-func (s *{{.Name}}ArrayStack) Pop() ({{.GoType}}, error) {
+// Pop removes and returns the top value. The bool is false if the stack is empty.
+func (s *{{.Name}}) Pop() ({{.GoType}}, bool) {
 	if len(s.items) == 0 {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayStack: Pop on empty stack")
+		return {{.Zero}}, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *{{.Name}}ArrayStack) Peek() ({{.GoType}}, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *{{.Name}}) Peek() ({{.GoType}}, bool) {
 	if len(s.items) == 0 {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayStack: Peek on empty stack")
+		return {{.Zero}}, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
-// PeekAt returns the element at the given distance from the top (0 = top),
-// or an error if the index is out of bounds.
-func (s *{{.Name}}ArrayStack) PeekAt(index int) ({{.GoType}}, error) {
+// PeekAt returns the element at the given distance from the top (0 = top).
+// It panics if the index is out of range, like a native Go slice.
+func (s *{{.Name}}) PeekAt(index int) {{.GoType}} {
 	if index < 0 || index >= len(s.items) {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayStack: PeekAt index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("stack.{{.Name}}: index out of range [%d] with length %d", index, len(s.items)))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
-// Size returns the number of elements in the stack.
-func (s *{{.Name}}ArrayStack) Size() int {
+// Len returns the number of elements in the stack. Use s.Len() == 0 to test
+// for emptiness.
+func (s *{{.Name}}) Len() int {
 	return len(s.items)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *{{.Name}}ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *{{.Name}}ArrayStack) IsEmpty() bool {
-	return len(s.items) == 0
-}
-
 // Clear removes all elements from the stack.
-func (s *{{.Name}}ArrayStack) Clear() {
+func (s *{{.Name}}) Clear() {
 	s.items = s.items[:0]
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *{{.Name}}ArrayStack) Contains(value {{.GoType}}) bool {
+func (s *{{.Name}}) Contains(value {{.GoType}}) bool {
 	for _, v := range s.items {
 		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
 			return true
@@ -177,7 +169,7 @@ func (s *{{.Name}}ArrayStack) Contains(value {{.GoType}}) bool {
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *{{.Name}}ArrayStack) All() iter.Seq[{{.GoType}}] {
+func (s *{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 		for i := len(s.items) - 1; i >= 0; i-- {
 			if !yield(s.items[i]) {
@@ -188,7 +180,7 @@ func (s *{{.Name}}ArrayStack) All() iter.Seq[{{.GoType}}] {
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *{{.Name}}ArrayStack) ForEach(f func({{.GoType}})) {
+func (s *{{.Name}}) ForEach(f func({{.GoType}})) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		f(s.items[i])
 	}
@@ -196,8 +188,8 @@ func (s *{{.Name}}ArrayStack) ForEach(f func({{.GoType}})) {
 
 // Select returns a new stack containing only elements that satisfy the predicate.
 // Order is preserved (top of result corresponds to top of original that passed).
-func (s *{{.Name}}ArrayStack) Select(predicate func({{.GoType}}) bool) *{{.Name}}ArrayStack {
-	result := New{{.Name}}ArrayStack()
+func (s *{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for _, v := range s.items {
 		if predicate(v) {
 			result.Push(v)
@@ -207,8 +199,8 @@ func (s *{{.Name}}ArrayStack) Select(predicate func({{.GoType}}) bool) *{{.Name}
 }
 
 // Reject returns a new stack containing only elements that do not satisfy the predicate.
-func (s *{{.Name}}ArrayStack) Reject(predicate func({{.GoType}}) bool) *{{.Name}}ArrayStack {
-	result := New{{.Name}}ArrayStack()
+func (s *{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for _, v := range s.items {
 		if !predicate(v) {
 			result.Push(v)
@@ -218,7 +210,7 @@ func (s *{{.Name}}ArrayStack) Reject(predicate func({{.GoType}}) bool) *{{.Name}
 }
 
 // Detect returns the first element from the top that satisfies the predicate, or zero and false.
-func (s *{{.Name}}ArrayStack) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (s *{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		if predicate(s.items[i]) {
 			return s.items[i], true
@@ -228,7 +220,7 @@ func (s *{{.Name}}ArrayStack) Detect(predicate func({{.GoType}}) bool) ({{.GoTyp
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *{{.Name}}ArrayStack) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return true
@@ -238,7 +230,7 @@ func (s *{{.Name}}ArrayStack) AnySatisfy(predicate func({{.GoType}}) bool) bool 
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *{{.Name}}ArrayStack) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.items {
 		if !predicate(v) {
 			return false
@@ -248,7 +240,7 @@ func (s *{{.Name}}ArrayStack) AllSatisfy(predicate func({{.GoType}}) bool) bool 
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *{{.Name}}ArrayStack) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return false
@@ -258,7 +250,7 @@ func (s *{{.Name}}ArrayStack) NoneSatisfy(predicate func({{.GoType}}) bool) bool
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (s *{{.Name}}ArrayStack) Count(predicate func({{.GoType}}) bool) int {
+func (s *{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
 	count := 0
 	for _, v := range s.items {
 		if predicate(v) {
@@ -269,7 +261,7 @@ func (s *{{.Name}}ArrayStack) Count(predicate func({{.GoType}}) bool) int {
 }
 
 // InjectInto performs a left fold from bottom to top.
-func (s *{{.Name}}ArrayStack) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
+func (s *{{.Name}}) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
 	result := initial
 	for _, v := range s.items {
 		result = f(result, v)
@@ -278,7 +270,7 @@ func (s *{{.Name}}ArrayStack) InjectInto(initial {{.GoType}}, f func({{.GoType}}
 }
 
 // ToSlice returns all elements as a slice (top element first).
-func (s *{{.Name}}ArrayStack) ToSlice() []{{.GoType}} {
+func (s *{{.Name}}) ToSlice() []{{.GoType}} {
 	result := make([]{{.GoType}}, len(s.items))
 	for i, j := len(s.items)-1, 0; i >= 0; i, j = i-1, j+1 {
 		result[j] = s.items[i]
@@ -287,20 +279,20 @@ func (s *{{.Name}}ArrayStack) ToSlice() []{{.GoType}} {
 }
 
 // ToList returns the elements as a slice in stack order (bottom first, for internal use).
-func (s *{{.Name}}ArrayStack) toList() []{{.GoType}} {
+func (s *{{.Name}}) toList() []{{.GoType}} {
 	result := make([]{{.GoType}}, len(s.items))
 	copy(result, s.items)
 	return result
 }
 
-// With returns the stack after pushing the value (fluent API).
-func (s *{{.Name}}ArrayStack) With(value {{.GoType}}) *{{.Name}}ArrayStack {
+// AddReturning pushes the value and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) AddReturning(value {{.GoType}}) *{{.Name}} {
 	s.Push(value)
 	return s
 }
 
-// WithAll returns the stack after pushing all values (fluent API).
-func (s *{{.Name}}ArrayStack) WithAll(values ...{{.GoType}}) *{{.Name}}ArrayStack {
+// AddAllReturning pushes all values and returns the receiver (mutating, fluent).
+func (s *{{.Name}}) AddAllReturning(values ...{{.GoType}}) *{{.Name}} {
 	for _, v := range values {
 		s.Push(v)
 	}
@@ -308,12 +300,12 @@ func (s *{{.Name}}ArrayStack) WithAll(values ...{{.GoType}}) *{{.Name}}ArrayStac
 }
 
 // ToImmutable returns an immutable copy of this stack.
-func (s *{{.Name}}ArrayStack) ToImmutable() *Immutable{{.Name}}ArrayStack {
-	return Immutable{{.Name}}ArrayStackFrom(s)
+func (s *{{.Name}}) ToImmutable() *Immutable{{.Name}} {
+	return Immutable{{.Name}}From(s)
 }
 
 // String returns a string representation of the stack (top element first).
-func (s *{{.Name}}ArrayStack) String() string {
+func (s *{{.Name}}) String() string {
 	if len(s.items) == 0 {
 		return "[]"
 	}
@@ -330,7 +322,7 @@ func (s *{{.Name}}ArrayStack) String() string {
 }
 
 // Equals returns true if the other stack has the same elements in the same order.
-func (s *{{.Name}}ArrayStack) Equals(other *{{.Name}}ArrayStack) bool {
+func (s *{{.Name}}) Equals(other *{{.Name}}) bool {
 	if len(s.items) != len(other.items) {
 		return false
 	}
@@ -346,123 +338,111 @@ func (s *{{.Name}}ArrayStack) Equals(other *{{.Name}}ArrayStack) bool {
 const immutableArrayStackTmpl = genHeader + `package stack
 
 import (
-	"fmt"
 	"iter"
 )
 
-// Immutable{{.Name}}ArrayStack is an immutable LIFO stack of {{.GoType}} values.
-type Immutable{{.Name}}ArrayStack struct {
-	delegate *{{.Name}}ArrayStack
+// Immutable{{.Name}} is an immutable LIFO stack of {{.GoType}} values.
+type Immutable{{.Name}} struct {
+	delegate *{{.Name}}
 }
 
-// NewImmutable{{.Name}}ArrayStack creates an immutable stack from the given values.
+// NewImmutable{{.Name}} creates an immutable stack from the given values.
 // The last value becomes the top of the stack.
-func NewImmutable{{.Name}}ArrayStack(values ...{{.GoType}}) *Immutable{{.Name}}ArrayStack {
-	return &Immutable{{.Name}}ArrayStack{delegate: {{.Name}}ArrayStackOf(values...)}
+func NewImmutable{{.Name}}(values ...{{.GoType}}) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: {{.Name}}Of(values...)}
 }
 
-// Immutable{{.Name}}ArrayStackFrom creates an immutable copy of a mutable stack.
-func Immutable{{.Name}}ArrayStackFrom(s *{{.Name}}ArrayStack) *Immutable{{.Name}}ArrayStack {
-	copy := &{{.Name}}ArrayStack{items: make([]{{.GoType}}, len(s.items))}
+// Immutable{{.Name}}From creates an immutable copy of a mutable stack.
+func Immutable{{.Name}}From(s *{{.Name}}) *Immutable{{.Name}} {
+	copy := &{{.Name}}{items: make([]{{.GoType}}, len(s.items))}
 	for i := range s.items {
 		copy.items[i] = s.items[i]
 	}
-	return &Immutable{{.Name}}ArrayStack{delegate: copy}
+	return &Immutable{{.Name}}{delegate: copy}
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *Immutable{{.Name}}ArrayStack) Peek() ({{.GoType}}, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *Immutable{{.Name}}) Peek() ({{.GoType}}, bool) {
 	return s.delegate.Peek()
 }
 
-// PeekAt returns the element at the given distance from the top,
-// or an error if the index is out of bounds.
-func (s *Immutable{{.Name}}ArrayStack) PeekAt(index int) ({{.GoType}}, error) {
+// PeekAt returns the element at the given distance from the top.
+// It panics if the index is out of range, like a native Go slice.
+func (s *Immutable{{.Name}}) PeekAt(index int) {{.GoType}} {
 	return s.delegate.PeekAt(index)
 }
 
-// Size returns the number of elements.
-func (s *Immutable{{.Name}}ArrayStack) Size() int {
-	return s.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Immutable{{.Name}}ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *Immutable{{.Name}}ArrayStack) IsEmpty() bool {
-	return s.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Immutable{{.Name}}) Len() int { return s.delegate.Len() }
 
 // Contains returns true if the stack contains the given value.
-func (s *Immutable{{.Name}}ArrayStack) Contains(value {{.GoType}}) bool {
+func (s *Immutable{{.Name}}) Contains(value {{.GoType}}) bool {
 	return s.delegate.Contains(value)
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *Immutable{{.Name}}ArrayStack) All() iter.Seq[{{.GoType}}] {
+func (s *Immutable{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return s.delegate.All()
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *Immutable{{.Name}}ArrayStack) ForEach(f func({{.GoType}})) {
+func (s *Immutable{{.Name}}) ForEach(f func({{.GoType}})) {
 	s.delegate.ForEach(f)
 }
 
 // Select returns a new immutable stack with elements satisfying the predicate.
-func (s *Immutable{{.Name}}ArrayStack) Select(predicate func({{.GoType}}) bool) *Immutable{{.Name}}ArrayStack {
-	return &Immutable{{.Name}}ArrayStack{delegate: s.delegate.Select(predicate)}
+func (s *Immutable{{.Name}}) Select(predicate func({{.GoType}}) bool) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: s.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable stack with elements not satisfying the predicate.
-func (s *Immutable{{.Name}}ArrayStack) Reject(predicate func({{.GoType}}) bool) *Immutable{{.Name}}ArrayStack {
-	return &Immutable{{.Name}}ArrayStack{delegate: s.delegate.Reject(predicate)}
+func (s *Immutable{{.Name}}) Reject(predicate func({{.GoType}}) bool) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: s.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element from top satisfying the predicate, or zero and false.
-func (s *Immutable{{.Name}}ArrayStack) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (s *Immutable{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	return s.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Immutable{{.Name}}ArrayStack) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Immutable{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	return s.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Immutable{{.Name}}ArrayStack) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Immutable{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	return s.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Immutable{{.Name}}ArrayStack) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Immutable{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	return s.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (s *Immutable{{.Name}}ArrayStack) Count(predicate func({{.GoType}}) bool) int {
+func (s *Immutable{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
 	return s.delegate.Count(predicate)
 }
 
 // ToSlice returns all elements as a slice (top first).
-func (s *Immutable{{.Name}}ArrayStack) ToSlice() []{{.GoType}} {
+func (s *Immutable{{.Name}}) ToSlice() []{{.GoType}} {
 	return s.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (s *Immutable{{.Name}}ArrayStack) String() string {
+func (s *Immutable{{.Name}}) String() string {
 	return s.delegate.String()
 }
 
 // Equals returns true if the other immutable stack has the same elements.
-func (s *Immutable{{.Name}}ArrayStack) Equals(other *Immutable{{.Name}}ArrayStack) bool {
+func (s *Immutable{{.Name}}) Equals(other *Immutable{{.Name}}) bool {
 	return s.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this stack.
-func (s *Immutable{{.Name}}ArrayStack) ToMutable() *{{.Name}}ArrayStack {
-	copy := &{{.Name}}ArrayStack{items: make([]{{.GoType}}, len(s.delegate.items))}
+func (s *Immutable{{.Name}}) ToMutable() *{{.Name}} {
+	copy := &{{.Name}}{items: make([]{{.GoType}}, len(s.delegate.items))}
 	for i := range s.delegate.items {
 		copy.items[i] = s.delegate.items[i]
 	}
@@ -471,23 +451,23 @@ func (s *Immutable{{.Name}}ArrayStack) ToMutable() *{{.Name}}ArrayStack {
 
 // Push returns a NEW immutable stack with the value pushed on top.
 // The original stack is not modified.
-func (s *Immutable{{.Name}}ArrayStack) Push(value {{.GoType}}) *Immutable{{.Name}}ArrayStack {
+func (s *Immutable{{.Name}}) Push(value {{.GoType}}) *Immutable{{.Name}} {
 	newItems := make([]{{.GoType}}, len(s.delegate.items)+1)
 	copy(newItems, s.delegate.items)
 	newItems[len(s.delegate.items)] = value
-	return &Immutable{{.Name}}ArrayStack{delegate: &{{.Name}}ArrayStack{items: newItems}}
+	return &Immutable{{.Name}}{delegate: &{{.Name}}{items: newItems}}
 }
 
 // Pop returns a NEW immutable stack with the top element removed, and the removed value.
-// The original stack is not modified. Returns an error if the stack is empty.
-func (s *Immutable{{.Name}}ArrayStack) Pop() (*Immutable{{.Name}}ArrayStack, {{.GoType}}, error) {
-	if s.delegate.IsEmpty() {
-		return nil, {{.Zero}}, fmt.Errorf("Immutable{{.Name}}ArrayStack: Pop on empty stack")
+// The original stack is not modified. The bool is false if the stack is empty.
+func (s *Immutable{{.Name}}) Pop() (*Immutable{{.Name}}, {{.GoType}}, bool) {
+	if s.delegate.Len() == 0 {
+		return nil, {{.Zero}}, false
 	}
 	top := s.delegate.items[len(s.delegate.items)-1]
 	newItems := make([]{{.GoType}}, len(s.delegate.items)-1)
 	copy(newItems, s.delegate.items[:len(s.delegate.items)-1])
-	return &Immutable{{.Name}}ArrayStack{delegate: &{{.Name}}ArrayStack{items: newItems}}, top, nil
+	return &Immutable{{.Name}}{delegate: &{{.Name}}{items: newItems}}, top, true
 }
 `
 
@@ -499,30 +479,30 @@ import (
 	"unsafe"
 )
 
-// Synchronized{{.Name}}ArrayStack is a thread-safe wrapper around {{.Name}}ArrayStack.
+// Synchronized{{.Name}} is a thread-safe wrapper around {{.Name}}.
 //
 // Read methods hold an RLock; writes hold a Lock. Callback methods
 // (ForEach/Select/…) snapshot under RLock and run the callback
 // unlocked so it can safely re-enter the wrapper.
-type Synchronized{{.Name}}ArrayStack struct {
-	delegate *{{.Name}}ArrayStack
+type Synchronized{{.Name}} struct {
+	delegate *{{.Name}}
 	mu       sync.RWMutex
 }
 
-// NewSynchronized{{.Name}}ArrayStack creates a new thread-safe empty stack.
-func NewSynchronized{{.Name}}ArrayStack() *Synchronized{{.Name}}ArrayStack {
-	return &Synchronized{{.Name}}ArrayStack{delegate: New{{.Name}}ArrayStack()}
+// NewSynchronized{{.Name}} creates a new thread-safe empty stack.
+func NewSynchronized{{.Name}}() *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: New{{.Name}}()}
 }
 
-// NewSynchronized{{.Name}}ArrayStackFrom wraps an existing stack. The
+// NewSynchronized{{.Name}}From wraps an existing stack. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronized{{.Name}}ArrayStackFrom(s *{{.Name}}ArrayStack) *Synchronized{{.Name}}ArrayStack {
-	return &Synchronized{{.Name}}ArrayStack{delegate: s}
+func NewSynchronized{{.Name}}From(s *{{.Name}}) *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: s}
 }
 
 // snapshot copies the stack contents under RLock. The returned slice
 // is ordered the same way the delegate's ToSlice would order it.
-func (s *Synchronized{{.Name}}ArrayStack) snapshot() []{{.GoType}} {
+func (s *Synchronized{{.Name}}) snapshot() []{{.GoType}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -530,19 +510,19 @@ func (s *Synchronized{{.Name}}ArrayStack) snapshot() []{{.GoType}} {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}ArrayStack) Push(value {{.GoType}}) {
+func (s *Synchronized{{.Name}}) Push(value {{.GoType}}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Push(value)
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) Pop() ({{.GoType}}, error) {
+func (s *Synchronized{{.Name}}) Pop() ({{.GoType}}, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Pop()
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) Clear() {
+func (s *Synchronized{{.Name}}) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -550,47 +530,38 @@ func (s *Synchronized{{.Name}}ArrayStack) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}ArrayStack) Peek() ({{.GoType}}, error) {
+func (s *Synchronized{{.Name}}) Peek() ({{.GoType}}, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) PeekAt(index int) ({{.GoType}}, error) {
+func (s *Synchronized{{.Name}}) PeekAt(index int) {{.GoType}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.PeekAt(index)
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *Synchronized{{.Name}}) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Synchronized{{.Name}}ArrayStack) Len() int { return s.Size() }
-
-func (s *Synchronized{{.Name}}ArrayStack) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *Synchronized{{.Name}}ArrayStack) Contains(value {{.GoType}}) bool {
+func (s *Synchronized{{.Name}}) Contains(value {{.GoType}}) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) ToSlice() []{{.GoType}} {
+func (s *Synchronized{{.Name}}) ToSlice() []{{.GoType}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) String() string {
+func (s *Synchronized{{.Name}}) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -598,7 +569,7 @@ func (s *Synchronized{{.Name}}ArrayStack) String() string {
 
 // ── iteration ────────────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}ArrayStack) All() iter.Seq[{{.GoType}}] {
+func (s *Synchronized{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	snapshot := s.snapshot()
 	return func(yield func({{.GoType}}) bool) {
 		for _, v := range snapshot {
@@ -611,13 +582,13 @@ func (s *Synchronized{{.Name}}ArrayStack) All() iter.Seq[{{.GoType}}] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}ArrayStack) ForEach(f func({{.GoType}})) {
+func (s *Synchronized{{.Name}}) ForEach(f func({{.GoType}})) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Synchronized{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -626,7 +597,7 @@ func (s *Synchronized{{.Name}}ArrayStack) AnySatisfy(predicate func({{.GoType}})
 	return false
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Synchronized{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -635,7 +606,7 @@ func (s *Synchronized{{.Name}}ArrayStack) AllSatisfy(predicate func({{.GoType}})
 	return true
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (s *Synchronized{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -644,7 +615,7 @@ func (s *Synchronized{{.Name}}ArrayStack) NoneSatisfy(predicate func({{.GoType}}
 	return true
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) Count(predicate func({{.GoType}}) bool) int {
+func (s *Synchronized{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
 	n := 0
 	for _, v := range s.snapshot() {
 		if predicate(v) {
@@ -654,7 +625,7 @@ func (s *Synchronized{{.Name}}ArrayStack) Count(predicate func({{.GoType}}) bool
 	return n
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (s *Synchronized{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -664,7 +635,7 @@ func (s *Synchronized{{.Name}}ArrayStack) Detect(predicate func({{.GoType}}) boo
 	return zero, false
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
+func (s *Synchronized{{.Name}}) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
 	acc := initial
 	for _, v := range s.snapshot() {
 		acc = f(acc, v)
@@ -674,13 +645,13 @@ func (s *Synchronized{{.Name}}ArrayStack) InjectInto(initial {{.GoType}}, f func
 
 // ── functional that return a new stack ───────────────────────────────
 
-func (s *Synchronized{{.Name}}ArrayStack) Select(predicate func({{.GoType}}) bool) *{{.Name}}ArrayStack {
+func (s *Synchronized{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Select(predicate)
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) Reject(predicate func({{.GoType}}) bool) *{{.Name}}ArrayStack {
+func (s *Synchronized{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Reject(predicate)
@@ -688,23 +659,23 @@ func (s *Synchronized{{.Name}}ArrayStack) Reject(predicate func({{.GoType}}) boo
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}ArrayStack) With(value {{.GoType}}) *Synchronized{{.Name}}ArrayStack {
+func (s *Synchronized{{.Name}}) AddReturning(value {{.GoType}}) *Synchronized{{.Name}} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *Synchronized{{.Name}}ArrayStack) WithAll(values ...{{.GoType}}) *Synchronized{{.Name}}ArrayStack {
+func (s *Synchronized{{.Name}}) AddAllReturning(values ...{{.GoType}}) *Synchronized{{.Name}} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (s *Synchronized{{.Name}}ArrayStack) ToImmutable() *Immutable{{.Name}}ArrayStack {
+func (s *Synchronized{{.Name}}) ToImmutable() *Immutable{{.Name}} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -712,7 +683,7 @@ func (s *Synchronized{{.Name}}ArrayStack) ToImmutable() *Immutable{{.Name}}Array
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (s *Synchronized{{.Name}}ArrayStack) Equals(other *Synchronized{{.Name}}ArrayStack) bool {
+func (s *Synchronized{{.Name}}) Equals(other *Synchronized{{.Name}}) bool {
 	if s == other {
 		s.mu.RLock()
 		defer s.mu.RUnlock()

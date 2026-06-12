@@ -32,7 +32,7 @@ func freshBacking(s string) string {
 }
 
 func TestHashComparable_NamedStringEqualityConsistent(t *testing.T) {
-	m := NewObjectInt32HashMap[namedStr]()
+	m := NewObjectInt32[namedStr]()
 
 	a := namedStr("hello")
 	b := namedStr(freshBacking("hello"))
@@ -57,10 +57,10 @@ func TestHashComparable_NamedStringEqualityConsistent(t *testing.T) {
 		t.Errorf("Get(b) = (%d, %v), want (1, true)", v, ok)
 	}
 
-	sizeBefore := m.Size()
+	sizeBefore := m.Len()
 	m.Put(b, 2)
-	if m.Size() != sizeBefore {
-		t.Errorf("Put(b) grew size from %d to %d; a == b so it must be the same logical key", sizeBefore, m.Size())
+	if m.Len() != sizeBefore {
+		t.Errorf("Put(b) grew size from %d to %d; a == b so it must be the same logical key", sizeBefore, m.Len())
 	}
 	if v, ok := m.Get(a); !ok || v != 2 {
 		t.Errorf("Get(a) after Put(b,2) = (%d, %v), want (2, true)", v, ok)
@@ -68,7 +68,7 @@ func TestHashComparable_NamedStringEqualityConsistent(t *testing.T) {
 }
 
 func TestHashComparable_PointerBearingStructConsistent(t *testing.T) {
-	m := NewObjectInt32HashMap[personKey]()
+	m := NewObjectInt32[personKey]()
 
 	a := personKey{Name: "Alice", Age: 30}
 	b := personKey{Name: freshBacking("Alice"), Age: 30}
@@ -92,10 +92,10 @@ func TestHashComparable_PointerBearingStructConsistent(t *testing.T) {
 		t.Errorf("Get(b) = (%d, %v), want (10, true)", v, ok)
 	}
 
-	sizeBefore := m.Size()
+	sizeBefore := m.Len()
 	m.Put(b, 20)
-	if m.Size() != sizeBefore {
-		t.Errorf("Put(b) grew size from %d to %d; a == b so it must be the same logical key", sizeBefore, m.Size())
+	if m.Len() != sizeBefore {
+		t.Errorf("Put(b) grew size from %d to %d; a == b so it must be the same logical key", sizeBefore, m.Len())
 	}
 	if v, ok := m.Get(a); !ok || v != 20 {
 		t.Errorf("Get(a) after Put(b,20) = (%d, %v), want (20, true)", v, ok)
@@ -103,7 +103,7 @@ func TestHashComparable_PointerBearingStructConsistent(t *testing.T) {
 }
 
 func TestHashComparable_PlainStringConsistent(t *testing.T) {
-	m := NewObjectInt32HashMap[string]()
+	m := NewObjectInt32[string]()
 
 	a := "world"
 	b := freshBacking("world")
@@ -117,10 +117,10 @@ func TestHashComparable_PlainStringConsistent(t *testing.T) {
 		t.Errorf("Get(b) = (%d, %v), want (7, true)", v, ok)
 	}
 
-	sizeBefore := m.Size()
+	sizeBefore := m.Len()
 	m.Put(b, 8)
-	if m.Size() != sizeBefore {
-		t.Errorf("Put(b) grew size from %d to %d; same logical key expected", sizeBefore, m.Size())
+	if m.Len() != sizeBefore {
+		t.Errorf("Put(b) grew size from %d to %d; same logical key expected", sizeBefore, m.Len())
 	}
 }
 

@@ -115,18 +115,11 @@ func (t *TreeMultimap[K, V]) RemoveMatching(k K, target V, eq func(V, V) bool) i
 	return removed
 }
 
-// Size returns the total number of values.
-func (t *TreeMultimap[K, V]) Size() int { return t.totalSize }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (t *TreeMultimap[K, V]) Len() int { return t.Size() }
+// Len returns the total number of values. Use t.Len() == 0 to test for emptiness.
+func (t *TreeMultimap[K, V]) Len() int { return t.totalSize }
 
 // SizeDistinct returns the number of distinct keys.
-func (t *TreeMultimap[K, V]) SizeDistinct() int { return t.tm.Size() }
-
-// IsEmpty reports whether the multimap is empty.
-func (t *TreeMultimap[K, V]) IsEmpty() bool { return t.totalSize == 0 }
+func (t *TreeMultimap[K, V]) SizeDistinct() int { return t.tm.Len() }
 
 // Clear removes all entries (retains the comparator).
 func (t *TreeMultimap[K, V]) Clear() {

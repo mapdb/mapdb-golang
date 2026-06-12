@@ -123,12 +123,8 @@ func (m *HashMapWithStrategy[K, V]) ContainsKey(key K) bool {
 	return ok
 }
 
-func (m *HashMapWithStrategy[K, V]) Size() int { return m.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *HashMapWithStrategy[K, V]) Len() int      { return m.Size() }
-func (m *HashMapWithStrategy[K, V]) IsEmpty() bool { return m.size == 0 }
+// Len returns the number of entries. Use m.Len() == 0 to test for emptiness.
+func (m *HashMapWithStrategy[K, V]) Len() int { return m.size }
 
 func (m *HashMapWithStrategy[K, V]) Clear() {
 	for i := range m.entries {

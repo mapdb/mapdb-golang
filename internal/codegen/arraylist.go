@@ -92,84 +92,91 @@ func genArrayList() error {
 const arrayListTmpl = genHeader + `package arraylist
 
 import (
+{{- if not .IsFloat}}
+	"cmp"
+{{- end}}
 	"fmt"
 	"iter"
 {{- if .IsFloat}}
 	"math"
 {{- end}}
-	"sort"
+	"slices"
 	"strings"
 )
 
-// {{.Name}}ArrayList is a resizable array-backed list of {{.GoType}} values.
+// {{.Name}} is a resizable array-backed list of {{.GoType}} values.
 // Length is always len(l.items); there is no separate size counter.
-type {{.Name}}ArrayList struct {
+//
+// The zero value is an empty, ready-to-use list.
+type {{.Name}} struct {
 	items []{{.GoType}}
 }
 
-// New{{.Name}}ArrayList creates a new empty {{.Name}}ArrayList.
-func New{{.Name}}ArrayList() *{{.Name}}ArrayList {
-	return &{{.Name}}ArrayList{items: make([]{{.GoType}}, 0, 16)}
+// New{{.Name}} creates a new empty {{.Name}}.
+func New{{.Name}}() *{{.Name}} {
+	return &{{.Name}}{items: make([]{{.GoType}}, 0, 16)}
 }
 
-// New{{.Name}}ArrayListWithCapacity creates a new empty {{.Name}}ArrayList with the given initial capacity.
-func New{{.Name}}ArrayListWithCapacity(capacity int) *{{.Name}}ArrayList {
-	return &{{.Name}}ArrayList{items: make([]{{.GoType}}, 0, capacity)}
+// New{{.Name}}WithCapacity creates a new empty {{.Name}} with the given initial capacity.
+func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
+	return &{{.Name}}{items: make([]{{.GoType}}, 0, capacity)}
 }
 
-// {{.Name}}ArrayListOf creates a new {{.Name}}ArrayList from the given values.
-func {{.Name}}ArrayListOf(values ...{{.GoType}}) *{{.Name}}ArrayList {
-	l := &{{.Name}}ArrayList{items: make([]{{.GoType}}, len(values))}
+// {{.Name}}Of creates a new {{.Name}} from the given values.
+func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
+	l := &{{.Name}}{items: make([]{{.GoType}}, len(values))}
 	copy(l.items, values)
 	return l
 }
 
 // Add appends a value to the end of the list.
-func (l *{{.Name}}ArrayList) Add(value {{.GoType}}) {
+func (l *{{.Name}}) Add(value {{.GoType}}) {
 	l.items = append(l.items, value)
 }
 
 // AddAll appends all values to the end of the list.
-func (l *{{.Name}}ArrayList) AddAll(values ...{{.GoType}}) {
+func (l *{{.Name}}) AddAll(values ...{{.GoType}}) {
 	l.items = append(l.items, values...)
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *{{.Name}}ArrayList) Get(index int) ({{.GoType}}, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *{{.Name}}) Get(index int) {{.GoType}} {
 	if index < 0 || index >= len(l.items) {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.{{.Name}}: index out of range [%d] with length %d", index, len(l.items)))
 	}
-	return l.items[index], nil
+	return l.items[index]
 }
 
-// Set sets the value at the given index, returning the previous value.
-// Returns an error if the index is out of bounds.
-func (l *{{.Name}}ArrayList) Set(index int, value {{.GoType}}) ({{.GoType}}, error) {
+// Set sets the value at the given index, returning the previous value. It
+// panics if the index is out of bounds, matching the semantics of a native
+// Go slice.
+func (l *{{.Name}}) Set(index int, value {{.GoType}}) {{.GoType}} {
 	if index < 0 || index >= len(l.items) {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.{{.Name}}: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	l.items[index] = value
-	return old, nil
+	return old
 }
 
-// RemoveAtIndex removes the value at the given index and returns it.
-// Returns an error if the index is out of bounds.
-func (l *{{.Name}}ArrayList) RemoveAtIndex(index int) ({{.GoType}}, error) {
+// RemoveAtIndex removes the value at the given index and returns it. It panics
+// if the index is out of bounds, matching the semantics of a native Go slice.
+func (l *{{.Name}}) RemoveAtIndex(index int) {{.GoType}} {
 	if index < 0 || index >= len(l.items) {
-		return {{.Zero}}, fmt.Errorf("{{.Name}}ArrayList: index out of bounds: %d (size %d)", index, len(l.items))
+		panic(fmt.Sprintf("arraylist.{{.Name}}: index out of range [%d] with length %d", index, len(l.items)))
 	}
 	old := l.items[index]
 	copy(l.items[index:], l.items[index+1:])
 	l.items = l.items[:len(l.items)-1]
-	return old, nil
+	return old
 }
 
 // Remove removes the first occurrence of the value. Returns true if found and removed.
-func (l *{{.Name}}ArrayList) Remove(value {{.GoType}}) bool {
+func (l *{{.Name}}) Remove(value {{.GoType}}) bool {
 	for i, v := range l.items {
 		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
-			_, _ = l.RemoveAtIndex(i)
+			l.RemoveAtIndex(i)
 			return true
 		}
 	}
@@ -177,7 +184,7 @@ func (l *{{.Name}}ArrayList) Remove(value {{.GoType}}) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *{{.Name}}ArrayList) Contains(value {{.GoType}}) bool {
+func (l *{{.Name}}) Contains(value {{.GoType}}) bool {
 	for _, v := range l.items {
 		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
 			return true
@@ -187,7 +194,7 @@ func (l *{{.Name}}ArrayList) Contains(value {{.GoType}}) bool {
 }
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
-func (l *{{.Name}}ArrayList) IndexOf(value {{.GoType}}) int {
+func (l *{{.Name}}) IndexOf(value {{.GoType}}) int {
 	for i, v := range l.items {
 		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
 			return i
@@ -196,21 +203,16 @@ func (l *{{.Name}}ArrayList) IndexOf(value {{.GoType}}) int {
 	return -1
 }
 
-// Size returns the number of elements in the list.
-func (l *{{.Name}}ArrayList) Size() int { return len(l.items) }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *{{.Name}}ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *{{.Name}}ArrayList) IsEmpty() bool { return len(l.items) == 0 }
+// Len returns the number of elements in the list, matching the Go
+// convention (sort.Interface, container/list, bytes.Buffer). Use
+// l.Len() == 0 to test for emptiness.
+func (l *{{.Name}}) Len() int { return len(l.items) }
 
 // Clear removes all elements from the list.
-func (l *{{.Name}}ArrayList) Clear() { l.items = l.items[:0] }
+func (l *{{.Name}}) Clear() { l.items = l.items[:0] }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *{{.Name}}ArrayList) All() iter.Seq[{{.GoType}}] {
+func (l *{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return func(yield func({{.GoType}}) bool) {
 		for _, v := range l.items {
 			if !yield(v) {
@@ -221,7 +223,7 @@ func (l *{{.Name}}ArrayList) All() iter.Seq[{{.GoType}}] {
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *{{.Name}}ArrayList) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
+func (l *{{.Name}}) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
 	return func(yield func(int, {{.GoType}}) bool) {
 		for i, v := range l.items {
 			if !yield(i, v) {
@@ -232,22 +234,22 @@ func (l *{{.Name}}ArrayList) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
 }
 
 // ForEach calls the given function for each element.
-func (l *{{.Name}}ArrayList) ForEach(f func({{.GoType}})) {
+func (l *{{.Name}}) ForEach(f func({{.GoType}})) {
 	for _, v := range l.items {
 		f(v)
 	}
 }
 
 // ForEachWithIndex calls the given function with each element and its index.
-func (l *{{.Name}}ArrayList) ForEachWithIndex(f func({{.GoType}}, int)) {
+func (l *{{.Name}}) ForEachWithIndex(f func({{.GoType}}, int)) {
 	for i, v := range l.items {
 		f(v, i)
 	}
 }
 
 // Select returns a new list containing only elements that satisfy the predicate.
-func (l *{{.Name}}ArrayList) Select(predicate func({{.GoType}}) bool) *{{.Name}}ArrayList {
-	result := New{{.Name}}ArrayList()
+func (l *{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for _, v := range l.items {
 		if predicate(v) {
 			result.Add(v)
@@ -257,8 +259,8 @@ func (l *{{.Name}}ArrayList) Select(predicate func({{.GoType}}) bool) *{{.Name}}
 }
 
 // Reject returns a new list containing only elements that do not satisfy the predicate.
-func (l *{{.Name}}ArrayList) Reject(predicate func({{.GoType}}) bool) *{{.Name}}ArrayList {
-	result := New{{.Name}}ArrayList()
+func (l *{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
+	result := New{{.Name}}()
 	for _, v := range l.items {
 		if !predicate(v) {
 			result.Add(v)
@@ -268,7 +270,7 @@ func (l *{{.Name}}ArrayList) Reject(predicate func({{.GoType}}) bool) *{{.Name}}
 }
 
 // Detect returns the first element that satisfies the predicate, or the zero value and false.
-func (l *{{.Name}}ArrayList) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (l *{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for _, v := range l.items {
 		if predicate(v) {
 			return v, true
@@ -278,7 +280,7 @@ func (l *{{.Name}}ArrayList) Detect(predicate func({{.GoType}}) bool) ({{.GoType
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *{{.Name}}ArrayList) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return true
@@ -288,7 +290,7 @@ func (l *{{.Name}}ArrayList) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *{{.Name}}ArrayList) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range l.items {
 		if !predicate(v) {
 			return false
@@ -298,7 +300,7 @@ func (l *{{.Name}}ArrayList) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *{{.Name}}ArrayList) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range l.items {
 		if predicate(v) {
 			return false
@@ -308,7 +310,7 @@ func (l *{{.Name}}ArrayList) NoneSatisfy(predicate func({{.GoType}}) bool) bool 
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *{{.Name}}ArrayList) Count(predicate func({{.GoType}}) bool) int {
+func (l *{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
 	count := 0
 	for _, v := range l.items {
 		if predicate(v) {
@@ -319,7 +321,7 @@ func (l *{{.Name}}ArrayList) Count(predicate func({{.GoType}}) bool) int {
 }
 
 // InjectInto performs a left fold over the list.
-func (l *{{.Name}}ArrayList) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
+func (l *{{.Name}}) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
 	result := initial
 	for _, v := range l.items {
 		result = f(result, v)
@@ -328,7 +330,7 @@ func (l *{{.Name}}ArrayList) InjectInto(initial {{.GoType}}, f func({{.GoType}},
 }
 
 // Sum returns the sum of all elements{{.SumDoc}}
-func (l *{{.Name}}ArrayList) Sum() {{.SumType}} {
+func (l *{{.Name}}) Sum() {{.SumType}} {
 	var sum {{.SumType}}
 	for _, v := range l.items {
 		sum += {{if .IsFloat}}v{{else}}int64(v){{end}}
@@ -337,7 +339,7 @@ func (l *{{.Name}}ArrayList) Sum() {{.SumType}} {
 }
 
 // Min returns the minimum element, or the zero value and false if empty.
-func (l *{{.Name}}ArrayList) Min() ({{.GoType}}, bool) {
+func (l *{{.Name}}) Min() ({{.GoType}}, bool) {
 	if len(l.items) == 0 {
 		return {{.Zero}}, false
 	}
@@ -351,7 +353,7 @@ func (l *{{.Name}}ArrayList) Min() ({{.GoType}}, bool) {
 }
 
 // Max returns the maximum element, or the zero value and false if empty.
-func (l *{{.Name}}ArrayList) Max() ({{.GoType}}, bool) {
+func (l *{{.Name}}) Max() ({{.GoType}}, bool) {
 	if len(l.items) == 0 {
 		return {{.Zero}}, false
 	}
@@ -365,21 +367,28 @@ func (l *{{.Name}}ArrayList) Max() ({{.GoType}}, bool) {
 }
 
 // Sort sorts the list in ascending order.
-func (l *{{.Name}}ArrayList) Sort() {
-	sort.Slice(l.items, func(i, j int) bool {
-		return {{if .IsFloat}}{{.CmpFn}}(l.items[i], l.items[j]) < 0{{else}}l.items[i] < l.items[j]{{end}}
+func (l *{{.Name}}) Sort() {
+	slices.SortFunc(l.items, func(a, b {{.GoType}}) int {
+		return {{if .IsFloat}}{{.CmpFn}}(a, b){{else}}cmp.Compare(a, b){{end}}
 	})
 }
 
-// SortWithComparator sorts the list using the given comparison function.
-func (l *{{.Name}}ArrayList) SortWithComparator(less func({{.GoType}}, {{.GoType}}) bool) {
-	sort.Slice(l.items, func(i, j int) bool {
-		return less(l.items[i], l.items[j])
+// SortWithComparator sorts the list using the given less function.
+func (l *{{.Name}}) SortWithComparator(less func({{.GoType}}, {{.GoType}}) bool) {
+	slices.SortFunc(l.items, func(a, b {{.GoType}}) int {
+		switch {
+		case less(a, b):
+			return -1
+		case less(b, a):
+			return 1
+		default:
+			return 0
+		}
 	})
 }
 
 // BinarySearch searches for a value in a sorted list. Returns the index and true if found.
-func (l *{{.Name}}ArrayList) BinarySearch(value {{.GoType}}) (int, bool) {
+func (l *{{.Name}}) BinarySearch(value {{.GoType}}) (int, bool) {
 	lo, hi := 0, len(l.items)-1
 	for lo <= hi {
 		mid := lo + (hi-lo)/2
@@ -396,9 +405,9 @@ func (l *{{.Name}}ArrayList) BinarySearch(value {{.GoType}}) (int, bool) {
 }
 
 // Reversed returns a new list with elements in reverse order.
-func (l *{{.Name}}ArrayList) Reversed() *{{.Name}}ArrayList {
+func (l *{{.Name}}) Reversed() *{{.Name}} {
 	n := len(l.items)
-	result := New{{.Name}}ArrayListWithCapacity(n)
+	result := New{{.Name}}WithCapacity(n)
 	for i := n - 1; i >= 0; i-- {
 		result.Add(l.items[i])
 	}
@@ -406,13 +415,13 @@ func (l *{{.Name}}ArrayList) Reversed() *{{.Name}}ArrayList {
 }
 
 // Distinct returns a new list with duplicate elements removed (preserving first occurrence order).
-func (l *{{.Name}}ArrayList) Distinct() *{{.Name}}ArrayList {
+func (l *{{.Name}}) Distinct() *{{.Name}} {
 {{- if .IsFloat}}
 	// Key by bit pattern so NaN dedupes against itself and -0 stays distinct
 	// from +0 (a plain map[{{.GoType}}] would never match NaN and would collapse
 	// the two zeroes together).
 	seen := make(map[{{.BitsType}}]struct{})
-	result := New{{.Name}}ArrayList()
+	result := New{{.Name}}()
 	for _, v := range l.items {
 		bits := {{.BitsFn}}(v)
 		if _, ok := seen[bits]; !ok {
@@ -423,7 +432,7 @@ func (l *{{.Name}}ArrayList) Distinct() *{{.Name}}ArrayList {
 	return result
 {{- else}}
 	seen := make(map[{{.GoType}}]struct{})
-	result := New{{.Name}}ArrayList()
+	result := New{{.Name}}()
 	for _, v := range l.items {
 		if _, ok := seen[v]; !ok {
 			seen[v] = struct{}{}
@@ -435,26 +444,26 @@ func (l *{{.Name}}ArrayList) Distinct() *{{.Name}}ArrayList {
 }
 
 // ToSlice returns a copy of the list elements as a slice.
-func (l *{{.Name}}ArrayList) ToSlice() []{{.GoType}} {
+func (l *{{.Name}}) ToSlice() []{{.GoType}} {
 	result := make([]{{.GoType}}, len(l.items))
 	copy(result, l.items)
 	return result
 }
 
 // With returns the list after adding the value (fluent API).
-func (l *{{.Name}}ArrayList) With(value {{.GoType}}) *{{.Name}}ArrayList {
+func (l *{{.Name}}) AddReturning(value {{.GoType}}) *{{.Name}} {
 	l.Add(value)
 	return l
 }
 
-// Without returns the list after removing the first occurrence of value (fluent API).
-func (l *{{.Name}}ArrayList) Without(value {{.GoType}}) *{{.Name}}ArrayList {
+// RemoveReturning removes the first occurrence of value and returns the receiver (mutating, fluent).
+func (l *{{.Name}}) RemoveReturning(value {{.GoType}}) *{{.Name}} {
 	l.Remove(value)
 	return l
 }
 
 // String returns a string representation of the list.
-func (l *{{.Name}}ArrayList) String() string {
+func (l *{{.Name}}) String() string {
 	if len(l.items) == 0 {
 		return "[]"
 	}
@@ -471,7 +480,7 @@ func (l *{{.Name}}ArrayList) String() string {
 }
 
 // Equals returns true if the other list has the same elements in the same order.
-func (l *{{.Name}}ArrayList) Equals(other *{{.Name}}ArrayList) bool {
+func (l *{{.Name}}) Equals(other *{{.Name}}) bool {
 	if len(l.items) != len(other.items) {
 		return false
 	}
@@ -483,16 +492,16 @@ func (l *{{.Name}}ArrayList) Equals(other *{{.Name}}ArrayList) bool {
 	return true
 }
 
-// WithAll returns the list after adding all values (fluent API).
-func (l *{{.Name}}ArrayList) WithAll(values ...{{.GoType}}) *{{.Name}}ArrayList {
+// AddAllReturning adds all values and returns the receiver (mutating, fluent).
+func (l *{{.Name}}) AddAllReturning(values ...{{.GoType}}) *{{.Name}} {
 	l.AddAll(values...)
 	return l
 }
 
-// WithoutAll removes every occurrence of any of the given values.
+// RemoveAllReturning removes every occurrence of any of the given values.
 // Compacts in place — keeps the existing backing storage and avoids
 // the temporary-list allocation the previous implementation made.
-func (l *{{.Name}}ArrayList) WithoutAll(values ...{{.GoType}}) *{{.Name}}ArrayList {
+func (l *{{.Name}}) RemoveAllReturning(values ...{{.GoType}}) *{{.Name}} {
 	if len(values) == 0 || len(l.items) == 0 {
 		return l
 	}
@@ -531,8 +540,8 @@ func (l *{{.Name}}ArrayList) WithoutAll(values ...{{.GoType}}) *{{.Name}}ArrayLi
 }
 
 // ToImmutable returns an immutable copy of this list.
-func (l *{{.Name}}ArrayList) ToImmutable() *Immutable{{.Name}}ArrayList {
-	return Immutable{{.Name}}ArrayListFrom(l)
+func (l *{{.Name}}) ToImmutable() *Immutable{{.Name}} {
+	return Immutable{{.Name}}From(l)
 }
 `
 
@@ -542,129 +551,120 @@ import (
 	"iter"
 )
 
-// Immutable{{.Name}}ArrayList is an immutable view of a {{.Name}}ArrayList.
-type Immutable{{.Name}}ArrayList struct {
-	delegate *{{.Name}}ArrayList
+// Immutable{{.Name}} is an immutable view of a {{.Name}}.
+type Immutable{{.Name}} struct {
+	delegate *{{.Name}}
 }
 
-// NewImmutable{{.Name}}ArrayList creates an immutable list from the given values.
-func NewImmutable{{.Name}}ArrayList(values ...{{.GoType}}) *Immutable{{.Name}}ArrayList {
-	return &Immutable{{.Name}}ArrayList{delegate: {{.Name}}ArrayListOf(values...)}
+// NewImmutable{{.Name}} creates an immutable list from the given values.
+func NewImmutable{{.Name}}(values ...{{.GoType}}) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: {{.Name}}Of(values...)}
 }
 
-// Immutable{{.Name}}ArrayListFrom creates an immutable copy of a mutable list.
-func Immutable{{.Name}}ArrayListFrom(l *{{.Name}}ArrayList) *Immutable{{.Name}}ArrayList {
-	copy := {{.Name}}ArrayListOf(l.ToSlice()...)
-	return &Immutable{{.Name}}ArrayList{delegate: copy}
+// Immutable{{.Name}}From creates an immutable copy of a mutable list.
+func Immutable{{.Name}}From(l *{{.Name}}) *Immutable{{.Name}} {
+	copy := {{.Name}}Of(l.ToSlice()...)
+	return &Immutable{{.Name}}{delegate: copy}
 }
 
-// Get returns the value at the given index, or an error if the index is out of bounds.
-func (l *Immutable{{.Name}}ArrayList) Get(index int) ({{.GoType}}, error) {
+// Get returns the value at the given index. It panics if the index is out of
+// bounds, matching the semantics of a native Go slice.
+func (l *Immutable{{.Name}}) Get(index int) {{.GoType}} {
 	return l.delegate.Get(index)
 }
 
-// Size returns the number of elements.
-func (l *Immutable{{.Name}}ArrayList) Size() int {
-	return l.delegate.Size()
-}
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *Immutable{{.Name}}ArrayList) Len() int { return l.Size() }
-
-// IsEmpty returns true if the list contains no elements.
-func (l *Immutable{{.Name}}ArrayList) IsEmpty() bool {
-	return l.delegate.IsEmpty()
-}
+// Len returns the number of elements. Use l.Len() == 0 to test for
+// emptiness.
+func (l *Immutable{{.Name}}) Len() int { return l.delegate.Len() }
 
 // Contains returns true if the list contains the given value.
-func (l *Immutable{{.Name}}ArrayList) Contains(value {{.GoType}}) bool {
+func (l *Immutable{{.Name}}) Contains(value {{.GoType}}) bool {
 	return l.delegate.Contains(value)
 }
 
 // IndexOf returns the index of the first occurrence, or -1.
-func (l *Immutable{{.Name}}ArrayList) IndexOf(value {{.GoType}}) int {
+func (l *Immutable{{.Name}}) IndexOf(value {{.GoType}}) int {
 	return l.delegate.IndexOf(value)
 }
 
 // All returns an iter.Seq that yields all elements in order.
-func (l *Immutable{{.Name}}ArrayList) All() iter.Seq[{{.GoType}}] {
+func (l *Immutable{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return l.delegate.All()
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
-func (l *Immutable{{.Name}}ArrayList) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
+func (l *Immutable{{.Name}}) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
 	return l.delegate.AllWithIndex()
 }
 
 // ForEach calls the given function for each element.
-func (l *Immutable{{.Name}}ArrayList) ForEach(f func({{.GoType}})) {
+func (l *Immutable{{.Name}}) ForEach(f func({{.GoType}})) {
 	l.delegate.ForEach(f)
 }
 
 // Select returns a new immutable list with elements satisfying the predicate.
-func (l *Immutable{{.Name}}ArrayList) Select(predicate func({{.GoType}}) bool) *Immutable{{.Name}}ArrayList {
-	return &Immutable{{.Name}}ArrayList{delegate: l.delegate.Select(predicate)}
+func (l *Immutable{{.Name}}) Select(predicate func({{.GoType}}) bool) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: l.delegate.Select(predicate)}
 }
 
 // Reject returns a new immutable list with elements not satisfying the predicate.
-func (l *Immutable{{.Name}}ArrayList) Reject(predicate func({{.GoType}}) bool) *Immutable{{.Name}}ArrayList {
-	return &Immutable{{.Name}}ArrayList{delegate: l.delegate.Reject(predicate)}
+func (l *Immutable{{.Name}}) Reject(predicate func({{.GoType}}) bool) *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: l.delegate.Reject(predicate)}
 }
 
 // Detect returns the first element satisfying the predicate, or zero and false.
-func (l *Immutable{{.Name}}ArrayList) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (l *Immutable{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	return l.delegate.Detect(predicate)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *Immutable{{.Name}}ArrayList) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *Immutable{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	return l.delegate.AnySatisfy(predicate)
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *Immutable{{.Name}}ArrayList) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *Immutable{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	return l.delegate.AllSatisfy(predicate)
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *Immutable{{.Name}}ArrayList) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *Immutable{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	return l.delegate.NoneSatisfy(predicate)
 }
 
 // Count returns the number of elements satisfying the predicate.
-func (l *Immutable{{.Name}}ArrayList) Count(predicate func({{.GoType}}) bool) int {
+func (l *Immutable{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
 	return l.delegate.Count(predicate)
 }
 
 // Reversed returns a new immutable list in reverse order.
-func (l *Immutable{{.Name}}ArrayList) Reversed() *Immutable{{.Name}}ArrayList {
-	return &Immutable{{.Name}}ArrayList{delegate: l.delegate.Reversed()}
+func (l *Immutable{{.Name}}) Reversed() *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: l.delegate.Reversed()}
 }
 
 // Distinct returns a new immutable list with duplicates removed.
-func (l *Immutable{{.Name}}ArrayList) Distinct() *Immutable{{.Name}}ArrayList {
-	return &Immutable{{.Name}}ArrayList{delegate: l.delegate.Distinct()}
+func (l *Immutable{{.Name}}) Distinct() *Immutable{{.Name}} {
+	return &Immutable{{.Name}}{delegate: l.delegate.Distinct()}
 }
 
 // ToSlice returns a copy of all elements as a slice.
-func (l *Immutable{{.Name}}ArrayList) ToSlice() []{{.GoType}} {
+func (l *Immutable{{.Name}}) ToSlice() []{{.GoType}} {
 	return l.delegate.ToSlice()
 }
 
 // String returns a string representation.
-func (l *Immutable{{.Name}}ArrayList) String() string {
+func (l *Immutable{{.Name}}) String() string {
 	return l.delegate.String()
 }
 
 // Equals returns true if the other immutable list has the same elements in order.
-func (l *Immutable{{.Name}}ArrayList) Equals(other *Immutable{{.Name}}ArrayList) bool {
+func (l *Immutable{{.Name}}) Equals(other *Immutable{{.Name}}) bool {
 	return l.delegate.Equals(other.delegate)
 }
 
 // ToMutable returns a mutable copy of this list.
-func (l *Immutable{{.Name}}ArrayList) ToMutable() *{{.Name}}ArrayList {
-	return {{.Name}}ArrayListOf(l.ToSlice()...)
+func (l *Immutable{{.Name}}) ToMutable() *{{.Name}} {
+	return {{.Name}}Of(l.ToSlice()...)
 }
 `
 
@@ -676,7 +676,7 @@ import (
 	"unsafe"
 )
 
-// Synchronized{{.Name}}ArrayList is a thread-safe wrapper around {{.Name}}ArrayList.
+// Synchronized{{.Name}} is a thread-safe wrapper around {{.Name}}.
 //
 // Read methods hold an RLock; writes hold a Lock. Methods that take
 // a caller-supplied function (Select, ForEach, InjectInto, …) snapshot
@@ -685,40 +685,40 @@ import (
 // without deadlocking.
 //
 // Methods that return a fresh collection (Select, Reject, Distinct,
-// Reversed) return an unwrapped *{{.Name}}ArrayList: the caller owns it and
+// Reversed) return an unwrapped *{{.Name}}: the caller owns it and
 // is free to add their own synchronisation if they need it.
-type Synchronized{{.Name}}ArrayList struct {
-	delegate *{{.Name}}ArrayList
+type Synchronized{{.Name}} struct {
+	delegate *{{.Name}}
 	mu       sync.RWMutex
 }
 
-// NewSynchronized{{.Name}}ArrayList creates a new thread-safe empty list.
-func NewSynchronized{{.Name}}ArrayList() *Synchronized{{.Name}}ArrayList {
-	return &Synchronized{{.Name}}ArrayList{delegate: New{{.Name}}ArrayList()}
+// NewSynchronized{{.Name}} creates a new thread-safe empty list.
+func NewSynchronized{{.Name}}() *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: New{{.Name}}()}
 }
 
-// NewSynchronized{{.Name}}ArrayListWithCapacity creates a new thread-safe
+// NewSynchronized{{.Name}}WithCapacity creates a new thread-safe
 // empty list with the given initial capacity.
-func NewSynchronized{{.Name}}ArrayListWithCapacity(capacity int) *Synchronized{{.Name}}ArrayList {
-	return &Synchronized{{.Name}}ArrayList{delegate: New{{.Name}}ArrayListWithCapacity(capacity)}
+func NewSynchronized{{.Name}}WithCapacity(capacity int) *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: New{{.Name}}WithCapacity(capacity)}
 }
 
-// NewSynchronized{{.Name}}ArrayListFrom wraps an existing list. The
+// NewSynchronized{{.Name}}From wraps an existing list. The
 // wrapper takes ownership of the delegate — callers must not continue
 // to mutate it directly without locking.
-func NewSynchronized{{.Name}}ArrayListFrom(l *{{.Name}}ArrayList) *Synchronized{{.Name}}ArrayList {
-	return &Synchronized{{.Name}}ArrayList{delegate: l}
+func NewSynchronized{{.Name}}From(l *{{.Name}}) *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: l}
 }
 
-// Synchronized{{.Name}}ArrayListOf creates a new thread-safe list
+// Synchronized{{.Name}}Of creates a new thread-safe list
 // containing the given values in order.
-func Synchronized{{.Name}}ArrayListOf(values ...{{.GoType}}) *Synchronized{{.Name}}ArrayList {
-	return &Synchronized{{.Name}}ArrayList{delegate: {{.Name}}ArrayListOf(values...)}
+func Synchronized{{.Name}}Of(values ...{{.GoType}}) *Synchronized{{.Name}} {
+	return &Synchronized{{.Name}}{delegate: {{.Name}}Of(values...)}
 }
 
 // snapshot returns a defensive copy of the backing slice taken under
 // RLock. Callers iterate the snapshot without holding the lock.
-func (l *Synchronized{{.Name}}ArrayList) snapshot() []{{.GoType}} {
+func (l *Synchronized{{.Name}}) snapshot() []{{.GoType}} {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
@@ -726,37 +726,37 @@ func (l *Synchronized{{.Name}}ArrayList) snapshot() []{{.GoType}} {
 
 // ── simple writes ─────────────────────────────────────────────────────
 
-func (l *Synchronized{{.Name}}ArrayList) Add(value {{.GoType}}) {
+func (l *Synchronized{{.Name}}) Add(value {{.GoType}}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Add(value)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) AddAll(values ...{{.GoType}}) {
+func (l *Synchronized{{.Name}}) AddAll(values ...{{.GoType}}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.AddAll(values...)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Set(index int, value {{.GoType}}) ({{.GoType}}, error) {
+func (l *Synchronized{{.Name}}) Set(index int, value {{.GoType}}) {{.GoType}} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Set(index, value)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) RemoveAtIndex(index int) ({{.GoType}}, error) {
+func (l *Synchronized{{.Name}}) RemoveAtIndex(index int) {{.GoType}} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.RemoveAtIndex(index)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Remove(value {{.GoType}}) bool {
+func (l *Synchronized{{.Name}}) Remove(value {{.GoType}}) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.delegate.Remove(value)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Clear() {
+func (l *Synchronized{{.Name}}) Clear() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Clear()
@@ -764,7 +764,7 @@ func (l *Synchronized{{.Name}}ArrayList) Clear() {
 
 // Sort sorts the backing list in place. Holds the write lock for the
 // duration; do not call back into this wrapper from a custom comparator.
-func (l *Synchronized{{.Name}}ArrayList) Sort() {
+func (l *Synchronized{{.Name}}) Sort() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.Sort()
@@ -772,7 +772,7 @@ func (l *Synchronized{{.Name}}ArrayList) Sort() {
 
 // SortWithComparator sorts using the given less function, under the
 // write lock. The comparator must not call back into this wrapper.
-func (l *Synchronized{{.Name}}ArrayList) SortWithComparator(less func({{.GoType}}, {{.GoType}}) bool) {
+func (l *Synchronized{{.Name}}) SortWithComparator(less func({{.GoType}}, {{.GoType}}) bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.SortWithComparator(less)
@@ -780,65 +780,55 @@ func (l *Synchronized{{.Name}}ArrayList) SortWithComparator(less func({{.GoType}
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (l *Synchronized{{.Name}}ArrayList) Get(index int) ({{.GoType}}, error) {
+func (l *Synchronized{{.Name}}) Get(index int) {{.GoType}} {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Get(index)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Contains(value {{.GoType}}) bool {
+func (l *Synchronized{{.Name}}) Contains(value {{.GoType}}) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Contains(value)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) IndexOf(value {{.GoType}}) int {
+func (l *Synchronized{{.Name}}) IndexOf(value {{.GoType}}) int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.IndexOf(value)
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Size() int {
+func (l *Synchronized{{.Name}}) Len() int {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.delegate.Size()
+	return l.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (l *Synchronized{{.Name}}ArrayList) Len() int { return l.Size() }
-
-func (l *Synchronized{{.Name}}ArrayList) IsEmpty() bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.delegate.IsEmpty()
-}
-
-func (l *Synchronized{{.Name}}ArrayList) ToSlice() []{{.GoType}} {
+func (l *Synchronized{{.Name}}) ToSlice() []{{.GoType}} {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToSlice()
 }
 
-func (l *Synchronized{{.Name}}ArrayList) String() string {
+func (l *Synchronized{{.Name}}) String() string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.String()
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Sum() {{.SumType}} {
+func (l *Synchronized{{.Name}}) Sum() {{.SumType}} {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Sum()
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Min() ({{.GoType}}, bool) {
+func (l *Synchronized{{.Name}}) Min() ({{.GoType}}, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Min()
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Max() ({{.GoType}}, bool) {
+func (l *Synchronized{{.Name}}) Max() ({{.GoType}}, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Max()
@@ -847,7 +837,7 @@ func (l *Synchronized{{.Name}}ArrayList) Max() ({{.GoType}}, bool) {
 // BinarySearch requires the delegate to be sorted. Callers must
 // ensure that (e.g. by calling Sort() beforehand, both happening
 // before any concurrent Add).
-func (l *Synchronized{{.Name}}ArrayList) BinarySearch(value {{.GoType}}) (int, bool) {
+func (l *Synchronized{{.Name}}) BinarySearch(value {{.GoType}}) (int, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.BinarySearch(value)
@@ -857,7 +847,7 @@ func (l *Synchronized{{.Name}}ArrayList) BinarySearch(value {{.GoType}}) (int, b
 // same order. Both wrappers are locked under RLock to prevent torn
 // reads; locks are acquired in pointer-address order so two goroutines
 // calling A.Equals(B) and B.Equals(A) concurrently cannot deadlock.
-func (l *Synchronized{{.Name}}ArrayList) Equals(other *Synchronized{{.Name}}ArrayList) bool {
+func (l *Synchronized{{.Name}}) Equals(other *Synchronized{{.Name}}) bool {
 	if l == other {
 		l.mu.RLock()
 		defer l.mu.RUnlock()
@@ -877,7 +867,7 @@ func (l *Synchronized{{.Name}}ArrayList) Equals(other *Synchronized{{.Name}}Arra
 // ── iteration (snapshot-based) ────────────────────────────────────────
 
 // All returns an iter.Seq over a snapshot. Iteration is lock-free.
-func (l *Synchronized{{.Name}}ArrayList) All() iter.Seq[{{.GoType}}] {
+func (l *Synchronized{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	snapshot := l.snapshot()
 	return func(yield func({{.GoType}}) bool) {
 		for _, v := range snapshot {
@@ -889,7 +879,7 @@ func (l *Synchronized{{.Name}}ArrayList) All() iter.Seq[{{.GoType}}] {
 }
 
 // AllWithIndex returns an iter.Seq2 over a snapshot. Iteration is lock-free.
-func (l *Synchronized{{.Name}}ArrayList) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
+func (l *Synchronized{{.Name}}) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
 	snapshot := l.snapshot()
 	return func(yield func(int, {{.GoType}}) bool) {
 		for i, v := range snapshot {
@@ -902,19 +892,19 @@ func (l *Synchronized{{.Name}}ArrayList) AllWithIndex() iter.Seq2[int, {{.GoType
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (l *Synchronized{{.Name}}ArrayList) ForEach(f func({{.GoType}})) {
+func (l *Synchronized{{.Name}}) ForEach(f func({{.GoType}})) {
 	for _, v := range l.snapshot() {
 		f(v)
 	}
 }
 
-func (l *Synchronized{{.Name}}ArrayList) ForEachWithIndex(f func({{.GoType}}, int)) {
+func (l *Synchronized{{.Name}}) ForEachWithIndex(f func({{.GoType}}, int)) {
 	for i, v := range l.snapshot() {
 		f(v, i)
 	}
 }
 
-func (l *Synchronized{{.Name}}ArrayList) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *Synchronized{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return true
@@ -923,7 +913,7 @@ func (l *Synchronized{{.Name}}ArrayList) AnySatisfy(predicate func({{.GoType}}) 
 	return false
 }
 
-func (l *Synchronized{{.Name}}ArrayList) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *Synchronized{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range l.snapshot() {
 		if !predicate(v) {
 			return false
@@ -932,7 +922,7 @@ func (l *Synchronized{{.Name}}ArrayList) AllSatisfy(predicate func({{.GoType}}) 
 	return true
 }
 
-func (l *Synchronized{{.Name}}ArrayList) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+func (l *Synchronized{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return false
@@ -941,7 +931,7 @@ func (l *Synchronized{{.Name}}ArrayList) NoneSatisfy(predicate func({{.GoType}})
 	return true
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Count(predicate func({{.GoType}}) bool) int {
+func (l *Synchronized{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
 	n := 0
 	for _, v := range l.snapshot() {
 		if predicate(v) {
@@ -951,7 +941,7 @@ func (l *Synchronized{{.Name}}ArrayList) Count(predicate func({{.GoType}}) bool)
 	return n
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
+func (l *Synchronized{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool) {
 	for _, v := range l.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -961,7 +951,7 @@ func (l *Synchronized{{.Name}}ArrayList) Detect(predicate func({{.GoType}}) bool
 	return zero, false
 }
 
-func (l *Synchronized{{.Name}}ArrayList) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
+func (l *Synchronized{{.Name}}) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {
 	acc := initial
 	for _, v := range l.snapshot() {
 		acc = f(acc, v)
@@ -972,9 +962,9 @@ func (l *Synchronized{{.Name}}ArrayList) InjectInto(initial {{.GoType}}, f func(
 // ── functional that return a new list ─────────────────────────────────
 
 // Select returns a new (unsynchronized) list of elements satisfying the predicate.
-func (l *Synchronized{{.Name}}ArrayList) Select(predicate func({{.GoType}}) bool) *{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
 	snapshot := l.snapshot()
-	result := New{{.Name}}ArrayList()
+	result := New{{.Name}}()
 	for _, v := range snapshot {
 		if predicate(v) {
 			result.Add(v)
@@ -984,9 +974,9 @@ func (l *Synchronized{{.Name}}ArrayList) Select(predicate func({{.GoType}}) bool
 }
 
 // Reject returns a new (unsynchronized) list of elements not satisfying the predicate.
-func (l *Synchronized{{.Name}}ArrayList) Reject(predicate func({{.GoType}}) bool) *{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
 	snapshot := l.snapshot()
-	result := New{{.Name}}ArrayList()
+	result := New{{.Name}}()
 	for _, v := range snapshot {
 		if !predicate(v) {
 			result.Add(v)
@@ -997,14 +987,14 @@ func (l *Synchronized{{.Name}}ArrayList) Reject(predicate func({{.GoType}}) bool
 
 // Distinct returns a new (unsynchronized) list with duplicates removed,
 // order preserved.
-func (l *Synchronized{{.Name}}ArrayList) Distinct() *{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) Distinct() *{{.Name}} {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Distinct()
 }
 
 // Reversed returns a new (unsynchronized) list in reverse order.
-func (l *Synchronized{{.Name}}ArrayList) Reversed() *{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) Reversed() *{{.Name}} {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.Reversed()
@@ -1013,31 +1003,31 @@ func (l *Synchronized{{.Name}}ArrayList) Reversed() *{{.Name}}ArrayList {
 // ── fluent mutators ───────────────────────────────────────────────────
 // All return the wrapper so chained calls stay thread-safe.
 
-func (l *Synchronized{{.Name}}ArrayList) With(value {{.GoType}}) *Synchronized{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) AddReturning(value {{.GoType}}) *Synchronized{{.Name}} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.With(value)
+	l.delegate.AddReturning(value)
 	return l
 }
 
-func (l *Synchronized{{.Name}}ArrayList) WithAll(values ...{{.GoType}}) *Synchronized{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) AddAllReturning(values ...{{.GoType}}) *Synchronized{{.Name}} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithAll(values...)
+	l.delegate.AddAllReturning(values...)
 	return l
 }
 
-func (l *Synchronized{{.Name}}ArrayList) Without(value {{.GoType}}) *Synchronized{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) RemoveReturning(value {{.GoType}}) *Synchronized{{.Name}} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.Without(value)
+	l.delegate.RemoveReturning(value)
 	return l
 }
 
-func (l *Synchronized{{.Name}}ArrayList) WithoutAll(values ...{{.GoType}}) *Synchronized{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) RemoveAllReturning(values ...{{.GoType}}) *Synchronized{{.Name}} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.WithoutAll(values...)
+	l.delegate.RemoveAllReturning(values...)
 	return l
 }
 
@@ -1046,7 +1036,7 @@ func (l *Synchronized{{.Name}}ArrayList) WithoutAll(values ...{{.GoType}}) *Sync
 // ToImmutable returns an immutable copy of the underlying list taken
 // while holding the read lock. The returned value is independent of
 // this wrapper.
-func (l *Synchronized{{.Name}}ArrayList) ToImmutable() *Immutable{{.Name}}ArrayList {
+func (l *Synchronized{{.Name}}) ToImmutable() *Immutable{{.Name}} {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.delegate.ToImmutable()

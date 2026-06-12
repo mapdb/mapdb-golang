@@ -8,30 +8,30 @@ import (
 	"unsafe"
 )
 
-// SynchronizedInt16ArrayStack is a thread-safe wrapper around Int16ArrayStack.
+// SynchronizedInt16 is a thread-safe wrapper around Int16.
 //
 // Read methods hold an RLock; writes hold a Lock. Callback methods
 // (ForEach/Select/…) snapshot under RLock and run the callback
 // unlocked so it can safely re-enter the wrapper.
-type SynchronizedInt16ArrayStack struct {
-	delegate *Int16ArrayStack
+type SynchronizedInt16 struct {
+	delegate *Int16
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedInt16ArrayStack creates a new thread-safe empty stack.
-func NewSynchronizedInt16ArrayStack() *SynchronizedInt16ArrayStack {
-	return &SynchronizedInt16ArrayStack{delegate: NewInt16ArrayStack()}
+// NewSynchronizedInt16 creates a new thread-safe empty stack.
+func NewSynchronizedInt16() *SynchronizedInt16 {
+	return &SynchronizedInt16{delegate: NewInt16()}
 }
 
-// NewSynchronizedInt16ArrayStackFrom wraps an existing stack. The
+// NewSynchronizedInt16From wraps an existing stack. The
 // wrapper takes ownership — do not mutate the delegate directly.
-func NewSynchronizedInt16ArrayStackFrom(s *Int16ArrayStack) *SynchronizedInt16ArrayStack {
-	return &SynchronizedInt16ArrayStack{delegate: s}
+func NewSynchronizedInt16From(s *Int16) *SynchronizedInt16 {
+	return &SynchronizedInt16{delegate: s}
 }
 
 // snapshot copies the stack contents under RLock. The returned slice
 // is ordered the same way the delegate's ToSlice would order it.
-func (s *SynchronizedInt16ArrayStack) snapshot() []int16 {
+func (s *SynchronizedInt16) snapshot() []int16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
@@ -39,19 +39,19 @@ func (s *SynchronizedInt16ArrayStack) snapshot() []int16 {
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (s *SynchronizedInt16ArrayStack) Push(value int16) {
+func (s *SynchronizedInt16) Push(value int16) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Push(value)
 }
 
-func (s *SynchronizedInt16ArrayStack) Pop() (int16, error) {
+func (s *SynchronizedInt16) Pop() (int16, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.delegate.Pop()
 }
 
-func (s *SynchronizedInt16ArrayStack) Clear() {
+func (s *SynchronizedInt16) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.delegate.Clear()
@@ -59,47 +59,38 @@ func (s *SynchronizedInt16ArrayStack) Clear() {
 
 // ── simple reads ──────────────────────────────────────────────────────
 
-func (s *SynchronizedInt16ArrayStack) Peek() (int16, error) {
+func (s *SynchronizedInt16) Peek() (int16, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Peek()
 }
 
-func (s *SynchronizedInt16ArrayStack) PeekAt(index int) (int16, error) {
+func (s *SynchronizedInt16) PeekAt(index int) int16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.PeekAt(index)
 }
 
-func (s *SynchronizedInt16ArrayStack) Size() int {
+// Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
+func (s *SynchronizedInt16) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.delegate.Size()
+	return s.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *SynchronizedInt16ArrayStack) Len() int { return s.Size() }
-
-func (s *SynchronizedInt16ArrayStack) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.IsEmpty()
-}
-
-func (s *SynchronizedInt16ArrayStack) Contains(value int16) bool {
+func (s *SynchronizedInt16) Contains(value int16) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Contains(value)
 }
 
-func (s *SynchronizedInt16ArrayStack) ToSlice() []int16 {
+func (s *SynchronizedInt16) ToSlice() []int16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToSlice()
 }
 
-func (s *SynchronizedInt16ArrayStack) String() string {
+func (s *SynchronizedInt16) String() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.String()
@@ -107,7 +98,7 @@ func (s *SynchronizedInt16ArrayStack) String() string {
 
 // ── iteration ────────────────────────────────────────────────────────
 
-func (s *SynchronizedInt16ArrayStack) All() iter.Seq[int16] {
+func (s *SynchronizedInt16) All() iter.Seq[int16] {
 	snapshot := s.snapshot()
 	return func(yield func(int16) bool) {
 		for _, v := range snapshot {
@@ -120,13 +111,13 @@ func (s *SynchronizedInt16ArrayStack) All() iter.Seq[int16] {
 
 // ── functional over snapshot ──────────────────────────────────────────
 
-func (s *SynchronizedInt16ArrayStack) ForEach(f func(int16)) {
+func (s *SynchronizedInt16) ForEach(f func(int16)) {
 	for _, v := range s.snapshot() {
 		f(v)
 	}
 }
 
-func (s *SynchronizedInt16ArrayStack) AnySatisfy(predicate func(int16) bool) bool {
+func (s *SynchronizedInt16) AnySatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return true
@@ -135,7 +126,7 @@ func (s *SynchronizedInt16ArrayStack) AnySatisfy(predicate func(int16) bool) boo
 	return false
 }
 
-func (s *SynchronizedInt16ArrayStack) AllSatisfy(predicate func(int16) bool) bool {
+func (s *SynchronizedInt16) AllSatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.snapshot() {
 		if !predicate(v) {
 			return false
@@ -144,7 +135,7 @@ func (s *SynchronizedInt16ArrayStack) AllSatisfy(predicate func(int16) bool) boo
 	return true
 }
 
-func (s *SynchronizedInt16ArrayStack) NoneSatisfy(predicate func(int16) bool) bool {
+func (s *SynchronizedInt16) NoneSatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return false
@@ -153,7 +144,7 @@ func (s *SynchronizedInt16ArrayStack) NoneSatisfy(predicate func(int16) bool) bo
 	return true
 }
 
-func (s *SynchronizedInt16ArrayStack) Count(predicate func(int16) bool) int {
+func (s *SynchronizedInt16) Count(predicate func(int16) bool) int {
 	n := 0
 	for _, v := range s.snapshot() {
 		if predicate(v) {
@@ -163,7 +154,7 @@ func (s *SynchronizedInt16ArrayStack) Count(predicate func(int16) bool) int {
 	return n
 }
 
-func (s *SynchronizedInt16ArrayStack) Detect(predicate func(int16) bool) (int16, bool) {
+func (s *SynchronizedInt16) Detect(predicate func(int16) bool) (int16, bool) {
 	for _, v := range s.snapshot() {
 		if predicate(v) {
 			return v, true
@@ -173,7 +164,7 @@ func (s *SynchronizedInt16ArrayStack) Detect(predicate func(int16) bool) (int16,
 	return zero, false
 }
 
-func (s *SynchronizedInt16ArrayStack) InjectInto(initial int16, f func(int16, int16) int16) int16 {
+func (s *SynchronizedInt16) InjectInto(initial int16, f func(int16, int16) int16) int16 {
 	acc := initial
 	for _, v := range s.snapshot() {
 		acc = f(acc, v)
@@ -183,13 +174,13 @@ func (s *SynchronizedInt16ArrayStack) InjectInto(initial int16, f func(int16, in
 
 // ── functional that return a new stack ───────────────────────────────
 
-func (s *SynchronizedInt16ArrayStack) Select(predicate func(int16) bool) *Int16ArrayStack {
+func (s *SynchronizedInt16) Select(predicate func(int16) bool) *Int16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Select(predicate)
 }
 
-func (s *SynchronizedInt16ArrayStack) Reject(predicate func(int16) bool) *Int16ArrayStack {
+func (s *SynchronizedInt16) Reject(predicate func(int16) bool) *Int16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.Reject(predicate)
@@ -197,23 +188,23 @@ func (s *SynchronizedInt16ArrayStack) Reject(predicate func(int16) bool) *Int16A
 
 // ── fluent mutators ───────────────────────────────────────────────────
 
-func (s *SynchronizedInt16ArrayStack) With(value int16) *SynchronizedInt16ArrayStack {
+func (s *SynchronizedInt16) AddReturning(value int16) *SynchronizedInt16 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.With(value)
+	s.delegate.AddReturning(value)
 	return s
 }
 
-func (s *SynchronizedInt16ArrayStack) WithAll(values ...int16) *SynchronizedInt16ArrayStack {
+func (s *SynchronizedInt16) AddAllReturning(values ...int16) *SynchronizedInt16 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.delegate.WithAll(values...)
+	s.delegate.AddAllReturning(values...)
 	return s
 }
 
 // ── conversions & equals ──────────────────────────────────────────────
 
-func (s *SynchronizedInt16ArrayStack) ToImmutable() *ImmutableInt16ArrayStack {
+func (s *SynchronizedInt16) ToImmutable() *ImmutableInt16 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.delegate.ToImmutable()
@@ -221,7 +212,7 @@ func (s *SynchronizedInt16ArrayStack) ToImmutable() *ImmutableInt16ArrayStack {
 
 // Equals compares by contents. Locks are acquired in pointer-address
 // order to prevent A.Equals(B) / B.Equals(A) deadlocks.
-func (s *SynchronizedInt16ArrayStack) Equals(other *SynchronizedInt16ArrayStack) bool {
+func (s *SynchronizedInt16) Equals(other *SynchronizedInt16) bool {
 	if s == other {
 		s.mu.RLock()
 		defer s.mu.RUnlock()

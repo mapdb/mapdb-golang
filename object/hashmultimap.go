@@ -122,18 +122,12 @@ func (h *HashMultimap[K, V]) RemoveMatching(k K, target V, eq func(V, V) bool) i
 	return removed
 }
 
-// Size returns the total number of values stored across all keys.
-func (h *HashMultimap[K, V]) Size() int { return h.totalSize }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (h *HashMultimap[K, V]) Len() int { return h.Size() }
+// Len returns the total number of values stored across all keys.
+// Use h.Len() == 0 to test for emptiness.
+func (h *HashMultimap[K, V]) Len() int { return h.totalSize }
 
 // SizeDistinct returns the number of distinct keys.
 func (h *HashMultimap[K, V]) SizeDistinct() int { return len(h.m) }
-
-// IsEmpty reports whether the multimap is empty.
-func (h *HashMultimap[K, V]) IsEmpty() bool { return h.totalSize == 0 }
 
 // Clear removes all entries.
 func (h *HashMultimap[K, V]) Clear() {

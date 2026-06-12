@@ -13,7 +13,7 @@ import (
 
 func TestLinkedHashSetBasic(t *testing.T) {
 	s := NewLinkedHashSet[int]()
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Fatal("expected empty")
 	}
 	if !s.Add(1) {
@@ -25,8 +25,8 @@ func TestLinkedHashSetBasic(t *testing.T) {
 	if s.Add(1) {
 		t.Fatal("expected false on duplicate")
 	}
-	if s.Size() != 2 {
-		t.Fatalf("expected 2, got %d", s.Size())
+	if s.Len() != 2 {
+		t.Fatalf("expected 2, got %d", s.Len())
 	}
 	if !s.Contains(1) {
 		t.Fatal("expected contains 1")
@@ -72,7 +72,7 @@ func TestLinkedHashSetRemove(t *testing.T) {
 
 	// Remove last element
 	s.Remove(3)
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Fatal("expected empty")
 	}
 }
@@ -80,7 +80,7 @@ func TestLinkedHashSetRemove(t *testing.T) {
 func TestLinkedHashSetClear(t *testing.T) {
 	s := NewLinkedHashSetFrom(1, 2, 3)
 	s.Clear()
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Fatal("expected empty after clear")
 	}
 }
@@ -101,29 +101,29 @@ func TestLinkedHashSetSetOperations(t *testing.T) {
 	b := NewLinkedHashSetFrom(2, 3, 4)
 
 	u := a.Union(b)
-	if u.Size() != 4 {
-		t.Fatalf("union expected 4, got %d", u.Size())
+	if u.Len() != 4 {
+		t.Fatalf("union expected 4, got %d", u.Len())
 	}
 	if !slices.Equal(u.ToSlice(), []int{1, 2, 3, 4}) {
 		t.Fatalf("union order expected [1,2,3,4], got %v", u.ToSlice())
 	}
 
 	inter := a.Intersect(b)
-	if inter.Size() != 2 {
-		t.Fatalf("intersect expected 2, got %d", inter.Size())
+	if inter.Len() != 2 {
+		t.Fatalf("intersect expected 2, got %d", inter.Len())
 	}
 
 	diff := a.Difference(b)
-	if diff.Size() != 1 {
-		t.Fatalf("diff expected 1, got %d", diff.Size())
+	if diff.Len() != 1 {
+		t.Fatalf("diff expected 1, got %d", diff.Len())
 	}
 	if !diff.Contains(1) {
 		t.Fatal("diff should contain 1")
 	}
 
 	sym := a.SymmetricDifference(b)
-	if sym.Size() != 2 {
-		t.Fatalf("symdiff expected 2, got %d", sym.Size())
+	if sym.Len() != 2 {
+		t.Fatalf("symdiff expected 2, got %d", sym.Len())
 	}
 }
 

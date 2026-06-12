@@ -9,28 +9,28 @@ import (
 )
 
 const (
-	objectInt8HashMapDefaultCapacity = 16
+	objectInt8DefaultCapacity = 16
 	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
-// ObjectInt8HashMap is an open-addressing hash map with generic comparable keys and int8 values.
+// ObjectInt8 is an open-addressing hash map with generic comparable keys and int8 values.
 // The value type is specialized to avoid boxing overhead.
-type ObjectInt8HashMap[K comparable] struct {
+type ObjectInt8[K comparable] struct {
 	keys     []K
 	values   []int8
 	occupied []bool
 	size     int
 }
 
-// NewObjectInt8HashMap creates a new empty ObjectInt8HashMap with default capacity.
-func NewObjectInt8HashMap[K comparable]() *ObjectInt8HashMap[K] {
-	return NewObjectInt8HashMapWithCapacity[K](objectInt8HashMapDefaultCapacity)
+// NewObjectInt8 creates a new empty ObjectInt8 with default capacity.
+func NewObjectInt8[K comparable]() *ObjectInt8[K] {
+	return NewObjectInt8WithCapacity[K](objectInt8DefaultCapacity)
 }
 
-// NewObjectInt8HashMapWithCapacity creates a new empty ObjectInt8HashMap with the given initial capacity.
-func NewObjectInt8HashMapWithCapacity[K comparable](capacity int) *ObjectInt8HashMap[K] {
-	cap := nextPowerOfTwoObjectInt8HashMap(capacity)
-	return &ObjectInt8HashMap[K]{
+// NewObjectInt8WithCapacity creates a new empty ObjectInt8 with the given initial capacity.
+func NewObjectInt8WithCapacity[K comparable](capacity int) *ObjectInt8[K] {
+	cap := nextPowerOfTwoObjectInt8(capacity)
+	return &ObjectInt8[K]{
 		keys:     make([]K, cap),
 		values:   make([]int8, cap),
 		occupied: make([]bool, cap),
@@ -39,7 +39,7 @@ func NewObjectInt8HashMapWithCapacity[K comparable](capacity int) *ObjectInt8Has
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
-func (m *ObjectInt8HashMap[K]) Put(key K, value int8) (int8, bool) {
+func (m *ObjectInt8[K]) Put(key K, value int8) (int8, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
@@ -65,7 +65,7 @@ func (m *ObjectInt8HashMap[K]) Put(key K, value int8) (int8, bool) {
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
-func (m *ObjectInt8HashMap[K]) Get(key K) (int8, bool) {
+func (m *ObjectInt8[K]) Get(key K) (int8, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0, false
@@ -85,7 +85,7 @@ func (m *ObjectInt8HashMap[K]) Get(key K) (int8, bool) {
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
-func (m *ObjectInt8HashMap[K]) GetOrDefault(key K, defaultValue int8) int8 {
+func (m *ObjectInt8[K]) GetOrDefault(key K, defaultValue int8) int8 {
 	if v, ok := m.Get(key); ok {
 		return v
 	}
@@ -93,7 +93,7 @@ func (m *ObjectInt8HashMap[K]) GetOrDefault(key K, defaultValue int8) int8 {
 }
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
-func (m *ObjectInt8HashMap[K]) Remove(key K) (int8, bool) {
+func (m *ObjectInt8[K]) Remove(key K) (int8, bool) {
 	cap := len(m.keys)
 	if cap == 0 {
 		return 0, false
@@ -112,7 +112,7 @@ func (m *ObjectInt8HashMap[K]) Remove(key K) (int8, bool) {
 			m.keys[idx] = zeroK
 			m.values[idx] = 0
 			m.size--
-			m.rehashFromObjectInt8HashMap(idx, mask)
+			m.rehashFromObjectInt8(idx, mask)
 			return old, true
 		}
 		idx = (idx + 1) & mask
@@ -120,27 +120,18 @@ func (m *ObjectInt8HashMap[K]) Remove(key K) (int8, bool) {
 }
 
 // ContainsKey returns true if the map contains the given key.
-func (m *ObjectInt8HashMap[K]) ContainsKey(key K) bool {
+func (m *ObjectInt8[K]) ContainsKey(key K) bool {
 	_, ok := m.Get(key)
 	return ok
 }
 
-// Size returns the number of key-value pairs in the map.
-func (m *ObjectInt8HashMap[K]) Size() int {
+// Len returns the number of elements. Use m.Len() == 0 to test for emptiness.
+func (m *ObjectInt8[K]) Len() int {
 	return m.size
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *ObjectInt8HashMap[K]) Len() int { return m.Size() }
-
-// IsEmpty returns true if the map contains no entries.
-func (m *ObjectInt8HashMap[K]) IsEmpty() bool {
-	return m.size == 0
-}
-
 // Clear removes all entries from the map.
-func (m *ObjectInt8HashMap[K]) Clear() {
+func (m *ObjectInt8[K]) Clear() {
 	var zeroK K
 	for i := range m.occupied {
 		m.occupied[i] = false
@@ -151,7 +142,7 @@ func (m *ObjectInt8HashMap[K]) Clear() {
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
-func (m *ObjectInt8HashMap[K]) All() iter.Seq2[K, int8] {
+func (m *ObjectInt8[K]) All() iter.Seq2[K, int8] {
 	return func(yield func(K, int8) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -164,7 +155,7 @@ func (m *ObjectInt8HashMap[K]) All() iter.Seq2[K, int8] {
 }
 
 // Keys returns an iter.Seq that yields all keys.
-func (m *ObjectInt8HashMap[K]) Keys() iter.Seq[K] {
+func (m *ObjectInt8[K]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -177,7 +168,7 @@ func (m *ObjectInt8HashMap[K]) Keys() iter.Seq[K] {
 }
 
 // Values returns an iter.Seq that yields all values.
-func (m *ObjectInt8HashMap[K]) Values() iter.Seq[int8] {
+func (m *ObjectInt8[K]) Values() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
 		for i := range m.occupied {
 			if m.occupied[i] {
@@ -190,7 +181,7 @@ func (m *ObjectInt8HashMap[K]) Values() iter.Seq[int8] {
 }
 
 // ForEach calls the given function for each key-value pair.
-func (m *ObjectInt8HashMap[K]) ForEach(f func(K, int8)) {
+func (m *ObjectInt8[K]) ForEach(f func(K, int8)) {
 	for i := range m.occupied {
 		if m.occupied[i] {
 			f(m.keys[i], m.values[i])
@@ -199,8 +190,8 @@ func (m *ObjectInt8HashMap[K]) ForEach(f func(K, int8)) {
 }
 
 // Select returns a new map containing only entries that satisfy the predicate.
-func (m *ObjectInt8HashMap[K]) Select(predicate func(K, int8) bool) *ObjectInt8HashMap[K] {
-	result := NewObjectInt8HashMap[K]()
+func (m *ObjectInt8[K]) Select(predicate func(K, int8) bool) *ObjectInt8[K] {
+	result := NewObjectInt8[K]()
 	for i := range m.occupied {
 		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -210,8 +201,8 @@ func (m *ObjectInt8HashMap[K]) Select(predicate func(K, int8) bool) *ObjectInt8H
 }
 
 // Reject returns a new map containing only entries that do not satisfy the predicate.
-func (m *ObjectInt8HashMap[K]) Reject(predicate func(K, int8) bool) *ObjectInt8HashMap[K] {
-	result := NewObjectInt8HashMap[K]()
+func (m *ObjectInt8[K]) Reject(predicate func(K, int8) bool) *ObjectInt8[K] {
+	result := NewObjectInt8[K]()
 	for i := range m.occupied {
 		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
@@ -221,7 +212,7 @@ func (m *ObjectInt8HashMap[K]) Reject(predicate func(K, int8) bool) *ObjectInt8H
 }
 
 // String returns a string representation of the map.
-func (m *ObjectInt8HashMap[K]) String() string {
+func (m *ObjectInt8[K]) String() string {
 	if m.size == 0 {
 		return "{}"
 	}
@@ -241,17 +232,17 @@ func (m *ObjectInt8HashMap[K]) String() string {
 	return sb.String()
 }
 
-func (m *ObjectInt8HashMap[K]) needsResize() bool {
+func (m *ObjectInt8[K]) needsResize() bool {
 	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *ObjectInt8HashMap[K]) resize() {
+func (m *ObjectInt8[K]) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
 	oldOccupied := m.occupied
 	newCap := len(oldKeys) * 2
 	if newCap == 0 {
-		newCap = objectInt8HashMapDefaultCapacity
+		newCap = objectInt8DefaultCapacity
 	}
 	m.keys = make([]K, newCap)
 	m.values = make([]int8, newCap)
@@ -265,7 +256,7 @@ func (m *ObjectInt8HashMap[K]) resize() {
 	}
 }
 
-func (m *ObjectInt8HashMap[K]) rehashFromObjectInt8HashMap(deleted int, mask int) {
+func (m *ObjectInt8[K]) rehashFromObjectInt8(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(hashComparable(m.keys[idx])) & mask
@@ -284,7 +275,7 @@ func (m *ObjectInt8HashMap[K]) rehashFromObjectInt8HashMap(deleted int, mask int
 	}
 }
 
-func nextPowerOfTwoObjectInt8HashMap(n int) int {
+func nextPowerOfTwoObjectInt8(n int) int {
 	if n <= 0 {
 		return 16
 	}

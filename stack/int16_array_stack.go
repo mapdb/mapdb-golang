@@ -8,22 +8,22 @@ import (
 	"strings"
 )
 
-// Int16ArrayStack is a LIFO (last-in, first-out) stack backed by a int16 slice.
-type Int16ArrayStack struct {
+// Int16 is a LIFO (last-in, first-out) stack backed by a int16 slice.
+type Int16 struct {
 	items []int16
 }
 
-// NewInt16ArrayStack creates a new empty Int16ArrayStack.
-func NewInt16ArrayStack() *Int16ArrayStack {
-	return &Int16ArrayStack{
+// NewInt16 creates a new empty Int16.
+func NewInt16() *Int16 {
+	return &Int16{
 		items: make([]int16, 0, 16),
 	}
 }
 
-// Int16ArrayStackOf creates a new Int16ArrayStack from the given values.
+// Int16Of creates a new Int16 from the given values.
 // The last value becomes the top of the stack.
-func Int16ArrayStackOf(values ...int16) *Int16ArrayStack {
-	s := &Int16ArrayStack{
+func Int16Of(values ...int16) *Int16 {
+	s := &Int16{
 		items: make([]int16, len(values)),
 	}
 	copy(s.items, values)
@@ -31,58 +31,50 @@ func Int16ArrayStackOf(values ...int16) *Int16ArrayStack {
 }
 
 // Push adds a value to the top of the stack.
-func (s *Int16ArrayStack) Push(value int16) {
+func (s *Int16) Push(value int16) {
 	s.items = append(s.items, value)
 }
 
-// Pop removes and returns the top value, or an error if the stack is empty.
-func (s *Int16ArrayStack) Pop() (int16, error) {
+// Pop removes and returns the top value. The bool is false if the stack is empty.
+func (s *Int16) Pop() (int16, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int16ArrayStack: Pop on empty stack")
+		return 0, false
 	}
 	top := s.items[len(s.items)-1]
 	s.items = s.items[:len(s.items)-1]
-	return top, nil
+	return top, true
 }
 
-// Peek returns the top value without removing it, or an error if the stack is empty.
-func (s *Int16ArrayStack) Peek() (int16, error) {
+// Peek returns the top value without removing it. The bool is false if the stack is empty.
+func (s *Int16) Peek() (int16, bool) {
 	if len(s.items) == 0 {
-		return 0, fmt.Errorf("Int16ArrayStack: Peek on empty stack")
+		return 0, false
 	}
-	return s.items[len(s.items)-1], nil
+	return s.items[len(s.items)-1], true
 }
 
-// PeekAt returns the element at the given distance from the top (0 = top),
-// or an error if the index is out of bounds.
-func (s *Int16ArrayStack) PeekAt(index int) (int16, error) {
+// PeekAt returns the element at the given distance from the top (0 = top).
+// It panics if the index is out of range, like a native Go slice.
+func (s *Int16) PeekAt(index int) int16 {
 	if index < 0 || index >= len(s.items) {
-		return 0, fmt.Errorf("Int16ArrayStack: PeekAt index out of bounds: %d (size %d)", index, len(s.items))
+		panic(fmt.Sprintf("stack.Int16: index out of range [%d] with length %d", index, len(s.items)))
 	}
-	return s.items[len(s.items)-1-index], nil
+	return s.items[len(s.items)-1-index]
 }
 
-// Size returns the number of elements in the stack.
-func (s *Int16ArrayStack) Size() int {
+// Len returns the number of elements in the stack. Use s.Len() == 0 to test
+// for emptiness.
+func (s *Int16) Len() int {
 	return len(s.items)
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (s *Int16ArrayStack) Len() int { return s.Size() }
-
-// IsEmpty returns true if the stack contains no elements.
-func (s *Int16ArrayStack) IsEmpty() bool {
-	return len(s.items) == 0
-}
-
 // Clear removes all elements from the stack.
-func (s *Int16ArrayStack) Clear() {
+func (s *Int16) Clear() {
 	s.items = s.items[:0]
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *Int16ArrayStack) Contains(value int16) bool {
+func (s *Int16) Contains(value int16) bool {
 	for _, v := range s.items {
 		if v == value {
 			return true
@@ -92,7 +84,7 @@ func (s *Int16ArrayStack) Contains(value int16) bool {
 }
 
 // All returns an iter.Seq that yields elements from top to bottom.
-func (s *Int16ArrayStack) All() iter.Seq[int16] {
+func (s *Int16) All() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for i := len(s.items) - 1; i >= 0; i-- {
 			if !yield(s.items[i]) {
@@ -103,7 +95,7 @@ func (s *Int16ArrayStack) All() iter.Seq[int16] {
 }
 
 // ForEach calls the given function for each element from top to bottom.
-func (s *Int16ArrayStack) ForEach(f func(int16)) {
+func (s *Int16) ForEach(f func(int16)) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		f(s.items[i])
 	}
@@ -111,8 +103,8 @@ func (s *Int16ArrayStack) ForEach(f func(int16)) {
 
 // Select returns a new stack containing only elements that satisfy the predicate.
 // Order is preserved (top of result corresponds to top of original that passed).
-func (s *Int16ArrayStack) Select(predicate func(int16) bool) *Int16ArrayStack {
-	result := NewInt16ArrayStack()
+func (s *Int16) Select(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for _, v := range s.items {
 		if predicate(v) {
 			result.Push(v)
@@ -122,8 +114,8 @@ func (s *Int16ArrayStack) Select(predicate func(int16) bool) *Int16ArrayStack {
 }
 
 // Reject returns a new stack containing only elements that do not satisfy the predicate.
-func (s *Int16ArrayStack) Reject(predicate func(int16) bool) *Int16ArrayStack {
-	result := NewInt16ArrayStack()
+func (s *Int16) Reject(predicate func(int16) bool) *Int16 {
+	result := NewInt16()
 	for _, v := range s.items {
 		if !predicate(v) {
 			result.Push(v)
@@ -133,7 +125,7 @@ func (s *Int16ArrayStack) Reject(predicate func(int16) bool) *Int16ArrayStack {
 }
 
 // Detect returns the first element from the top that satisfies the predicate, or zero and false.
-func (s *Int16ArrayStack) Detect(predicate func(int16) bool) (int16, bool) {
+func (s *Int16) Detect(predicate func(int16) bool) (int16, bool) {
 	for i := len(s.items) - 1; i >= 0; i-- {
 		if predicate(s.items[i]) {
 			return s.items[i], true
@@ -143,7 +135,7 @@ func (s *Int16ArrayStack) Detect(predicate func(int16) bool) (int16, bool) {
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (s *Int16ArrayStack) AnySatisfy(predicate func(int16) bool) bool {
+func (s *Int16) AnySatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return true
@@ -153,7 +145,7 @@ func (s *Int16ArrayStack) AnySatisfy(predicate func(int16) bool) bool {
 }
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (s *Int16ArrayStack) AllSatisfy(predicate func(int16) bool) bool {
+func (s *Int16) AllSatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.items {
 		if !predicate(v) {
 			return false
@@ -163,7 +155,7 @@ func (s *Int16ArrayStack) AllSatisfy(predicate func(int16) bool) bool {
 }
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (s *Int16ArrayStack) NoneSatisfy(predicate func(int16) bool) bool {
+func (s *Int16) NoneSatisfy(predicate func(int16) bool) bool {
 	for _, v := range s.items {
 		if predicate(v) {
 			return false
@@ -173,7 +165,7 @@ func (s *Int16ArrayStack) NoneSatisfy(predicate func(int16) bool) bool {
 }
 
 // Count returns the number of elements that satisfy the predicate.
-func (s *Int16ArrayStack) Count(predicate func(int16) bool) int {
+func (s *Int16) Count(predicate func(int16) bool) int {
 	count := 0
 	for _, v := range s.items {
 		if predicate(v) {
@@ -184,7 +176,7 @@ func (s *Int16ArrayStack) Count(predicate func(int16) bool) int {
 }
 
 // InjectInto performs a left fold from bottom to top.
-func (s *Int16ArrayStack) InjectInto(initial int16, f func(int16, int16) int16) int16 {
+func (s *Int16) InjectInto(initial int16, f func(int16, int16) int16) int16 {
 	result := initial
 	for _, v := range s.items {
 		result = f(result, v)
@@ -193,7 +185,7 @@ func (s *Int16ArrayStack) InjectInto(initial int16, f func(int16, int16) int16) 
 }
 
 // ToSlice returns all elements as a slice (top element first).
-func (s *Int16ArrayStack) ToSlice() []int16 {
+func (s *Int16) ToSlice() []int16 {
 	result := make([]int16, len(s.items))
 	for i, j := len(s.items)-1, 0; i >= 0; i, j = i-1, j+1 {
 		result[j] = s.items[i]
@@ -202,20 +194,20 @@ func (s *Int16ArrayStack) ToSlice() []int16 {
 }
 
 // ToList returns the elements as a slice in stack order (bottom first, for internal use).
-func (s *Int16ArrayStack) toList() []int16 {
+func (s *Int16) toList() []int16 {
 	result := make([]int16, len(s.items))
 	copy(result, s.items)
 	return result
 }
 
-// With returns the stack after pushing the value (fluent API).
-func (s *Int16ArrayStack) With(value int16) *Int16ArrayStack {
+// AddReturning pushes the value and returns the receiver (mutating, fluent).
+func (s *Int16) AddReturning(value int16) *Int16 {
 	s.Push(value)
 	return s
 }
 
-// WithAll returns the stack after pushing all values (fluent API).
-func (s *Int16ArrayStack) WithAll(values ...int16) *Int16ArrayStack {
+// AddAllReturning pushes all values and returns the receiver (mutating, fluent).
+func (s *Int16) AddAllReturning(values ...int16) *Int16 {
 	for _, v := range values {
 		s.Push(v)
 	}
@@ -223,12 +215,12 @@ func (s *Int16ArrayStack) WithAll(values ...int16) *Int16ArrayStack {
 }
 
 // ToImmutable returns an immutable copy of this stack.
-func (s *Int16ArrayStack) ToImmutable() *ImmutableInt16ArrayStack {
-	return ImmutableInt16ArrayStackFrom(s)
+func (s *Int16) ToImmutable() *ImmutableInt16 {
+	return ImmutableInt16From(s)
 }
 
 // String returns a string representation of the stack (top element first).
-func (s *Int16ArrayStack) String() string {
+func (s *Int16) String() string {
 	if len(s.items) == 0 {
 		return "[]"
 	}
@@ -245,7 +237,7 @@ func (s *Int16ArrayStack) String() string {
 }
 
 // Equals returns true if the other stack has the same elements in the same order.
-func (s *Int16ArrayStack) Equals(other *Int16ArrayStack) bool {
+func (s *Int16) Equals(other *Int16) bool {
 	if len(s.items) != len(other.items) {
 		return false
 	}

@@ -52,14 +52,10 @@ func AsParallelWith[T any](data []T, minForkSize, taskCount int) ParallelIterabl
 	}
 }
 
-// Len returns the number of elements in the view.
+// Len returns the number of elements in the view. Use p.Len() == 0 to test for
+// emptiness.
 func (p ParallelIterable[T]) Len() int {
 	return len(p.data)
-}
-
-// IsEmpty reports whether the view has no elements.
-func (p ParallelIterable[T]) IsEmpty() bool {
-	return len(p.data) == 0
 }
 
 // ForEach applies f to every element in parallel batches. Order within a batch

@@ -1,4 +1,3 @@
-
 package arraylist
 
 import (
@@ -7,87 +6,85 @@ import (
 	"testing"
 )
 
-func TestSynchronizedFloat32ArrayList_Generated_AddGetSize(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayList()
+func TestSynchronizedFloat32_Generated_AddGetSize(t *testing.T) {
+	s := NewSynchronizedFloat32()
 	s.Add(1.0)
 	s.Add(2.0)
 	s.Add(3.0)
-	if s.Size() != 3 {
-		t.Errorf("Size = %d", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size = %d", s.Len())
 	}
-	got, err := s.Get(1)
-	if err != nil || !(math.Float32bits(got) == math.Float32bits(2.0)) {
-		t.Errorf("Get(1) = (%v, %v)", got, err)
+	got := s.Get(1)
+	if !(math.Float32bits(got) == math.Float32bits(2.0)) {
+		t.Errorf("Get(1) = %v", got)
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_AddAll(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayList()
+func TestSynchronizedFloat32_Generated_AddAll(t *testing.T) {
+	s := NewSynchronizedFloat32()
 	s.AddAll(1.0, 2.0, 3.0)
-	if s.Size() != 3 {
-		t.Errorf("AddAll Size = %d, want 3", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("AddAll Size = %d, want 3", s.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Set(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayListFrom(Float32ArrayListOf(1.0, 2.0))
-	old, err := s.Set(0, 3.0)
-	if err != nil || !(math.Float32bits(old) == math.Float32bits(1.0)) {
-		t.Errorf("Set = (%v, %v)", old, err)
+func TestSynchronizedFloat32_Generated_Set(t *testing.T) {
+	s := NewSynchronizedFloat32From(Float32Of(1.0, 2.0))
+	old := s.Set(0, 3.0)
+	if !(math.Float32bits(old) == math.Float32bits(1.0)) {
+		t.Errorf("Set = %v", old)
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_RemoveAtIndex(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayListFrom(Float32ArrayListOf(1.0, 2.0, 3.0))
-	if _, err := s.RemoveAtIndex(1); err != nil {
-		t.Errorf("RemoveAtIndex error = %v", err)
-	}
-	if s.Size() != 2 {
-		t.Errorf("Size = %d", s.Size())
+func TestSynchronizedFloat32_Generated_RemoveAtIndex(t *testing.T) {
+	s := NewSynchronizedFloat32From(Float32Of(1.0, 2.0, 3.0))
+	s.RemoveAtIndex(1)
+	if s.Len() != 2 {
+		t.Errorf("Size = %d", s.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Remove(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 1.0)
+func TestSynchronizedFloat32_Generated_Remove(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 1.0)
 	if !s.Remove(1.0) {
 		t.Error("Remove should find first occurrence")
 	}
-	if s.Size() != 2 {
-		t.Errorf("Size after Remove = %d, want 2", s.Size())
+	if s.Len() != 2 {
+		t.Errorf("Size after Remove = %d, want 2", s.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Contains(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayListFrom(Float32ArrayListOf(1.0, 2.0))
+func TestSynchronizedFloat32_Generated_Contains(t *testing.T) {
+	s := NewSynchronizedFloat32From(Float32Of(1.0, 2.0))
 	if !s.Contains(1.0) {
 		t.Error("Contains should be true")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_IndexOf(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_IndexOf(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	if idx := s.IndexOf(2.0); idx != 1 {
 		t.Errorf("IndexOf = %d, want 1", idx)
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_IsEmpty(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayList()
-	if !s.IsEmpty() {
+func TestSynchronizedFloat32_Generated_IsEmpty(t *testing.T) {
+	s := NewSynchronizedFloat32()
+	if s.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Clear(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayListFrom(Float32ArrayListOf(1.0, 2.0))
+func TestSynchronizedFloat32_Generated_Clear(t *testing.T) {
+	s := NewSynchronizedFloat32From(Float32Of(1.0, 2.0))
 	s.Clear()
-	if s.Size() != 0 {
-		t.Errorf("After clear: %d", s.Size())
+	if s.Len() != 0 {
+		t.Errorf("After clear: %d", s.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_All(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayListFrom(Float32ArrayListOf(1.0, 2.0))
+func TestSynchronizedFloat32_Generated_All(t *testing.T) {
+	s := NewSynchronizedFloat32From(Float32Of(1.0, 2.0))
 	count := 0
 	for range s.All() {
 		count++
@@ -97,8 +94,8 @@ func TestSynchronizedFloat32ArrayList_Generated_All(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_AllWithIndex(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_AllWithIndex(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	last := -1
 	for i := range s.AllWithIndex() {
 		last = i
@@ -108,8 +105,8 @@ func TestSynchronizedFloat32ArrayList_Generated_AllWithIndex(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_ForEach(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_ForEach(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	n := 0
 	s.ForEach(func(float32) { n++ })
 	if n != 3 {
@@ -117,8 +114,8 @@ func TestSynchronizedFloat32ArrayList_Generated_ForEach(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_ForEachWithIndex(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_ForEachWithIndex(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	lastIdx := -1
 	s.ForEachWithIndex(func(_ float32, i int) { lastIdx = i })
 	if lastIdx != 2 {
@@ -126,45 +123,45 @@ func TestSynchronizedFloat32ArrayList_Generated_ForEachWithIndex(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_AnySatisfy(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0)
+func TestSynchronizedFloat32_Generated_AnySatisfy(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0)
 	if !s.AnySatisfy(func(x float32) bool { return math.Float32bits(x) == math.Float32bits(1.0) }) {
 		t.Error("AnySatisfy should be true")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_AllSatisfy(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 1.0)
+func TestSynchronizedFloat32_Generated_AllSatisfy(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 1.0)
 	if !s.AllSatisfy(func(x float32) bool { return math.Float32bits(x) == math.Float32bits(1.0) }) {
 		t.Error("AllSatisfy should be true")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_NoneSatisfy(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 1.0)
+func TestSynchronizedFloat32_Generated_NoneSatisfy(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 1.0)
 	if !s.NoneSatisfy(func(x float32) bool { return math.Float32bits(x) == math.Float32bits(3.0) }) {
 		t.Error("NoneSatisfy should be true")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Count(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 1.0)
+func TestSynchronizedFloat32_Generated_Count(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 1.0)
 	c := s.Count(func(x float32) bool { return math.Float32bits(x) == math.Float32bits(1.0) })
 	if c != 2 {
 		t.Errorf("Count = %d, want 2", c)
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Detect(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_Detect(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	got, ok := s.Detect(func(x float32) bool { return math.Float32bits(x) == math.Float32bits(2.0) })
 	if !ok || !(math.Float32bits(got) == math.Float32bits(2.0)) {
 		t.Errorf("Detect = (%v, %v)", got, ok)
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_InjectInto(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_InjectInto(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	// Identity-ish accumulator: count elements by returning acc + 1 as float32.
 	result := s.InjectInto(1.0, func(acc, _ float32) float32 { return acc })
 	if !(math.Float32bits(result) == math.Float32bits(1.0)) {
@@ -172,90 +169,90 @@ func TestSynchronizedFloat32ArrayList_Generated_InjectInto(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_SelectReject(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_SelectReject(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	sel := s.Select(func(x float32) bool { return math.Float32bits(x) == math.Float32bits(2.0) })
-	if sel.Size() != 1 {
-		t.Errorf("Select Size = %d, want 1", sel.Size())
+	if sel.Len() != 1 {
+		t.Errorf("Select Size = %d, want 1", sel.Len())
 	}
 	rej := s.Reject(func(x float32) bool { return math.Float32bits(x) == math.Float32bits(2.0) })
-	if rej.Size() != 2 {
-		t.Errorf("Reject Size = %d, want 2", rej.Size())
+	if rej.Len() != 2 {
+		t.Errorf("Reject Size = %d, want 2", rej.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Distinct(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 1.0, 2.0)
+func TestSynchronizedFloat32_Generated_Distinct(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 1.0, 2.0)
 	d := s.Distinct()
-	if d.Size() != 2 {
-		t.Errorf("Distinct Size = %d, want 2", d.Size())
+	if d.Len() != 2 {
+		t.Errorf("Distinct Size = %d, want 2", d.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Reversed(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_Reversed(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	r := s.Reversed()
-	got, _ := r.Get(0)
+	got := r.Get(0)
 	if !(math.Float32bits(got) == math.Float32bits(3.0)) {
 		t.Errorf("Reversed[0] = %v", got)
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_WithWithout(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayList()
-	s.With(1.0).With(2.0)
-	if s.Size() != 2 {
-		t.Errorf("With fluent Size = %d", s.Size())
+func TestSynchronizedFloat32_Generated_WithWithout(t *testing.T) {
+	s := NewSynchronizedFloat32()
+	s.AddReturning(1.0).AddReturning(2.0)
+	if s.Len() != 2 {
+		t.Errorf("With fluent Size = %d", s.Len())
 	}
-	s.Without(1.0)
-	if s.Size() != 1 {
-		t.Errorf("Without Size = %d", s.Size())
+	s.RemoveReturning(1.0)
+	if s.Len() != 1 {
+		t.Errorf("Without Size = %d", s.Len())
 	}
-	if got, _ := s.Get(0); !(math.Float32bits(got) == math.Float32bits(2.0)) {
+	if got := s.Get(0); !(math.Float32bits(got) == math.Float32bits(2.0)) {
 		t.Errorf("remaining = %v", got)
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_WithAllWithoutAll(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayList()
-	s.WithAll(1.0, 2.0, 3.0)
-	if s.Size() != 3 {
-		t.Errorf("WithAll Size = %d", s.Size())
+func TestSynchronizedFloat32_Generated_WithAllWithoutAll(t *testing.T) {
+	s := NewSynchronizedFloat32()
+	s.AddAllReturning(1.0, 2.0, 3.0)
+	if s.Len() != 3 {
+		t.Errorf("WithAll Size = %d", s.Len())
 	}
-	s.WithoutAll(1.0, 3.0)
-	if s.Size() != 1 {
-		t.Errorf("WithoutAll Size = %d", s.Size())
+	s.RemoveAllReturning(1.0, 3.0)
+	if s.Len() != 1 {
+		t.Errorf("WithoutAll Size = %d", s.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_Sort(t *testing.T) {
+func TestSynchronizedFloat32_Generated_Sort(t *testing.T) {
 	// Sort is primitive-order-sensitive; just check it runs and keeps size.
-	s := SynchronizedFloat32ArrayListOf(3.0, 1.0, 2.0)
+	s := SynchronizedFloat32Of(3.0, 1.0, 2.0)
 	s.Sort()
-	if s.Size() != 3 {
-		t.Errorf("Sort Size = %d", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Sort Size = %d", s.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_SortWithComparator(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_SortWithComparator(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	// Trivial comparator (everything equal) — just exercises the plumbing.
 	s.SortWithComparator(func(_, _ float32) bool { return false })
-	if s.Size() != 3 {
-		t.Errorf("SortWithComparator Size = %d", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("SortWithComparator Size = %d", s.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_BinarySearch(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_BinarySearch(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	s.Sort()
 	if _, found := s.BinarySearch(2.0); !found {
 		t.Error("BinarySearch should find 2.0")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_SumMinMax(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_SumMinMax(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	_ = s.Sum()
 	if _, ok := s.Min(); !ok {
 		t.Error("Min should find value")
@@ -265,16 +262,16 @@ func TestSynchronizedFloat32ArrayList_Generated_SumMinMax(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_EqualsSelf(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0)
+func TestSynchronizedFloat32_Generated_EqualsSelf(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0)
 	if !s.Equals(s) {
 		t.Error("Equals(self) should be true")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_EqualsDifferent(t *testing.T) {
-	a := SynchronizedFloat32ArrayListOf(1.0, 2.0)
-	b := SynchronizedFloat32ArrayListOf(1.0, 2.0)
+func TestSynchronizedFloat32_Generated_EqualsDifferent(t *testing.T) {
+	a := SynchronizedFloat32Of(1.0, 2.0)
+	b := SynchronizedFloat32Of(1.0, 2.0)
 	if !a.Equals(b) {
 		t.Error("Equals on matching contents should be true")
 	}
@@ -285,39 +282,39 @@ func TestSynchronizedFloat32ArrayList_Generated_EqualsDifferent(t *testing.T) {
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_ToImmutable(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0)
+func TestSynchronizedFloat32_Generated_ToImmutable(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0)
 	imm := s.ToImmutable()
-	if imm.Size() != 2 {
-		t.Errorf("ToImmutable Size = %d", imm.Size())
+	if imm.Len() != 2 {
+		t.Errorf("ToImmutable Size = %d", imm.Len())
 	}
 	// Mutating the source must not affect the immutable copy.
 	s.Add(3.0)
-	if imm.Size() != 2 {
-		t.Errorf("Immutable Size after source mutation = %d, want 2", imm.Size())
+	if imm.Len() != 2 {
+		t.Errorf("Immutable Size after source mutation = %d, want 2", imm.Len())
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_ToSlice(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayListFrom(Float32ArrayListOf(1.0, 2.0))
+func TestSynchronizedFloat32_Generated_ToSlice(t *testing.T) {
+	s := NewSynchronizedFloat32From(Float32Of(1.0, 2.0))
 	if len(s.ToSlice()) != 2 {
 		t.Error("wrong len")
 	}
 }
 
-func TestSynchronizedFloat32ArrayList_Generated_String(t *testing.T) {
-	s := NewSynchronizedFloat32ArrayListFrom(Float32ArrayListOf(1.0))
+func TestSynchronizedFloat32_Generated_String(t *testing.T) {
+	s := NewSynchronizedFloat32From(Float32Of(1.0))
 	if s.String() == "" {
 		t.Error("empty")
 	}
 }
 
-// TestSynchronizedFloat32ArrayList_Generated_ConcurrentFunctional exercises the snapshot-based
+// TestSynchronizedFloat32_Generated_ConcurrentFunctional exercises the snapshot-based
 // functional path under concurrent writers. Callbacks must never run
 // while the write lock is held — so a predicate that tries to Add back
 // into the same wrapper must not deadlock.
-func TestSynchronizedFloat32ArrayList_Generated_ConcurrentFunctional(t *testing.T) {
-	s := SynchronizedFloat32ArrayListOf(1.0, 2.0, 3.0)
+func TestSynchronizedFloat32_Generated_ConcurrentFunctional(t *testing.T) {
+	s := SynchronizedFloat32Of(1.0, 2.0, 3.0)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -331,7 +328,7 @@ func TestSynchronizedFloat32ArrayList_Generated_ConcurrentFunctional(t *testing.
 		for i := 0; i < 100; i++ {
 			// Callback re-enters the wrapper; must not deadlock.
 			s.AnySatisfy(func(x float32) bool {
-				_ = s.Size()
+				_ = s.Len()
 				return math.Float32bits(x) == math.Float32bits(1.0)
 			})
 		}

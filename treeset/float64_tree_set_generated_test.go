@@ -1,15 +1,14 @@
-
 package treeset
 
 import "testing"
 
-func TestFloat64TreeSet_Generated_AddContains(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_AddContains(t *testing.T) {
+	s := NewFloat64()
 	s.Add(3.0)
 	s.Add(1.0)
 	s.Add(2.0)
-	if s.Size() != 3 {
-		t.Errorf("Size = %d", s.Size())
+	if s.Len() != 3 {
+		t.Errorf("Size = %d", s.Len())
 	}
 	if !s.Contains(2.0) {
 		t.Error("Contains should be true")
@@ -18,16 +17,16 @@ func TestFloat64TreeSet_Generated_AddContains(t *testing.T) {
 		t.Error("Contains should be false")
 	}
 }
-func TestFloat64TreeSet_Generated_AddDuplicate(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_AddDuplicate(t *testing.T) {
+	s := NewFloat64()
 	s.Add(1.0)
 	added := s.Add(1.0)
 	if added {
 		t.Error("Duplicate should return false")
 	}
 }
-func TestFloat64TreeSet_Generated_Remove(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_Remove(t *testing.T) {
+	s := NewFloat64()
 	s.Add(1.0)
 	s.Add(2.0)
 	if !s.Remove(1.0) {
@@ -37,8 +36,8 @@ func TestFloat64TreeSet_Generated_Remove(t *testing.T) {
 		t.Error("Should not contain")
 	}
 }
-func TestFloat64TreeSet_Generated_MinMax(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_MinMax(t *testing.T) {
+	s := NewFloat64()
 	s.Add(3.0)
 	s.Add(1.0)
 	s.Add(2.0)
@@ -49,8 +48,8 @@ func TestFloat64TreeSet_Generated_MinMax(t *testing.T) {
 		t.Errorf("Max = %v", max)
 	}
 }
-func TestFloat64TreeSet_Generated_FloorCeiling(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_FloorCeiling(t *testing.T) {
+	s := NewFloat64()
 	s.Add(1.0)
 	s.Add(3.0)
 	if f, ok := s.Floor(2.0); !ok || f != 1.0 {
@@ -60,16 +59,16 @@ func TestFloat64TreeSet_Generated_FloorCeiling(t *testing.T) {
 		t.Errorf("Ceiling = %v", c)
 	}
 }
-func TestFloat64TreeSet_Generated_Clear(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_Clear(t *testing.T) {
+	s := NewFloat64()
 	s.Add(1.0)
 	s.Clear()
-	if !s.IsEmpty() {
+	if s.Len() != 0 {
 		t.Error("Should be empty")
 	}
 }
-func TestFloat64TreeSet_Generated_SortedIteration(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_SortedIteration(t *testing.T) {
+	s := NewFloat64()
 	s.Add(3.0)
 	s.Add(1.0)
 	s.Add(2.0)
@@ -83,59 +82,59 @@ func TestFloat64TreeSet_Generated_SortedIteration(t *testing.T) {
 		}
 	}
 }
-func TestFloat64TreeSet_Generated_Select(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_Select(t *testing.T) {
+	s := NewFloat64()
 	s.Add(1.0)
 	s.Add(2.0)
 	s.Add(3.0)
 	sel := s.Select(func(v float64) bool { return v > 1.0 })
-	if sel.Size() != 2 {
-		t.Errorf("Select size = %d", sel.Size())
+	if sel.Len() != 2 {
+		t.Errorf("Select size = %d", sel.Len())
 	}
 }
-func TestFloat64TreeSet_Generated_Union(t *testing.T) {
-	a := NewFloat64TreeSet()
+func TestFloat64_Generated_Union(t *testing.T) {
+	a := NewFloat64()
 	a.Add(1.0)
 	a.Add(2.0)
-	b := NewFloat64TreeSet()
+	b := NewFloat64()
 	b.Add(2.0)
 	b.Add(3.0)
-	if a.Union(b).Size() != 3 {
+	if a.Union(b).Len() != 3 {
 		t.Error("Union wrong")
 	}
 }
-func TestFloat64TreeSet_Generated_Intersect(t *testing.T) {
-	a := NewFloat64TreeSet()
+func TestFloat64_Generated_Intersect(t *testing.T) {
+	a := NewFloat64()
 	a.Add(1.0)
 	a.Add(2.0)
-	b := NewFloat64TreeSet()
+	b := NewFloat64()
 	b.Add(2.0)
 	b.Add(3.0)
-	if a.Intersect(b).Size() != 1 {
+	if a.Intersect(b).Len() != 1 {
 		t.Error("Intersect wrong")
 	}
 }
-func TestFloat64TreeSet_Generated_Difference(t *testing.T) {
-	a := NewFloat64TreeSet()
+func TestFloat64_Generated_Difference(t *testing.T) {
+	a := NewFloat64()
 	a.Add(1.0)
 	a.Add(2.0)
-	b := NewFloat64TreeSet()
+	b := NewFloat64()
 	b.Add(2.0)
 	b.Add(3.0)
-	if a.Difference(b).Size() != 1 {
+	if a.Difference(b).Len() != 1 {
 		t.Error("Difference wrong")
 	}
 }
-func TestFloat64TreeSet_Generated_ToSlice(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_ToSlice(t *testing.T) {
+	s := NewFloat64()
 	s.Add(1.0)
 	s.Add(2.0)
 	if len(s.ToSlice()) != 2 {
 		t.Error("wrong len")
 	}
 }
-func TestFloat64TreeSet_Generated_String(t *testing.T) {
-	s := NewFloat64TreeSet()
+func TestFloat64_Generated_String(t *testing.T) {
+	s := NewFloat64()
 	s.Add(1.0)
 	if s.String() == "" {
 		t.Error("empty")

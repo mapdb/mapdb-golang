@@ -65,18 +65,12 @@ func (m *Multimap[K, V]) RemoveAll(key K) []V {
 	return vals
 }
 
-// Size returns total number of values across all keys.
-func (m *Multimap[K, V]) Size() int { return m.size }
-
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (m *Multimap[K, V]) Len() int { return m.Size() }
+// Len returns the total number of values across all keys. Use m.Len() == 0 to
+// test for emptiness.
+func (m *Multimap[K, V]) Len() int { return m.size }
 
 // SizeDistinct returns the number of distinct keys.
 func (m *Multimap[K, V]) SizeDistinct() int { return len(m.data) }
-
-// IsEmpty returns true if there are no entries.
-func (m *Multimap[K, V]) IsEmpty() bool { return m.size == 0 }
 
 // Clear removes all entries.
 func (m *Multimap[K, V]) Clear() { m.data = make(map[K][]V); m.size = 0 }

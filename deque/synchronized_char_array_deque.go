@@ -6,82 +6,73 @@ import (
 	"sync"
 )
 
-// SynchronizedCharArrayDeque is a thread-safe wrapper around CharArrayDeque.
-type SynchronizedCharArrayDeque struct {
-	delegate *CharArrayDeque
+// SynchronizedChar is a thread-safe wrapper around Char.
+type SynchronizedChar struct {
+	delegate *Char
 	mu       sync.RWMutex
 }
 
-// NewSynchronizedCharArrayDeque creates a new thread-safe empty deque.
-func NewSynchronizedCharArrayDeque() *SynchronizedCharArrayDeque {
-	return &SynchronizedCharArrayDeque{delegate: NewCharArrayDeque()}
+// NewSynchronizedChar creates a new thread-safe empty deque.
+func NewSynchronizedChar() *SynchronizedChar {
+	return &SynchronizedChar{delegate: NewChar()}
 }
 
-func (d *SynchronizedCharArrayDeque) AddFirst(value uint16) {
+func (d *SynchronizedChar) AddFirst(value uint16) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddFirst(value)
 }
 
-func (d *SynchronizedCharArrayDeque) AddLast(value uint16) {
+func (d *SynchronizedChar) AddLast(value uint16) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.AddLast(value)
 }
 
-func (d *SynchronizedCharArrayDeque) RemoveFirst() (uint16, error) {
+func (d *SynchronizedChar) RemoveFirst() (uint16, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveFirst()
 }
 
-func (d *SynchronizedCharArrayDeque) RemoveLast() (uint16, error) {
+func (d *SynchronizedChar) RemoveLast() (uint16, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.delegate.RemoveLast()
 }
 
-func (d *SynchronizedCharArrayDeque) PeekFirst() (uint16, error) {
+func (d *SynchronizedChar) PeekFirst() (uint16, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekFirst()
 }
 
-func (d *SynchronizedCharArrayDeque) PeekLast() (uint16, error) {
+func (d *SynchronizedChar) PeekLast() (uint16, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.PeekLast()
 }
 
-func (d *SynchronizedCharArrayDeque) Size() int {
+// Len returns the number of elements. Use d.Len() == 0 to test for emptiness.
+func (d *SynchronizedChar) Len() int {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.delegate.Size()
+	return d.delegate.Len()
 }
 
-// Len returns the number of elements. It is an alias for Size, matching
-// Go convention (sort.Interface, container/list, bytes.Buffer).
-func (d *SynchronizedCharArrayDeque) Len() int { return d.Size() }
-
-func (d *SynchronizedCharArrayDeque) IsEmpty() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.delegate.IsEmpty()
-}
-
-func (d *SynchronizedCharArrayDeque) Clear() {
+func (d *SynchronizedChar) Clear() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.delegate.Clear()
 }
 
-func (d *SynchronizedCharArrayDeque) Contains(value uint16) bool {
+func (d *SynchronizedChar) Contains(value uint16) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.Contains(value)
 }
 
-func (d *SynchronizedCharArrayDeque) ForEach(f func(uint16)) {
+func (d *SynchronizedChar) ForEach(f func(uint16)) {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -90,7 +81,7 @@ func (d *SynchronizedCharArrayDeque) ForEach(f func(uint16)) {
 	}
 }
 
-func (d *SynchronizedCharArrayDeque) AnySatisfy(predicate func(uint16) bool) bool {
+func (d *SynchronizedChar) AnySatisfy(predicate func(uint16) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -102,7 +93,7 @@ func (d *SynchronizedCharArrayDeque) AnySatisfy(predicate func(uint16) bool) boo
 	return false
 }
 
-func (d *SynchronizedCharArrayDeque) AllSatisfy(predicate func(uint16) bool) bool {
+func (d *SynchronizedChar) AllSatisfy(predicate func(uint16) bool) bool {
 	d.mu.RLock()
 	snapshot := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -114,13 +105,13 @@ func (d *SynchronizedCharArrayDeque) AllSatisfy(predicate func(uint16) bool) boo
 	return true
 }
 
-func (d *SynchronizedCharArrayDeque) ToSlice() []uint16 {
+func (d *SynchronizedChar) ToSlice() []uint16 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
 }
 
-func (d *SynchronizedCharArrayDeque) Equals(other *SynchronizedCharArrayDeque) bool {
+func (d *SynchronizedChar) Equals(other *SynchronizedChar) bool {
 	d.mu.RLock()
 	thisSlice := d.delegate.ToSlice()
 	d.mu.RUnlock()
@@ -138,7 +129,7 @@ func (d *SynchronizedCharArrayDeque) Equals(other *SynchronizedCharArrayDeque) b
 	return true
 }
 
-func (d *SynchronizedCharArrayDeque) String() string {
+func (d *SynchronizedChar) String() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.String()

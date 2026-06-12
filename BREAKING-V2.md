@@ -61,3 +61,30 @@ All items below are **DONE**:
   `Convertible`, and the composed `Collection`/`List`/`Set`/`Bag`/`Stack`) are
   kept, updated to the v2 signatures, and still statically verified by
   `collection/category_verify_test.go`.
+
+## Decided: no generics collapse (matrix stays)
+
+A recurring question is whether Go should follow Zig and collapse the
+per-primitive codegen matrix into Go generics (`HashMap[K, V]` etc.). **Decided:
+no** (Jan's call, 2026-06-12). The matrix stays.
+
+Rationale:
+
+- The duplication that motivated the question is **already solved** at the
+  source level by `internal/codegen` (the embedded `text/template` definitions
+  + per-collection dispatcher matrix in that package are the single source of
+  truth) plus the drift-gate CI that fails the build if the checked-in
+  generated files diverge from a fresh `go generate`. There is no
+  hand-maintained per-type code to keep in sync, so a generics collapse buys no
+  correctness or maintainability gain.
+- A collapse would also be **a second breaking churn immediately after the v2
+  idiom bump** — re-breaking every consumer's import/type names — for an
+  ergonomic preference, not a defect. Not worth the migration cost.
+- Go generics additionally cannot express the width-specific primitive
+  behaviours the matrix encodes for free (e.g. per-width wrapping arithmetic,
+  `Int32Array`-style narrow storage, IEEE-754 total-order comparators chosen at
+  generation time), so a collapse would either lose those properties or
+  reintroduce per-type specialisation through type switches — net complexity,
+  not less.
+
+This closes the question as **decided-no**; it is not deferred or open.

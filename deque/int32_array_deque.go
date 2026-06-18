@@ -43,6 +43,17 @@ func NewInt32() *Int32 {
 	return &Int32{items: make([]int32, initialInt32DequeCap)}
 }
 
+// NewInt32WithCapacity creates a new empty Int32 whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func NewInt32WithCapacity(capacity int) *Int32 {
+	if capacity < 0 {
+		panic("mapdb: NewInt32WithCapacity: negative capacity")
+	}
+	return &Int32{items: make([]int32, ceilPow2Int32Deque(capacity))}
+}
+
 // Int32Of creates a new Int32 from the given values in
 // front-to-back order.
 func Int32Of(values ...int32) *Int32 {

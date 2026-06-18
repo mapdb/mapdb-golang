@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // CharFloat64Set is a set multimap from uint16 keys to float64 values.
@@ -21,6 +23,61 @@ func NewCharFloat64Set() *CharFloat64Set {
 		data: make(map[uint16][]float64),
 		size: 0,
 	}
+}
+
+// CharFloat64SetBulkLoad builds a CharFloat64Set from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func CharFloat64SetBulkLoad(keys []uint16, values []float64) *CharFloat64Set {
+	if len(keys) != len(values) {
+		panic("mapdb: CharFloat64SetBulkLoad: len(keys) != len(values)")
+	}
+	m := &CharFloat64Set{
+		data: make(map[uint16][]float64, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewCharFloat64SetFromSortedKeyValues builds a CharFloat64Set from input sorted
+// by ascending key and, within each key, ascending value. It validates key
+// monotonicity in one pass and dedupes adjacent equal values per key (the sorted
+// equivalent of the linear-scan dedupe Put performs). keys[i] and values[i] form
+// one pair (a length mismatch panics). Out-of-order keys return
+// pump.ErrNotSorted. The result is observably identical to the same pairs
+// inserted with Put, provided values within a key are sorted (so equal values are
+// adjacent); if they are not, use CharFloat64SetBulkLoad instead.
+func NewCharFloat64SetFromSortedKeyValues(keys []uint16, values []float64) (*CharFloat64Set, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewCharFloat64SetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &CharFloat64Set{
+		data: make(map[uint16][]float64),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyChar(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float64{}
+		for j < len(keys) && cmpKeyChar(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) == 0 || !(math.Float64bits(run[len(run)-1]) == math.Float64bits(v)) {
+				run = append(run, v)
+			}
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

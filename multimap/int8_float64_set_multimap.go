@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int8Float64Set is a set multimap from int8 keys to float64 values.
@@ -21,6 +23,61 @@ func NewInt8Float64Set() *Int8Float64Set {
 		data: make(map[int8][]float64),
 		size: 0,
 	}
+}
+
+// Int8Float64SetBulkLoad builds a Int8Float64Set from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func Int8Float64SetBulkLoad(keys []int8, values []float64) *Int8Float64Set {
+	if len(keys) != len(values) {
+		panic("mapdb: Int8Float64SetBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int8Float64Set{
+		data: make(map[int8][]float64, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt8Float64SetFromSortedKeyValues builds a Int8Float64Set from input sorted
+// by ascending key and, within each key, ascending value. It validates key
+// monotonicity in one pass and dedupes adjacent equal values per key (the sorted
+// equivalent of the linear-scan dedupe Put performs). keys[i] and values[i] form
+// one pair (a length mismatch panics). Out-of-order keys return
+// pump.ErrNotSorted. The result is observably identical to the same pairs
+// inserted with Put, provided values within a key are sorted (so equal values are
+// adjacent); if they are not, use Int8Float64SetBulkLoad instead.
+func NewInt8Float64SetFromSortedKeyValues(keys []int8, values []float64) (*Int8Float64Set, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt8Float64SetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int8Float64Set{
+		data: make(map[int8][]float64),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt8(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float64{}
+		for j < len(keys) && cmpKeyInt8(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) == 0 || !(math.Float64bits(run[len(run)-1]) == math.Float64bits(v)) {
+				run = append(run, v)
+			}
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

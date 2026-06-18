@@ -5,6 +5,8 @@ package multimap
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int16Int64Set is a set multimap from int16 keys to int64 values.
@@ -20,6 +22,61 @@ func NewInt16Int64Set() *Int16Int64Set {
 		data: make(map[int16][]int64),
 		size: 0,
 	}
+}
+
+// Int16Int64SetBulkLoad builds a Int16Int64Set from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func Int16Int64SetBulkLoad(keys []int16, values []int64) *Int16Int64Set {
+	if len(keys) != len(values) {
+		panic("mapdb: Int16Int64SetBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int16Int64Set{
+		data: make(map[int16][]int64, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt16Int64SetFromSortedKeyValues builds a Int16Int64Set from input sorted
+// by ascending key and, within each key, ascending value. It validates key
+// monotonicity in one pass and dedupes adjacent equal values per key (the sorted
+// equivalent of the linear-scan dedupe Put performs). keys[i] and values[i] form
+// one pair (a length mismatch panics). Out-of-order keys return
+// pump.ErrNotSorted. The result is observably identical to the same pairs
+// inserted with Put, provided values within a key are sorted (so equal values are
+// adjacent); if they are not, use Int16Int64SetBulkLoad instead.
+func NewInt16Int64SetFromSortedKeyValues(keys []int16, values []int64) (*Int16Int64Set, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt16Int64SetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int16Int64Set{
+		data: make(map[int16][]int64),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt16(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []int64{}
+		for j < len(keys) && cmpKeyInt16(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) == 0 || !(run[len(run)-1] == v) {
+				run = append(run, v)
+			}
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

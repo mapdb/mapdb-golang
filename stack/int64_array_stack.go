@@ -20,6 +20,19 @@ func NewInt64() *Int64 {
 	}
 }
 
+// NewInt64WithCapacity creates a new empty Int64 that can hold capacity
+// values before its backing slice grows. It is the stack's bulk-load convenience:
+// presize once, then Push the prepared values in a single O(n) pass with no
+// intermediate reallocation. A negative capacity panics.
+func NewInt64WithCapacity(capacity int) *Int64 {
+	if capacity < 0 {
+		panic("mapdb: NewInt64WithCapacity: negative capacity")
+	}
+	return &Int64{
+		items: make([]int64, 0, capacity),
+	}
+}
+
 // Int64Of creates a new Int64 from the given values.
 // The last value becomes the top of the stack.
 func Int64Of(values ...int64) *Int64 {

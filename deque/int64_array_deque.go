@@ -43,6 +43,17 @@ func NewInt64() *Int64 {
 	return &Int64{items: make([]int64, initialInt64DequeCap)}
 }
 
+// NewInt64WithCapacity creates a new empty Int64 whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func NewInt64WithCapacity(capacity int) *Int64 {
+	if capacity < 0 {
+		panic("mapdb: NewInt64WithCapacity: negative capacity")
+	}
+	return &Int64{items: make([]int64, ceilPow2Int64Deque(capacity))}
+}
+
 // Int64Of creates a new Int64 from the given values in
 // front-to-back order.
 func Int64Of(values ...int64) *Int64 {

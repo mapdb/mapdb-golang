@@ -5,6 +5,8 @@ package multimap
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // CharInt8List is a list multimap from uint16 keys to int8 values.
@@ -20,6 +22,58 @@ func NewCharInt8List() *CharInt8List {
 		data: make(map[uint16][]int8),
 		size: 0,
 	}
+}
+
+// CharInt8ListBulkLoad builds a CharInt8List from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; values are
+// appended in input order, exactly as repeated Put. Duplicate keys are the normal
+// grouping case and the duplicate policy does not apply (a list multimap keeps
+// every value).
+func CharInt8ListBulkLoad(keys []uint16, values []int8) *CharInt8List {
+	if len(keys) != len(values) {
+		panic("mapdb: CharInt8ListBulkLoad: len(keys) != len(values)")
+	}
+	m := &CharInt8List{
+		data: make(map[uint16][]int8, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewCharInt8ListFromSortedKeys builds a CharInt8List from input grouped
+// by ascending key: all values for a key are contiguous, and keys appear in
+// ascending order (the IEEE-754 total order for float keys). It validates the key
+// monotonicity in one pass and assigns each key's value slice directly, preserving
+// value order within a key run. keys[i] and values[i] form one pair (a length
+// mismatch panics). Out-of-order or interleaved keys return pump.ErrNotSorted.
+// The result is observably identical to the same pairs inserted with Put.
+func NewCharInt8ListFromSortedKeys(keys []uint16, values []int8) (*CharInt8List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewCharInt8ListFromSortedKeys: len(keys) != len(values)")
+	}
+	m := &CharInt8List{
+		data: make(map[uint16][]int8),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyChar(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []int8{}
+		for j < len(keys) && cmpKeyChar(keys[j], key) == 0 {
+			run = append(run, values[j])
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the list for the given key.

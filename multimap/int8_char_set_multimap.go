@@ -5,6 +5,8 @@ package multimap
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int8CharSet is a set multimap from int8 keys to uint16 values.
@@ -20,6 +22,61 @@ func NewInt8CharSet() *Int8CharSet {
 		data: make(map[int8][]uint16),
 		size: 0,
 	}
+}
+
+// Int8CharSetBulkLoad builds a Int8CharSet from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func Int8CharSetBulkLoad(keys []int8, values []uint16) *Int8CharSet {
+	if len(keys) != len(values) {
+		panic("mapdb: Int8CharSetBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int8CharSet{
+		data: make(map[int8][]uint16, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt8CharSetFromSortedKeyValues builds a Int8CharSet from input sorted
+// by ascending key and, within each key, ascending value. It validates key
+// monotonicity in one pass and dedupes adjacent equal values per key (the sorted
+// equivalent of the linear-scan dedupe Put performs). keys[i] and values[i] form
+// one pair (a length mismatch panics). Out-of-order keys return
+// pump.ErrNotSorted. The result is observably identical to the same pairs
+// inserted with Put, provided values within a key are sorted (so equal values are
+// adjacent); if they are not, use Int8CharSetBulkLoad instead.
+func NewInt8CharSetFromSortedKeyValues(keys []int8, values []uint16) (*Int8CharSet, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt8CharSetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int8CharSet{
+		data: make(map[int8][]uint16),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt8(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []uint16{}
+		for j < len(keys) && cmpKeyInt8(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) == 0 || !(run[len(run)-1] == v) {
+				run = append(run, v)
+			}
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

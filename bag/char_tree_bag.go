@@ -8,6 +8,8 @@ import (
 	"iter"
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // TreeCharEntry holds a value and its occurrence count in a TreeChar.
@@ -31,13 +33,63 @@ func NewTreeChar() *TreeChar {
 	}
 }
 
-// TreeCharOf creates a new TreeChar from the given values.
+// TreeCharOf creates a new TreeChar from the given values. It sorts a
+// copy of the input once and coalesces equal runs into counted entries in a
+// single pass — O(n log n) overall, versus the O(n²) of repeated Add (each Add
+// shifts the sorted slice). The result is identical to repeated Add.
 func TreeCharOf(values ...uint16) *TreeChar {
-	b := NewTreeChar()
-	for _, v := range values {
-		b.Add(v)
+	if len(values) == 0 {
+		return NewTreeChar()
 	}
+	sorted := make([]uint16, len(values))
+	copy(sorted, values)
+	slices.SortFunc(sorted, func(a, c uint16) int {
+		return cmp.Compare(a, c)
+	})
+	b := NewTreeChar()
+	b.entries = coalesceCharSorted(sorted)
+	b.size = len(sorted)
 	return b
+}
+
+// NewTreeCharFromSorted builds a TreeChar from presorted ascending
+// values in a single O(n) pass, coalescing equal runs into counts. values must
+// be in ascending order according to the bag's own comparator (the IEEE-754
+// total order for floats); out-of-order input returns pump.ErrNotSorted.
+//
+// Duplicate values are the normal bag case and increment the count, so the
+// duplicate policy does not apply here. Run-length coalescing is overflow-checked
+// (each count fits in an int by construction since it cannot exceed len(values)).
+// The result is observably identical to the same values added one-by-one.
+func NewTreeCharFromSorted(values []uint16) (*TreeChar, error) {
+	if len(values) == 0 {
+		return NewTreeChar(), nil
+	}
+	for i := 1; i < len(values); i++ {
+		if cmp.Compare(values[i], values[i-1]) < 0 {
+			return nil, pump.ErrNotSorted
+		}
+	}
+	b := NewTreeChar()
+	b.entries = coalesceCharSorted(values)
+	b.size = len(values)
+	return b, nil
+}
+
+// coalesceCharSorted compresses a sorted value slice into counted entries
+// in one pass. The input must already be sorted by the bag's comparator.
+func coalesceCharSorted(sorted []uint16) []TreeCharEntry {
+	entries := make([]TreeCharEntry, 0, len(sorted))
+	entries = append(entries, TreeCharEntry{value: sorted[0], count: 1})
+	for i := 1; i < len(sorted); i++ {
+		last := &entries[len(entries)-1]
+		if sorted[i] == last.value {
+			last.count++
+		} else {
+			entries = append(entries, TreeCharEntry{value: sorted[i], count: 1})
+		}
+	}
+	return entries
 }
 
 // search returns the index where value is or would be inserted.

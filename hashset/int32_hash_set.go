@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -45,6 +47,78 @@ func Int32Of(values ...int32) *Int32 {
 		s.Add(v)
 	}
 	return s
+}
+
+// Int32BulkLoad builds a Int32 from values in a single pass, presizing
+// the table once to fit len(values) at the 0.75 load factor. The input need not
+// be sorted. On a duplicate value it returns pump.ErrDuplicateKey unless
+// policy is pump.IgnoreDuplicates, in which case duplicates are skipped.
+// The result is observably identical to the same values inserted one-by-one with
+// Add. The size is a hint; use Int32BulkLoadExact for the zero-rehash
+// guarantee.
+func Int32BulkLoad(values []int32, policy pump.DuplicatePolicy) (*Int32, error) {
+	s := &Int32{entries: make([]int32Entry, Int32bulkCap(len(values)))}
+	for _, v := range values {
+		if s.needsResize() {
+			s.resize()
+		}
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// Int32BulkLoadExact is like Int32BulkLoad but guarantees zero mid-load
+// rehash: the table is sized for exactly n distinct values. It returns
+// pump.ErrTooManyElements if the source yields more than n distinct
+// values. n must be non-negative (negative panics).
+func Int32BulkLoadExact(values []int32, n int, policy pump.DuplicatePolicy) (*Int32, error) {
+	if n < 0 {
+		panic("mapdb: Int32BulkLoadExact: negative n")
+	}
+	s := &Int32{entries: make([]int32Entry, Int32bulkCap(n))}
+	for _, v := range values {
+		if s.size >= n {
+			return nil, pump.ErrTooManyElements
+		}
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// bulkAdd inserts a single value via the ordinary probe without a resize check
+// (callers guarantee capacity), applying the duplicate policy.
+func (s *Int32) bulkAdd(value int32, policy pump.DuplicatePolicy) (bool, error) {
+	mask := len(s.entries) - 1
+	idx := int(s.hash(value)) & mask
+	for {
+		if !s.entries[idx].occupied {
+			s.entries[idx].key = value
+			s.entries[idx].occupied = true
+			s.size++
+			return false, nil
+		}
+		if s.entries[idx].key == value {
+			if policy == pump.IgnoreDuplicates {
+				return true, nil
+			}
+			return true, pump.ErrDuplicateKey
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// Int32bulkCap returns the presized table capacity for n values that avoids
+// any mid-load rehash, floored at the family default.
+func Int32bulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < int32DefaultCapacity {
+		return int32DefaultCapacity
+	}
+	return c
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).

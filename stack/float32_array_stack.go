@@ -21,6 +21,19 @@ func NewFloat32() *Float32 {
 	}
 }
 
+// NewFloat32WithCapacity creates a new empty Float32 that can hold capacity
+// values before its backing slice grows. It is the stack's bulk-load convenience:
+// presize once, then Push the prepared values in a single O(n) pass with no
+// intermediate reallocation. A negative capacity panics.
+func NewFloat32WithCapacity(capacity int) *Float32 {
+	if capacity < 0 {
+		panic("mapdb: NewFloat32WithCapacity: negative capacity")
+	}
+	return &Float32{
+		items: make([]float32, 0, capacity),
+	}
+}
+
 // Float32Of creates a new Float32 from the given values.
 // The last value becomes the top of the stack.
 func Float32Of(values ...float32) *Float32 {

@@ -20,6 +20,19 @@ func NewInt16() *Int16 {
 	}
 }
 
+// NewInt16WithCapacity creates a new empty Int16 that can hold capacity
+// values before its backing slice grows. It is the stack's bulk-load convenience:
+// presize once, then Push the prepared values in a single O(n) pass with no
+// intermediate reallocation. A negative capacity panics.
+func NewInt16WithCapacity(capacity int) *Int16 {
+	if capacity < 0 {
+		panic("mapdb: NewInt16WithCapacity: negative capacity")
+	}
+	return &Int16{
+		items: make([]int16, 0, capacity),
+	}
+}
+
 // Int16Of creates a new Int16 from the given values.
 // The last value becomes the top of the stack.
 func Int16Of(values ...int16) *Int16 {

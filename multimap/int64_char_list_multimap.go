@@ -5,6 +5,8 @@ package multimap
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int64CharList is a list multimap from int64 keys to uint16 values.
@@ -20,6 +22,58 @@ func NewInt64CharList() *Int64CharList {
 		data: make(map[int64][]uint16),
 		size: 0,
 	}
+}
+
+// Int64CharListBulkLoad builds a Int64CharList from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; values are
+// appended in input order, exactly as repeated Put. Duplicate keys are the normal
+// grouping case and the duplicate policy does not apply (a list multimap keeps
+// every value).
+func Int64CharListBulkLoad(keys []int64, values []uint16) *Int64CharList {
+	if len(keys) != len(values) {
+		panic("mapdb: Int64CharListBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int64CharList{
+		data: make(map[int64][]uint16, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt64CharListFromSortedKeys builds a Int64CharList from input grouped
+// by ascending key: all values for a key are contiguous, and keys appear in
+// ascending order (the IEEE-754 total order for float keys). It validates the key
+// monotonicity in one pass and assigns each key's value slice directly, preserving
+// value order within a key run. keys[i] and values[i] form one pair (a length
+// mismatch panics). Out-of-order or interleaved keys return pump.ErrNotSorted.
+// The result is observably identical to the same pairs inserted with Put.
+func NewInt64CharListFromSortedKeys(keys []int64, values []uint16) (*Int64CharList, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt64CharListFromSortedKeys: len(keys) != len(values)")
+	}
+	m := &Int64CharList{
+		data: make(map[int64][]uint16),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt64(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []uint16{}
+		for j < len(keys) && cmpKeyInt64(keys[j], key) == 0 {
+			run = append(run, values[j])
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the list for the given key.

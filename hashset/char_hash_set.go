@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -45,6 +47,78 @@ func CharOf(values ...uint16) *Char {
 		s.Add(v)
 	}
 	return s
+}
+
+// CharBulkLoad builds a Char from values in a single pass, presizing
+// the table once to fit len(values) at the 0.75 load factor. The input need not
+// be sorted. On a duplicate value it returns pump.ErrDuplicateKey unless
+// policy is pump.IgnoreDuplicates, in which case duplicates are skipped.
+// The result is observably identical to the same values inserted one-by-one with
+// Add. The size is a hint; use CharBulkLoadExact for the zero-rehash
+// guarantee.
+func CharBulkLoad(values []uint16, policy pump.DuplicatePolicy) (*Char, error) {
+	s := &Char{entries: make([]charEntry, CharbulkCap(len(values)))}
+	for _, v := range values {
+		if s.needsResize() {
+			s.resize()
+		}
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// CharBulkLoadExact is like CharBulkLoad but guarantees zero mid-load
+// rehash: the table is sized for exactly n distinct values. It returns
+// pump.ErrTooManyElements if the source yields more than n distinct
+// values. n must be non-negative (negative panics).
+func CharBulkLoadExact(values []uint16, n int, policy pump.DuplicatePolicy) (*Char, error) {
+	if n < 0 {
+		panic("mapdb: CharBulkLoadExact: negative n")
+	}
+	s := &Char{entries: make([]charEntry, CharbulkCap(n))}
+	for _, v := range values {
+		if s.size >= n {
+			return nil, pump.ErrTooManyElements
+		}
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// bulkAdd inserts a single value via the ordinary probe without a resize check
+// (callers guarantee capacity), applying the duplicate policy.
+func (s *Char) bulkAdd(value uint16, policy pump.DuplicatePolicy) (bool, error) {
+	mask := len(s.entries) - 1
+	idx := int(s.hash(value)) & mask
+	for {
+		if !s.entries[idx].occupied {
+			s.entries[idx].key = value
+			s.entries[idx].occupied = true
+			s.size++
+			return false, nil
+		}
+		if s.entries[idx].key == value {
+			if policy == pump.IgnoreDuplicates {
+				return true, nil
+			}
+			return true, pump.ErrDuplicateKey
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// CharbulkCap returns the presized table capacity for n values that avoids
+// any mid-load rehash, floored at the family default.
+func CharbulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < charDefaultCapacity {
+		return charDefaultCapacity
+	}
+	return c
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).

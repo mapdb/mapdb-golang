@@ -44,6 +44,17 @@ func NewFloat64() *Float64 {
 	return &Float64{items: make([]float64, initialFloat64DequeCap)}
 }
 
+// NewFloat64WithCapacity creates a new empty Float64 whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func NewFloat64WithCapacity(capacity int) *Float64 {
+	if capacity < 0 {
+		panic("mapdb: NewFloat64WithCapacity: negative capacity")
+	}
+	return &Float64{items: make([]float64, ceilPow2Float64Deque(capacity))}
+}
+
 // Float64Of creates a new Float64 from the given values in
 // front-to-back order.
 func Float64Of(values ...float64) *Float64 {

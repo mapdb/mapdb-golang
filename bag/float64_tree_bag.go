@@ -9,6 +9,8 @@ import (
 	"math"
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // TreeFloat64Entry holds a value and its occurrence count in a TreeFloat64.
@@ -32,13 +34,63 @@ func NewTreeFloat64() *TreeFloat64 {
 	}
 }
 
-// TreeFloat64Of creates a new TreeFloat64 from the given values.
+// TreeFloat64Of creates a new TreeFloat64 from the given values. It sorts a
+// copy of the input once and coalesces equal runs into counted entries in a
+// single pass — O(n log n) overall, versus the O(n²) of repeated Add (each Add
+// shifts the sorted slice). The result is identical to repeated Add.
 func TreeFloat64Of(values ...float64) *TreeFloat64 {
-	b := NewTreeFloat64()
-	for _, v := range values {
-		b.Add(v)
+	if len(values) == 0 {
+		return NewTreeFloat64()
 	}
+	sorted := make([]float64, len(values))
+	copy(sorted, values)
+	slices.SortFunc(sorted, func(a, c float64) int {
+		return cmpFloat64(a, c)
+	})
+	b := NewTreeFloat64()
+	b.entries = coalesceFloat64Sorted(sorted)
+	b.size = len(sorted)
 	return b
+}
+
+// NewTreeFloat64FromSorted builds a TreeFloat64 from presorted ascending
+// values in a single O(n) pass, coalescing equal runs into counts. values must
+// be in ascending order according to the bag's own comparator (the IEEE-754
+// total order for floats); out-of-order input returns pump.ErrNotSorted.
+//
+// Duplicate values are the normal bag case and increment the count, so the
+// duplicate policy does not apply here. Run-length coalescing is overflow-checked
+// (each count fits in an int by construction since it cannot exceed len(values)).
+// The result is observably identical to the same values added one-by-one.
+func NewTreeFloat64FromSorted(values []float64) (*TreeFloat64, error) {
+	if len(values) == 0 {
+		return NewTreeFloat64(), nil
+	}
+	for i := 1; i < len(values); i++ {
+		if cmpFloat64(values[i], values[i-1]) < 0 {
+			return nil, pump.ErrNotSorted
+		}
+	}
+	b := NewTreeFloat64()
+	b.entries = coalesceFloat64Sorted(values)
+	b.size = len(values)
+	return b, nil
+}
+
+// coalesceFloat64Sorted compresses a sorted value slice into counted entries
+// in one pass. The input must already be sorted by the bag's comparator.
+func coalesceFloat64Sorted(sorted []float64) []TreeFloat64Entry {
+	entries := make([]TreeFloat64Entry, 0, len(sorted))
+	entries = append(entries, TreeFloat64Entry{value: sorted[0], count: 1})
+	for i := 1; i < len(sorted); i++ {
+		last := &entries[len(entries)-1]
+		if cmpFloat64(sorted[i], last.value) == 0 {
+			last.count++
+		} else {
+			entries = append(entries, TreeFloat64Entry{value: sorted[i], count: 1})
+		}
+	}
+	return entries
 }
 
 // search returns the index where value is or would be inserted.

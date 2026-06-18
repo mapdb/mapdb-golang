@@ -43,6 +43,17 @@ func NewInt8() *Int8 {
 	return &Int8{items: make([]int8, initialInt8DequeCap)}
 }
 
+// NewInt8WithCapacity creates a new empty Int8 whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func NewInt8WithCapacity(capacity int) *Int8 {
+	if capacity < 0 {
+		panic("mapdb: NewInt8WithCapacity: negative capacity")
+	}
+	return &Int8{items: make([]int8, ceilPow2Int8Deque(capacity))}
+}
+
 // Int8Of creates a new Int8 from the given values in
 // front-to-back order.
 func Int8Of(values ...int8) *Int8 {

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -44,6 +46,76 @@ func NewInt8Int64WithCapacity(capacity int) *Int8Int64 {
 		values: make([]int64, cap),
 		size:   0,
 	}
+}
+
+// Int8Int64BulkLoad builds a Int8Int64 from keys/values in a single pass,
+// presizing the table once to fit len(keys) at the 0.75 load factor. keys[i] and
+// values[i] form one entry (a length mismatch panics). The input need not be
+// sorted. Sentinel keys (0/1/-0.0) are routed through their dedicated fields by
+// the ordinary Put path, so the result is observably identical to one-by-one Put.
+//
+// On a duplicate key it returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the first value for a key is kept.
+// The size is a hint; use Int8Int64BulkLoadExact for the zero-rehash
+// guarantee.
+func Int8Int64BulkLoad(keys []int8, values []int64, policy pump.DuplicatePolicy) (*Int8Int64, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: Int8Int64BulkLoad: len(keys) != len(values)")
+	}
+	m := NewInt8Int64WithCapacity(Int8Int64bulkCap(len(keys)))
+	for i := range keys {
+		if err := m.bulkPut(keys[i], values[i], policy); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+// Int8Int64BulkLoadExact is like Int8Int64BulkLoad but guarantees zero
+// mid-load rehash: the table is sized for exactly n distinct keys. It returns
+// pump.ErrTooManyElements if the source yields more than n distinct keys.
+// n must be non-negative (negative panics).
+func Int8Int64BulkLoadExact(keys []int8, values []int64, n int, policy pump.DuplicatePolicy) (*Int8Int64, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: Int8Int64BulkLoadExact: len(keys) != len(values)")
+	}
+	if n < 0 {
+		panic("mapdb: Int8Int64BulkLoadExact: negative n")
+	}
+	m := NewInt8Int64WithCapacity(Int8Int64bulkCap(n))
+	for i := range keys {
+		if m.size >= n {
+			return nil, pump.ErrTooManyElements
+		}
+		if err := m.bulkPut(keys[i], values[i], policy); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+// bulkPut inserts a single entry, applying the duplicate policy. It reuses Put so
+// the sentinel-key routing stays in one place; the presize means Put never
+// rehashes.
+func (m *Int8Int64) bulkPut(key int8, value int64, policy pump.DuplicatePolicy) error {
+	if m.ContainsKey(key) {
+		if policy == pump.IgnoreDuplicates {
+			return nil
+		}
+		return pump.ErrDuplicateKey
+	}
+	m.Put(key, value)
+	return nil
+}
+
+// Int8Int64bulkCap returns the presized table capacity for n entries that
+// avoids any mid-load rehash, floored at the family default.
+func Int8Int64bulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < int8Int64DefaultCapacity {
+		return int8Int64DefaultCapacity
+	}
+	return c
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.

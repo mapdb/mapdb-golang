@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -336,6 +338,118 @@ func (s *Char) String() string {
 	}
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// --- Data pump (bulk import) ---
+
+// NewCharFromSorted builds a Char from presorted, ascending values in
+// a single O(n) pass, skipping the per-insert rebalancing of Add. values must be
+// in ascending order according to the set's own comparator (the IEEE-754 total
+// order for float values).
+//
+// On an out-of-order value it returns pump.ErrNotSorted. On a duplicate it
+// returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the duplicate is skipped. A failed
+// build returns a nil set, never a half-built one. The result is observably
+// identical to the same values inserted one-by-one with Add, and is a valid
+// red-black tree so later Add/Remove preserve the invariant.
+func NewCharFromSorted(values []uint16, policy pump.DuplicatePolicy) (*Char, error) {
+	dv, err := dedupCharSorted(values, policy)
+	if err != nil {
+		return nil, err
+	}
+	s := NewChar()
+	s.root = s.buildchar(dv, 0, len(dv)-1, 0, pump.RedBlackRedLevel(len(dv)), nil)
+	s.size = len(dv)
+	return s, nil
+}
+
+// dedupCharSorted validates ascending order and applies the duplicate
+// policy, returning a compacted value slice.
+func dedupCharSorted(values []uint16, policy pump.DuplicatePolicy) ([]uint16, error) {
+	if len(values) == 0 {
+		return values, nil
+	}
+	out := make([]uint16, 0, len(values))
+	out = append(out, values[0])
+	for i := 1; i < len(values); i++ {
+		cmp := cmpChar(values[i], values[i-1])
+		if cmp < 0 {
+			return nil, pump.ErrNotSorted
+		}
+		if cmp == 0 {
+			if policy == pump.IgnoreDuplicates {
+				continue
+			}
+			return nil, pump.ErrDuplicateKey
+		}
+		out = append(out, values[i])
+	}
+	return out, nil
+}
+
+// cmpChar is the three-way ordering used by the bulk-load validator for
+// integer/char values (float values use the IEEE total-order helper instead).
+func cmpChar(a, b uint16) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// buildchar recursively builds a perfectly balanced subtree over
+// [lo, hi], colouring nodes on redLevel red and all others black (classic JDK
+// buildFromSorted).
+func (s *Char) buildchar(values []uint16, lo, hi, level, redLevel int, parent *charNode) *charNode {
+	if lo > hi {
+		return nil
+	}
+	mid := (lo + hi) / 2
+	node := &charNode{key: values[mid], parent: parent, color: charNodeBlack}
+	if level == redLevel {
+		node.color = charNodeRed
+	}
+	node.left = s.buildchar(values, lo, mid-1, level+1, redLevel, node)
+	node.right = s.buildchar(values, mid+1, hi, level+1, redLevel, node)
+	return node
+}
+
+// CharSink is a streaming builder for a Char: callers Add ascending
+// values, then Build the finished set. It is a thin wrapper over
+// NewCharFromSorted. After an error or after Build the sink is poisoned and
+// further Add/Build calls panic.
+type CharSink struct {
+	values []uint16
+	policy pump.DuplicatePolicy
+	done   bool
+}
+
+// NewCharSink creates a streaming sink with the given duplicate policy.
+func NewCharSink(policy pump.DuplicatePolicy) *CharSink {
+	return &CharSink{policy: policy}
+}
+
+// Add appends one value. Values must be supplied in ascending order; order and
+// duplicate violations are reported by Build. Calling Add after Build panics.
+func (s *CharSink) Add(value uint16) {
+	if s.done {
+		panic("mapdb: Add on a finished CharSink")
+	}
+	s.values = append(s.values, value)
+}
+
+// Build finishes the sink and returns the set. The sink is poisoned afterwards
+// (a second Build panics).
+func (s *CharSink) Build() (*Char, error) {
+	if s.done {
+		panic("mapdb: Build on a finished CharSink")
+	}
+	s.done = true
+	return NewCharFromSorted(s.values, s.policy)
 }
 
 // --- Red-black tree internals (same as TreeMap) ---

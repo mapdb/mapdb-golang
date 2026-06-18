@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // CharInt32BiMap is a bidirectional map with uint16 keys and int32 values.
@@ -29,6 +31,44 @@ func NewCharInt32BiMapWithCapacity(capacity int) *CharInt32BiMap {
 		forward: NewCharInt32WithCapacity(capacity),
 		reverse: NewInt32CharWithCapacity(capacity),
 	}
+}
+
+// CharInt32BiMapBulkLoad builds a CharInt32BiMap from keys/values in a
+// single pass, presizing both inner tables to fit len(keys) at the 0.75 load
+// factor. keys[i] and values[i] form one entry (a length mismatch panics). A
+// BiMap requires a bijection, so a duplicate key returns
+// pump.ErrDuplicateKey and a duplicate value returns
+// pump.ErrDuplicateValue — both regardless of policy (IgnoreDuplicates
+// skips a fully identical key+value re-entry but still rejects a conflicting
+// one). The input need not be sorted; the result is identical to the same pairs
+// inserted one-by-one with Put.
+func CharInt32BiMapBulkLoad(keys []uint16, values []int32, policy pump.DuplicatePolicy) (*CharInt32BiMap, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: CharInt32BiMapBulkLoad: len(keys) != len(values)")
+	}
+	cap := pump.HashCapacityFor(len(keys))
+	m := &CharInt32BiMap{
+		forward: NewCharInt32WithCapacity(cap),
+		reverse: NewInt32CharWithCapacity(cap),
+	}
+	for i := range keys {
+		key, value := keys[i], values[i]
+		_, hasKey := m.forward.Get(key)
+		oldKey, hasVal := m.reverse.Get(value)
+		if hasKey || hasVal {
+			if policy == pump.IgnoreDuplicates && hasKey && hasVal &&
+				(oldKey == key) {
+				continue // identical pair already present
+			}
+			if hasKey {
+				return nil, pump.ErrDuplicateKey
+			}
+			return nil, pump.ErrDuplicateValue
+		}
+		m.forward.Put(key, value)
+		m.reverse.Put(value, key)
+	}
+	return m, nil
 }
 
 // Put inserts or updates a key-value pair in both directions.

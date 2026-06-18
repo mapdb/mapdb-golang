@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -50,6 +52,103 @@ func CharInt64Of(pairs ...struct {
 		m.Put(p.Key, p.Value)
 	}
 	return m
+}
+
+// CharInt64BulkLoad builds a CharInt64 from keys/values in a single pass,
+// presizing the table once to fit len(keys) at the 0.75 load factor. keys[i] and
+// values[i] form one entry, so the slices must have equal length (a mismatch is a
+// programmer error and panics). The input need not be sorted.
+//
+// On a duplicate key it returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the first value for a key is kept.
+// The result is observably identical to the same entries inserted one-by-one
+// with Put into a table of the same final capacity (same probe layout, same
+// iteration order). The size is a hint: this constructor may grow if the source
+// has more distinct keys than expected — use CharInt64BulkLoadExact for the
+// zero-rehash guarantee.
+func CharInt64BulkLoad(keys []uint16, values []int64, policy pump.DuplicatePolicy) (*CharInt64, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: CharInt64BulkLoad: len(keys) != len(values)")
+	}
+	m := &CharInt64{entries: make([]charInt64Entry, CharInt64bulkCap(len(keys)))}
+	if err := m.bulkInsert(keys, values, policy); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// CharInt64BulkLoadExact is like CharInt64BulkLoad but guarantees zero
+// mid-load rehash: the table is sized for exactly n distinct keys. It returns
+// pump.ErrTooManyElements if the source yields more than n distinct keys
+// (which would force a rehash). n must be non-negative (negative panics).
+func CharInt64BulkLoadExact(keys []uint16, values []int64, n int, policy pump.DuplicatePolicy) (*CharInt64, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: CharInt64BulkLoadExact: len(keys) != len(values)")
+	}
+	if n < 0 {
+		panic("mapdb: CharInt64BulkLoadExact: negative n")
+	}
+	m := &CharInt64{entries: make([]charInt64Entry, CharInt64bulkCap(n))}
+	for i := range keys {
+		if m.size >= n {
+			return nil, pump.ErrTooManyElements
+		}
+		dup, err := m.bulkPut(keys[i], values[i], policy)
+		if err != nil {
+			return nil, err
+		}
+		_ = dup
+	}
+	return m, nil
+}
+
+// bulkInsert inserts every (key, value) pair into a presized table, growing if a
+// duplicate-free run would cross the load factor (only possible in the hint path).
+func (m *CharInt64) bulkInsert(keys []uint16, values []int64, policy pump.DuplicatePolicy) error {
+	for i := range keys {
+		if m.needsResize() {
+			m.resize()
+		}
+		if _, err := m.bulkPut(keys[i], values[i], policy); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// bulkPut inserts a single entry via the ordinary probe without a resize check
+// (callers guarantee capacity). It applies the duplicate policy and reports
+// whether the key was already present.
+func (m *CharInt64) bulkPut(key uint16, value int64, policy pump.DuplicatePolicy) (bool, error) {
+	mask := len(m.entries) - 1
+	idx := int(m.hashKey(key)) & mask
+	for {
+		if !m.entries[idx].occupied {
+			m.entries[idx].key = key
+			m.entries[idx].value = value
+			m.entries[idx].occupied = true
+			m.size++
+			return false, nil
+		}
+		if m.entries[idx].key == key {
+			if policy == pump.IgnoreDuplicates {
+				return true, nil
+			}
+			return true, pump.ErrDuplicateKey
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// CharInt64bulkCap returns the presized table capacity for n entries that
+// avoids any mid-load rehash, using the shared zero-rehash formula. It widens to
+// the family's default minimum so very small loads still get a usable table.
+func CharInt64bulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < charInt64DefaultCapacity {
+		return charInt64DefaultCapacity
+	}
+	return c
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.

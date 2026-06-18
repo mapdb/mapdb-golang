@@ -43,6 +43,17 @@ func NewInt16() *Int16 {
 	return &Int16{items: make([]int16, initialInt16DequeCap)}
 }
 
+// NewInt16WithCapacity creates a new empty Int16 whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func NewInt16WithCapacity(capacity int) *Int16 {
+	if capacity < 0 {
+		panic("mapdb: NewInt16WithCapacity: negative capacity")
+	}
+	return &Int16{items: make([]int16, ceilPow2Int16Deque(capacity))}
+}
+
 // Int16Of creates a new Int16 from the given values in
 // front-to-back order.
 func Int16Of(values ...int16) *Int16 {

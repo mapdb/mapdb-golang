@@ -7,6 +7,8 @@ import (
 	"iter"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -46,6 +48,78 @@ func Float64Of(values ...float64) *Float64 {
 		s.Add(v)
 	}
 	return s
+}
+
+// Float64BulkLoad builds a Float64 from values in a single pass, presizing
+// the table once to fit len(values) at the 0.75 load factor. The input need not
+// be sorted. On a duplicate value it returns pump.ErrDuplicateKey unless
+// policy is pump.IgnoreDuplicates, in which case duplicates are skipped.
+// The result is observably identical to the same values inserted one-by-one with
+// Add. The size is a hint; use Float64BulkLoadExact for the zero-rehash
+// guarantee.
+func Float64BulkLoad(values []float64, policy pump.DuplicatePolicy) (*Float64, error) {
+	s := &Float64{entries: make([]float64Entry, Float64bulkCap(len(values)))}
+	for _, v := range values {
+		if s.needsResize() {
+			s.resize()
+		}
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// Float64BulkLoadExact is like Float64BulkLoad but guarantees zero mid-load
+// rehash: the table is sized for exactly n distinct values. It returns
+// pump.ErrTooManyElements if the source yields more than n distinct
+// values. n must be non-negative (negative panics).
+func Float64BulkLoadExact(values []float64, n int, policy pump.DuplicatePolicy) (*Float64, error) {
+	if n < 0 {
+		panic("mapdb: Float64BulkLoadExact: negative n")
+	}
+	s := &Float64{entries: make([]float64Entry, Float64bulkCap(n))}
+	for _, v := range values {
+		if s.size >= n {
+			return nil, pump.ErrTooManyElements
+		}
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// bulkAdd inserts a single value via the ordinary probe without a resize check
+// (callers guarantee capacity), applying the duplicate policy.
+func (s *Float64) bulkAdd(value float64, policy pump.DuplicatePolicy) (bool, error) {
+	mask := len(s.entries) - 1
+	idx := int(s.hash(value)) & mask
+	for {
+		if !s.entries[idx].occupied {
+			s.entries[idx].key = value
+			s.entries[idx].occupied = true
+			s.size++
+			return false, nil
+		}
+		if math.Float64bits(s.entries[idx].key) == math.Float64bits(value) {
+			if policy == pump.IgnoreDuplicates {
+				return true, nil
+			}
+			return true, pump.ErrDuplicateKey
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// Float64bulkCap returns the presized table capacity for n values that avoids
+// any mid-load rehash, floored at the family default.
+func Float64bulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < float64DefaultCapacity {
+		return float64DefaultCapacity
+	}
+	return c
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).

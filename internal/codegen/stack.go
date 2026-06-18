@@ -105,6 +105,19 @@ func New{{.Name}}() *{{.Name}} {
 	}
 }
 
+// New{{.Name}}WithCapacity creates a new empty {{.Name}} that can hold capacity
+// values before its backing slice grows. It is the stack's bulk-load convenience:
+// presize once, then Push the prepared values in a single O(n) pass with no
+// intermediate reallocation. A negative capacity panics.
+func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
+	if capacity < 0 {
+		panic("mapdb: New{{.Name}}WithCapacity: negative capacity")
+	}
+	return &{{.Name}}{
+		items: make([]{{.GoType}}, 0, capacity),
+	}
+}
+
 // {{.Name}}Of creates a new {{.Name}} from the given values.
 // The last value becomes the top of the stack.
 func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {

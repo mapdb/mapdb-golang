@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int32Float32Set is a set multimap from int32 keys to float32 values.
@@ -21,6 +23,61 @@ func NewInt32Float32Set() *Int32Float32Set {
 		data: make(map[int32][]float32),
 		size: 0,
 	}
+}
+
+// Int32Float32SetBulkLoad builds a Int32Float32Set from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func Int32Float32SetBulkLoad(keys []int32, values []float32) *Int32Float32Set {
+	if len(keys) != len(values) {
+		panic("mapdb: Int32Float32SetBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int32Float32Set{
+		data: make(map[int32][]float32, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt32Float32SetFromSortedKeyValues builds a Int32Float32Set from input sorted
+// by ascending key and, within each key, ascending value. It validates key
+// monotonicity in one pass and dedupes adjacent equal values per key (the sorted
+// equivalent of the linear-scan dedupe Put performs). keys[i] and values[i] form
+// one pair (a length mismatch panics). Out-of-order keys return
+// pump.ErrNotSorted. The result is observably identical to the same pairs
+// inserted with Put, provided values within a key are sorted (so equal values are
+// adjacent); if they are not, use Int32Float32SetBulkLoad instead.
+func NewInt32Float32SetFromSortedKeyValues(keys []int32, values []float32) (*Int32Float32Set, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt32Float32SetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int32Float32Set{
+		data: make(map[int32][]float32),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt32(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float32{}
+		for j < len(keys) && cmpKeyInt32(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) == 0 || !(math.Float32bits(run[len(run)-1]) == math.Float32bits(v)) {
+				run = append(run, v)
+			}
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

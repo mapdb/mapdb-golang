@@ -26,6 +26,7 @@ import (
 
 	"github.com/mapdb/mapdb-golang/arraylist"
 	"github.com/mapdb/mapdb-golang/bag"
+	"github.com/mapdb/mapdb-golang/hash"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
 	"github.com/mapdb/mapdb-golang/immutablesorted"
@@ -251,6 +252,8 @@ func main() {
 		runImmutableSortedMap(s)
 	case "ImmutableSortedSet<i32>":
 		runImmutableSortedSet(s)
+	case "HashPipeline":
+		runHashPipeline(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -428,6 +431,204 @@ func formatF32(v float32) string {
 
 func unknown(key string) string {
 	return "UNKNOWN_ASSERTION:" + key
+}
+
+// ---- HashPipeline (spec/features/hash-pipeline.md) ------------------------
+//
+// A stateless probe (not a stored collection): exactly ONE hash op carries the
+// input + seed under test; the assertions read the deterministic hash output.
+// Outputs are serialized as fixed-width, lower-case, 0x-prefixed hex strings
+// (8 digits for a u32, 16 for a u64) so a 64-bit hash survives the JSON 2^53
+// ceiling and every port's consensus diff is byte-identical. `positions` is an
+// int[] in derivation order (NOT sorted). Unknown ops/keys SKIP (forward-compat).
+
+// hashProbe is the probe a hash op builds. word32/word64 carry an
+// already-encoded input word (so only the matching hash width is meaningful);
+// i32/bytes carry the logical input so EITHER the 32- or 64-bit form (incl.
+// lanes) can be asserted; positions carries the derived-position array.
+type hashProbe struct {
+	kind      string // "word32" | "word64" | "i32" | "bytes" | "positions"
+	h32       uint32 // word32
+	h64       uint64 // word64
+	value     int32  // i32
+	bytes     []byte // bytes
+	seed      uint64 // i32 / bytes
+	positions []uint32
+}
+
+func runHashPipeline(s scenario) {
+	// Authoring rule: exactly ONE hash op. Zero or multiple => malformed =>
+	// SKIP (like the sorted-table from_sorted rule). Forward-compat: an
+	// unrecognised op kind also makes the scenario un-runnable here => SKIP.
+	if len(s.Operations) != 1 {
+		fmt.Fprintf(os.Stderr, "skip: hash-pipeline scenario must have exactly one op (forward-compat): got %d\n", len(s.Operations))
+		return
+	}
+	op := s.Operations[0]
+	var probe hashProbe
+	switch op["op"] {
+	case "hash_word32":
+		raw := parseHexWord(op["word"])
+		if raw > math.MaxUint32 {
+			fatalf("hash_word32 `word` exceeds 32 bits: %#x", raw)
+		}
+		probe = hashProbe{kind: "word32", h32: hash.Hash32(uint32(raw), parseSeed(op["seed"]))}
+	case "hash_word64":
+		probe = hashProbe{kind: "word64", h64: hash.Hash64(parseHexWord(op["word"]), parseSeed(op["seed"]))}
+	case "hash_i32":
+		probe = hashProbe{kind: "i32", value: asInt32(op["value"]), seed: parseSeed(op["seed"])}
+	case "hash_bytes":
+		probe = hashProbe{kind: "bytes", bytes: parseHexBytes(op["bytes"]), seed: parseSeed(op["seed"])}
+	case "positions":
+		value := asInt32(op["value"])
+		m := uint32(asInt(op["m"]))
+		k := uint32(asInt(op["k"]))
+		// The byte encoding of an i32 element drives positions: encode the i32
+		// to its little-endian 4-byte form (the byte path the sketches use),
+		// then derive. No op-level seed (the scheme fixes 0 / SALT2).
+		w := uint32(value)
+		b := []byte{byte(w), byte(w >> 8), byte(w >> 16), byte(w >> 24)}
+		probe = hashProbe{kind: "positions", positions: hash.Positions(b, m, k)}
+	default:
+		fmt.Fprintf(os.Stderr, "skip: unknown hash-pipeline op (forward-compat): %v\n", op["op"])
+		return
+	}
+
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, probe.eval(key), s.Assertions[key], modeNone)
+	}
+}
+
+func (p hashProbe) eval(key string) string {
+	switch p.kind {
+	case "word32":
+		return evalH32Only(p.h32, key)
+	case "word64":
+		return evalH64Only(p.h64, key)
+	case "positions":
+		return evalPositions(p.positions, key)
+	case "i32":
+		switch key {
+		case "hash32":
+			return evalH32Only(hash.Hash32Int32(p.value, p.seed), "hash32")
+		case "hash64", "hash64_hi", "hash64_lo":
+			return evalH64Only(hash.Hash64Int32(p.value, p.seed), key)
+		}
+		return unknown(key)
+	case "bytes":
+		switch key {
+		case "hash32":
+			return evalH32Only(hash.Hash32Bytes(p.bytes, p.seed), "hash32")
+		case "hash64", "hash64_hi", "hash64_lo":
+			return evalH64Only(hash.Hash64Bytes(p.bytes, p.seed), key)
+		}
+		return unknown(key)
+	}
+	return unknown(key)
+}
+
+func evalH32Only(h uint32, key string) string {
+	if key == "hash32" {
+		return fmt.Sprintf("0x%08x", h)
+	}
+	return unknown(key)
+}
+
+func evalH64Only(h uint64, key string) string {
+	switch key {
+	case "hash64":
+		return fmt.Sprintf("0x%016x", h)
+	case "hash64_hi":
+		return fmt.Sprintf("0x%08x", uint32(h>>32))
+	case "hash64_lo":
+		return fmt.Sprintf("0x%08x", uint32(h))
+	}
+	return unknown(key)
+}
+
+func evalPositions(p []uint32, key string) string {
+	if key != "positions" {
+		return unknown(key)
+	}
+	// Emitted in DERIVATION order (p_0 .. p_{k-1}), NOT sorted.
+	parts := make([]string, len(p))
+	for i, x := range p {
+		parts[i] = strconv.FormatUint(uint64(x), 10)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// parseHexWord parses a 0x-prefixed hex word operand to a uint64 (used for
+// `word` operands; the caller narrows to uint32 where the op needs a 32-bit
+// word).
+func parseHexWord(v any) uint64 {
+	s, ok := v.(string)
+	if !ok {
+		fatalf("hash-pipeline `word` must be a 0x-hex string, got %T", v)
+	}
+	body, ok := strings.CutPrefix(s, "0x")
+	if !ok {
+		body, ok = strings.CutPrefix(s, "0X")
+	}
+	if !ok {
+		fatalf("hash-pipeline word must start with 0x: %q", s)
+	}
+	n, err := strconv.ParseUint(body, 16, 64)
+	if err != nil {
+		fatalf("invalid hex word %q: %v", s, err)
+	}
+	return n
+}
+
+// parseSeed parses a `seed` operand: a DECIMAL STRING parsed straight to uint64
+// (NEVER via float64), reusing the i64-suite's decimal-string discipline. A
+// bare JSON number is also accepted for small seeds.
+func parseSeed(v any) uint64 {
+	switch t := v.(type) {
+	case string:
+		n, err := strconv.ParseUint(t, 10, 64)
+		if err != nil {
+			fatalf("invalid u64 decimal-string seed %q: %v", t, err)
+		}
+		return n
+	case json.Number:
+		n, err := strconv.ParseUint(t.String(), 10, 64)
+		if err != nil {
+			fatalf("invalid u64 seed %q: %v", t.String(), err)
+		}
+		return n
+	case float64:
+		return uint64(t)
+	}
+	fatalf("expected u64 seed (decimal string or number), got %T", v)
+	return 0
+}
+
+// parseHexBytes parses a 0x-hex byte string (e.g. "0x01020304") to a byte slice.
+func parseHexBytes(v any) []byte {
+	s, ok := v.(string)
+	if !ok {
+		fatalf("hash-pipeline `bytes` must be a 0x-hex string, got %T", v)
+	}
+	body, ok := strings.CutPrefix(s, "0x")
+	if !ok {
+		body, ok = strings.CutPrefix(s, "0X")
+	}
+	if !ok {
+		fatalf("hash-pipeline bytes must start with 0x: %q", s)
+	}
+	if len(body)%2 != 0 {
+		fatalf("hash-pipeline bytes must have an even hex-digit count: %q", s)
+	}
+	out := make([]byte, len(body)/2)
+	for i := range out {
+		b, err := strconv.ParseUint(body[2*i:2*i+2], 16, 8)
+		if err != nil {
+			fatalf("invalid hex byte in %q: %v", s, err)
+		}
+		out[i] = byte(b)
+	}
+	return out
 }
 
 // ---- HashMap<i32, i32> ---------------------------------------------------

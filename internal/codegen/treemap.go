@@ -435,6 +435,63 @@ func (m *{{.MapName}}) FirstEntry() ({{.KeyType}}, {{.ValType}}, bool) { return 
 // LastEntry is an alias of Max — the largest key and its value, or zero/false.
 func (m *{{.MapName}}) LastEntry() ({{.KeyType}}, {{.ValType}}, bool) { return m.Max() }
 
+// FloorKey returns the largest key <= the given key, or zero and false. Key form
+// of Floor (drops the value).
+func (m *{{.MapName}}) FloorKey(key {{.KeyType}}) ({{.KeyType}}, bool) {
+	k, _, ok := m.Floor(key)
+	return k, ok
+}
+
+// CeilingKey returns the smallest key >= the given key, or zero and false.
+func (m *{{.MapName}}) CeilingKey(key {{.KeyType}}) ({{.KeyType}}, bool) {
+	k, _, ok := m.Ceiling(key)
+	return k, ok
+}
+
+// LowerKey returns the largest key strictly < the given key, or zero and false.
+func (m *{{.MapName}}) LowerKey(key {{.KeyType}}) ({{.KeyType}}, bool) {
+	k, _, ok := m.Lower(key)
+	return k, ok
+}
+
+// HigherKey returns the smallest key strictly > the given key, or zero and false.
+func (m *{{.MapName}}) HigherKey(key {{.KeyType}}) ({{.KeyType}}, bool) {
+	k, _, ok := m.Higher(key)
+	return k, ok
+}
+
+// FirstKey returns the smallest key, or zero and false if empty.
+func (m *{{.MapName}}) FirstKey() ({{.KeyType}}, bool) {
+	k, _, ok := m.Min()
+	return k, ok
+}
+
+// LastKey returns the largest key, or zero and false if empty.
+func (m *{{.MapName}}) LastKey() ({{.KeyType}}, bool) {
+	k, _, ok := m.Max()
+	return k, ok
+}
+
+// FloorEntry is an alias of Floor — the largest entry with key <= the given key.
+func (m *{{.MapName}}) FloorEntry(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+	return m.Floor(key)
+}
+
+// CeilingEntry is an alias of Ceiling — the smallest entry with key >= the given key.
+func (m *{{.MapName}}) CeilingEntry(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+	return m.Ceiling(key)
+}
+
+// LowerEntry is an alias of Lower — the largest entry with key strictly < the given key.
+func (m *{{.MapName}}) LowerEntry(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+	return m.Lower(key)
+}
+
+// HigherEntry is an alias of Higher — the smallest entry with key strictly > the given key.
+func (m *{{.MapName}}) HigherEntry(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool) {
+	return m.Higher(key)
+}
+
 // PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
 func (m *{{.MapName}}) PollFirstEntry() ({{.KeyType}}, {{.ValType}}, bool) {
 	k, v, ok := m.Min()

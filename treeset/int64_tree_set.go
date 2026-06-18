@@ -110,6 +110,92 @@ func (s *Int64) Max() (int64, bool) {
 	return s.maxNode(s.root).key, true
 }
 
+// First is an alias of Min — the smallest element, or zero and false if empty.
+func (s *Int64) First() (int64, bool) { return s.Min() }
+
+// Last is an alias of Max — the largest element, or zero and false if empty.
+func (s *Int64) Last() (int64, bool) { return s.Max() }
+
+// PollFirst removes and returns the smallest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *Int64) PollFirst() (int64, bool) {
+	v, ok := s.Min()
+	if !ok {
+		return 0, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// PollLast removes and returns the largest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *Int64) PollLast() (int64, bool) {
+	v, ok := s.Max()
+	if !ok {
+		return 0, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// Higher returns the smallest element strictly > value, or zero and false.
+// Unlike Ceiling, never returns value itself.
+func (s *Int64) Higher(value int64) (int64, bool) {
+	var result *int64Node
+	node := s.root
+	for node != nil {
+		if value < node.key {
+			result = node
+			node = node.left
+		} else {
+			node = node.right
+		}
+	}
+	if result == nil {
+		return 0, false
+	}
+	return result.key, true
+}
+
+// Lower returns the largest element strictly < value, or zero and false.
+// Unlike Floor, never returns value itself.
+func (s *Int64) Lower(value int64) (int64, bool) {
+	var result *int64Node
+	node := s.root
+	for node != nil {
+		if value > node.key {
+			result = node
+			node = node.right
+		} else {
+			node = node.left
+		}
+	}
+	if result == nil {
+		return 0, false
+	}
+	return result.key, true
+}
+
+// DescendingElements returns an iter.Seq that yields elements in descending order.
+func (s *Int64) DescendingElements() iter.Seq[int64] {
+	return func(yield func(int64) bool) {
+		var reverse func(node *int64Node) bool
+		reverse = func(node *int64Node) bool {
+			if node == nil {
+				return true
+			}
+			if !reverse(node.right) {
+				return false
+			}
+			if !yield(node.key) {
+				return false
+			}
+			return reverse(node.left)
+		}
+		reverse(s.root)
+	}
+}
+
 // Floor returns the largest element <= value, or zero and false.
 func (s *Int64) Floor(value int64) (int64, bool) {
 	var result *int64Node

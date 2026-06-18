@@ -311,6 +311,63 @@ func (m *CharChar) FirstEntry() (uint16, uint16, bool) { return m.Min() }
 // LastEntry is an alias of Max — the largest key and its value, or zero/false.
 func (m *CharChar) LastEntry() (uint16, uint16, bool) { return m.Max() }
 
+// FloorKey returns the largest key <= the given key, or zero and false. Key form
+// of Floor (drops the value).
+func (m *CharChar) FloorKey(key uint16) (uint16, bool) {
+	k, _, ok := m.Floor(key)
+	return k, ok
+}
+
+// CeilingKey returns the smallest key >= the given key, or zero and false.
+func (m *CharChar) CeilingKey(key uint16) (uint16, bool) {
+	k, _, ok := m.Ceiling(key)
+	return k, ok
+}
+
+// LowerKey returns the largest key strictly < the given key, or zero and false.
+func (m *CharChar) LowerKey(key uint16) (uint16, bool) {
+	k, _, ok := m.Lower(key)
+	return k, ok
+}
+
+// HigherKey returns the smallest key strictly > the given key, or zero and false.
+func (m *CharChar) HigherKey(key uint16) (uint16, bool) {
+	k, _, ok := m.Higher(key)
+	return k, ok
+}
+
+// FirstKey returns the smallest key, or zero and false if empty.
+func (m *CharChar) FirstKey() (uint16, bool) {
+	k, _, ok := m.Min()
+	return k, ok
+}
+
+// LastKey returns the largest key, or zero and false if empty.
+func (m *CharChar) LastKey() (uint16, bool) {
+	k, _, ok := m.Max()
+	return k, ok
+}
+
+// FloorEntry is an alias of Floor — the largest entry with key <= the given key.
+func (m *CharChar) FloorEntry(key uint16) (uint16, uint16, bool) {
+	return m.Floor(key)
+}
+
+// CeilingEntry is an alias of Ceiling — the smallest entry with key >= the given key.
+func (m *CharChar) CeilingEntry(key uint16) (uint16, uint16, bool) {
+	return m.Ceiling(key)
+}
+
+// LowerEntry is an alias of Lower — the largest entry with key strictly < the given key.
+func (m *CharChar) LowerEntry(key uint16) (uint16, uint16, bool) {
+	return m.Lower(key)
+}
+
+// HigherEntry is an alias of Higher — the smallest entry with key strictly > the given key.
+func (m *CharChar) HigherEntry(key uint16) (uint16, uint16, bool) {
+	return m.Higher(key)
+}
+
 // PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
 func (m *CharChar) PollFirstEntry() (uint16, uint16, bool) {
 	k, v, ok := m.Min()

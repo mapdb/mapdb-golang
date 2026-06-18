@@ -110,6 +110,92 @@ func (s *Char) Max() (uint16, bool) {
 	return s.maxNode(s.root).key, true
 }
 
+// First is an alias of Min — the smallest element, or zero and false if empty.
+func (s *Char) First() (uint16, bool) { return s.Min() }
+
+// Last is an alias of Max — the largest element, or zero and false if empty.
+func (s *Char) Last() (uint16, bool) { return s.Max() }
+
+// PollFirst removes and returns the smallest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *Char) PollFirst() (uint16, bool) {
+	v, ok := s.Min()
+	if !ok {
+		return 0, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// PollLast removes and returns the largest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *Char) PollLast() (uint16, bool) {
+	v, ok := s.Max()
+	if !ok {
+		return 0, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// Higher returns the smallest element strictly > value, or zero and false.
+// Unlike Ceiling, never returns value itself.
+func (s *Char) Higher(value uint16) (uint16, bool) {
+	var result *charNode
+	node := s.root
+	for node != nil {
+		if value < node.key {
+			result = node
+			node = node.left
+		} else {
+			node = node.right
+		}
+	}
+	if result == nil {
+		return 0, false
+	}
+	return result.key, true
+}
+
+// Lower returns the largest element strictly < value, or zero and false.
+// Unlike Floor, never returns value itself.
+func (s *Char) Lower(value uint16) (uint16, bool) {
+	var result *charNode
+	node := s.root
+	for node != nil {
+		if value > node.key {
+			result = node
+			node = node.right
+		} else {
+			node = node.left
+		}
+	}
+	if result == nil {
+		return 0, false
+	}
+	return result.key, true
+}
+
+// DescendingElements returns an iter.Seq that yields elements in descending order.
+func (s *Char) DescendingElements() iter.Seq[uint16] {
+	return func(yield func(uint16) bool) {
+		var reverse func(node *charNode) bool
+		reverse = func(node *charNode) bool {
+			if node == nil {
+				return true
+			}
+			if !reverse(node.right) {
+				return false
+			}
+			if !yield(node.key) {
+				return false
+			}
+			return reverse(node.left)
+		}
+		reverse(s.root)
+	}
+}
+
 // Floor returns the largest element <= value, or zero and false.
 func (s *Char) Floor(value uint16) (uint16, bool) {
 	var result *charNode

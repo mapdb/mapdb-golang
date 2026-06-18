@@ -170,6 +170,47 @@ func TestTreeMap_DescendingMap(t *testing.T) {
 	}
 }
 
+func TestTreeMap_SubMapCopyPreservesReverseComparator(t *testing.T) {
+	// SubMapCopy must keep the source ordering (reverse), not reset to natural,
+	// and be an independent snapshot.
+	m := NewTreeMap[int, int](ReverseComparator[int]())
+	for _, k := range []int{10, 20, 30, 40, 50} {
+		m.Put(k, k*10)
+	}
+	// Source iterates descending under the reverse comparator.
+	var src []int
+	for k := range m.Keys() {
+		src = append(src, k)
+	}
+	if !slices.Equal(src, []int{50, 40, 30, 20, 10}) {
+		t.Fatalf("source order = %v, want descending", src)
+	}
+	// Under a reverse comparator [from, to) means from >= key > to, i.e. the
+	// half-open window in comparator order starting at 40 up to (not incl.) 10.
+	sub := m.SubMapCopy(40, 10) // {40,30,20} in reverse order
+	var subKeys []int
+	for k := range sub.Keys() {
+		subKeys = append(subKeys, k)
+	}
+	if !slices.Equal(subKeys, []int{40, 30, 20}) {
+		t.Errorf("SubMapCopy keys = %v, want [40 30 20] (reverse order preserved)", subKeys)
+	}
+	// Independence: mutating the snapshot does not touch the original.
+	sub.Remove(30)
+	if !m.ContainsKey(30) {
+		t.Error("original must still contain 30 after mutating snapshot")
+	}
+	sub.Put(99, 990)
+	if m.ContainsKey(99) {
+		t.Error("original must not gain 99 from snapshot")
+	}
+	// And vice versa.
+	m.Remove(40)
+	if !sub.ContainsKey(40) {
+		t.Error("snapshot must still contain 40 after mutating original")
+	}
+}
+
 func TestTreeMap_HeadTailSubMap_EarlyBreak(t *testing.T) {
 	// Breaking out of iter.Seq2 must unwind correctly for each view.
 	m := buildTestTreeMap()

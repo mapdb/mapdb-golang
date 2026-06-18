@@ -187,6 +187,92 @@ func (s *{{.Name}}) Max() ({{.GoType}}, bool) {
 	return s.maxNode(s.root).key, true
 }
 
+// First is an alias of Min — the smallest element, or zero and false if empty.
+func (s *{{.Name}}) First() ({{.GoType}}, bool) { return s.Min() }
+
+// Last is an alias of Max — the largest element, or zero and false if empty.
+func (s *{{.Name}}) Last() ({{.GoType}}, bool) { return s.Max() }
+
+// PollFirst removes and returns the smallest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *{{.Name}}) PollFirst() ({{.GoType}}, bool) {
+	v, ok := s.Min()
+	if !ok {
+		return {{.Zero}}, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// PollLast removes and returns the largest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *{{.Name}}) PollLast() ({{.GoType}}, bool) {
+	v, ok := s.Max()
+	if !ok {
+		return {{.Zero}}, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// Higher returns the smallest element strictly > value, or zero and false.
+// Unlike Ceiling, never returns value itself.
+func (s *{{.Name}}) Higher(value {{.GoType}}) ({{.GoType}}, bool) {
+	var result *{{.SnakeName}}Node
+	node := s.root
+	for node != nil {
+		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) < 0{{else}}value < node.key{{end}} {
+			result = node
+			node = node.left
+		} else {
+			node = node.right
+		}
+	}
+	if result == nil {
+		return {{.Zero}}, false
+	}
+	return result.key, true
+}
+
+// Lower returns the largest element strictly < value, or zero and false.
+// Unlike Floor, never returns value itself.
+func (s *{{.Name}}) Lower(value {{.GoType}}) ({{.GoType}}, bool) {
+	var result *{{.SnakeName}}Node
+	node := s.root
+	for node != nil {
+		if {{if .IsFloat}}{{.CmpFn}}(value, node.key) > 0{{else}}value > node.key{{end}} {
+			result = node
+			node = node.right
+		} else {
+			node = node.left
+		}
+	}
+	if result == nil {
+		return {{.Zero}}, false
+	}
+	return result.key, true
+}
+
+// DescendingElements returns an iter.Seq that yields elements in descending order.
+func (s *{{.Name}}) DescendingElements() iter.Seq[{{.GoType}}] {
+	return func(yield func({{.GoType}}) bool) {
+		var reverse func(node *{{.SnakeName}}Node) bool
+		reverse = func(node *{{.SnakeName}}Node) bool {
+			if node == nil {
+				return true
+			}
+			if !reverse(node.right) {
+				return false
+			}
+			if !yield(node.key) {
+				return false
+			}
+			return reverse(node.left)
+		}
+		reverse(s.root)
+	}
+}
+
 // Floor returns the largest element <= value, or zero and false.
 func (s *{{.Name}}) Floor(value {{.GoType}}) ({{.GoType}}, bool) {
 	var result *{{.SnakeName}}Node

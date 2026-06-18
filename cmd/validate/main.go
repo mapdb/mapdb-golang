@@ -40,6 +40,10 @@ type scenario struct {
 	Operations []map[string]any           `json:"operations"`
 	Assertions map[string]json.RawMessage `json:"assertions"`
 	Other      *otherSpec                 `json:"other,omitempty"`
+	// Query is the optional single top-level range (NavigableMap/Set) the
+	// range_* assertions refer to; same range-builder shape as the `range`
+	// field on a remove_range op.
+	Query map[string]any `json:"query,omitempty"`
 }
 
 type otherSpec struct {
@@ -155,11 +159,16 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 				// modeNone arrays are normally i32 (JSON numbers). The
 				// HashMap<i64,i32> `sorted_keys` array is decimal STRINGS
 				// (i64 keys exceed 2^53) — render those quoted to match the
-				// runner's computed quoted-string array.
-				if s, ok := e.(string); ok {
-					parts[i] = "\"" + s + "\""
-				} else {
-					parts[i] = strconv.FormatInt(int64(e.(float64)), 10)
+				// runner's computed quoted-string array. NavigableMap/Set poll
+				// logs (poll_first_keys / poll_first_values / ...) are
+				// (int|null)[] — a nil element renders as the bare "null".
+				switch ev := e.(type) {
+				case nil:
+					parts[i] = "null"
+				case string:
+					parts[i] = "\"" + ev + "\""
+				default:
+					parts[i] = strconv.FormatInt(int64(ev.(float64)), 10)
 				}
 			}
 		}
@@ -1072,10 +1081,55 @@ func evalBagAssertion(key string, b *bag.HashInt32) string {
 	return unknown(key)
 }
 
+// ---- NavigableMap / NavigableSet shared helpers --------------------------
+
+// navLog records poll/remove_range return values in execution order while
+// applying operations, so they are cross-language observable (see README
+// §NavigableMap).
+type navLog struct {
+	pollFirstKeys    []*int32
+	pollLastKeys     []*int32
+	pollFirstValues  []*int32
+	pollLastValues   []*int32
+	removeRangeCount []int32
+}
+
+func i32p(v int32) *int32 { return &v }
+
+// optArray renders an []*int32 as a JSON-ish array with null for absent.
+func optArray(v []*int32) string {
+	parts := make([]string, len(v))
+	for i, x := range v {
+		if x == nil {
+			parts[i] = "null"
+		} else {
+			parts[i] = strconv.FormatInt(int64(*x), 10)
+		}
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// navKeyPrefix recognises a floor_<k>/ceiling_<k>/lower_<k>/higher_<k> assertion
+// key. <k> is parsed as a SIGNED base-10 i32 (leading '-' and the full i32 range
+// allowed). Returns (kind, k, true) on a match.
+func navKeyPrefix(key string) (string, int32, bool) {
+	for _, prefix := range []string{"floor_", "ceiling_", "lower_", "higher_"} {
+		if rest, ok := strings.CutPrefix(key, prefix); ok {
+			n, err := strconv.ParseInt(rest, 10, 32)
+			if err != nil {
+				continue // not a nav key (suffix is not a signed i32)
+			}
+			return strings.TrimSuffix(prefix, "_"), int32(n), true
+		}
+	}
+	return "", 0, false
+}
+
 // ---- TreeSet<i32> --------------------------------------------------------
 
 func runTreeSet(s scenario) {
 	set := treeset.NewInt32()
+	var log navLog
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "add":
@@ -1084,9 +1138,30 @@ func runTreeSet(s scenario) {
 			set.Remove(asInt32(op["value"]))
 		case "clear":
 			set.Clear()
+		case "poll_first":
+			if v, ok := set.PollFirst(); ok {
+				log.pollFirstKeys = append(log.pollFirstKeys, i32p(v))
+			} else {
+				log.pollFirstKeys = append(log.pollFirstKeys, nil)
+			}
+		case "poll_last":
+			if v, ok := set.PollLast(); ok {
+				log.pollLastKeys = append(log.pollLastKeys, i32p(v))
+			} else {
+				log.pollLastKeys = append(log.pollLastKeys, nil)
+			}
+		case "remove_range":
+			r := buildRangeObj(op["range"].(map[string]any))
+			log.removeRangeCount = append(log.removeRangeCount, int32(set.RemoveRange(r)))
 		default:
-			fatalf("unknown treeset op: %v", op["op"])
+			// Forward-compat: an unknown op must not crash an older/newer runner
+			// mix; skip it (mirrors unknown-collection/assertion skip).
 		}
+	}
+	var query rangev.Int32Range
+	hasQuery := s.Query != nil
+	if hasQuery {
+		query = buildRangeObj(s.Query)
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
 		val := func() string {
@@ -1095,21 +1170,47 @@ func runTreeSet(s scenario) {
 				return strconv.Itoa(set.Len())
 			case "is_empty":
 				return strconv.FormatBool(set.Len() == 0)
-			case "min":
-				if v, ok := set.Min(); ok {
-					return strconv.FormatInt(int64(v), 10)
-				}
-				return "null"
-			case "max":
-				if v, ok := set.Max(); ok {
-					return strconv.FormatInt(int64(v), 10)
-				}
-				return "null"
+			case "min", "first":
+				return optInt32Str(set.Min())
+			case "max", "last":
+				return optInt32Str(set.Max())
 			case "to_sorted_array":
-				out := make([]int32, 0, set.Len())
-				set.ForEach(func(v int32) { out = append(out, v) })
-				// Int32TreeSet already iterates in order.
-				return formatArray(out)
+				return formatArray(set.ToSlice())
+			case "descending_elements":
+				return formatArray(set.Descending())
+			case "range_elements":
+				if hasQuery {
+					return formatArray(set.RangeElements(query))
+				}
+				return unknown(key)
+			case "range_elements_desc":
+				if hasQuery {
+					return formatArray(set.DescendingRangeElements(query))
+				}
+				return unknown(key)
+			case "range_size":
+				if hasQuery {
+					return strconv.Itoa(len(set.RangeElements(query)))
+				}
+				return unknown(key)
+			case "poll_first_keys":
+				return optArray(log.pollFirstKeys)
+			case "poll_last_keys":
+				return optArray(log.pollLastKeys)
+			case "remove_range_counts":
+				return formatArray(log.removeRangeCount)
+			}
+			if kind, k, ok := navKeyPrefix(key); ok {
+				switch kind {
+				case "floor":
+					return optInt32Str(set.Floor(k))
+				case "ceiling":
+					return optInt32Str(set.Ceiling(k))
+				case "lower":
+					return optInt32Str(set.Lower(k))
+				case "higher":
+					return optInt32Str(set.Higher(k))
+				}
 			}
 			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
 				v, _ := strconv.ParseInt(rest, 10, 32)
@@ -1125,6 +1226,7 @@ func runTreeSet(s scenario) {
 
 func runTreeMap(s scenario) {
 	m := treemap.NewInt32Int32()
+	var log navLog
 	for _, op := range s.Operations {
 		switch op["op"] {
 		case "put":
@@ -1133,9 +1235,33 @@ func runTreeMap(s scenario) {
 			m.Remove(asInt32(op["key"]))
 		case "clear":
 			m.Clear()
+		case "poll_first":
+			if k, v, ok := m.PollFirstEntry(); ok {
+				log.pollFirstKeys = append(log.pollFirstKeys, i32p(k))
+				log.pollFirstValues = append(log.pollFirstValues, i32p(v))
+			} else {
+				log.pollFirstKeys = append(log.pollFirstKeys, nil)
+				log.pollFirstValues = append(log.pollFirstValues, nil)
+			}
+		case "poll_last":
+			if k, v, ok := m.PollLastEntry(); ok {
+				log.pollLastKeys = append(log.pollLastKeys, i32p(k))
+				log.pollLastValues = append(log.pollLastValues, i32p(v))
+			} else {
+				log.pollLastKeys = append(log.pollLastKeys, nil)
+				log.pollLastValues = append(log.pollLastValues, nil)
+			}
+		case "remove_range":
+			r := buildRangeObj(op["range"].(map[string]any))
+			log.removeRangeCount = append(log.removeRangeCount, int32(m.RemoveRange(r)))
 		default:
-			fatalf("unknown treemap op: %v", op["op"])
+			// Forward-compat: skip unknown ops.
 		}
+	}
+	var query rangev.Int32Range
+	hasQuery := s.Query != nil
+	if hasQuery {
+		query = buildRangeObj(s.Query)
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
 		val := func() string {
@@ -1144,16 +1270,12 @@ func runTreeMap(s scenario) {
 				return strconv.Itoa(m.Len())
 			case "is_empty":
 				return strconv.FormatBool(m.Len() == 0)
-			case "min":
-				if k, _, ok := m.Min(); ok {
-					return strconv.FormatInt(int64(k), 10)
-				}
-				return "null"
-			case "max":
-				if k, _, ok := m.Max(); ok {
-					return strconv.FormatInt(int64(k), 10)
-				}
-				return "null"
+			case "min", "first_key":
+				k, _, ok := m.Min()
+				return optInt32Str(k, ok)
+			case "max", "last_key":
+				k, _, ok := m.Max()
+				return optInt32Str(k, ok)
 			case "sorted_keys":
 				var keys []int32
 				for k := range m.Keys() {
@@ -1165,10 +1287,52 @@ func runTreeMap(s scenario) {
 				for _, v := range m.All() {
 					vals = append(vals, v)
 				}
-				// Int32Int32TreeMap iterates in key order; values
-				// follow keys, which is what "sorted_values" asks for
-				// in the cross-language contract.
+				// Int32Int32 iterates in key order; values follow keys, which is
+				// what "sorted_values" asks for in the cross-language contract.
 				return formatArray(vals)
+			case "descending_keys":
+				var keys []int32
+				for k := range m.DescendingKeys() {
+					keys = append(keys, k)
+				}
+				return formatArray(keys)
+			case "range_keys":
+				if hasQuery {
+					return formatArray(m.RangeKeysIn(query))
+				}
+				return unknown(key)
+			case "range_keys_desc":
+				if hasQuery {
+					return formatArray(m.DescendingRangeKeys(query))
+				}
+				return unknown(key)
+			case "range_size":
+				if hasQuery {
+					return strconv.Itoa(len(m.RangeKeysIn(query)))
+				}
+				return unknown(key)
+			case "poll_first_keys":
+				return optArray(log.pollFirstKeys)
+			case "poll_last_keys":
+				return optArray(log.pollLastKeys)
+			case "poll_first_values":
+				return optArray(log.pollFirstValues)
+			case "poll_last_values":
+				return optArray(log.pollLastValues)
+			case "remove_range_counts":
+				return formatArray(log.removeRangeCount)
+			}
+			if kind, k, ok := navKeyPrefix(key); ok {
+				switch kind {
+				case "floor":
+					return optInt32Str(m.FloorKey(k))
+				case "ceiling":
+					return optInt32Str(m.CeilingKey(k))
+				case "lower":
+					return optInt32Str(m.LowerKey(k))
+				case "higher":
+					return optInt32Str(m.HigherKey(k))
+				}
 			}
 			if rest, ok := strings.CutPrefix(key, "get_"); ok {
 				k, _ := strconv.ParseInt(rest, 10, 32)
@@ -1424,7 +1588,13 @@ func buildRange(ops []map[string]any) rangev.Int32Range {
 	if len(ops) != 1 {
 		fatalf("Range<i32> scenario must have exactly one constructor op, got %d", len(ops))
 	}
-	op := ops[0]
+	return buildRangeObj(ops[0])
+}
+
+// buildRangeObj builds an Int32Range from a single range-builder object (the
+// 10-range op shape). Shared by the Range<i32> runner and the NavigableMap/Set
+// `range`/`query` fields.
+func buildRangeObj(op map[string]any) rangev.Int32Range {
 	lower := func() int32 { return asInt32(op["lower"]) }
 	upper := func() int32 { return asInt32(op["upper"]) }
 	switch op["op"] {

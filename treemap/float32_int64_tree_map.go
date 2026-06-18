@@ -311,6 +311,63 @@ func (m *Float32Int64) FirstEntry() (float32, int64, bool) { return m.Min() }
 // LastEntry is an alias of Max — the largest key and its value, or zero/false.
 func (m *Float32Int64) LastEntry() (float32, int64, bool) { return m.Max() }
 
+// FloorKey returns the largest key <= the given key, or zero and false. Key form
+// of Floor (drops the value).
+func (m *Float32Int64) FloorKey(key float32) (float32, bool) {
+	k, _, ok := m.Floor(key)
+	return k, ok
+}
+
+// CeilingKey returns the smallest key >= the given key, or zero and false.
+func (m *Float32Int64) CeilingKey(key float32) (float32, bool) {
+	k, _, ok := m.Ceiling(key)
+	return k, ok
+}
+
+// LowerKey returns the largest key strictly < the given key, or zero and false.
+func (m *Float32Int64) LowerKey(key float32) (float32, bool) {
+	k, _, ok := m.Lower(key)
+	return k, ok
+}
+
+// HigherKey returns the smallest key strictly > the given key, or zero and false.
+func (m *Float32Int64) HigherKey(key float32) (float32, bool) {
+	k, _, ok := m.Higher(key)
+	return k, ok
+}
+
+// FirstKey returns the smallest key, or zero and false if empty.
+func (m *Float32Int64) FirstKey() (float32, bool) {
+	k, _, ok := m.Min()
+	return k, ok
+}
+
+// LastKey returns the largest key, or zero and false if empty.
+func (m *Float32Int64) LastKey() (float32, bool) {
+	k, _, ok := m.Max()
+	return k, ok
+}
+
+// FloorEntry is an alias of Floor — the largest entry with key <= the given key.
+func (m *Float32Int64) FloorEntry(key float32) (float32, int64, bool) {
+	return m.Floor(key)
+}
+
+// CeilingEntry is an alias of Ceiling — the smallest entry with key >= the given key.
+func (m *Float32Int64) CeilingEntry(key float32) (float32, int64, bool) {
+	return m.Ceiling(key)
+}
+
+// LowerEntry is an alias of Lower — the largest entry with key strictly < the given key.
+func (m *Float32Int64) LowerEntry(key float32) (float32, int64, bool) {
+	return m.Lower(key)
+}
+
+// HigherEntry is an alias of Higher — the smallest entry with key strictly > the given key.
+func (m *Float32Int64) HigherEntry(key float32) (float32, int64, bool) {
+	return m.Higher(key)
+}
+
 // PollFirstEntry removes and returns the smallest entry, or zero/false if empty.
 func (m *Float32Int64) PollFirstEntry() (float32, int64, bool) {
 	k, v, ok := m.Min()

@@ -110,6 +110,92 @@ func (s *Int8) Max() (int8, bool) {
 	return s.maxNode(s.root).key, true
 }
 
+// First is an alias of Min — the smallest element, or zero and false if empty.
+func (s *Int8) First() (int8, bool) { return s.Min() }
+
+// Last is an alias of Max — the largest element, or zero and false if empty.
+func (s *Int8) Last() (int8, bool) { return s.Max() }
+
+// PollFirst removes and returns the smallest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *Int8) PollFirst() (int8, bool) {
+	v, ok := s.Min()
+	if !ok {
+		return 0, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// PollLast removes and returns the largest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *Int8) PollLast() (int8, bool) {
+	v, ok := s.Max()
+	if !ok {
+		return 0, false
+	}
+	s.Remove(v)
+	return v, true
+}
+
+// Higher returns the smallest element strictly > value, or zero and false.
+// Unlike Ceiling, never returns value itself.
+func (s *Int8) Higher(value int8) (int8, bool) {
+	var result *int8Node
+	node := s.root
+	for node != nil {
+		if value < node.key {
+			result = node
+			node = node.left
+		} else {
+			node = node.right
+		}
+	}
+	if result == nil {
+		return 0, false
+	}
+	return result.key, true
+}
+
+// Lower returns the largest element strictly < value, or zero and false.
+// Unlike Floor, never returns value itself.
+func (s *Int8) Lower(value int8) (int8, bool) {
+	var result *int8Node
+	node := s.root
+	for node != nil {
+		if value > node.key {
+			result = node
+			node = node.right
+		} else {
+			node = node.left
+		}
+	}
+	if result == nil {
+		return 0, false
+	}
+	return result.key, true
+}
+
+// DescendingElements returns an iter.Seq that yields elements in descending order.
+func (s *Int8) DescendingElements() iter.Seq[int8] {
+	return func(yield func(int8) bool) {
+		var reverse func(node *int8Node) bool
+		reverse = func(node *int8Node) bool {
+			if node == nil {
+				return true
+			}
+			if !reverse(node.right) {
+				return false
+			}
+			if !yield(node.key) {
+				return false
+			}
+			return reverse(node.left)
+		}
+		reverse(s.root)
+	}
+}
+
 // Floor returns the largest element <= value, or zero and false.
 func (s *Int8) Floor(value int8) (int8, bool) {
 	var result *int8Node

@@ -51,6 +51,67 @@ func (s *TreeSet[T]) Max() (T, bool) {
 	return k, ok
 }
 
+// Floor returns the largest element <= value, or zero and false.
+func (s *TreeSet[T]) Floor(value T) (T, bool) {
+	k, _, ok := s.tree.Floor(value)
+	return k, ok
+}
+
+// Ceiling returns the smallest element >= value, or zero and false.
+func (s *TreeSet[T]) Ceiling(value T) (T, bool) {
+	k, _, ok := s.tree.Ceiling(value)
+	return k, ok
+}
+
+// Lower returns the largest element strictly < value, or zero and false.
+func (s *TreeSet[T]) Lower(value T) (T, bool) {
+	k, _, ok := s.tree.Lower(value)
+	return k, ok
+}
+
+// Higher returns the smallest element strictly > value, or zero and false.
+func (s *TreeSet[T]) Higher(value T) (T, bool) {
+	k, _, ok := s.tree.Higher(value)
+	return k, ok
+}
+
+// First is an alias of Min.
+func (s *TreeSet[T]) First() (T, bool) { return s.Min() }
+
+// Last is an alias of Max.
+func (s *TreeSet[T]) Last() (T, bool) { return s.Max() }
+
+// PollFirst removes and returns the smallest element, or zero and false if
+// empty. Does not trap on an empty set.
+func (s *TreeSet[T]) PollFirst() (T, bool) {
+	k, _, ok := s.tree.PollFirstEntry()
+	return k, ok
+}
+
+// PollLast removes and returns the largest element, or zero and false if empty.
+// Does not trap on an empty set.
+func (s *TreeSet[T]) PollLast() (T, bool) {
+	k, _, ok := s.tree.PollLastEntry()
+	return k, ok
+}
+
+// DescendingSet returns an iterator over elements in descending order.
+func (s *TreeSet[T]) DescendingSet() iter.Seq[T] { return s.tree.DescendingKeys() }
+
+// SubSetCopy returns a new independent TreeSet of the elements in [from, to)
+// under this set's comparator. It is a materialized snapshot, not a live view:
+// mutating it never affects the original and vice versa. The snapshot PRESERVES
+// the source set's comparator, so a reverse/custom/float total-order set keeps
+// its ordering semantics in the slice (it never resets to natural order).
+func (s *TreeSet[T]) SubSetCopy(from, to T) *TreeSet[T] {
+	out := NewTreeSet(s.tree.cmp)
+	sub := s.tree.SubMapCopy(from, to)
+	for k := range sub.Keys() {
+		out.Add(k)
+	}
+	return out
+}
+
 // All returns an iterator over elements in sorted order.
 func (s *TreeSet[T]) All() iter.Seq[T] { return s.tree.Keys() }
 

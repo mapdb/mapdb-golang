@@ -14,7 +14,11 @@
 //
 //	go generate ./treemap/...
 //
-// Test files are hand-maintained.
+// Test files are hand-maintained. The NavigableMap Range surface
+// (SubMapRange/RangeKeysIn/RemoveRange/... consuming rangev.Int32Range) is
+// int32-only in v1, so it lives in the hand-maintained
+// int32_int32_navigable_range.go rather than the uniform generated sources;
+// the generator does not touch that file.
 package treemap
 
 //go:generate go run ../internal/codegen treemap

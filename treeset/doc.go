@@ -12,7 +12,11 @@
 //
 //	go generate ./treeset/...
 //
-// Test files are hand-maintained.
+// Test files are hand-maintained. The NavigableSet Range surface
+// (SubSet/RangeElements/RemoveRange/... consuming rangev.Int32Range) is
+// int32-only in v1, so it lives in the hand-maintained
+// int32_navigable_range.go rather than the uniform generated sources; the
+// generator does not touch that file.
 package treeset
 
 //go:generate go run ../internal/codegen treeset

@@ -324,6 +324,26 @@ func (m *TreeMap[K, V]) SubMap(fromKey, toKey K) iter.Seq2[K, V] {
 	}
 }
 
+// SubMapCopy returns a new independent TreeMap of the entries whose key is in
+// [fromKey, toKey) under this map's comparator. It is a materialized snapshot,
+// not a live view: mutating it never affects the original and vice versa. The
+// snapshot PRESERVES the source map's comparator, so a reverse/custom/float
+// total-order map keeps its ordering semantics in the slice (it never resets to
+// natural key order).
+func (m *TreeMap[K, V]) SubMapCopy(fromKey, toKey K) *TreeMap[K, V] {
+	out := NewTreeMap[K, V](m.cmp)
+	for k, v := range m.All() {
+		if m.cmp(k, fromKey) < 0 {
+			continue
+		}
+		if m.cmp(k, toKey) >= 0 {
+			break
+		}
+		out.Put(k, v)
+	}
+	return out
+}
+
 // FirstEntry is an alias of Min.
 func (m *TreeMap[K, V]) FirstEntry() (K, V, bool) { return m.Min() }
 

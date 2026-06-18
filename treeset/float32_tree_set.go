@@ -19,6 +19,26 @@ type float32Node struct {
 	right  *float32Node
 	parent *float32Node
 	color  bool
+	// size is the number of nodes in the subtree rooted here (this node plus
+	// both children's subtrees). Maintained in O(1) on every structural change
+	// -- insert, remove, and all rotations -- so order-statistic Rank/Select run
+	// in O(log n). Invariant after any operation: size == 1 + size(left) + size(right).
+	size int
+}
+
+// float32NodeSize returns the subtree size of a node link (0 if nil).
+func float32NodeSize(n *float32Node) int {
+	if n == nil {
+		return 0
+	}
+	return n.size
+}
+
+// float32NodeFixSize recomputes a node's cached subtree size from its
+// children. Called after any rotation or child relink so the augmentation stays
+// consistent.
+func float32NodeFixSize(n *float32Node) {
+	n.size = 1 + float32NodeSize(n.left) + float32NodeSize(n.right)
 }
 
 // Float32 is a sorted set of float32 values, backed by a red-black tree.
@@ -44,7 +64,7 @@ func Float32Of(values ...float32) *Float32 {
 // Add inserts a value. Returns true if added (not already present).
 func (s *Float32) Add(value float32) bool {
 	if s.root == nil {
-		s.root = &float32Node{key: value, color: float32NodeBlack}
+		s.root = &float32Node{key: value, color: float32NodeBlack, size: 1}
 		s.size++
 		return true
 	}
@@ -52,7 +72,8 @@ func (s *Float32) Add(value float32) bool {
 	for {
 		if cmpFloat32(value, node.key) < 0 {
 			if node.left == nil {
-				node.left = &float32Node{key: value, parent: node, color: float32NodeRed}
+				node.left = &float32Node{key: value, parent: node, color: float32NodeRed, size: 1}
+				s.incSizeToRoot(node)
 				s.fixAfterInsert(node.left)
 				s.size++
 				return true
@@ -60,7 +81,8 @@ func (s *Float32) Add(value float32) bool {
 			node = node.left
 		} else if cmpFloat32(value, node.key) > 0 {
 			if node.right == nil {
-				node.right = &float32Node{key: value, parent: node, color: float32NodeRed}
+				node.right = &float32Node{key: value, parent: node, color: float32NodeRed, size: 1}
+				s.incSizeToRoot(node)
 				s.fixAfterInsert(node.right)
 				s.size++
 				return true
@@ -282,8 +304,12 @@ func (s *Float32) ForEach(f func(float32)) {
 	}
 }
 
-// Select returns a new sorted set with elements satisfying the predicate.
-func (s *Float32) Select(predicate func(float32) bool) *Float32 {
+// SelectWhere returns a new sorted set with elements satisfying the predicate.
+//
+// Named SelectWhere (not Select) so the bare Select name is reserved for the
+// order-statistic Select (i-th smallest by 0-based rank), per
+// spec/features/rank-select.md.
+func (s *Float32) SelectWhere(predicate func(float32) bool) *Float32 {
 	result := NewFloat32()
 	for v := range s.All() {
 		if predicate(v) {
@@ -405,6 +431,61 @@ func (s *Float32) AddReturning(value float32) *Float32 { s.Add(value); return s 
 // RemoveReturning removes the value from the set and returns the receiver (mutating, fluent).
 func (s *Float32) RemoveReturning(value float32) *Float32 { s.Remove(value); return s }
 
+// --- Order statistics (rank / select) ---
+//
+// Backed by the per-node subtree-size augmentation; both run in O(log n) on the
+// balanced tree. Comparisons use the same ordering as insertion and in-order
+// traversal (the IEEE total order via cmpFloat32 for float elements, so NaN sorts
+// to the top and ±0 are distinguished).
+
+// Rank returns the number of elements strictly less than value under the set's
+// ordering -- the 0-based lower-bound index value occupies (if present) or would
+// occupy (if absent). Defined for present and absent values alike; the result is
+// in 0..=Len() (Len() for any value greater than the maximum). Pure query.
+func (s *Float32) Rank(value float32) int {
+	rank := 0
+	node := s.root
+	for node != nil {
+		if cmpFloat32(value, node.key) < 0 {
+			node = node.left
+		} else if cmpFloat32(value, node.key) > 0 {
+			rank += 1 + float32NodeSize(node.left)
+			node = node.right
+		} else {
+			return rank + float32NodeSize(node.left)
+		}
+	}
+	return rank
+}
+
+// Select returns the i-th smallest element (0-based) and true, or the zero value
+// and false if i >= Len() or i < 0. Out-of-range indices (including on an empty
+// set and negative i) return absence and do not trap. Round-trips with Rank:
+// Select(Rank(x)) == (x, true) for present x, and Rank(x') == i for the x'
+// returned by Select(i) at every 0 <= i < Len().
+//
+// This is the order-statistic select; the predicate-based filtering convenience
+// is SelectWhere (per spec/features/rank-select.md, the bare Select name is the
+// order-statistic select).
+func (s *Float32) Select(i int) (float32, bool) {
+	if i < 0 {
+		return 0.0, false
+	}
+	node := s.root
+	for node != nil {
+		left := float32NodeSize(node.left)
+		if i < left {
+			node = node.left
+		} else if i == left {
+			return node.key, true
+		} else {
+			i -= left + 1
+			node = node.right
+		}
+	}
+	return 0.0, false
+}
+
 // String returns a string representation in sorted order.
 func (s *Float32) String() string {
 	if s.size == 0 {
@@ -468,6 +549,10 @@ func (s *Float32) rotateLeft(x *float32Node) {
 	}
 	y.left = x
 	x.parent = y
+	// y took x's former position so it inherits x's old subtree size; recompute
+	// bottom-up: the demoted x first (now y's left child), then the promoted y.
+	float32NodeFixSize(x)
+	float32NodeFixSize(y)
 }
 func (s *Float32) rotateRight(x *float32Node) {
 	y := x.left
@@ -485,6 +570,26 @@ func (s *Float32) rotateRight(x *float32Node) {
 	}
 	y.right = x
 	x.parent = y
+	// Symmetric to rotateLeft: recompute the demoted x, then the promoted y.
+	float32NodeFixSize(x)
+	float32NodeFixSize(y)
+}
+
+// incSizeToRoot walks from n up to the root, bumping each ancestor's cached
+// subtree size by one after a new leaf was linked below n.
+func (s *Float32) incSizeToRoot(n *float32Node) {
+	for ; n != nil; n = n.parent {
+		n.size++
+	}
+}
+
+// fixSizeToRoot walks from n up to the root recomputing each node's cached
+// subtree size from its children. Used after a delete splice (the rotations
+// inside fixAfterDelete already maintain their own sizes).
+func (s *Float32) fixSizeToRoot(n *float32Node) {
+	for ; n != nil; n = n.parent {
+		float32NodeFixSize(n)
+	}
 }
 
 func (s *Float32) fixAfterInsert(z *float32Node) {
@@ -532,6 +637,12 @@ func (s *Float32) deleteNode(z *float32Node) {
 		z.key = succ.key
 		z = succ
 	}
+	// z is now the node physically spliced out. fixSizeFrom is the lowest node
+	// whose cached subtree size must be refreshed (the removed node's surviving
+	// parent at unlink time); recomputing that path to the root once the structure
+	// is final restores the invariant. Rotations inside fixAfterDelete maintain
+	// their own sizes and everything below fixSizeFrom is left consistent.
+	var fixSizeFrom *float32Node
 	var child *float32Node
 	if z.left != nil {
 		child = z.left
@@ -547,6 +658,7 @@ func (s *Float32) deleteNode(z *float32Node) {
 		} else {
 			z.parent.right = child
 		}
+		fixSizeFrom = child
 		if z.color == float32NodeBlack {
 			s.fixAfterDelete(child)
 		}
@@ -556,6 +668,8 @@ func (s *Float32) deleteNode(z *float32Node) {
 		if z.color == float32NodeBlack {
 			s.fixAfterDelete(z)
 		}
+		// fixAfterDelete may have rotated z to a new parent; read it now.
+		fixSizeFrom = z.parent
 		if z.parent != nil {
 			if z == z.parent.left {
 				z.parent.left = nil
@@ -564,6 +678,7 @@ func (s *Float32) deleteNode(z *float32Node) {
 			}
 		}
 	}
+	s.fixSizeToRoot(fixSizeFrom)
 }
 
 func (s *Float32) fixAfterDelete(x *float32Node) {

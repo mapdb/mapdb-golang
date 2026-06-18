@@ -82,12 +82,12 @@ func TestInt8_Generated_SortedIteration(t *testing.T) {
 		}
 	}
 }
-func TestInt8_Generated_Select(t *testing.T) {
+func TestInt8_Generated_SelectWhere(t *testing.T) {
 	s := NewInt8()
 	s.Add(1)
 	s.Add(2)
 	s.Add(3)
-	sel := s.Select(func(v int8) bool { return v > 1 })
+	sel := s.SelectWhere(func(v int8) bool { return v > 1 })
 	if sel.Len() != 2 {
 		t.Errorf("Select size = %d", sel.Len())
 	}

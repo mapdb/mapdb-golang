@@ -144,6 +144,26 @@ type {{.NodeName}}TreeNode struct {
 	right  *{{.NodeName}}TreeNode
 	parent *{{.NodeName}}TreeNode
 	color  bool
+	// size is the number of nodes in the subtree rooted here (this node plus
+	// both children's subtrees). Maintained in O(1) on every structural change
+	// -- insert, remove, and all rotations -- so order-statistic Rank/Select run
+	// in O(log n). Invariant after any operation: size == 1 + size(left) + size(right).
+	size int
+}
+
+// {{.NodeName}}TreeNodeSize returns the subtree size of a node link (0 if nil).
+func {{.NodeName}}TreeNodeSize(n *{{.NodeName}}TreeNode) int {
+	if n == nil {
+		return 0
+	}
+	return n.size
+}
+
+// {{.NodeName}}TreeNodeFixSize recomputes a node's cached subtree size from its
+// children. Called after any rotation or child relink so the augmentation stays
+// consistent.
+func {{.NodeName}}TreeNodeFixSize(n *{{.NodeName}}TreeNode) {
+	n.size = 1 + {{.NodeName}}TreeNodeSize(n.left) + {{.NodeName}}TreeNodeSize(n.right)
 }
 
 // {{.MapName}} is a sorted map with {{.KeyType}} keys and {{.ValType}} values, backed by a red-black tree.
@@ -161,7 +181,7 @@ func New{{.MapName}}() *{{.MapName}} {
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
 	if m.root == nil {
-		m.root = &{{.NodeName}}TreeNode{key: key, value: value, color: {{.NodeName}}TreeNodeBlack}
+		m.root = &{{.NodeName}}TreeNode{key: key, value: value, color: {{.NodeName}}TreeNodeBlack, size: 1}
 		m.size++
 		return {{.ValZero}}, false
 	}
@@ -169,7 +189,8 @@ func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, 
 	for {
 		if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) < 0{{else}}key < node.key{{end}} {
 			if node.left == nil {
-				node.left = &{{.NodeName}}TreeNode{key: key, value: value, parent: node, color: {{.NodeName}}TreeNodeRed}
+				node.left = &{{.NodeName}}TreeNode{key: key, value: value, parent: node, color: {{.NodeName}}TreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.left)
 				m.size++
 				return {{.ValZero}}, false
@@ -177,7 +198,8 @@ func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, 
 			node = node.left
 		} else if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) > 0{{else}}key > node.key{{end}} {
 			if node.right == nil {
-				node.right = &{{.NodeName}}TreeNode{key: key, value: value, parent: node, color: {{.NodeName}}TreeNodeRed}
+				node.right = &{{.NodeName}}TreeNode{key: key, value: value, parent: node, color: {{.NodeName}}TreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.right)
 				m.size++
 				return {{.ValZero}}, false
@@ -625,6 +647,86 @@ func (m *{{.MapName}}) Count(predicate func({{.KeyType}}, {{.ValType}}) bool) in
 	return c
 }
 
+// --- Order statistics (rank / select) ---
+//
+// Backed by the per-node subtree-size augmentation; both run in O(log n) on the
+// balanced tree. Comparisons use the same ordering as insertion and in-order
+// traversal{{if .KeyIsFloat}} (the IEEE total order via {{.CmpFn}} for float keys, so NaN sorts to
+// the top and ±0 are distinguished){{end}}.
+
+// Rank returns the number of keys strictly less than key under the map's
+// ordering -- the 0-based lower-bound index the key occupies (if present) or
+// would occupy (if absent). Defined for present and absent keys alike; the
+// result is in 0..=Len() (Len() for any key greater than the maximum). Pure
+// query; never mutates.
+func (m *{{.MapName}}) Rank(key {{.KeyType}}) int {
+	rank := 0
+	node := m.root
+	for node != nil {
+		if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) < 0{{else}}key < node.key{{end}} {
+			// key < node.key: node and its right subtree are >= key; descend
+			// left without counting.
+			node = node.left
+		} else if {{if .KeyIsFloat}}{{.CmpFn}}(key, node.key) > 0{{else}}key > node.key{{end}} {
+			// key > node.key: node and its whole left subtree are strictly less
+			// than key; count them, then descend right.
+			rank += 1 + {{.NodeName}}TreeNodeSize(node.left)
+			node = node.right
+		} else {
+			// key == node.key: exactly the left subtree is strictly less.
+			return rank + {{.NodeName}}TreeNodeSize(node.left)
+		}
+	}
+	return rank
+}
+
+// SelectKey returns the i-th smallest key (0-based) and true, or the zero value
+// and false if i >= Len() or i < 0. Out-of-range indices (including on an empty
+// map and negative i) return absence and do not trap. Round-trips with Rank:
+// SelectKey(Rank(k)) == (k, true) for any present k, and Rank(k') == i for the
+// k' returned by SelectKey(i) at every 0 <= i < Len().
+func (m *{{.MapName}}) SelectKey(i int) ({{.KeyType}}, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, false
+	}
+	return node.key, true
+}
+
+// SelectEntry returns the i-th smallest entry (0-based) as (key, value, true),
+// or zero values and false if i >= Len() or i < 0. Same index domain as
+// SelectKey; no trap on out-of-range or negative i.
+func (m *{{.MapName}}) SelectEntry(i int) ({{.KeyType}}, {{.ValType}}, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, {{.ValZero}}, false
+	}
+	return node.key, node.value, true
+}
+
+// selectNode walks to the node at 0-based sorted index i, or nil if out of
+// range (i < 0 or i >= Len()). The subtree-size augmentation makes this
+// O(log n).
+func (m *{{.MapName}}) selectNode(i int) *{{.NodeName}}TreeNode {
+	if i < 0 {
+		return nil
+	}
+	node := m.root
+	for node != nil {
+		left := {{.NodeName}}TreeNodeSize(node.left)
+		if i < left {
+			node = node.left
+		} else if i == left {
+			return node
+		} else {
+			// Skip the left subtree and this node.
+			i -= left + 1
+			node = node.right
+		}
+	}
+	return nil
+}
+
 // String returns a string representation with entries in sorted key order.
 func (m *{{.MapName}}) String() string {
 	if m.size == 0 {
@@ -690,6 +792,10 @@ func (m *{{.MapName}}) rotateLeft(x *{{.NodeName}}TreeNode) {
 	}
 	y.left = x
 	x.parent = y
+	// y took x's former position so it inherits x's old subtree size; recompute
+	// bottom-up: the demoted x first (now y's left child), then the promoted y.
+	{{.NodeName}}TreeNodeFixSize(x)
+	{{.NodeName}}TreeNodeFixSize(y)
 }
 
 func (m *{{.MapName}}) rotateRight(x *{{.NodeName}}TreeNode) {
@@ -708,6 +814,26 @@ func (m *{{.MapName}}) rotateRight(x *{{.NodeName}}TreeNode) {
 	}
 	y.right = x
 	x.parent = y
+	// Symmetric to rotateLeft: recompute the demoted x, then the promoted y.
+	{{.NodeName}}TreeNodeFixSize(x)
+	{{.NodeName}}TreeNodeFixSize(y)
+}
+
+// incSizeToRoot walks from n up to the root, bumping each ancestor's cached
+// subtree size by one after a new leaf was linked below n.
+func (m *{{.MapName}}) incSizeToRoot(n *{{.NodeName}}TreeNode) {
+	for ; n != nil; n = n.parent {
+		n.size++
+	}
+}
+
+// fixSizeToRoot walks from n up to the root recomputing each node's cached
+// subtree size from its children. Used after a delete splice (the rotations
+// inside fixAfterDelete already maintain their own sizes).
+func (m *{{.MapName}}) fixSizeToRoot(n *{{.NodeName}}TreeNode) {
+	for ; n != nil; n = n.parent {
+		{{.NodeName}}TreeNodeFixSize(n)
+	}
 }
 
 func (m *{{.MapName}}) fixAfterInsert(z *{{.NodeName}}TreeNode) {
@@ -756,6 +882,12 @@ func (m *{{.MapName}}) deleteNode(z *{{.NodeName}}TreeNode) {
 		z.value = succ.value
 		z = succ
 	}
+	// z is now the node physically spliced out. fixSizeFrom is the lowest node
+	// whose cached subtree size must be refreshed (the removed node's surviving
+	// parent at unlink time); recomputing that path to the root once the structure
+	// is final restores the invariant. Rotations inside fixAfterDelete maintain
+	// their own sizes and everything below fixSizeFrom is left consistent.
+	var fixSizeFrom *{{.NodeName}}TreeNode
 	var child *{{.NodeName}}TreeNode
 	if z.left != nil {
 		child = z.left
@@ -771,6 +903,7 @@ func (m *{{.MapName}}) deleteNode(z *{{.NodeName}}TreeNode) {
 		} else {
 			z.parent.right = child
 		}
+		fixSizeFrom = child
 		if z.color == {{.NodeName}}TreeNodeBlack {
 			m.fixAfterDelete(child)
 		}
@@ -780,6 +913,8 @@ func (m *{{.MapName}}) deleteNode(z *{{.NodeName}}TreeNode) {
 		if z.color == {{.NodeName}}TreeNodeBlack {
 			m.fixAfterDelete(z)
 		}
+		// fixAfterDelete may have rotated z to a new parent; read it now.
+		fixSizeFrom = z.parent
 		if z.parent != nil {
 			if z == z.parent.left {
 				z.parent.left = nil
@@ -788,6 +923,7 @@ func (m *{{.MapName}}) deleteNode(z *{{.NodeName}}TreeNode) {
 			}
 		}
 	}
+	m.fixSizeToRoot(fixSizeFrom)
 }
 
 func (m *{{.MapName}}) fixAfterDelete(x *{{.NodeName}}TreeNode) {

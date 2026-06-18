@@ -351,7 +351,7 @@ func TestTreeSetSelectReject(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		s.Add(i)
 	}
-	evens := s.Select(func(v int) bool { return v%2 == 0 })
+	evens := s.SelectWhere(func(v int) bool { return v%2 == 0 })
 	if !slices.Equal(evens.ToSlice(), []int{2, 4}) {
 		t.Fatalf("expected [2,4], got %v", evens.ToSlice())
 	}

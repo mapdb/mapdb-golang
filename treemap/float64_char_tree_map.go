@@ -20,6 +20,26 @@ type float64CharTreeNode struct {
 	right  *float64CharTreeNode
 	parent *float64CharTreeNode
 	color  bool
+	// size is the number of nodes in the subtree rooted here (this node plus
+	// both children's subtrees). Maintained in O(1) on every structural change
+	// -- insert, remove, and all rotations -- so order-statistic Rank/Select run
+	// in O(log n). Invariant after any operation: size == 1 + size(left) + size(right).
+	size int
+}
+
+// float64CharTreeNodeSize returns the subtree size of a node link (0 if nil).
+func float64CharTreeNodeSize(n *float64CharTreeNode) int {
+	if n == nil {
+		return 0
+	}
+	return n.size
+}
+
+// float64CharTreeNodeFixSize recomputes a node's cached subtree size from its
+// children. Called after any rotation or child relink so the augmentation stays
+// consistent.
+func float64CharTreeNodeFixSize(n *float64CharTreeNode) {
+	n.size = 1 + float64CharTreeNodeSize(n.left) + float64CharTreeNodeSize(n.right)
 }
 
 // Float64Char is a sorted map with float64 keys and uint16 values, backed by a red-black tree.
@@ -37,7 +57,7 @@ func NewFloat64Char() *Float64Char {
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *Float64Char) Put(key float64, value uint16) (uint16, bool) {
 	if m.root == nil {
-		m.root = &float64CharTreeNode{key: key, value: value, color: float64CharTreeNodeBlack}
+		m.root = &float64CharTreeNode{key: key, value: value, color: float64CharTreeNodeBlack, size: 1}
 		m.size++
 		return 0, false
 	}
@@ -45,7 +65,8 @@ func (m *Float64Char) Put(key float64, value uint16) (uint16, bool) {
 	for {
 		if cmpFloat64(key, node.key) < 0 {
 			if node.left == nil {
-				node.left = &float64CharTreeNode{key: key, value: value, parent: node, color: float64CharTreeNodeRed}
+				node.left = &float64CharTreeNode{key: key, value: value, parent: node, color: float64CharTreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.left)
 				m.size++
 				return 0, false
@@ -53,7 +74,8 @@ func (m *Float64Char) Put(key float64, value uint16) (uint16, bool) {
 			node = node.left
 		} else if cmpFloat64(key, node.key) > 0 {
 			if node.right == nil {
-				node.right = &float64CharTreeNode{key: key, value: value, parent: node, color: float64CharTreeNodeRed}
+				node.right = &float64CharTreeNode{key: key, value: value, parent: node, color: float64CharTreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.right)
 				m.size++
 				return 0, false
@@ -501,6 +523,86 @@ func (m *Float64Char) Count(predicate func(float64, uint16) bool) int {
 	return c
 }
 
+// --- Order statistics (rank / select) ---
+//
+// Backed by the per-node subtree-size augmentation; both run in O(log n) on the
+// balanced tree. Comparisons use the same ordering as insertion and in-order
+// traversal (the IEEE total order via cmpFloat64 for float keys, so NaN sorts to
+// the top and ±0 are distinguished).
+
+// Rank returns the number of keys strictly less than key under the map's
+// ordering -- the 0-based lower-bound index the key occupies (if present) or
+// would occupy (if absent). Defined for present and absent keys alike; the
+// result is in 0..=Len() (Len() for any key greater than the maximum). Pure
+// query; never mutates.
+func (m *Float64Char) Rank(key float64) int {
+	rank := 0
+	node := m.root
+	for node != nil {
+		if cmpFloat64(key, node.key) < 0 {
+			// key < node.key: node and its right subtree are >= key; descend
+			// left without counting.
+			node = node.left
+		} else if cmpFloat64(key, node.key) > 0 {
+			// key > node.key: node and its whole left subtree are strictly less
+			// than key; count them, then descend right.
+			rank += 1 + float64CharTreeNodeSize(node.left)
+			node = node.right
+		} else {
+			// key == node.key: exactly the left subtree is strictly less.
+			return rank + float64CharTreeNodeSize(node.left)
+		}
+	}
+	return rank
+}
+
+// SelectKey returns the i-th smallest key (0-based) and true, or the zero value
+// and false if i >= Len() or i < 0. Out-of-range indices (including on an empty
+// map and negative i) return absence and do not trap. Round-trips with Rank:
+// SelectKey(Rank(k)) == (k, true) for any present k, and Rank(k') == i for the
+// k' returned by SelectKey(i) at every 0 <= i < Len().
+func (m *Float64Char) SelectKey(i int) (float64, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, false
+	}
+	return node.key, true
+}
+
+// SelectEntry returns the i-th smallest entry (0-based) as (key, value, true),
+// or zero values and false if i >= Len() or i < 0. Same index domain as
+// SelectKey; no trap on out-of-range or negative i.
+func (m *Float64Char) SelectEntry(i int) (float64, uint16, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, 0, false
+	}
+	return node.key, node.value, true
+}
+
+// selectNode walks to the node at 0-based sorted index i, or nil if out of
+// range (i < 0 or i >= Len()). The subtree-size augmentation makes this
+// O(log n).
+func (m *Float64Char) selectNode(i int) *float64CharTreeNode {
+	if i < 0 {
+		return nil
+	}
+	node := m.root
+	for node != nil {
+		left := float64CharTreeNodeSize(node.left)
+		if i < left {
+			node = node.left
+		} else if i == left {
+			return node
+		} else {
+			// Skip the left subtree and this node.
+			i -= left + 1
+			node = node.right
+		}
+	}
+	return nil
+}
+
 // String returns a string representation with entries in sorted key order.
 func (m *Float64Char) String() string {
 	if m.size == 0 {
@@ -566,6 +668,10 @@ func (m *Float64Char) rotateLeft(x *float64CharTreeNode) {
 	}
 	y.left = x
 	x.parent = y
+	// y took x's former position so it inherits x's old subtree size; recompute
+	// bottom-up: the demoted x first (now y's left child), then the promoted y.
+	float64CharTreeNodeFixSize(x)
+	float64CharTreeNodeFixSize(y)
 }
 
 func (m *Float64Char) rotateRight(x *float64CharTreeNode) {
@@ -584,6 +690,26 @@ func (m *Float64Char) rotateRight(x *float64CharTreeNode) {
 	}
 	y.right = x
 	x.parent = y
+	// Symmetric to rotateLeft: recompute the demoted x, then the promoted y.
+	float64CharTreeNodeFixSize(x)
+	float64CharTreeNodeFixSize(y)
+}
+
+// incSizeToRoot walks from n up to the root, bumping each ancestor's cached
+// subtree size by one after a new leaf was linked below n.
+func (m *Float64Char) incSizeToRoot(n *float64CharTreeNode) {
+	for ; n != nil; n = n.parent {
+		n.size++
+	}
+}
+
+// fixSizeToRoot walks from n up to the root recomputing each node's cached
+// subtree size from its children. Used after a delete splice (the rotations
+// inside fixAfterDelete already maintain their own sizes).
+func (m *Float64Char) fixSizeToRoot(n *float64CharTreeNode) {
+	for ; n != nil; n = n.parent {
+		float64CharTreeNodeFixSize(n)
+	}
 }
 
 func (m *Float64Char) fixAfterInsert(z *float64CharTreeNode) {
@@ -632,6 +758,12 @@ func (m *Float64Char) deleteNode(z *float64CharTreeNode) {
 		z.value = succ.value
 		z = succ
 	}
+	// z is now the node physically spliced out. fixSizeFrom is the lowest node
+	// whose cached subtree size must be refreshed (the removed node's surviving
+	// parent at unlink time); recomputing that path to the root once the structure
+	// is final restores the invariant. Rotations inside fixAfterDelete maintain
+	// their own sizes and everything below fixSizeFrom is left consistent.
+	var fixSizeFrom *float64CharTreeNode
 	var child *float64CharTreeNode
 	if z.left != nil {
 		child = z.left
@@ -647,6 +779,7 @@ func (m *Float64Char) deleteNode(z *float64CharTreeNode) {
 		} else {
 			z.parent.right = child
 		}
+		fixSizeFrom = child
 		if z.color == float64CharTreeNodeBlack {
 			m.fixAfterDelete(child)
 		}
@@ -656,6 +789,8 @@ func (m *Float64Char) deleteNode(z *float64CharTreeNode) {
 		if z.color == float64CharTreeNodeBlack {
 			m.fixAfterDelete(z)
 		}
+		// fixAfterDelete may have rotated z to a new parent; read it now.
+		fixSizeFrom = z.parent
 		if z.parent != nil {
 			if z == z.parent.left {
 				z.parent.left = nil
@@ -664,6 +799,7 @@ func (m *Float64Char) deleteNode(z *float64CharTreeNode) {
 			}
 		}
 	}
+	m.fixSizeToRoot(fixSizeFrom)
 }
 
 func (m *Float64Char) fixAfterDelete(x *float64CharTreeNode) {

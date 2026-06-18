@@ -125,7 +125,12 @@ func (s *TreeSet[T]) ToSlice() []T {
 	return result
 }
 
-func (s *TreeSet[T]) Select(predicate func(T) bool) *TreeSet[T] {
+// SelectWhere returns a new TreeSet with elements satisfying the predicate.
+//
+// Named SelectWhere (not Select) so the bare Select name is reserved for the
+// order-statistic Select (i-th smallest by 0-based rank), per
+// spec/features/rank-select.md.
+func (s *TreeSet[T]) SelectWhere(predicate func(T) bool) *TreeSet[T] {
 	result := NewTreeSet(s.tree.cmp)
 	s.ForEach(func(v T) {
 		if predicate(v) {
@@ -134,6 +139,17 @@ func (s *TreeSet[T]) Select(predicate func(T) bool) *TreeSet[T] {
 	})
 	return result
 }
+
+// Rank returns the number of elements strictly less than value under the set's
+// comparator — the 0-based lower-bound index value occupies (if present) or
+// would occupy (if absent). Result is in 0..=Len(). Pure query.
+func (s *TreeSet[T]) Rank(value T) int { return s.tree.Rank(value) }
+
+// Select returns the i-th smallest element (0-based) and true, or the zero value
+// and false if i >= Len() or i < 0. Out-of-range and negative indices return
+// absence and do not trap. This is the order-statistic select; the predicate
+// filtering convenience is SelectWhere.
+func (s *TreeSet[T]) Select(i int) (T, bool) { return s.tree.SelectKey(i) }
 
 func (s *TreeSet[T]) Reject(predicate func(T) bool) *TreeSet[T] {
 	result := NewTreeSet(s.tree.cmp)

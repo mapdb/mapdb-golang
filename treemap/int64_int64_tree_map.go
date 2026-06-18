@@ -20,6 +20,26 @@ type int64Int64TreeNode struct {
 	right  *int64Int64TreeNode
 	parent *int64Int64TreeNode
 	color  bool
+	// size is the number of nodes in the subtree rooted here (this node plus
+	// both children's subtrees). Maintained in O(1) on every structural change
+	// -- insert, remove, and all rotations -- so order-statistic Rank/Select run
+	// in O(log n). Invariant after any operation: size == 1 + size(left) + size(right).
+	size int
+}
+
+// int64Int64TreeNodeSize returns the subtree size of a node link (0 if nil).
+func int64Int64TreeNodeSize(n *int64Int64TreeNode) int {
+	if n == nil {
+		return 0
+	}
+	return n.size
+}
+
+// int64Int64TreeNodeFixSize recomputes a node's cached subtree size from its
+// children. Called after any rotation or child relink so the augmentation stays
+// consistent.
+func int64Int64TreeNodeFixSize(n *int64Int64TreeNode) {
+	n.size = 1 + int64Int64TreeNodeSize(n.left) + int64Int64TreeNodeSize(n.right)
 }
 
 // Int64Int64 is a sorted map with int64 keys and int64 values, backed by a red-black tree.
@@ -37,7 +57,7 @@ func NewInt64Int64() *Int64Int64 {
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *Int64Int64) Put(key int64, value int64) (int64, bool) {
 	if m.root == nil {
-		m.root = &int64Int64TreeNode{key: key, value: value, color: int64Int64TreeNodeBlack}
+		m.root = &int64Int64TreeNode{key: key, value: value, color: int64Int64TreeNodeBlack, size: 1}
 		m.size++
 		return 0, false
 	}
@@ -45,7 +65,8 @@ func (m *Int64Int64) Put(key int64, value int64) (int64, bool) {
 	for {
 		if key < node.key {
 			if node.left == nil {
-				node.left = &int64Int64TreeNode{key: key, value: value, parent: node, color: int64Int64TreeNodeRed}
+				node.left = &int64Int64TreeNode{key: key, value: value, parent: node, color: int64Int64TreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.left)
 				m.size++
 				return 0, false
@@ -53,7 +74,8 @@ func (m *Int64Int64) Put(key int64, value int64) (int64, bool) {
 			node = node.left
 		} else if key > node.key {
 			if node.right == nil {
-				node.right = &int64Int64TreeNode{key: key, value: value, parent: node, color: int64Int64TreeNodeRed}
+				node.right = &int64Int64TreeNode{key: key, value: value, parent: node, color: int64Int64TreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.right)
 				m.size++
 				return 0, false
@@ -501,6 +523,85 @@ func (m *Int64Int64) Count(predicate func(int64, int64) bool) int {
 	return c
 }
 
+// --- Order statistics (rank / select) ---
+//
+// Backed by the per-node subtree-size augmentation; both run in O(log n) on the
+// balanced tree. Comparisons use the same ordering as insertion and in-order
+// traversal.
+
+// Rank returns the number of keys strictly less than key under the map's
+// ordering -- the 0-based lower-bound index the key occupies (if present) or
+// would occupy (if absent). Defined for present and absent keys alike; the
+// result is in 0..=Len() (Len() for any key greater than the maximum). Pure
+// query; never mutates.
+func (m *Int64Int64) Rank(key int64) int {
+	rank := 0
+	node := m.root
+	for node != nil {
+		if key < node.key {
+			// key < node.key: node and its right subtree are >= key; descend
+			// left without counting.
+			node = node.left
+		} else if key > node.key {
+			// key > node.key: node and its whole left subtree are strictly less
+			// than key; count them, then descend right.
+			rank += 1 + int64Int64TreeNodeSize(node.left)
+			node = node.right
+		} else {
+			// key == node.key: exactly the left subtree is strictly less.
+			return rank + int64Int64TreeNodeSize(node.left)
+		}
+	}
+	return rank
+}
+
+// SelectKey returns the i-th smallest key (0-based) and true, or the zero value
+// and false if i >= Len() or i < 0. Out-of-range indices (including on an empty
+// map and negative i) return absence and do not trap. Round-trips with Rank:
+// SelectKey(Rank(k)) == (k, true) for any present k, and Rank(k') == i for the
+// k' returned by SelectKey(i) at every 0 <= i < Len().
+func (m *Int64Int64) SelectKey(i int) (int64, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, false
+	}
+	return node.key, true
+}
+
+// SelectEntry returns the i-th smallest entry (0-based) as (key, value, true),
+// or zero values and false if i >= Len() or i < 0. Same index domain as
+// SelectKey; no trap on out-of-range or negative i.
+func (m *Int64Int64) SelectEntry(i int) (int64, int64, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, 0, false
+	}
+	return node.key, node.value, true
+}
+
+// selectNode walks to the node at 0-based sorted index i, or nil if out of
+// range (i < 0 or i >= Len()). The subtree-size augmentation makes this
+// O(log n).
+func (m *Int64Int64) selectNode(i int) *int64Int64TreeNode {
+	if i < 0 {
+		return nil
+	}
+	node := m.root
+	for node != nil {
+		left := int64Int64TreeNodeSize(node.left)
+		if i < left {
+			node = node.left
+		} else if i == left {
+			return node
+		} else {
+			// Skip the left subtree and this node.
+			i -= left + 1
+			node = node.right
+		}
+	}
+	return nil
+}
+
 // String returns a string representation with entries in sorted key order.
 func (m *Int64Int64) String() string {
 	if m.size == 0 {
@@ -566,6 +667,10 @@ func (m *Int64Int64) rotateLeft(x *int64Int64TreeNode) {
 	}
 	y.left = x
 	x.parent = y
+	// y took x's former position so it inherits x's old subtree size; recompute
+	// bottom-up: the demoted x first (now y's left child), then the promoted y.
+	int64Int64TreeNodeFixSize(x)
+	int64Int64TreeNodeFixSize(y)
 }
 
 func (m *Int64Int64) rotateRight(x *int64Int64TreeNode) {
@@ -584,6 +689,26 @@ func (m *Int64Int64) rotateRight(x *int64Int64TreeNode) {
 	}
 	y.right = x
 	x.parent = y
+	// Symmetric to rotateLeft: recompute the demoted x, then the promoted y.
+	int64Int64TreeNodeFixSize(x)
+	int64Int64TreeNodeFixSize(y)
+}
+
+// incSizeToRoot walks from n up to the root, bumping each ancestor's cached
+// subtree size by one after a new leaf was linked below n.
+func (m *Int64Int64) incSizeToRoot(n *int64Int64TreeNode) {
+	for ; n != nil; n = n.parent {
+		n.size++
+	}
+}
+
+// fixSizeToRoot walks from n up to the root recomputing each node's cached
+// subtree size from its children. Used after a delete splice (the rotations
+// inside fixAfterDelete already maintain their own sizes).
+func (m *Int64Int64) fixSizeToRoot(n *int64Int64TreeNode) {
+	for ; n != nil; n = n.parent {
+		int64Int64TreeNodeFixSize(n)
+	}
 }
 
 func (m *Int64Int64) fixAfterInsert(z *int64Int64TreeNode) {
@@ -632,6 +757,12 @@ func (m *Int64Int64) deleteNode(z *int64Int64TreeNode) {
 		z.value = succ.value
 		z = succ
 	}
+	// z is now the node physically spliced out. fixSizeFrom is the lowest node
+	// whose cached subtree size must be refreshed (the removed node's surviving
+	// parent at unlink time); recomputing that path to the root once the structure
+	// is final restores the invariant. Rotations inside fixAfterDelete maintain
+	// their own sizes and everything below fixSizeFrom is left consistent.
+	var fixSizeFrom *int64Int64TreeNode
 	var child *int64Int64TreeNode
 	if z.left != nil {
 		child = z.left
@@ -647,6 +778,7 @@ func (m *Int64Int64) deleteNode(z *int64Int64TreeNode) {
 		} else {
 			z.parent.right = child
 		}
+		fixSizeFrom = child
 		if z.color == int64Int64TreeNodeBlack {
 			m.fixAfterDelete(child)
 		}
@@ -656,6 +788,8 @@ func (m *Int64Int64) deleteNode(z *int64Int64TreeNode) {
 		if z.color == int64Int64TreeNodeBlack {
 			m.fixAfterDelete(z)
 		}
+		// fixAfterDelete may have rotated z to a new parent; read it now.
+		fixSizeFrom = z.parent
 		if z.parent != nil {
 			if z == z.parent.left {
 				z.parent.left = nil
@@ -664,6 +798,7 @@ func (m *Int64Int64) deleteNode(z *int64Int64TreeNode) {
 			}
 		}
 	}
+	m.fixSizeToRoot(fixSizeFrom)
 }
 
 func (m *Int64Int64) fixAfterDelete(x *int64Int64TreeNode) {

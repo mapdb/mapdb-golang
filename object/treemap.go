@@ -27,6 +27,24 @@ type tmNode[K any, V any] struct {
 	right  *tmNode[K, V]
 	parent *tmNode[K, V]
 	red    bool
+	// size is the number of nodes in the subtree rooted here (this node plus
+	// both children's subtrees). Maintained in O(1) on every structural change
+	// — insert, remove, and all rotations — so order-statistic Rank/Select run
+	// in O(log n). Invariant after any operation: size == 1 + size(left) + size(right).
+	size int
+}
+
+// tmSize returns the subtree size of a node link (0 if nil).
+func tmSize[K any, V any](n *tmNode[K, V]) int {
+	if n == nil {
+		return 0
+	}
+	return n.size
+}
+
+// tmFixSize recomputes a node's cached subtree size from its children.
+func tmFixSize[K any, V any](n *tmNode[K, V]) {
+	n.size = 1 + tmSize(n.left) + tmSize(n.right)
 }
 
 // NewTreeMap creates an empty TreeMap using the given comparator.
@@ -36,7 +54,7 @@ func NewTreeMap[K any, V any](cmp Comparator[K]) *TreeMap[K, V] {
 
 func (m *TreeMap[K, V]) Put(key K, value V) (V, bool) {
 	if m.root == nil {
-		m.root = &tmNode[K, V]{key: key, value: value}
+		m.root = &tmNode[K, V]{key: key, value: value, size: 1}
 		m.size++
 		var zero V
 		return zero, false
@@ -46,7 +64,8 @@ func (m *TreeMap[K, V]) Put(key K, value V) (V, bool) {
 		c := m.cmp(key, n.key)
 		if c < 0 {
 			if n.left == nil {
-				n.left = &tmNode[K, V]{key: key, value: value, parent: n, red: true}
+				n.left = &tmNode[K, V]{key: key, value: value, parent: n, red: true, size: 1}
+				m.incSizeToRoot(n)
 				m.fixAfterInsert(n.left)
 				m.size++
 				var zero V
@@ -55,7 +74,8 @@ func (m *TreeMap[K, V]) Put(key K, value V) (V, bool) {
 			n = n.left
 		} else if c > 0 {
 			if n.right == nil {
-				n.right = &tmNode[K, V]{key: key, value: value, parent: n, red: true}
+				n.right = &tmNode[K, V]{key: key, value: value, parent: n, red: true, size: 1}
+				m.incSizeToRoot(n)
 				m.fixAfterInsert(n.right)
 				m.size++
 				var zero V
@@ -166,6 +186,74 @@ func (m *TreeMap[K, V]) Reject(predicate func(K, V) bool) *TreeMap[K, V] {
 		}
 	})
 	return result
+}
+
+// Rank returns the number of keys strictly less than key under the map's
+// comparator — the 0-based lower-bound index the key occupies (if present) or
+// would occupy (if absent). Defined for present and absent keys alike; the
+// result is in 0..=Len() (Len() for any key greater than the maximum). Pure
+// query; never mutates.
+func (m *TreeMap[K, V]) Rank(key K) int {
+	rank := 0
+	n := m.root
+	for n != nil {
+		c := m.cmp(key, n.key)
+		if c < 0 {
+			n = n.left
+		} else if c > 0 {
+			rank += 1 + tmSize(n.left)
+			n = n.right
+		} else {
+			return rank + tmSize(n.left)
+		}
+	}
+	return rank
+}
+
+// SelectKey returns the i-th smallest key (0-based) and true, or the zero value
+// and false if i >= Len() or i < 0. Out-of-range indices (including on an empty
+// map and negative i) return absence and do not trap. Round-trips with Rank.
+func (m *TreeMap[K, V]) SelectKey(i int) (K, bool) {
+	n := m.selectNode(i)
+	if n == nil {
+		var zero K
+		return zero, false
+	}
+	return n.key, true
+}
+
+// SelectEntry returns the i-th smallest entry (0-based) as (key, value, true),
+// or zero values and false if i >= Len() or i < 0. Same index domain as
+// SelectKey; no trap on out-of-range or negative i.
+func (m *TreeMap[K, V]) SelectEntry(i int) (K, V, bool) {
+	n := m.selectNode(i)
+	if n == nil {
+		var zk K
+		var zv V
+		return zk, zv, false
+	}
+	return n.key, n.value, true
+}
+
+// selectNode walks to the node at 0-based sorted index i, or nil if out of
+// range (i < 0 or i >= Len()). O(log n) via the subtree-size augmentation.
+func (m *TreeMap[K, V]) selectNode(i int) *tmNode[K, V] {
+	if i < 0 {
+		return nil
+	}
+	n := m.root
+	for n != nil {
+		left := tmSize(n.left)
+		if i < left {
+			n = n.left
+		} else if i == left {
+			return n
+		} else {
+			i -= left + 1
+			n = n.right
+		}
+	}
+	return nil
 }
 
 func (m *TreeMap[K, V]) String() string {
@@ -462,6 +550,10 @@ func (m *TreeMap[K, V]) rotateLeft(n *tmNode[K, V]) {
 	}
 	r.left = n
 	n.parent = r
+	// r took n's former position so it inherits n's old subtree size; recompute
+	// bottom-up: the demoted n first (now r's left child), then the promoted r.
+	tmFixSize(n)
+	tmFixSize(r)
 }
 
 func (m *TreeMap[K, V]) rotateRight(n *tmNode[K, V]) {
@@ -480,6 +572,26 @@ func (m *TreeMap[K, V]) rotateRight(n *tmNode[K, V]) {
 	}
 	l.right = n
 	n.parent = l
+	// Symmetric to rotateLeft: recompute the demoted n, then the promoted l.
+	tmFixSize(n)
+	tmFixSize(l)
+}
+
+// incSizeToRoot walks from n up to the root, bumping each ancestor's cached
+// subtree size by one after a new leaf was linked below n.
+func (m *TreeMap[K, V]) incSizeToRoot(n *tmNode[K, V]) {
+	for ; n != nil; n = n.parent {
+		n.size++
+	}
+}
+
+// fixSizeToRoot walks from n up to the root recomputing each node's cached
+// subtree size from its children. Used after a delete splice (the rotations
+// inside fixAfterDelete already maintain their own sizes).
+func (m *TreeMap[K, V]) fixSizeToRoot(n *tmNode[K, V]) {
+	for ; n != nil; n = n.parent {
+		tmFixSize(n)
+	}
 }
 
 func (m *TreeMap[K, V]) fixAfterInsert(n *tmNode[K, V]) {
@@ -529,6 +641,12 @@ func (m *TreeMap[K, V]) deleteNode(n *tmNode[K, V]) {
 		n.value = succ.value
 		n = succ
 	}
+	// n is now the node physically spliced out. fixSizeFrom is the lowest node
+	// whose cached subtree size must be refreshed (the removed node's surviving
+	// parent at unlink time); recomputing that path to the root once the structure
+	// is final restores the invariant. Rotations inside fixAfterDelete maintain
+	// their own sizes and everything below fixSizeFrom is left consistent.
+	var fixSizeFrom *tmNode[K, V]
 	var child *tmNode[K, V]
 	if n.left != nil {
 		child = n.left
@@ -544,6 +662,7 @@ func (m *TreeMap[K, V]) deleteNode(n *tmNode[K, V]) {
 		} else {
 			n.parent.right = child
 		}
+		fixSizeFrom = child
 		if !n.red {
 			m.fixAfterDelete(child)
 		}
@@ -553,6 +672,8 @@ func (m *TreeMap[K, V]) deleteNode(n *tmNode[K, V]) {
 		if !n.red {
 			m.fixAfterDelete(n)
 		}
+		// fixAfterDelete may have rotated n to a new parent; read it now.
+		fixSizeFrom = n.parent
 		if n.parent != nil {
 			if n == n.parent.left {
 				n.parent.left = nil
@@ -561,6 +682,7 @@ func (m *TreeMap[K, V]) deleteNode(n *tmNode[K, V]) {
 			}
 		}
 	}
+	m.fixSizeToRoot(fixSizeFrom)
 }
 
 func (m *TreeMap[K, V]) fixAfterDelete(n *tmNode[K, V]) {

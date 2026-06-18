@@ -1125,6 +1125,56 @@ func navKeyPrefix(key string) (string, int32, bool) {
 	return "", 0, false
 }
 
+// rankKey recognises a rank_<k> order-statistic assertion: <k> is a SIGNED
+// base-10 i32 (exact ^rank_(-?[0-9]+)$, full i32 range incl. negatives). Returns
+// (k, true) on a match. Rejects a leading '+' so the recogniser matches the
+// documented regex (strconv.ParseInt would otherwise accept "+5").
+func rankKey(key string) (int32, bool) {
+	rest, ok := strings.CutPrefix(key, "rank_")
+	if !ok {
+		return 0, false
+	}
+	digits := strings.TrimPrefix(rest, "-")
+	if digits == "" || !isAllDigits(digits) {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(rest, 10, 32)
+	if err != nil {
+		return 0, false
+	}
+	return int32(n), true
+}
+
+// selectIndex recognises a select_<i> order-statistic assertion: <i> is a
+// NON-NEGATIVE base-10 index (exact ^select_([0-9]+)$). Returns (i, true) on a
+// match. Must NOT match the functional predicate keys (select_gt_N, select_even,
+// ...): those are not all-digits so they are rejected.
+func selectIndex(key string) (int, bool) {
+	rest, ok := strings.CutPrefix(key, "select_")
+	if !ok {
+		return 0, false
+	}
+	if rest == "" || !isAllDigits(rest) {
+		return 0, false
+	}
+	n, err := strconv.Atoi(rest)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// isAllDigits reports whether s is non-empty and consists solely of ASCII
+// digits 0-9 (no sign, no separators).
+func isAllDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
 // ---- TreeSet<i32> --------------------------------------------------------
 
 func runTreeSet(s scenario) {
@@ -1211,6 +1261,12 @@ func runTreeSet(s scenario) {
 				case "higher":
 					return optInt32Str(set.Higher(k))
 				}
+			}
+			if k, ok := rankKey(key); ok {
+				return strconv.Itoa(set.Rank(k))
+			}
+			if i, ok := selectIndex(key); ok {
+				return optInt32Str(set.Select(i))
 			}
 			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
 				v, _ := strconv.ParseInt(rest, 10, 32)
@@ -1333,6 +1389,12 @@ func runTreeMap(s scenario) {
 				case "higher":
 					return optInt32Str(m.HigherKey(k))
 				}
+			}
+			if k, ok := rankKey(key); ok {
+				return strconv.Itoa(m.Rank(k))
+			}
+			if i, ok := selectIndex(key); ok {
+				return optInt32Str(m.SelectKey(i))
 			}
 			if rest, ok := strings.CutPrefix(key, "get_"); ok {
 				k, _ := strconv.ParseInt(rest, 10, 32)

@@ -82,12 +82,12 @@ func TestFloat32_Generated_SortedIteration(t *testing.T) {
 		}
 	}
 }
-func TestFloat32_Generated_Select(t *testing.T) {
+func TestFloat32_Generated_SelectWhere(t *testing.T) {
 	s := NewFloat32()
 	s.Add(1.0)
 	s.Add(2.0)
 	s.Add(3.0)
-	sel := s.Select(func(v float32) bool { return v > 1.0 })
+	sel := s.SelectWhere(func(v float32) bool { return v > 1.0 })
 	if sel.Len() != 2 {
 		t.Errorf("Select size = %d", sel.Len())
 	}

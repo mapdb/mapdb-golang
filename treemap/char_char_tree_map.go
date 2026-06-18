@@ -20,6 +20,26 @@ type charCharTreeNode struct {
 	right  *charCharTreeNode
 	parent *charCharTreeNode
 	color  bool
+	// size is the number of nodes in the subtree rooted here (this node plus
+	// both children's subtrees). Maintained in O(1) on every structural change
+	// -- insert, remove, and all rotations -- so order-statistic Rank/Select run
+	// in O(log n). Invariant after any operation: size == 1 + size(left) + size(right).
+	size int
+}
+
+// charCharTreeNodeSize returns the subtree size of a node link (0 if nil).
+func charCharTreeNodeSize(n *charCharTreeNode) int {
+	if n == nil {
+		return 0
+	}
+	return n.size
+}
+
+// charCharTreeNodeFixSize recomputes a node's cached subtree size from its
+// children. Called after any rotation or child relink so the augmentation stays
+// consistent.
+func charCharTreeNodeFixSize(n *charCharTreeNode) {
+	n.size = 1 + charCharTreeNodeSize(n.left) + charCharTreeNodeSize(n.right)
 }
 
 // CharChar is a sorted map with uint16 keys and uint16 values, backed by a red-black tree.
@@ -37,7 +57,7 @@ func NewCharChar() *CharChar {
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *CharChar) Put(key uint16, value uint16) (uint16, bool) {
 	if m.root == nil {
-		m.root = &charCharTreeNode{key: key, value: value, color: charCharTreeNodeBlack}
+		m.root = &charCharTreeNode{key: key, value: value, color: charCharTreeNodeBlack, size: 1}
 		m.size++
 		return 0, false
 	}
@@ -45,7 +65,8 @@ func (m *CharChar) Put(key uint16, value uint16) (uint16, bool) {
 	for {
 		if key < node.key {
 			if node.left == nil {
-				node.left = &charCharTreeNode{key: key, value: value, parent: node, color: charCharTreeNodeRed}
+				node.left = &charCharTreeNode{key: key, value: value, parent: node, color: charCharTreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.left)
 				m.size++
 				return 0, false
@@ -53,7 +74,8 @@ func (m *CharChar) Put(key uint16, value uint16) (uint16, bool) {
 			node = node.left
 		} else if key > node.key {
 			if node.right == nil {
-				node.right = &charCharTreeNode{key: key, value: value, parent: node, color: charCharTreeNodeRed}
+				node.right = &charCharTreeNode{key: key, value: value, parent: node, color: charCharTreeNodeRed, size: 1}
+				m.incSizeToRoot(node)
 				m.fixAfterInsert(node.right)
 				m.size++
 				return 0, false
@@ -501,6 +523,85 @@ func (m *CharChar) Count(predicate func(uint16, uint16) bool) int {
 	return c
 }
 
+// --- Order statistics (rank / select) ---
+//
+// Backed by the per-node subtree-size augmentation; both run in O(log n) on the
+// balanced tree. Comparisons use the same ordering as insertion and in-order
+// traversal.
+
+// Rank returns the number of keys strictly less than key under the map's
+// ordering -- the 0-based lower-bound index the key occupies (if present) or
+// would occupy (if absent). Defined for present and absent keys alike; the
+// result is in 0..=Len() (Len() for any key greater than the maximum). Pure
+// query; never mutates.
+func (m *CharChar) Rank(key uint16) int {
+	rank := 0
+	node := m.root
+	for node != nil {
+		if key < node.key {
+			// key < node.key: node and its right subtree are >= key; descend
+			// left without counting.
+			node = node.left
+		} else if key > node.key {
+			// key > node.key: node and its whole left subtree are strictly less
+			// than key; count them, then descend right.
+			rank += 1 + charCharTreeNodeSize(node.left)
+			node = node.right
+		} else {
+			// key == node.key: exactly the left subtree is strictly less.
+			return rank + charCharTreeNodeSize(node.left)
+		}
+	}
+	return rank
+}
+
+// SelectKey returns the i-th smallest key (0-based) and true, or the zero value
+// and false if i >= Len() or i < 0. Out-of-range indices (including on an empty
+// map and negative i) return absence and do not trap. Round-trips with Rank:
+// SelectKey(Rank(k)) == (k, true) for any present k, and Rank(k') == i for the
+// k' returned by SelectKey(i) at every 0 <= i < Len().
+func (m *CharChar) SelectKey(i int) (uint16, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, false
+	}
+	return node.key, true
+}
+
+// SelectEntry returns the i-th smallest entry (0-based) as (key, value, true),
+// or zero values and false if i >= Len() or i < 0. Same index domain as
+// SelectKey; no trap on out-of-range or negative i.
+func (m *CharChar) SelectEntry(i int) (uint16, uint16, bool) {
+	node := m.selectNode(i)
+	if node == nil {
+		return 0, 0, false
+	}
+	return node.key, node.value, true
+}
+
+// selectNode walks to the node at 0-based sorted index i, or nil if out of
+// range (i < 0 or i >= Len()). The subtree-size augmentation makes this
+// O(log n).
+func (m *CharChar) selectNode(i int) *charCharTreeNode {
+	if i < 0 {
+		return nil
+	}
+	node := m.root
+	for node != nil {
+		left := charCharTreeNodeSize(node.left)
+		if i < left {
+			node = node.left
+		} else if i == left {
+			return node
+		} else {
+			// Skip the left subtree and this node.
+			i -= left + 1
+			node = node.right
+		}
+	}
+	return nil
+}
+
 // String returns a string representation with entries in sorted key order.
 func (m *CharChar) String() string {
 	if m.size == 0 {
@@ -566,6 +667,10 @@ func (m *CharChar) rotateLeft(x *charCharTreeNode) {
 	}
 	y.left = x
 	x.parent = y
+	// y took x's former position so it inherits x's old subtree size; recompute
+	// bottom-up: the demoted x first (now y's left child), then the promoted y.
+	charCharTreeNodeFixSize(x)
+	charCharTreeNodeFixSize(y)
 }
 
 func (m *CharChar) rotateRight(x *charCharTreeNode) {
@@ -584,6 +689,26 @@ func (m *CharChar) rotateRight(x *charCharTreeNode) {
 	}
 	y.right = x
 	x.parent = y
+	// Symmetric to rotateLeft: recompute the demoted x, then the promoted y.
+	charCharTreeNodeFixSize(x)
+	charCharTreeNodeFixSize(y)
+}
+
+// incSizeToRoot walks from n up to the root, bumping each ancestor's cached
+// subtree size by one after a new leaf was linked below n.
+func (m *CharChar) incSizeToRoot(n *charCharTreeNode) {
+	for ; n != nil; n = n.parent {
+		n.size++
+	}
+}
+
+// fixSizeToRoot walks from n up to the root recomputing each node's cached
+// subtree size from its children. Used after a delete splice (the rotations
+// inside fixAfterDelete already maintain their own sizes).
+func (m *CharChar) fixSizeToRoot(n *charCharTreeNode) {
+	for ; n != nil; n = n.parent {
+		charCharTreeNodeFixSize(n)
+	}
 }
 
 func (m *CharChar) fixAfterInsert(z *charCharTreeNode) {
@@ -632,6 +757,12 @@ func (m *CharChar) deleteNode(z *charCharTreeNode) {
 		z.value = succ.value
 		z = succ
 	}
+	// z is now the node physically spliced out. fixSizeFrom is the lowest node
+	// whose cached subtree size must be refreshed (the removed node's surviving
+	// parent at unlink time); recomputing that path to the root once the structure
+	// is final restores the invariant. Rotations inside fixAfterDelete maintain
+	// their own sizes and everything below fixSizeFrom is left consistent.
+	var fixSizeFrom *charCharTreeNode
 	var child *charCharTreeNode
 	if z.left != nil {
 		child = z.left
@@ -647,6 +778,7 @@ func (m *CharChar) deleteNode(z *charCharTreeNode) {
 		} else {
 			z.parent.right = child
 		}
+		fixSizeFrom = child
 		if z.color == charCharTreeNodeBlack {
 			m.fixAfterDelete(child)
 		}
@@ -656,6 +788,8 @@ func (m *CharChar) deleteNode(z *charCharTreeNode) {
 		if z.color == charCharTreeNodeBlack {
 			m.fixAfterDelete(z)
 		}
+		// fixAfterDelete may have rotated z to a new parent; read it now.
+		fixSizeFrom = z.parent
 		if z.parent != nil {
 			if z == z.parent.left {
 				z.parent.left = nil
@@ -664,6 +798,7 @@ func (m *CharChar) deleteNode(z *charCharTreeNode) {
 			}
 		}
 	}
+	m.fixSizeToRoot(fixSizeFrom)
 }
 
 func (m *CharChar) fixAfterDelete(x *charCharTreeNode) {

@@ -231,9 +231,10 @@ func {{.MapName}}BulkLoad(keys []{{.KeyType}}, values []{{.ValType}}, policy pum
 }
 
 // {{.MapName}}BulkLoadExact is like {{.MapName}}BulkLoad but guarantees zero
-// mid-load rehash: the table is sized for exactly n distinct keys. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct keys.
-// n must be non-negative (negative panics).
+// mid-load rehash: the table is sized for exactly n consumed entries. It returns
+// pump.ErrTooManyElements if the source yields more than n entries, even when
+// the extra entries are duplicate keys skipped by pump.IgnoreDuplicates. n must
+// be non-negative (negative panics).
 func {{.MapName}}BulkLoadExact(keys []{{.KeyType}}, values []{{.ValType}}, n int, policy pump.DuplicatePolicy) (*{{.MapName}}, error) {
 	if len(keys) != len(values) {
 		panic("mapdb: {{.MapName}}BulkLoadExact: len(keys) != len(values)")
@@ -242,10 +243,10 @@ func {{.MapName}}BulkLoadExact(keys []{{.KeyType}}, values []{{.ValType}}, n int
 		panic("mapdb: {{.MapName}}BulkLoadExact: negative n")
 	}
 	m := New{{.MapName}}WithCapacity({{.MapName}}bulkCap(n))
+	if len(keys) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for i := range keys {
-		if m.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		if err := m.bulkPut(keys[i], values[i], policy); err != nil {
 			return nil, err
 		}

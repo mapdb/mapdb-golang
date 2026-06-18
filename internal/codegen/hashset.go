@@ -174,18 +174,19 @@ func {{.Name}}BulkLoad(values []{{.GoType}}, policy pump.DuplicatePolicy) (*{{.N
 }
 
 // {{.Name}}BulkLoadExact is like {{.Name}}BulkLoad but guarantees zero mid-load
-// rehash: the table is sized for exactly n distinct values. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct
-// values. n must be non-negative (negative panics).
+// rehash: the table is sized for exactly n consumed values. It returns
+// pump.ErrTooManyElements if the source yields more than n values, even when
+// the extra values are duplicates skipped by pump.IgnoreDuplicates. n must be
+// non-negative (negative panics).
 func {{.Name}}BulkLoadExact(values []{{.GoType}}, n int, policy pump.DuplicatePolicy) (*{{.Name}}, error) {
 	if n < 0 {
 		panic("mapdb: {{.Name}}BulkLoadExact: negative n")
 	}
 	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, {{.Name}}bulkCap(n))}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for _, v := range values {
-		if s.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		if _, err := s.bulkAdd(v, policy); err != nil {
 			return nil, err
 		}

@@ -77,6 +77,14 @@ func TestInt32Int32BulkLoad_SentinelKeys(t *testing.T) {
 	}
 }
 
+func TestInt32Int32BulkLoadExact_TooManyCountsConsumedDuplicates(t *testing.T) {
+	keys := []int32{2, 2, 2}
+	vals := []int32{20, 21, 22}
+	if _, err := Int32Int32BulkLoadExact(keys, vals, 2, pump.IgnoreDuplicates); !errors.Is(err, pump.ErrTooManyElements) {
+		t.Fatalf("got %v, want ErrTooManyElements", err)
+	}
+}
+
 func TestFloat64Float64BulkLoad_FloatEdges(t *testing.T) {
 	negZero := math.Copysign(0, -1)
 	keys := []float64{0, negZero, 1, math.Inf(1), math.NaN()}

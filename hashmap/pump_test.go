@@ -113,6 +113,14 @@ func TestInt32Int32BulkLoadExact_TooMany(t *testing.T) {
 	}
 }
 
+func TestInt32Int32BulkLoadExact_TooManyCountsConsumedDuplicates(t *testing.T) {
+	keys := []int32{1, 1, 1, 1}
+	vals := []int32{10, 11, 12, 13}
+	if _, err := Int32Int32BulkLoadExact(keys, vals, 3, pump.IgnoreDuplicates); !errors.Is(err, pump.ErrTooManyElements) {
+		t.Fatalf("got %v, want ErrTooManyElements", err)
+	}
+}
+
 func TestInt32Int32BulkLoad_Duplicates(t *testing.T) {
 	keys := []int32{1, 2, 1, 3}
 	vals := []int32{10, 20, 99, 30}

@@ -70,18 +70,19 @@ func CharBulkLoad(values []uint16, policy pump.DuplicatePolicy) (*Char, error) {
 }
 
 // CharBulkLoadExact is like CharBulkLoad but guarantees zero mid-load
-// rehash: the table is sized for exactly n distinct values. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct
-// values. n must be non-negative (negative panics).
+// rehash: the table is sized for exactly n consumed values. It returns
+// pump.ErrTooManyElements if the source yields more than n values, even when
+// the extra values are duplicates skipped by pump.IgnoreDuplicates. n must be
+// non-negative (negative panics).
 func CharBulkLoadExact(values []uint16, n int, policy pump.DuplicatePolicy) (*Char, error) {
 	if n < 0 {
 		panic("mapdb: CharBulkLoadExact: negative n")
 	}
 	s := &Char{entries: make([]charEntry, CharbulkCap(n))}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for _, v := range values {
-		if s.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		if _, err := s.bulkAdd(v, policy); err != nil {
 			return nil, err
 		}

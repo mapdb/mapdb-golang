@@ -70,18 +70,19 @@ func Int32BulkLoad(values []int32, policy pump.DuplicatePolicy) (*Int32, error) 
 }
 
 // Int32BulkLoadExact is like Int32BulkLoad but guarantees zero mid-load
-// rehash: the table is sized for exactly n distinct values. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct
-// values. n must be non-negative (negative panics).
+// rehash: the table is sized for exactly n consumed values. It returns
+// pump.ErrTooManyElements if the source yields more than n values, even when
+// the extra values are duplicates skipped by pump.IgnoreDuplicates. n must be
+// non-negative (negative panics).
 func Int32BulkLoadExact(values []int32, n int, policy pump.DuplicatePolicy) (*Int32, error) {
 	if n < 0 {
 		panic("mapdb: Int32BulkLoadExact: negative n")
 	}
 	s := &Int32{entries: make([]int32Entry, Int32bulkCap(n))}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for _, v := range values {
-		if s.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		if _, err := s.bulkAdd(v, policy); err != nil {
 			return nil, err
 		}

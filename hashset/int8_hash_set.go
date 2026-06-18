@@ -70,18 +70,19 @@ func Int8BulkLoad(values []int8, policy pump.DuplicatePolicy) (*Int8, error) {
 }
 
 // Int8BulkLoadExact is like Int8BulkLoad but guarantees zero mid-load
-// rehash: the table is sized for exactly n distinct values. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct
-// values. n must be non-negative (negative panics).
+// rehash: the table is sized for exactly n consumed values. It returns
+// pump.ErrTooManyElements if the source yields more than n values, even when
+// the extra values are duplicates skipped by pump.IgnoreDuplicates. n must be
+// non-negative (negative panics).
 func Int8BulkLoadExact(values []int8, n int, policy pump.DuplicatePolicy) (*Int8, error) {
 	if n < 0 {
 		panic("mapdb: Int8BulkLoadExact: negative n")
 	}
 	s := &Int8{entries: make([]int8Entry, Int8bulkCap(n))}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for _, v := range values {
-		if s.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		if _, err := s.bulkAdd(v, policy); err != nil {
 			return nil, err
 		}

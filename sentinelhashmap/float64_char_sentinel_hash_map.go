@@ -79,9 +79,10 @@ func Float64CharBulkLoad(keys []float64, values []uint16, policy pump.DuplicateP
 }
 
 // Float64CharBulkLoadExact is like Float64CharBulkLoad but guarantees zero
-// mid-load rehash: the table is sized for exactly n distinct keys. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct keys.
-// n must be non-negative (negative panics).
+// mid-load rehash: the table is sized for exactly n consumed entries. It returns
+// pump.ErrTooManyElements if the source yields more than n entries, even when
+// the extra entries are duplicate keys skipped by pump.IgnoreDuplicates. n must
+// be non-negative (negative panics).
 func Float64CharBulkLoadExact(keys []float64, values []uint16, n int, policy pump.DuplicatePolicy) (*Float64Char, error) {
 	if len(keys) != len(values) {
 		panic("mapdb: Float64CharBulkLoadExact: len(keys) != len(values)")
@@ -90,10 +91,10 @@ func Float64CharBulkLoadExact(keys []float64, values []uint16, n int, policy pum
 		panic("mapdb: Float64CharBulkLoadExact: negative n")
 	}
 	m := NewFloat64CharWithCapacity(Float64CharbulkCap(n))
+	if len(keys) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for i := range keys {
-		if m.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		if err := m.bulkPut(keys[i], values[i], policy); err != nil {
 			return nil, err
 		}

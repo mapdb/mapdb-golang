@@ -79,9 +79,10 @@ func Int16Float64BulkLoad(keys []int16, values []float64, policy pump.DuplicateP
 }
 
 // Int16Float64BulkLoadExact is like Int16Float64BulkLoad but guarantees zero
-// mid-load rehash: the table is sized for exactly n distinct keys. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct keys
-// (which would force a rehash). n must be non-negative (negative panics).
+// mid-load rehash: the table is sized for exactly n consumed entries. It returns
+// pump.ErrTooManyElements if the source yields more than n entries, even when
+// the extra entries are duplicate keys skipped by pump.IgnoreDuplicates. n must
+// be non-negative (negative panics).
 func Int16Float64BulkLoadExact(keys []int16, values []float64, n int, policy pump.DuplicatePolicy) (*Int16Float64, error) {
 	if len(keys) != len(values) {
 		panic("mapdb: Int16Float64BulkLoadExact: len(keys) != len(values)")
@@ -90,10 +91,10 @@ func Int16Float64BulkLoadExact(keys []int16, values []float64, n int, policy pum
 		panic("mapdb: Int16Float64BulkLoadExact: negative n")
 	}
 	m := &Int16Float64{entries: make([]int16Float64Entry, Int16Float64bulkCap(n))}
+	if len(keys) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for i := range keys {
-		if m.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		dup, err := m.bulkPut(keys[i], values[i], policy)
 		if err != nil {
 			return nil, err

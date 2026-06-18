@@ -73,9 +73,10 @@ func CharFloat32BulkLoad(keys []uint16, values []float32, policy pump.DuplicateP
 }
 
 // CharFloat32BulkLoadExact is like CharFloat32BulkLoad but guarantees zero
-// mid-load rehash: the table is sized for exactly n distinct keys. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct keys.
-// n must be non-negative (negative panics).
+// mid-load rehash: the table is sized for exactly n consumed entries. It returns
+// pump.ErrTooManyElements if the source yields more than n entries, even when
+// the extra entries are duplicate keys skipped by pump.IgnoreDuplicates. n must
+// be non-negative (negative panics).
 func CharFloat32BulkLoadExact(keys []uint16, values []float32, n int, policy pump.DuplicatePolicy) (*CharFloat32, error) {
 	if len(keys) != len(values) {
 		panic("mapdb: CharFloat32BulkLoadExact: len(keys) != len(values)")
@@ -84,10 +85,10 @@ func CharFloat32BulkLoadExact(keys []uint16, values []float32, n int, policy pum
 		panic("mapdb: CharFloat32BulkLoadExact: negative n")
 	}
 	m := NewCharFloat32WithCapacity(CharFloat32bulkCap(n))
+	if len(keys) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for i := range keys {
-		if m.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		if err := m.bulkPut(keys[i], values[i], policy); err != nil {
 			return nil, err
 		}

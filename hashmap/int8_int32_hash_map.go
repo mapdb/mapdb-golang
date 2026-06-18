@@ -78,9 +78,10 @@ func Int8Int32BulkLoad(keys []int8, values []int32, policy pump.DuplicatePolicy)
 }
 
 // Int8Int32BulkLoadExact is like Int8Int32BulkLoad but guarantees zero
-// mid-load rehash: the table is sized for exactly n distinct keys. It returns
-// pump.ErrTooManyElements if the source yields more than n distinct keys
-// (which would force a rehash). n must be non-negative (negative panics).
+// mid-load rehash: the table is sized for exactly n consumed entries. It returns
+// pump.ErrTooManyElements if the source yields more than n entries, even when
+// the extra entries are duplicate keys skipped by pump.IgnoreDuplicates. n must
+// be non-negative (negative panics).
 func Int8Int32BulkLoadExact(keys []int8, values []int32, n int, policy pump.DuplicatePolicy) (*Int8Int32, error) {
 	if len(keys) != len(values) {
 		panic("mapdb: Int8Int32BulkLoadExact: len(keys) != len(values)")
@@ -89,10 +90,10 @@ func Int8Int32BulkLoadExact(keys []int8, values []int32, n int, policy pump.Dupl
 		panic("mapdb: Int8Int32BulkLoadExact: negative n")
 	}
 	m := &Int8Int32{entries: make([]int8Int32Entry, Int8Int32bulkCap(n))}
+	if len(keys) > n {
+		return nil, pump.ErrTooManyElements
+	}
 	for i := range keys {
-		if m.size >= n {
-			return nil, pump.ErrTooManyElements
-		}
 		dup, err := m.bulkPut(keys[i], values[i], policy)
 		if err != nil {
 			return nil, err

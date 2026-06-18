@@ -29,6 +29,7 @@ import (
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
 	"github.com/mapdb/mapdb-golang/multimap"
+	"github.com/mapdb/mapdb-golang/rangev"
 	"github.com/mapdb/mapdb-golang/treemap"
 	"github.com/mapdb/mapdb-golang/treeset"
 )
@@ -130,6 +131,10 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 		}
 		return strconv.FormatInt(int64(t), 10)
 	case string:
+		if mode == modeNone {
+			// Plain string scalar (e.g. Range lower_bound_type: "closed").
+			return t
+		}
 		// Float label scalar (e.g. sum: "NaN").
 		return formatF32(parseF32Label(t))
 	case map[string]any:
@@ -230,8 +235,15 @@ func main() {
 		runF32TreeSet(s)
 	case "ArrayList<f32>":
 		runF32ArrayList(s)
+	case "Range<i32>":
+		runRange(s)
 	default:
-		fatalf("unsupported collection type: %s", s.Collection)
+		// Forward-compat (README "unknown collection kinds skip"): a runner
+		// that does not understand a collection kind must SKIP, not fail, so
+		// newer scenarios never break an older runner. Mirrors the
+		// unknown-assertion-key skip in emit.
+		fmt.Fprintf(os.Stderr, "skip: unsupported collection kind (forward-compat): %s\n", s.Collection)
+		return
 	}
 
 	if anyFail {
@@ -1399,4 +1411,149 @@ func totalCmpF32(a, b float32) int {
 		return 1
 	}
 	return 0
+}
+
+// ---- Range<i32> ----------------------------------------------------------
+
+// The Bound/Range value model (spec/features/bound-range.md). Exactly ONE
+// constructor op builds the range under test; an optional "other" block (same
+// single-builder shape) supplies the second range for binary ops. Routed
+// through the production rangev.Int32Range — every assertion is proved against
+// the real cut algebra, not re-derived here.
+func buildRange(ops []map[string]any) rangev.Int32Range {
+	if len(ops) != 1 {
+		fatalf("Range<i32> scenario must have exactly one constructor op, got %d", len(ops))
+	}
+	op := ops[0]
+	lower := func() int32 { return asInt32(op["lower"]) }
+	upper := func() int32 { return asInt32(op["upper"]) }
+	switch op["op"] {
+	case "closed":
+		return rangev.Closed(lower(), upper())
+	case "open":
+		return rangev.Open(lower(), upper())
+	case "closed_open":
+		return rangev.ClosedOpen(lower(), upper())
+	case "open_closed":
+		return rangev.OpenClosed(lower(), upper())
+	case "at_least":
+		return rangev.AtLeast(lower())
+	case "greater_than":
+		return rangev.GreaterThan(lower())
+	case "at_most":
+		return rangev.AtMost(upper())
+	case "less_than":
+		return rangev.LessThan(upper())
+	case "all":
+		return rangev.All()
+	case "singleton":
+		return rangev.Singleton(asInt32(op["value"]))
+	default:
+		fatalf("unknown range op: %v", op["op"])
+		return rangev.Int32Range{}
+	}
+}
+
+func boundTypeStr(bt rangev.BoundType, ok bool) string {
+	if !ok {
+		return "null"
+	}
+	return bt.String()
+}
+
+func optInt32Str(v int32, ok bool) string {
+	if !ok {
+		return "null"
+	}
+	return strconv.FormatInt(int64(v), 10)
+}
+
+func runRange(s scenario) {
+	r := buildRange(s.Operations)
+	var other rangev.Int32Range
+	hasOther := false
+	if s.Other != nil {
+		other = buildRange(s.Other.Operations)
+		hasOther = true
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalRangeAssertion(key, r, other, hasOther), s.Assertions[key], modeNone)
+	}
+}
+
+func evalRangeAssertion(key string, r, other rangev.Int32Range, hasOther bool) string {
+	switch key {
+	case "is_empty":
+		return strconv.FormatBool(r.IsEmpty())
+	case "has_lower_bound":
+		return strconv.FormatBool(r.HasLowerBound())
+	case "has_upper_bound":
+		return strconv.FormatBool(r.HasUpperBound())
+	case "lower_bound_type":
+		return boundTypeStr(r.LowerBoundType())
+	case "upper_bound_type":
+		return boundTypeStr(r.UpperBoundType())
+	case "lower_endpoint":
+		return optInt32Str(r.LowerEndpoint())
+	case "upper_endpoint":
+		return optInt32Str(r.UpperEndpoint())
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		n, err := strconv.ParseInt(rest, 10, 32)
+		if err != nil {
+			fatalf("invalid contains_<N> integer: %q", rest)
+		}
+		return strconv.FormatBool(r.Contains(int32(n)))
+	}
+	// ---- binary ops: require "other" ----------------------------------
+	if !hasOther {
+		return unknown(key)
+	}
+	switch key {
+	case "encloses_other":
+		return strconv.FormatBool(r.Encloses(other))
+	case "is_connected_other":
+		return strconv.FormatBool(r.IsConnected(other))
+	case "span_lower":
+		return optInt32Str(r.Span(other).LowerEndpoint())
+	case "span_upper":
+		return optInt32Str(r.Span(other).UpperEndpoint())
+	case "span_lower_type":
+		return boundTypeStr(r.Span(other).LowerBoundType())
+	case "span_upper_type":
+		return boundTypeStr(r.Span(other).UpperBoundType())
+	case "intersection_is_none":
+		_, ok := r.Intersection(other)
+		return strconv.FormatBool(!ok)
+	case "intersection_is_empty":
+		i, ok := r.Intersection(other)
+		return strconv.FormatBool(ok && i.IsEmpty())
+	case "intersection_lower":
+		if i, ok := r.Intersection(other); ok {
+			return optInt32Str(i.LowerEndpoint())
+		}
+		return "null"
+	case "intersection_upper":
+		if i, ok := r.Intersection(other); ok {
+			return optInt32Str(i.UpperEndpoint())
+		}
+		return "null"
+	case "intersection_lower_type":
+		if i, ok := r.Intersection(other); ok {
+			return boundTypeStr(i.LowerBoundType())
+		}
+		return "null"
+	case "intersection_upper_type":
+		if i, ok := r.Intersection(other); ok {
+			return boundTypeStr(i.UpperBoundType())
+		}
+		return "null"
+	case "intersection_has_lower_bound":
+		i, ok := r.Intersection(other)
+		return strconv.FormatBool(ok && i.HasLowerBound())
+	case "intersection_has_upper_bound":
+		i, ok := r.Intersection(other)
+		return strconv.FormatBool(ok && i.HasUpperBound())
+	}
+	return unknown(key)
 }

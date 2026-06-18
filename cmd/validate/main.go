@@ -26,6 +26,7 @@ import (
 
 	"github.com/mapdb/mapdb-golang/arraylist"
 	"github.com/mapdb/mapdb-golang/bag"
+	"github.com/mapdb/mapdb-golang/boundedlru"
 	"github.com/mapdb/mapdb-golang/hash"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
@@ -46,6 +47,11 @@ type scenario struct {
 	// range_* assertions refer to; same range-builder shape as the `range`
 	// field on a remove_range op.
 	Query map[string]any `json:"query,omitempty"`
+	// MaxSize / TTL are the BoundedLruMap scenario config: max_size is the
+	// required capacity; ttl is null/absent for a pure max-size map, otherwise a
+	// u64 logical tick encoded as a decimal string (or plain number).
+	MaxSize *json.Number    `json:"max_size,omitempty"`
+	TTL     json.RawMessage `json:"ttl,omitempty"`
 }
 
 type otherSpec struct {
@@ -164,19 +170,38 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 				// runner's computed quoted-string array. NavigableMap/Set poll
 				// logs (poll_first_keys / poll_first_values / ...) are
 				// (int|null)[] — a nil element renders as the bare "null".
-				switch ev := e.(type) {
-				case nil:
-					parts[i] = "null"
-				case string:
-					parts[i] = "\"" + ev + "\""
-				default:
-					parts[i] = strconv.FormatInt(int64(ev.(float64)), 10)
-				}
+				parts[i] = renderModeNoneElement(e)
 			}
 		}
 		return "[" + strings.Join(parts, ",") + "]"
 	}
 	return string(raw)
+}
+
+// renderModeNoneElement renders one element of a modeNone (i32) assertion
+// array into the runner's canonical string form. Scalars: numbers as integers,
+// i64 decimal-string keys quoted, null bare. NESTED arrays (the BoundedLruMap
+// eviction_log / snapshot_*_log assertions, shaped [[..],[..]] or [[[..]]]) are
+// rendered recursively as compact `[a,b,...]` so they match the runner's
+// computed nested-array strings.
+func renderModeNoneElement(e any) string {
+	switch ev := e.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return strconv.FormatBool(ev)
+	case string:
+		return "\"" + ev + "\""
+	case float64:
+		return strconv.FormatInt(int64(ev), 10)
+	case []any:
+		parts := make([]string, len(ev))
+		for i, inner := range ev {
+			parts[i] = renderModeNoneElement(inner)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	return fmt.Sprintf("%v", e)
 }
 
 func elementToF32(e any) float32 {
@@ -254,6 +279,8 @@ func main() {
 		runImmutableSortedSet(s)
 	case "HashPipeline":
 		runHashPipeline(s)
+	case "BoundedLruMap<i32, i32>":
+		runBoundedLru(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -2199,4 +2226,250 @@ func runImmutableSortedSet(s scenario) {
 		}()
 		emit(s.Name, key, val, s.Assertions[key], modeNone)
 	}
+}
+
+// ---- BoundedLruMap<i32, i32> ---------------------------------------------
+//
+// The bounded LRU map (spec/features/bounded-lru.md). Routed through the
+// production boundedlru.BoundedLruInt32Int32Map + arena/slot-index intrusive
+// LRU list. The recording eviction callback (always installed by the runner)
+// appends each (key, value, cause) triple to an ordered eviction LOG -- the
+// load-bearing cross-language oracle.
+//
+// Config (on the scenario object): `max_size` (required, non-negative) and
+// `ttl` (a logical-tick TTL, or null/absent for a pure max-size map). `now`
+// and `ttl` are decimal STRINGS if they exceed 2^53, plain JSON numbers
+// otherwise.
+//
+// Operations: put / put_at (put with `now`) / get / get_or_default /
+// contains_key / remove / clear / expire_entries / snapshot_keys /
+// snapshot_values / snapshot_entries, applied in listed order. The runner
+// records each op's result (put_results, get_results, get_or_default_results,
+// contains_results, remove_results, expired_counts) and each snapshot for the
+// result-log assertions. Explicit-order keys (lru_order_*, eviction_log,
+// snapshot logs) are NEVER re-sorted. Unknown ops / assertion keys SKIP.
+
+// parseU64Tick parses a now/ttl operand: a u64 logical tick encoded as a
+// decimal STRING (parsed straight to u64, never via f64) or a plain JSON
+// number for small values. Mirrors the i64-suite decimal-string discipline.
+func parseU64Tick(v any) uint64 {
+	switch x := v.(type) {
+	case string:
+		n, err := strconv.ParseUint(x, 10, 64)
+		if err != nil {
+			fatalf("invalid u64 decimal-string tick: %q", x)
+		}
+		return n
+	case json.Number:
+		n, err := strconv.ParseUint(x.String(), 10, 64)
+		if err != nil {
+			fatalf("invalid u64 tick: %q", x.String())
+		}
+		return n
+	case float64:
+		return uint64(x)
+	}
+	fatalf("expected u64 tick (decimal string or number), got %T (%v)", v, v)
+	return 0
+}
+
+// lruLog accumulates per-op result logs in execution order.
+type lruLog struct {
+	putResults          []*int32
+	getResults          []*int32
+	getOrDefaultResults []int32
+	containsResults     []bool
+	removeResults       []*int32
+	expiredCounts       []int32
+	snapshotKeysLog     [][]int32
+	snapshotValuesLog   [][]int32
+	snapshotEntriesLog  [][]boundedlru.Entry
+}
+
+func runBoundedLru(s scenario) {
+	if s.MaxSize == nil {
+		fatalf("BoundedLruMap scenario needs a non-negative max_size")
+	}
+	maxSize, err := s.MaxSize.Int64()
+	if err != nil || maxSize < 0 {
+		fatalf("BoundedLruMap max_size must be a non-negative integer: %v", s.MaxSize)
+	}
+
+	builder := boundedlru.NewBuilderBoundedLruInt32Int32Map().MaxSize(int(maxSize))
+	// ttl: null/absent => pure max-size map; otherwise a u64 logical tick.
+	if len(s.TTL) > 0 && string(s.TTL) != "null" {
+		var raw any
+		dec := json.NewDecoder(strings.NewReader(string(s.TTL)))
+		dec.UseNumber()
+		if err := dec.Decode(&raw); err != nil {
+			fatalf("invalid ttl: %v", err)
+		}
+		builder = builder.TTL(parseU64Tick(raw))
+	}
+
+	// The recording eviction callback appends each (key, value, cause) triple
+	// to the shared eviction LOG -- the load-bearing oracle.
+	var evictLog []boundedlru.Entry
+	var evictCauses []boundedlru.EvictionCause
+	m := builder.
+		OnEvict(func(k, v int32, c boundedlru.EvictionCause) {
+			evictLog = append(evictLog, boundedlru.Entry{Key: k, Value: v})
+			evictCauses = append(evictCauses, c)
+		}).
+		Build()
+
+	var log lruLog
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			k, v := asInt32(op["key"]), asInt32(op["value"])
+			// An optional `now` makes this a put_at; absent => plain put.
+			var prev int32
+			var ok bool
+			if now, present := op["now"]; present && now != nil {
+				prev, ok = m.PutAt(k, v, parseU64Tick(now))
+			} else {
+				prev, ok = m.Put(k, v)
+			}
+			log.putResults = append(log.putResults, optPtr(prev, ok))
+		case "put_at":
+			k, v := asInt32(op["key"]), asInt32(op["value"])
+			prev, ok := m.PutAt(k, v, parseU64Tick(op["now"]))
+			log.putResults = append(log.putResults, optPtr(prev, ok))
+		case "get":
+			v, ok := m.Get(asInt32(op["key"]))
+			log.getResults = append(log.getResults, optPtr(v, ok))
+		case "get_or_default":
+			d := asInt32(op["default"])
+			log.getOrDefaultResults = append(log.getOrDefaultResults, m.GetOrDefault(asInt32(op["key"]), d))
+		case "contains_key":
+			log.containsResults = append(log.containsResults, m.ContainsKey(asInt32(op["key"])))
+		case "remove":
+			v, ok := m.Remove(asInt32(op["key"]))
+			log.removeResults = append(log.removeResults, optPtr(v, ok))
+		case "clear":
+			m.Clear()
+		case "expire_entries":
+			log.expiredCounts = append(log.expiredCounts, int32(m.ExpireEntries(parseU64Tick(op["now"]))))
+		case "snapshot_keys":
+			log.snapshotKeysLog = append(log.snapshotKeysLog, m.Keys())
+		case "snapshot_values":
+			log.snapshotValuesLog = append(log.snapshotValuesLog, m.Values())
+		case "snapshot_entries":
+			log.snapshotEntriesLog = append(log.snapshotEntriesLog, m.Entries())
+		default:
+			// Forward-compat: an unknown op must not crash a runner mix; skip.
+		}
+	}
+
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := evalLruAssertion(key, m, &log, evictLog, evictCauses)
+		emit(s.Name, key, val, s.Assertions[key], modeNone)
+	}
+}
+
+// optPtr converts an (value, ok) pair into the nullable *int32 the opt arrays
+// render (nil when absent).
+func optPtr(v int32, ok bool) *int32 {
+	if !ok {
+		return nil
+	}
+	return &v
+}
+
+func evalLruAssertion(key string, m *boundedlru.BoundedLruInt32Int32Map, log *lruLog, evictLog []boundedlru.Entry, evictCauses []boundedlru.EvictionCause) string {
+	switch key {
+	case "size":
+		return strconv.Itoa(m.Size())
+	case "is_empty":
+		return strconv.FormatBool(m.IsEmpty())
+	// Post-sequence contents in LRU order. Explicit-order keys: NEVER re-sorted.
+	case "lru_order_keys":
+		return formatArray(m.Keys())
+	case "lru_order_values":
+		return formatArray(m.Values())
+	// The load-bearing oracle: the ordered eviction LOG, each element a fixed
+	// 3-tuple [key, value, "cause"], in invocation order (NOT sorted).
+	case "eviction_log":
+		parts := make([]string, len(evictLog))
+		for i, e := range evictLog {
+			parts[i] = fmt.Sprintf("[%d,%d,%q]", e.Key, e.Value, evictCauses[i].String())
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	// Per-op result logs, in execution order.
+	case "put_results":
+		return optArray(log.putResults)
+	case "get_results":
+		return optArray(log.getResults)
+	case "get_or_default_results":
+		return formatArray(log.getOrDefaultResults)
+	case "contains_results":
+		return boolArray(log.containsResults)
+	case "remove_results":
+		return optArray(log.removeResults)
+	case "expired_counts":
+		return formatArray(log.expiredCounts)
+	case "snapshot_keys_log":
+		return arrayOfInt32Arrays(log.snapshotKeysLog)
+	case "snapshot_values_log":
+		return arrayOfInt32Arrays(log.snapshotValuesLog)
+	case "snapshot_entries_log":
+		return arrayOfPairArrays(log.snapshotEntriesLog)
+	}
+	// Post-op out-of-band reads: MUST NOT refresh recency, evict, or mutate.
+	// get_<k> is computed read-only via the LRU-order snapshot (NOT m.Get,
+	// which WOULD refresh recency); contains_<k> is read-only.
+	if rest, ok := strings.CutPrefix(key, "get_"); ok {
+		k, err := strconv.ParseInt(rest, 10, 32)
+		if err != nil {
+			return unknown(key)
+		}
+		for _, e := range m.Entries() {
+			if e.Key == int32(k) {
+				return strconv.FormatInt(int64(e.Value), 10)
+			}
+		}
+		return "null"
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		k, err := strconv.ParseInt(rest, 10, 32)
+		if err != nil {
+			return unknown(key)
+		}
+		return strconv.FormatBool(m.ContainsKey(int32(k)))
+	}
+	return unknown(key)
+}
+
+// boolArray renders a bool array in explicit order.
+func boolArray(v []bool) string {
+	parts := make([]string, len(v))
+	for i, b := range v {
+		parts[i] = strconv.FormatBool(b)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// arrayOfInt32Arrays renders an array-of-int-arrays (the snapshot logs), inner
+// arrays in their recorded explicit (LRU) order, NOT sorted.
+func arrayOfInt32Arrays(v [][]int32) string {
+	parts := make([]string, len(v))
+	for i, inner := range v {
+		parts[i] = formatArray(inner)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// arrayOfPairArrays renders the snapshot_entries log: an array of LRU-order
+// [[key,value], ...] arrays, explicit order, NOT sorted.
+func arrayOfPairArrays(v [][]boundedlru.Entry) string {
+	outer := make([]string, len(v))
+	for i, inner := range v {
+		pairs := make([]string, len(inner))
+		for j, e := range inner {
+			pairs[j] = fmt.Sprintf("[%d,%d]", e.Key, e.Value)
+		}
+		outer[i] = "[" + strings.Join(pairs, ",") + "]"
+	}
+	return "[" + strings.Join(outer, ",") + "]"
 }

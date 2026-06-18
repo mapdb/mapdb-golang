@@ -393,3 +393,36 @@ func TestString(t *testing.T) {
 		}
 	}
 }
+
+func TestBracket(t *testing.T) {
+	keys := []int32{10, 20, 30, 40, 50, 60, 70}
+	bracketEq := func(r Int32Range, wantLo, wantHi int) {
+		t.Helper()
+		lo, hi := r.Bracket(keys)
+		if lo != wantLo || hi != wantHi {
+			t.Errorf("%v.Bracket = (%d,%d), want (%d,%d)", r, lo, hi, wantLo, wantHi)
+		}
+	}
+	bracketEq(All(), 0, 7)
+	bracketEq(ClosedOpen(30, 70), 2, 6) // [30,40,50,60]
+	bracketEq(OpenClosed(30, 70), 3, 7) // [40,50,60,70]
+	bracketEq(Closed(40, 50), 3, 5)
+	bracketEq(Open(30, 70), 3, 6) // [40,50,60]
+	bracketEq(AtLeast(50), 4, 7)
+	bracketEq(GreaterThan(50), 5, 7)
+	bracketEq(LessThan(30), 0, 2)
+	bracketEq(AtMost(30), 0, 3)
+	bracketEq(Singleton(40), 3, 4)
+	// cut-empty and discrete-empty match nothing.
+	if lo, hi := ClosedOpen(40, 40).Bracket(keys); lo != hi {
+		t.Errorf("cut-empty bracket = (%d,%d), want empty", lo, hi)
+	}
+	// signed extremes: no v±1 arithmetic.
+	edge := []int32{-2147483648, -1, 0, 1, 2147483647}
+	if lo, hi := GreaterThan(int32(-2147483648)).Bracket(edge); lo != 1 || hi != 5 {
+		t.Errorf("GreaterThan(INT_MIN).Bracket = (%d,%d), want (1,5)", lo, hi)
+	}
+	if lo, hi := LessThan(int32(2147483647)).Bracket(edge); lo != 0 || hi != 4 {
+		t.Errorf("LessThan(INT_MAX).Bracket = (%d,%d), want (0,4)", lo, hi)
+	}
+}

@@ -251,6 +251,74 @@ func (r Int32Range) Contains(x int32) bool {
 	return lowerOK && upperOK
 }
 
+// Bracket returns the contiguous [start, end) index window of a STRICTLY
+// ASCENDING slice whose elements fall inside this range. Membership over a
+// sorted slice is contiguous (the range is convex), so two binary searches
+// suffice: start is the first index i with the lower cut strictly below
+// sorted[i]; end is one past the last index whose key is below the upper cut.
+//
+// The brackets are derived purely from the cut comparison (Below(v) vs
+// Above(v) vs the unbounded sentinels), NEVER from v±1 endpoint arithmetic —
+// so open/closed bounds at INT_MIN/INT_MAX never compute a predecessor /
+// successor and never overflow. start == end is an empty result (cut-empty or
+// discrete-empty, e.g. Open(1,2) over int32), never an error. The supplied
+// slice MUST be strictly ascending (the sorted-table storage invariant).
+func (r Int32Range) Bracket(sorted []int32) (int, int) {
+	// start: lower bound of the in-range window — first index whose key is
+	// strictly above the lower cut.
+	var start int
+	switch r.lower.kind {
+	case cutBelowAll:
+		start = 0
+	case cutBelow: // closed lower [v: include v -> first key >= v.
+		start = partitionPointInt32(sorted, r.lower.value, false)
+	case cutAbove: // open lower (v: exclude v -> first key > v.
+		start = partitionPointInt32(sorted, r.lower.value, true)
+	default: // cutAboveAll — never a lower cut by factory invariant; empty.
+		start = len(sorted)
+	}
+	// end: one past the last in-range key — first index whose key is NOT below
+	// the upper cut.
+	var end int
+	switch r.upper.kind {
+	case cutAboveAll:
+		end = len(sorted)
+	case cutBelow: // open upper v): exclude v -> first key >= v.
+		end = partitionPointInt32(sorted, r.upper.value, false)
+	case cutAbove: // closed upper v]: include v -> first key > v.
+		end = partitionPointInt32(sorted, r.upper.value, true)
+	default: // cutBelowAll — never an upper cut by factory invariant; empty.
+		end = 0
+	}
+	// A fully-disjoint range can yield start > end; normalise to empty.
+	if start > end {
+		return end, end
+	}
+	return start, end
+}
+
+// partitionPointInt32 returns the first index i in the strictly-ascending
+// slice for which the predicate is false. With orEqual == false the predicate
+// is sorted[i] < v (first key >= v); with orEqual == true it is sorted[i] <= v
+// (first key > v). The midpoint is computed overflow-safe (lo + (hi-lo)/2) and
+// every comparison is signed, so it is correct at INT_MIN/INT_MAX.
+func partitionPointInt32(sorted []int32, v int32, orEqual bool) int {
+	lo, hi := 0, len(sorted)
+	for lo < hi {
+		mid := lo + (hi-lo)/2
+		below := sorted[mid] < v
+		if orEqual {
+			below = sorted[mid] <= v
+		}
+		if below {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	return lo
+}
+
 // IsEmpty reports cut-emptiness: lowerCut == upperCut. This is NOT discrete
 // cardinality — Open(1, 2) over int32 is not empty (no DiscreteDomain in
 // Phase 0).

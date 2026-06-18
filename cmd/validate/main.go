@@ -28,6 +28,7 @@ import (
 	"github.com/mapdb/mapdb-golang/bag"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
+	"github.com/mapdb/mapdb-golang/immutablesorted"
 	"github.com/mapdb/mapdb-golang/multimap"
 	"github.com/mapdb/mapdb-golang/rangev"
 	"github.com/mapdb/mapdb-golang/treemap"
@@ -246,6 +247,10 @@ func main() {
 		runF32ArrayList(s)
 	case "Range<i32>":
 		runRange(s)
+	case "ImmutableSortedMap<i32, i32>":
+		runImmutableSortedMap(s)
+	case "ImmutableSortedSet<i32>":
+		runImmutableSortedSet(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -1788,4 +1793,209 @@ func evalRangeAssertion(key string, r, other rangev.Int32Range, hasOther bool) s
 		return strconv.FormatBool(ok && i.HasUpperBound())
 	}
 	return unknown(key)
+}
+
+// ---- ImmutableSortedMap<i32, i32> / ImmutableSortedSet<i32> --------------
+//
+// The compact immutable sorted table (spec/features/sorted-table-map.md). A
+// sorted-table collection is built by a SINGLE bulk `from_sorted` op (it has no
+// incremental mutators). The runner REQUIRES exactly one `from_sorted` op; zero
+// or multiple is a malformed scenario and is SKIPped (forward-compat, not a
+// failure), per the spec authoring rule. The optional top-level `query` names
+// the Range the range_* assertions refer to.
+
+// int32Array converts a decoded JSON array (a []any of json.Number under
+// UseNumber) into an []int32. Used for the from_sorted keys/values/elements.
+func int32Array(v any) []int32 {
+	raw, ok := v.([]any)
+	if !ok {
+		fatalf("expected JSON array, got %T", v)
+	}
+	out := make([]int32, len(raw))
+	for i, e := range raw {
+		out[i] = asInt32(e)
+	}
+	return out
+}
+
+// singleFromSorted returns the lone from_sorted op, or (nil, false) if the
+// operations are not exactly one from_sorted op (the caller then SKIPs).
+func singleFromSorted(s scenario) (map[string]any, bool) {
+	if len(s.Operations) != 1 {
+		return nil, false
+	}
+	op := s.Operations[0]
+	if op["op"] != "from_sorted" {
+		return nil, false
+	}
+	return op, true
+}
+
+func runImmutableSortedMap(s scenario) {
+	op, ok := singleFromSorted(s)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "skip: malformed sorted-table scenario (need exactly one from_sorted op): %s\n", s.Name)
+		return
+	}
+	keys := int32Array(op["keys"])
+	values := int32Array(op["values"])
+	m := immutablesorted.FromSortedInt32Int32(keys, values)
+
+	var query rangev.Int32Range
+	hasQuery := s.Query != nil
+	if hasQuery {
+		query = buildRangeObj(s.Query)
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(m.Size())
+			case "is_empty":
+				return strconv.FormatBool(m.IsEmpty())
+			case "sorted_keys":
+				return formatArray(m.Keys())
+			case "sorted_values":
+				// "all values, sorted ascending" (README). For this type the
+				// value MULTISET sorted; Values() is in key order, so sort a copy.
+				vals := m.Values()
+				sort.Slice(vals, func(i, j int) bool { return vals[i] < vals[j] })
+				return formatArray(vals)
+			case "min", "first_key":
+				return optInt32Str(m.FirstKey())
+			case "max", "last_key":
+				return optInt32Str(m.LastKey())
+			case "descending_keys":
+				return formatArray(m.DescendingKeys())
+			case "range_keys":
+				if hasQuery {
+					return formatArray(m.RangeKeys(query))
+				}
+				return unknown(key)
+			case "range_keys_desc":
+				if hasQuery {
+					return formatArray(m.DescendingRangeKeys(query))
+				}
+				return unknown(key)
+			case "range_size":
+				if hasQuery {
+					return strconv.Itoa(len(m.RangeKeys(query)))
+				}
+				return unknown(key)
+			}
+			if kind, k, ok := navKeyPrefix(key); ok {
+				switch kind {
+				case "floor":
+					return optInt32Str(m.FloorKey(k))
+				case "ceiling":
+					return optInt32Str(m.CeilingKey(k))
+				case "lower":
+					return optInt32Str(m.LowerKey(k))
+				case "higher":
+					return optInt32Str(m.HigherKey(k))
+				}
+			}
+			if k, ok := rankKey(key); ok {
+				return strconv.Itoa(m.Rank(k))
+			}
+			if i, ok := selectIndex(key); ok {
+				return optInt32Str(m.SelectKey(i))
+			}
+			if rest, ok := strings.CutPrefix(key, "get_"); ok {
+				k, err := strconv.ParseInt(rest, 10, 32)
+				if err != nil {
+					return unknown(key)
+				}
+				if v, ok := m.Get(int32(k)); ok {
+					return strconv.FormatInt(int64(v), 10)
+				}
+				return "null"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				k, err := strconv.ParseInt(rest, 10, 32)
+				if err != nil {
+					return unknown(key)
+				}
+				return strconv.FormatBool(m.ContainsKey(int32(k)))
+			}
+			return unknown(key)
+		}()
+		emit(s.Name, key, val, s.Assertions[key], modeNone)
+	}
+}
+
+func runImmutableSortedSet(s scenario) {
+	op, ok := singleFromSorted(s)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "skip: malformed sorted-table scenario (need exactly one from_sorted op): %s\n", s.Name)
+		return
+	}
+	elements := int32Array(op["elements"])
+	set := immutablesorted.FromSortedInt32(elements)
+
+	var query rangev.Int32Range
+	hasQuery := s.Query != nil
+	if hasQuery {
+		query = buildRangeObj(s.Query)
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(set.Size())
+			case "is_empty":
+				return strconv.FormatBool(set.IsEmpty())
+			case "to_sorted_array":
+				return formatArray(set.Elements())
+			case "min", "first":
+				return optInt32Str(set.First())
+			case "max", "last":
+				return optInt32Str(set.Last())
+			case "descending_elements":
+				return formatArray(set.DescendingElements())
+			case "range_elements":
+				if hasQuery {
+					return formatArray(set.RangeElements(query))
+				}
+				return unknown(key)
+			case "range_elements_desc":
+				if hasQuery {
+					return formatArray(set.DescendingRangeElements(query))
+				}
+				return unknown(key)
+			case "range_size":
+				if hasQuery {
+					return strconv.Itoa(len(set.RangeElements(query)))
+				}
+				return unknown(key)
+			}
+			if kind, k, ok := navKeyPrefix(key); ok {
+				switch kind {
+				case "floor":
+					return optInt32Str(set.Floor(k))
+				case "ceiling":
+					return optInt32Str(set.Ceiling(k))
+				case "lower":
+					return optInt32Str(set.Lower(k))
+				case "higher":
+					return optInt32Str(set.Higher(k))
+				}
+			}
+			if k, ok := rankKey(key); ok {
+				return strconv.Itoa(set.Rank(k))
+			}
+			if i, ok := selectIndex(key); ok {
+				return optInt32Str(set.Select(i))
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				k, err := strconv.ParseInt(rest, 10, 32)
+				if err != nil {
+					return unknown(key)
+				}
+				return strconv.FormatBool(set.Contains(int32(k)))
+			}
+			return unknown(key)
+		}()
+		emit(s.Name, key, val, s.Assertions[key], modeNone)
+	}
 }

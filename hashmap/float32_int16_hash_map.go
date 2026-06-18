@@ -11,20 +11,24 @@ import (
 
 const (
 	float32Int16DefaultCapacity = 16
-	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
 // float32Int16Entry holds a single slot in the hash map for cache locality.
+// Occupancy is tracked out-of-band by the Swiss-table control bytes (ctrl), so
+// the entry carries only the key/value payload.
 type float32Int16Entry struct {
-	key      float32
-	value    int16
-	occupied bool
+	key   float32
+	value int16
 }
 
 // Float32Int16 is an open-addressing hash map with float32 keys and int16 values.
+// It uses grouped Swiss-table probing: a SWAR control-byte matcher over groups
+// of 8 buckets plus a triangular probe sequence. Iteration order is unspecified.
 type Float32Int16 struct {
-	entries []float32Int16Entry
-	size    int
+	ctrl       []uint8
+	entries    []float32Int16Entry
+	size       int
+	growthLeft int
 }
 
 // NewFloat32Int16 creates a new empty Float32Int16 with default capacity.
@@ -32,12 +36,15 @@ func NewFloat32Int16() *Float32Int16 {
 	return NewFloat32Int16WithCapacity(float32Int16DefaultCapacity)
 }
 
-// NewFloat32Int16WithCapacity creates a new empty Float32Int16 with the given initial capacity.
+// NewFloat32Int16WithCapacity creates a new empty Float32Int16 sized to hold at
+// least the given number of entries without resizing.
 func NewFloat32Int16WithCapacity(capacity int) *Float32Int16 {
-	cap := nextPowerOfTwoFloat32Int16(capacity)
+	cap := swissCapacityFor(capacity)
 	return &Float32Int16{
-		entries: make([]float32Int16Entry, cap),
-		size:    0,
+		ctrl:       newSwissCtrl(cap),
+		entries:    make([]float32Int16Entry, cap),
+		size:       0,
+		growthLeft: swissMaxLoad(cap),
 	}
 }
 
@@ -55,47 +62,75 @@ func Float32Int16Of(pairs ...struct {
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *Float32Int16) Put(key float32, value int16) (int16, bool) {
-	if m.needsResize() {
-		m.resize()
+	if m.growthLeft == 0 {
+		m.rehashForInsert()
 	}
 	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	firstDeleted := -1
 
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if math.Float32bits(m.entries[idx].key) == math.Float32bits(key) {
+				old := m.entries[idx].value
+				m.entries[idx].value = value
+				return old, true
+			}
+		}
+		if firstDeleted < 0 {
+			if d := swissMatchByte(g, swissDeleted); d != 0 {
+				firstDeleted = (group + swissLowestLane(d)) & mask
+			}
+		}
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			if firstDeleted >= 0 {
+				idx = firstDeleted
+			} else {
+				m.growthLeft--
+			}
 			m.entries[idx].key = key
 			m.entries[idx].value = value
-			m.entries[idx].occupied = true
+			swissSetCtrl(m.ctrl, idx, tag, cap)
 			m.size++
 			return 0, false
 		}
-		if math.Float32bits(m.entries[idx].key) == math.Float32bits(key) {
-			old := m.entries[idx].value
-			m.entries[idx].value = value
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *Float32Int16) Get(key float32) (int16, bool) {
-	cap := len(m.entries)
-	if cap == 0 {
+	if m.size == 0 {
 		return 0, false
 	}
+	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if math.Float32bits(m.entries[idx].key) == math.Float32bits(key) {
+				return m.entries[idx].value, true
+			}
+		}
+		if swissMatchEmpty(g) != 0 {
 			return 0, false
 		}
-		if math.Float32bits(m.entries[idx].key) == math.Float32bits(key) {
-			return m.entries[idx].value, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -109,32 +144,45 @@ func (m *Float32Int16) GetOrDefault(key float32, defaultValue int16) int16 {
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *Float32Int16) Remove(key float32) (int16, bool) {
-	cap := len(m.entries)
-	if cap == 0 {
+	if m.size == 0 {
 		return 0, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		return 0, false
+	}
+	old := m.entries[idx].value
+	// Always mark the slot DELETED (a tombstone). The spec's can_mark_empty
+	// optimization is unsound for the triangular probe sequence, so it is
+	// intentionally skipped. Zero the payload so the GC can reclaim any
+	// referenced memory.
+	swissSetCtrl(m.ctrl, idx, swissDeleted, len(m.entries))
+	m.entries[idx] = float32Int16Entry{}
+	m.size--
+	return old, true
+}
 
+// findIndex returns the bucket index of key and true if present.
+func (m *Float32Int16) findIndex(key float32) (int, bool) {
+	cap := len(m.entries)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if math.Float32bits(m.entries[idx].key) == math.Float32bits(key) {
+				return idx, true
+			}
+		}
+		if swissMatchEmpty(g) != 0 {
 			return 0, false
 		}
-		if math.Float32bits(m.entries[idx].key) == math.Float32bits(key) {
-			old := m.entries[idx].value
-			m.entries[idx].occupied = false
-			m.entries[idx].key = 0.0
-			m.entries[idx].value = 0
-			m.size--
-			// Backward-shift deletion: the sibling of linear probing that
-			// closes the hole by pulling each subsequent probed-past entry
-			// one slot back until we reach an empty slot or an entry whose
-			// preferred index equals its current index. This is distinct
-			// from Robin Hood hashing (which is an insertion strategy).
-			m.rehashFrom(idx, mask)
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -147,7 +195,7 @@ func (m *Float32Int16) ContainsKey(key float32) bool {
 // ContainsValue returns true if the map contains the given value.
 func (m *Float32Int16) ContainsValue(value int16) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && m.entries[i].value == value {
+		if m.ctrl[i] <= 0x7F && m.entries[i].value == value {
 			return true
 		}
 	}
@@ -159,19 +207,24 @@ func (m *Float32Int16) Len() int {
 	return m.size
 }
 
-// Clear removes all entries from the map.
+// Clear removes all entries from the map, retaining the allocation.
 func (m *Float32Int16) Clear() {
+	cap := len(m.entries)
+	for i := range m.ctrl {
+		m.ctrl[i] = swissEmpty
+	}
 	for i := range m.entries {
 		m.entries[i] = float32Int16Entry{}
 	}
 	m.size = 0
+	m.growthLeft = swissMaxLoad(cap)
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
 func (m *Float32Int16) All() iter.Seq2[float32, int16] {
 	return func(yield func(float32, int16) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].key, m.entries[i].value) {
 					return
 				}
@@ -184,7 +237,7 @@ func (m *Float32Int16) All() iter.Seq2[float32, int16] {
 func (m *Float32Int16) Keys() iter.Seq[float32] {
 	return func(yield func(float32) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].key) {
 					return
 				}
@@ -197,7 +250,7 @@ func (m *Float32Int16) Keys() iter.Seq[float32] {
 func (m *Float32Int16) Values() iter.Seq[int16] {
 	return func(yield func(int16) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].value) {
 					return
 				}
@@ -209,7 +262,7 @@ func (m *Float32Int16) Values() iter.Seq[int16] {
 // ForEach calls the given function for each key-value pair.
 func (m *Float32Int16) ForEach(f func(float32, int16)) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -218,7 +271,7 @@ func (m *Float32Int16) ForEach(f func(float32, int16)) {
 // ForEachKey calls the given function for each key.
 func (m *Float32Int16) ForEachKey(f func(float32)) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].key)
 		}
 	}
@@ -227,7 +280,7 @@ func (m *Float32Int16) ForEachKey(f func(float32)) {
 // ForEachValue calls the given function for each value.
 func (m *Float32Int16) ForEachValue(f func(int16)) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].value)
 		}
 	}
@@ -237,7 +290,7 @@ func (m *Float32Int16) ForEachValue(f func(int16)) {
 func (m *Float32Int16) Select(predicate func(float32, int16) bool) *Float32Int16 {
 	result := NewFloat32Int16()
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -248,7 +301,7 @@ func (m *Float32Int16) Select(predicate func(float32, int16) bool) *Float32Int16
 func (m *Float32Int16) Reject(predicate func(float32, int16) bool) *Float32Int16 {
 	result := NewFloat32Int16()
 	for i := range m.entries {
-		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -258,7 +311,7 @@ func (m *Float32Int16) Reject(predicate func(float32, int16) bool) *Float32Int16
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
 func (m *Float32Int16) Detect(predicate func(float32, int16) bool) (float32, int16, bool) {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
 		}
 	}
@@ -268,7 +321,7 @@ func (m *Float32Int16) Detect(predicate func(float32, int16) bool) (float32, int
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
 func (m *Float32Int16) AnySatisfy(predicate func(float32, int16) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
 		}
 	}
@@ -278,7 +331,7 @@ func (m *Float32Int16) AnySatisfy(predicate func(float32, int16) bool) bool {
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
 func (m *Float32Int16) AllSatisfy(predicate func(float32, int16) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
 		}
 	}
@@ -288,7 +341,7 @@ func (m *Float32Int16) AllSatisfy(predicate func(float32, int16) bool) bool {
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
 func (m *Float32Int16) NoneSatisfy(predicate func(float32, int16) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
 		}
 	}
@@ -299,7 +352,7 @@ func (m *Float32Int16) NoneSatisfy(predicate func(float32, int16) bool) bool {
 func (m *Float32Int16) Count(predicate func(float32, int16) bool) int {
 	count := 0
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			count++
 		}
 	}
@@ -315,7 +368,7 @@ func (m *Float32Int16) String() string {
 	sb.WriteString("{")
 	first := true
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			if !first {
 				sb.WriteString(", ")
 			}
@@ -333,7 +386,7 @@ func (m *Float32Int16) Equals(other *Float32Int16) bool {
 		return false
 	}
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			v, ok := other.Get(m.entries[i].key)
 			if !ok || !(v == m.entries[i].value) {
 				return false
@@ -347,7 +400,7 @@ func (m *Float32Int16) Equals(other *Float32Int16) bool {
 func (m *Float32Int16) KeysToSlice() []float32 {
 	result := make([]float32, 0, m.size)
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = append(result, m.entries[i].key)
 		}
 	}
@@ -358,7 +411,7 @@ func (m *Float32Int16) KeysToSlice() []float32 {
 func (m *Float32Int16) ValuesToSlice() []int16 {
 	result := make([]int16, 0, m.size)
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = append(result, m.entries[i].value)
 		}
 	}
@@ -374,7 +427,7 @@ func (m *Float32Int16) ToImmutable() *ImmutableFloat32Int16 {
 func (m *Float32Int16) InjectInto(initial int16, f func(int16, float32, int16) int16) int16 {
 	result := initial
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = f(result, m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -432,7 +485,7 @@ func (m *Float32Int16) WithoutAllKeys(keys []float32) *Float32Int16 {
 func (m *Float32Int16) SumOfValues() int16 {
 	var sum int16
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			sum += m.entries[i].value
 		}
 	}
@@ -487,31 +540,24 @@ func (e Float32Int16Entry) OrInsertWith(f func() int16) int16 {
 // guard against silent data loss this path panics if it detects a
 // resize happened during f — see the post-call check below.
 func (e Float32Int16Entry) AndModify(f func(*int16)) Float32Int16Entry {
-	cap := len(e.m.entries)
-	if cap == 0 {
+	if e.m.size == 0 {
 		return e
 	}
-	mask := cap - 1
-	idx := int(e.m.hashKey(e.key)) & mask
-	for {
-		if !e.m.entries[idx].occupied {
-			return e
-		}
-		if math.Float32bits(e.m.entries[idx].key) == math.Float32bits(e.key) {
-			// Detect backing-slice identity before and after the callback.
-			// If the slice header changed (resize) or length changed (rehash),
-			// the pointer we passed to f aliased the pre-resize storage and
-			// the mutation is lost. Panic rather than silently dropping data.
-			prevPtr := &e.m.entries[0]
-			prevLen := len(e.m.entries)
-			f(&e.m.entries[idx].value)
-			if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
-				panic("Float32Int16Entry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
-			}
-			return e
-		}
-		idx = (idx + 1) & mask
+	idx, ok := e.m.findIndex(e.key)
+	if !ok {
+		return e
 	}
+	// Detect backing-slice identity before and after the callback.
+	// If the slice header changed (resize) or length changed (rehash),
+	// the pointer we passed to f aliased the pre-resize storage and
+	// the mutation is lost. Panic rather than silently dropping data.
+	prevPtr := &e.m.entries[0]
+	prevLen := len(e.m.entries)
+	f(&e.m.entries[idx].value)
+	if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
+		panic("Float32Int16Entry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
+	}
+	return e
 }
 
 func (m *Float32Int16) hashKey(key float32) uint64 {
@@ -519,57 +565,55 @@ func (m *Float32Int16) hashKey(key float32) uint64 {
 	return h ^ (h >> 32)
 }
 
-func (m *Float32Int16) needsResize() bool {
-	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
+// rehashForInsert is called when growthLeft has hit zero and one more entry
+// must be inserted. If live entries still fit at the current capacity the
+// table is rebuilt in place to flush tombstones; otherwise it doubles.
+func (m *Float32Int16) rehashForInsert() {
+	cap := len(m.entries)
+	if m.size+1 <= swissMaxLoad(cap) {
+		m.rehashTo(cap)
+	} else {
+		m.rehashTo(cap * 2)
+	}
 }
 
-func (m *Float32Int16) resize() {
+// rehashTo rebuilds the table at newCap, re-inserting every live entry into a
+// fresh (tombstone-free) table.
+func (m *Float32Int16) rehashTo(newCap int) {
 	oldEntries := m.entries
-	newCap := len(oldEntries) * 2
-	if newCap == 0 {
-		newCap = float32Int16DefaultCapacity
-	}
+	oldCtrl := m.ctrl
+	m.ctrl = newSwissCtrl(newCap)
 	m.entries = make([]float32Int16Entry, newCap)
 	m.size = 0
-
+	m.growthLeft = swissMaxLoad(newCap)
 	for i := range oldEntries {
-		if oldEntries[i].occupied {
-			m.Put(oldEntries[i].key, oldEntries[i].value)
+		if oldCtrl[i] <= 0x7F {
+			m.insertNoGrow(oldEntries[i].key, oldEntries[i].value)
 		}
 	}
 }
 
-// rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *Float32Int16) rehashFrom(deleted int, mask int) {
-	c := len(m.entries)
-	idx := (deleted + 1) & mask
-	for m.entries[idx].occupied {
-		ideal := int(m.hashKey(m.entries[idx].key)) & mask
-		distCurrent := (idx - ideal + c) & mask
-		distGap := (deleted - ideal + c) & mask
-		if distCurrent > distGap {
-			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = float32Int16Entry{}
-			deleted = idx
+// insertNoGrow inserts assuming the table has room and no equal key exists;
+// used only when rehashing into a fresh tombstone-free table.
+func (m *Float32Int16) insertNoGrow(key float32, value int16) {
+	cap := len(m.entries)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	for {
+		g := swissLoadGroup(m.ctrl, group)
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			m.entries[idx].key = key
+			m.entries[idx].value = value
+			swissSetCtrl(m.ctrl, idx, tag, cap)
+			m.size++
+			m.growthLeft--
+			return
 		}
-		idx = (idx + 1) & mask
-		if idx == deleted {
-			break
-		}
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
-}
-
-func nextPowerOfTwoFloat32Int16(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

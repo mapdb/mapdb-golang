@@ -10,16 +10,18 @@ import (
 
 const (
 	int64ObjectDefaultCapacity = 16
-	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
 // Int64Object is an open-addressing hash map with int64 keys and generic values.
-// The key type is specialized to avoid boxing overhead.
+// The key type is specialized to avoid boxing overhead. It uses grouped
+// Swiss-table probing (SWAR control-byte matcher + triangular probe sequence);
+// occupancy is tracked out-of-band by ctrl. Iteration order is unspecified.
 type Int64Object[V any] struct {
-	keys     []int64
-	values   []V
-	occupied []bool
-	size     int
+	ctrl       []uint8
+	keys       []int64
+	values     []V
+	size       int
+	growthLeft int
 }
 
 // NewInt64Object creates a new empty Int64Object with default capacity.
@@ -27,63 +29,101 @@ func NewInt64Object[V any]() *Int64Object[V] {
 	return NewInt64ObjectWithCapacity[V](int64ObjectDefaultCapacity)
 }
 
-// NewInt64ObjectWithCapacity creates a new empty Int64Object with the given initial capacity.
+// NewInt64ObjectWithCapacity creates a new empty Int64Object sized to hold at
+// least the given number of entries without resizing.
 func NewInt64ObjectWithCapacity[V any](capacity int) *Int64Object[V] {
-	cap := nextPowerOfTwoInt64Object(capacity)
+	cap := swissCapacityFor(capacity)
 	return &Int64Object[V]{
-		keys:     make([]int64, cap),
-		values:   make([]V, cap),
-		occupied: make([]bool, cap),
-		size:     0,
+		ctrl:       newSwissCtrl(cap),
+		keys:       make([]int64, cap),
+		values:     make([]V, cap),
+		size:       0,
+		growthLeft: swissMaxLoad(cap),
 	}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *Int64Object[V]) Put(key int64, value V) (V, bool) {
-	if m.needsResize() {
-		m.resize()
+	if m.growthLeft == 0 {
+		m.rehashForInsert()
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	firstDeleted := -1
 
 	for {
-		if !m.occupied[idx] {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.keys[idx] == key {
+				old := m.values[idx]
+				m.values[idx] = value
+				return old, true
+			}
+		}
+		if firstDeleted < 0 {
+			if d := swissMatchByte(g, swissDeleted); d != 0 {
+				firstDeleted = (group + swissLowestLane(d)) & mask
+			}
+		}
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			if firstDeleted >= 0 {
+				idx = firstDeleted
+			} else {
+				m.growthLeft--
+			}
 			m.keys[idx] = key
 			m.values[idx] = value
-			m.occupied[idx] = true
+			swissSetCtrl(m.ctrl, idx, tag, cap)
 			m.size++
 			var zero V
 			return zero, false
 		}
-		if m.keys[idx] == key {
-			old := m.values[idx]
-			m.values[idx] = value
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *Int64Object[V]) Get(key int64) (V, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		var zero V
 		return zero, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	return m.values[idx], true
+}
 
+// findIndex returns the bucket index of key and true if present.
+func (m *Int64Object[V]) findIndex(key int64) (int, bool) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 	for {
-		if !m.occupied[idx] {
-			var zero V
-			return zero, false
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.keys[idx] == key {
+				return idx, true
+			}
 		}
-		if m.keys[idx] == key {
-			return m.values[idx], true
+		if swissMatchEmpty(g) != 0 {
+			return 0, false
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -97,31 +137,23 @@ func (m *Int64Object[V]) GetOrDefault(key int64, defaultValue V) V {
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *Int64Object[V]) Remove(key int64) (V, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		var zero V
 		return zero, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
-
-	for {
-		if !m.occupied[idx] {
-			var zero V
-			return zero, false
-		}
-		if m.keys[idx] == key {
-			old := m.values[idx]
-			m.occupied[idx] = false
-			m.keys[idx] = 0
-			var zeroV V
-			m.values[idx] = zeroV
-			m.size--
-			m.rehashFrom(idx, mask)
-			return old, true
-		}
-		idx = (idx + 1) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		var zero V
+		return zero, false
 	}
+	old := m.values[idx]
+	// Always tombstone (DELETED); zero the slot so the GC can reclaim the value.
+	swissSetCtrl(m.ctrl, idx, swissDeleted, len(m.keys))
+	m.keys[idx] = 0
+	var zeroV V
+	m.values[idx] = zeroV
+	m.size--
+	return old, true
 }
 
 // ContainsKey returns true if the map contains the given key.
@@ -135,22 +167,26 @@ func (m *Int64Object[V]) Len() int {
 	return m.size
 }
 
-// Clear removes all entries from the map.
+// Clear removes all entries from the map, retaining the allocation.
 func (m *Int64Object[V]) Clear() {
 	var zeroV V
-	for i := range m.occupied {
-		m.occupied[i] = false
+	cap := len(m.keys)
+	for i := range m.ctrl {
+		m.ctrl[i] = swissEmpty
+	}
+	for i := range m.keys {
 		m.keys[i] = 0
 		m.values[i] = zeroV
 	}
 	m.size = 0
+	m.growthLeft = swissMaxLoad(cap)
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
 func (m *Int64Object[V]) All() iter.Seq2[int64, V] {
 	return func(yield func(int64, V) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i], m.values[i]) {
 					return
 				}
@@ -162,8 +198,8 @@ func (m *Int64Object[V]) All() iter.Seq2[int64, V] {
 // Keys returns an iter.Seq that yields all keys.
 func (m *Int64Object[V]) Keys() iter.Seq[int64] {
 	return func(yield func(int64) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i]) {
 					return
 				}
@@ -175,8 +211,8 @@ func (m *Int64Object[V]) Keys() iter.Seq[int64] {
 // Values returns an iter.Seq that yields all values.
 func (m *Int64Object[V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.values[i]) {
 					return
 				}
@@ -187,8 +223,8 @@ func (m *Int64Object[V]) Values() iter.Seq[V] {
 
 // ForEach calls the given function for each key-value pair.
 func (m *Int64Object[V]) ForEach(f func(int64, V)) {
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			f(m.keys[i], m.values[i])
 		}
 	}
@@ -197,8 +233,8 @@ func (m *Int64Object[V]) ForEach(f func(int64, V)) {
 // Select returns a new map containing only entries that satisfy the predicate.
 func (m *Int64Object[V]) Select(predicate func(int64, V) bool) *Int64Object[V] {
 	result := NewInt64Object[V]()
-	for i := range m.occupied {
-		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -208,8 +244,8 @@ func (m *Int64Object[V]) Select(predicate func(int64, V) bool) *Int64Object[V] {
 // Reject returns a new map containing only entries that do not satisfy the predicate.
 func (m *Int64Object[V]) Reject(predicate func(int64, V) bool) *Int64Object[V] {
 	result := NewInt64Object[V]()
-	for i := range m.occupied {
-		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -224,8 +260,8 @@ func (m *Int64Object[V]) String() string {
 	var sb strings.Builder
 	sb.WriteString("{")
 	first := true
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			if !first {
 				sb.WriteString(", ")
 			}
@@ -242,60 +278,52 @@ func (m *Int64Object[V]) hashKey(key int64) uint64 {
 	return h ^ (h >> 32)
 }
 
-func (m *Int64Object[V]) needsResize() bool {
-	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+// rehashForInsert is called when growthLeft has hit zero and one more entry
+// must be inserted: rebuild in place to flush tombstones, or double.
+func (m *Int64Object[V]) rehashForInsert() {
+	cap := len(m.keys)
+	if m.size+1 <= swissMaxLoad(cap) {
+		m.rehashTo(cap)
+	} else {
+		m.rehashTo(cap * 2)
+	}
 }
 
-func (m *Int64Object[V]) resize() {
+func (m *Int64Object[V]) rehashTo(newCap int) {
 	oldKeys := m.keys
 	oldValues := m.values
-	oldOccupied := m.occupied
-	newCap := len(oldKeys) * 2
-	if newCap == 0 {
-		newCap = int64ObjectDefaultCapacity
-	}
+	oldCtrl := m.ctrl
+	m.ctrl = newSwissCtrl(newCap)
 	m.keys = make([]int64, newCap)
 	m.values = make([]V, newCap)
-	m.occupied = make([]bool, newCap)
 	m.size = 0
-
-	for i := range oldOccupied {
-		if oldOccupied[i] {
-			m.Put(oldKeys[i], oldValues[i])
+	m.growthLeft = swissMaxLoad(newCap)
+	for i := range oldKeys {
+		if oldCtrl[i] <= 0x7F {
+			m.insertNoGrow(oldKeys[i], oldValues[i])
 		}
 	}
 }
 
-func (m *Int64Object[V]) rehashFrom(deleted int, mask int) {
-	idx := (deleted + 1) & mask
-	for m.occupied[idx] {
-		ideal := int(m.hashKey(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
-			m.keys[deleted] = m.keys[idx]
-			m.values[deleted] = m.values[idx]
-			m.occupied[deleted] = true
-			m.occupied[idx] = false
-			m.keys[idx] = 0
-			var zeroV V
-			m.values[idx] = zeroV
-			deleted = idx
+func (m *Int64Object[V]) insertNoGrow(key int64, value V) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	for {
+		g := swissLoadGroup(m.ctrl, group)
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			m.keys[idx] = key
+			m.values[idx] = value
+			swissSetCtrl(m.ctrl, idx, tag, cap)
+			m.size++
+			m.growthLeft--
+			return
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
-}
-
-func nextPowerOfTwoInt64Object(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

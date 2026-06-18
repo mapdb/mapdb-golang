@@ -10,16 +10,18 @@ import (
 
 const (
 	int8ObjectDefaultCapacity = 16
-	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
 // Int8Object is an open-addressing hash map with int8 keys and generic values.
-// The key type is specialized to avoid boxing overhead.
+// The key type is specialized to avoid boxing overhead. It uses grouped
+// Swiss-table probing (SWAR control-byte matcher + triangular probe sequence);
+// occupancy is tracked out-of-band by ctrl. Iteration order is unspecified.
 type Int8Object[V any] struct {
-	keys     []int8
-	values   []V
-	occupied []bool
-	size     int
+	ctrl       []uint8
+	keys       []int8
+	values     []V
+	size       int
+	growthLeft int
 }
 
 // NewInt8Object creates a new empty Int8Object with default capacity.
@@ -27,63 +29,101 @@ func NewInt8Object[V any]() *Int8Object[V] {
 	return NewInt8ObjectWithCapacity[V](int8ObjectDefaultCapacity)
 }
 
-// NewInt8ObjectWithCapacity creates a new empty Int8Object with the given initial capacity.
+// NewInt8ObjectWithCapacity creates a new empty Int8Object sized to hold at
+// least the given number of entries without resizing.
 func NewInt8ObjectWithCapacity[V any](capacity int) *Int8Object[V] {
-	cap := nextPowerOfTwoInt8Object(capacity)
+	cap := swissCapacityFor(capacity)
 	return &Int8Object[V]{
-		keys:     make([]int8, cap),
-		values:   make([]V, cap),
-		occupied: make([]bool, cap),
-		size:     0,
+		ctrl:       newSwissCtrl(cap),
+		keys:       make([]int8, cap),
+		values:     make([]V, cap),
+		size:       0,
+		growthLeft: swissMaxLoad(cap),
 	}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *Int8Object[V]) Put(key int8, value V) (V, bool) {
-	if m.needsResize() {
-		m.resize()
+	if m.growthLeft == 0 {
+		m.rehashForInsert()
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	firstDeleted := -1
 
 	for {
-		if !m.occupied[idx] {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.keys[idx] == key {
+				old := m.values[idx]
+				m.values[idx] = value
+				return old, true
+			}
+		}
+		if firstDeleted < 0 {
+			if d := swissMatchByte(g, swissDeleted); d != 0 {
+				firstDeleted = (group + swissLowestLane(d)) & mask
+			}
+		}
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			if firstDeleted >= 0 {
+				idx = firstDeleted
+			} else {
+				m.growthLeft--
+			}
 			m.keys[idx] = key
 			m.values[idx] = value
-			m.occupied[idx] = true
+			swissSetCtrl(m.ctrl, idx, tag, cap)
 			m.size++
 			var zero V
 			return zero, false
 		}
-		if m.keys[idx] == key {
-			old := m.values[idx]
-			m.values[idx] = value
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *Int8Object[V]) Get(key int8) (V, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		var zero V
 		return zero, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	return m.values[idx], true
+}
 
+// findIndex returns the bucket index of key and true if present.
+func (m *Int8Object[V]) findIndex(key int8) (int, bool) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 	for {
-		if !m.occupied[idx] {
-			var zero V
-			return zero, false
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.keys[idx] == key {
+				return idx, true
+			}
 		}
-		if m.keys[idx] == key {
-			return m.values[idx], true
+		if swissMatchEmpty(g) != 0 {
+			return 0, false
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -97,31 +137,23 @@ func (m *Int8Object[V]) GetOrDefault(key int8, defaultValue V) V {
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *Int8Object[V]) Remove(key int8) (V, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		var zero V
 		return zero, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
-
-	for {
-		if !m.occupied[idx] {
-			var zero V
-			return zero, false
-		}
-		if m.keys[idx] == key {
-			old := m.values[idx]
-			m.occupied[idx] = false
-			m.keys[idx] = 0
-			var zeroV V
-			m.values[idx] = zeroV
-			m.size--
-			m.rehashFrom(idx, mask)
-			return old, true
-		}
-		idx = (idx + 1) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		var zero V
+		return zero, false
 	}
+	old := m.values[idx]
+	// Always tombstone (DELETED); zero the slot so the GC can reclaim the value.
+	swissSetCtrl(m.ctrl, idx, swissDeleted, len(m.keys))
+	m.keys[idx] = 0
+	var zeroV V
+	m.values[idx] = zeroV
+	m.size--
+	return old, true
 }
 
 // ContainsKey returns true if the map contains the given key.
@@ -135,22 +167,26 @@ func (m *Int8Object[V]) Len() int {
 	return m.size
 }
 
-// Clear removes all entries from the map.
+// Clear removes all entries from the map, retaining the allocation.
 func (m *Int8Object[V]) Clear() {
 	var zeroV V
-	for i := range m.occupied {
-		m.occupied[i] = false
+	cap := len(m.keys)
+	for i := range m.ctrl {
+		m.ctrl[i] = swissEmpty
+	}
+	for i := range m.keys {
 		m.keys[i] = 0
 		m.values[i] = zeroV
 	}
 	m.size = 0
+	m.growthLeft = swissMaxLoad(cap)
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
 func (m *Int8Object[V]) All() iter.Seq2[int8, V] {
 	return func(yield func(int8, V) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i], m.values[i]) {
 					return
 				}
@@ -162,8 +198,8 @@ func (m *Int8Object[V]) All() iter.Seq2[int8, V] {
 // Keys returns an iter.Seq that yields all keys.
 func (m *Int8Object[V]) Keys() iter.Seq[int8] {
 	return func(yield func(int8) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i]) {
 					return
 				}
@@ -175,8 +211,8 @@ func (m *Int8Object[V]) Keys() iter.Seq[int8] {
 // Values returns an iter.Seq that yields all values.
 func (m *Int8Object[V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.values[i]) {
 					return
 				}
@@ -187,8 +223,8 @@ func (m *Int8Object[V]) Values() iter.Seq[V] {
 
 // ForEach calls the given function for each key-value pair.
 func (m *Int8Object[V]) ForEach(f func(int8, V)) {
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			f(m.keys[i], m.values[i])
 		}
 	}
@@ -197,8 +233,8 @@ func (m *Int8Object[V]) ForEach(f func(int8, V)) {
 // Select returns a new map containing only entries that satisfy the predicate.
 func (m *Int8Object[V]) Select(predicate func(int8, V) bool) *Int8Object[V] {
 	result := NewInt8Object[V]()
-	for i := range m.occupied {
-		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -208,8 +244,8 @@ func (m *Int8Object[V]) Select(predicate func(int8, V) bool) *Int8Object[V] {
 // Reject returns a new map containing only entries that do not satisfy the predicate.
 func (m *Int8Object[V]) Reject(predicate func(int8, V) bool) *Int8Object[V] {
 	result := NewInt8Object[V]()
-	for i := range m.occupied {
-		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -224,8 +260,8 @@ func (m *Int8Object[V]) String() string {
 	var sb strings.Builder
 	sb.WriteString("{")
 	first := true
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			if !first {
 				sb.WriteString(", ")
 			}
@@ -242,60 +278,52 @@ func (m *Int8Object[V]) hashKey(key int8) uint64 {
 	return h ^ (h >> 32)
 }
 
-func (m *Int8Object[V]) needsResize() bool {
-	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+// rehashForInsert is called when growthLeft has hit zero and one more entry
+// must be inserted: rebuild in place to flush tombstones, or double.
+func (m *Int8Object[V]) rehashForInsert() {
+	cap := len(m.keys)
+	if m.size+1 <= swissMaxLoad(cap) {
+		m.rehashTo(cap)
+	} else {
+		m.rehashTo(cap * 2)
+	}
 }
 
-func (m *Int8Object[V]) resize() {
+func (m *Int8Object[V]) rehashTo(newCap int) {
 	oldKeys := m.keys
 	oldValues := m.values
-	oldOccupied := m.occupied
-	newCap := len(oldKeys) * 2
-	if newCap == 0 {
-		newCap = int8ObjectDefaultCapacity
-	}
+	oldCtrl := m.ctrl
+	m.ctrl = newSwissCtrl(newCap)
 	m.keys = make([]int8, newCap)
 	m.values = make([]V, newCap)
-	m.occupied = make([]bool, newCap)
 	m.size = 0
-
-	for i := range oldOccupied {
-		if oldOccupied[i] {
-			m.Put(oldKeys[i], oldValues[i])
+	m.growthLeft = swissMaxLoad(newCap)
+	for i := range oldKeys {
+		if oldCtrl[i] <= 0x7F {
+			m.insertNoGrow(oldKeys[i], oldValues[i])
 		}
 	}
 }
 
-func (m *Int8Object[V]) rehashFrom(deleted int, mask int) {
-	idx := (deleted + 1) & mask
-	for m.occupied[idx] {
-		ideal := int(m.hashKey(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
-			m.keys[deleted] = m.keys[idx]
-			m.values[deleted] = m.values[idx]
-			m.occupied[deleted] = true
-			m.occupied[idx] = false
-			m.keys[idx] = 0
-			var zeroV V
-			m.values[idx] = zeroV
-			deleted = idx
+func (m *Int8Object[V]) insertNoGrow(key int8, value V) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	for {
+		g := swissLoadGroup(m.ctrl, group)
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			m.keys[idx] = key
+			m.values[idx] = value
+			swissSetCtrl(m.ctrl, idx, tag, cap)
+			m.size++
+			m.growthLeft--
+			return
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
-}
-
-func nextPowerOfTwoInt8Object(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

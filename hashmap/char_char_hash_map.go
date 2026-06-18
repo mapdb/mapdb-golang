@@ -10,20 +10,24 @@ import (
 
 const (
 	charCharDefaultCapacity = 16
-	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
 // charCharEntry holds a single slot in the hash map for cache locality.
+// Occupancy is tracked out-of-band by the Swiss-table control bytes (ctrl), so
+// the entry carries only the key/value payload.
 type charCharEntry struct {
-	key      uint16
-	value    uint16
-	occupied bool
+	key   uint16
+	value uint16
 }
 
 // CharChar is an open-addressing hash map with uint16 keys and uint16 values.
+// It uses grouped Swiss-table probing: a SWAR control-byte matcher over groups
+// of 8 buckets plus a triangular probe sequence. Iteration order is unspecified.
 type CharChar struct {
-	entries []charCharEntry
-	size    int
+	ctrl       []uint8
+	entries    []charCharEntry
+	size       int
+	growthLeft int
 }
 
 // NewCharChar creates a new empty CharChar with default capacity.
@@ -31,12 +35,15 @@ func NewCharChar() *CharChar {
 	return NewCharCharWithCapacity(charCharDefaultCapacity)
 }
 
-// NewCharCharWithCapacity creates a new empty CharChar with the given initial capacity.
+// NewCharCharWithCapacity creates a new empty CharChar sized to hold at
+// least the given number of entries without resizing.
 func NewCharCharWithCapacity(capacity int) *CharChar {
-	cap := nextPowerOfTwoCharChar(capacity)
+	cap := swissCapacityFor(capacity)
 	return &CharChar{
-		entries: make([]charCharEntry, cap),
-		size:    0,
+		ctrl:       newSwissCtrl(cap),
+		entries:    make([]charCharEntry, cap),
+		size:       0,
+		growthLeft: swissMaxLoad(cap),
 	}
 }
 
@@ -54,47 +61,75 @@ func CharCharOf(pairs ...struct {
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *CharChar) Put(key uint16, value uint16) (uint16, bool) {
-	if m.needsResize() {
-		m.resize()
+	if m.growthLeft == 0 {
+		m.rehashForInsert()
 	}
 	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	firstDeleted := -1
 
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.entries[idx].key == key {
+				old := m.entries[idx].value
+				m.entries[idx].value = value
+				return old, true
+			}
+		}
+		if firstDeleted < 0 {
+			if d := swissMatchByte(g, swissDeleted); d != 0 {
+				firstDeleted = (group + swissLowestLane(d)) & mask
+			}
+		}
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			if firstDeleted >= 0 {
+				idx = firstDeleted
+			} else {
+				m.growthLeft--
+			}
 			m.entries[idx].key = key
 			m.entries[idx].value = value
-			m.entries[idx].occupied = true
+			swissSetCtrl(m.ctrl, idx, tag, cap)
 			m.size++
 			return 0, false
 		}
-		if m.entries[idx].key == key {
-			old := m.entries[idx].value
-			m.entries[idx].value = value
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *CharChar) Get(key uint16) (uint16, bool) {
-	cap := len(m.entries)
-	if cap == 0 {
+	if m.size == 0 {
 		return 0, false
 	}
+	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.entries[idx].key == key {
+				return m.entries[idx].value, true
+			}
+		}
+		if swissMatchEmpty(g) != 0 {
 			return 0, false
 		}
-		if m.entries[idx].key == key {
-			return m.entries[idx].value, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -108,32 +143,45 @@ func (m *CharChar) GetOrDefault(key uint16, defaultValue uint16) uint16 {
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *CharChar) Remove(key uint16) (uint16, bool) {
-	cap := len(m.entries)
-	if cap == 0 {
+	if m.size == 0 {
 		return 0, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		return 0, false
+	}
+	old := m.entries[idx].value
+	// Always mark the slot DELETED (a tombstone). The spec's can_mark_empty
+	// optimization is unsound for the triangular probe sequence, so it is
+	// intentionally skipped. Zero the payload so the GC can reclaim any
+	// referenced memory.
+	swissSetCtrl(m.ctrl, idx, swissDeleted, len(m.entries))
+	m.entries[idx] = charCharEntry{}
+	m.size--
+	return old, true
+}
 
+// findIndex returns the bucket index of key and true if present.
+func (m *CharChar) findIndex(key uint16) (int, bool) {
+	cap := len(m.entries)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.entries[idx].key == key {
+				return idx, true
+			}
+		}
+		if swissMatchEmpty(g) != 0 {
 			return 0, false
 		}
-		if m.entries[idx].key == key {
-			old := m.entries[idx].value
-			m.entries[idx].occupied = false
-			m.entries[idx].key = 0
-			m.entries[idx].value = 0
-			m.size--
-			// Backward-shift deletion: the sibling of linear probing that
-			// closes the hole by pulling each subsequent probed-past entry
-			// one slot back until we reach an empty slot or an entry whose
-			// preferred index equals its current index. This is distinct
-			// from Robin Hood hashing (which is an insertion strategy).
-			m.rehashFrom(idx, mask)
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -146,7 +194,7 @@ func (m *CharChar) ContainsKey(key uint16) bool {
 // ContainsValue returns true if the map contains the given value.
 func (m *CharChar) ContainsValue(value uint16) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && m.entries[i].value == value {
+		if m.ctrl[i] <= 0x7F && m.entries[i].value == value {
 			return true
 		}
 	}
@@ -158,19 +206,24 @@ func (m *CharChar) Len() int {
 	return m.size
 }
 
-// Clear removes all entries from the map.
+// Clear removes all entries from the map, retaining the allocation.
 func (m *CharChar) Clear() {
+	cap := len(m.entries)
+	for i := range m.ctrl {
+		m.ctrl[i] = swissEmpty
+	}
 	for i := range m.entries {
 		m.entries[i] = charCharEntry{}
 	}
 	m.size = 0
+	m.growthLeft = swissMaxLoad(cap)
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
 func (m *CharChar) All() iter.Seq2[uint16, uint16] {
 	return func(yield func(uint16, uint16) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].key, m.entries[i].value) {
 					return
 				}
@@ -183,7 +236,7 @@ func (m *CharChar) All() iter.Seq2[uint16, uint16] {
 func (m *CharChar) Keys() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].key) {
 					return
 				}
@@ -196,7 +249,7 @@ func (m *CharChar) Keys() iter.Seq[uint16] {
 func (m *CharChar) Values() iter.Seq[uint16] {
 	return func(yield func(uint16) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].value) {
 					return
 				}
@@ -208,7 +261,7 @@ func (m *CharChar) Values() iter.Seq[uint16] {
 // ForEach calls the given function for each key-value pair.
 func (m *CharChar) ForEach(f func(uint16, uint16)) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -217,7 +270,7 @@ func (m *CharChar) ForEach(f func(uint16, uint16)) {
 // ForEachKey calls the given function for each key.
 func (m *CharChar) ForEachKey(f func(uint16)) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].key)
 		}
 	}
@@ -226,7 +279,7 @@ func (m *CharChar) ForEachKey(f func(uint16)) {
 // ForEachValue calls the given function for each value.
 func (m *CharChar) ForEachValue(f func(uint16)) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].value)
 		}
 	}
@@ -236,7 +289,7 @@ func (m *CharChar) ForEachValue(f func(uint16)) {
 func (m *CharChar) Select(predicate func(uint16, uint16) bool) *CharChar {
 	result := NewCharChar()
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -247,7 +300,7 @@ func (m *CharChar) Select(predicate func(uint16, uint16) bool) *CharChar {
 func (m *CharChar) Reject(predicate func(uint16, uint16) bool) *CharChar {
 	result := NewCharChar()
 	for i := range m.entries {
-		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -257,7 +310,7 @@ func (m *CharChar) Reject(predicate func(uint16, uint16) bool) *CharChar {
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
 func (m *CharChar) Detect(predicate func(uint16, uint16) bool) (uint16, uint16, bool) {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
 		}
 	}
@@ -267,7 +320,7 @@ func (m *CharChar) Detect(predicate func(uint16, uint16) bool) (uint16, uint16, 
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
 func (m *CharChar) AnySatisfy(predicate func(uint16, uint16) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
 		}
 	}
@@ -277,7 +330,7 @@ func (m *CharChar) AnySatisfy(predicate func(uint16, uint16) bool) bool {
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
 func (m *CharChar) AllSatisfy(predicate func(uint16, uint16) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
 		}
 	}
@@ -287,7 +340,7 @@ func (m *CharChar) AllSatisfy(predicate func(uint16, uint16) bool) bool {
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
 func (m *CharChar) NoneSatisfy(predicate func(uint16, uint16) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
 		}
 	}
@@ -298,7 +351,7 @@ func (m *CharChar) NoneSatisfy(predicate func(uint16, uint16) bool) bool {
 func (m *CharChar) Count(predicate func(uint16, uint16) bool) int {
 	count := 0
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			count++
 		}
 	}
@@ -314,7 +367,7 @@ func (m *CharChar) String() string {
 	sb.WriteString("{")
 	first := true
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			if !first {
 				sb.WriteString(", ")
 			}
@@ -332,7 +385,7 @@ func (m *CharChar) Equals(other *CharChar) bool {
 		return false
 	}
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			v, ok := other.Get(m.entries[i].key)
 			if !ok || !(v == m.entries[i].value) {
 				return false
@@ -346,7 +399,7 @@ func (m *CharChar) Equals(other *CharChar) bool {
 func (m *CharChar) KeysToSlice() []uint16 {
 	result := make([]uint16, 0, m.size)
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = append(result, m.entries[i].key)
 		}
 	}
@@ -357,7 +410,7 @@ func (m *CharChar) KeysToSlice() []uint16 {
 func (m *CharChar) ValuesToSlice() []uint16 {
 	result := make([]uint16, 0, m.size)
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = append(result, m.entries[i].value)
 		}
 	}
@@ -373,7 +426,7 @@ func (m *CharChar) ToImmutable() *ImmutableCharChar {
 func (m *CharChar) InjectInto(initial uint16, f func(uint16, uint16, uint16) uint16) uint16 {
 	result := initial
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = f(result, m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -431,7 +484,7 @@ func (m *CharChar) WithoutAllKeys(keys []uint16) *CharChar {
 func (m *CharChar) SumOfValues() uint16 {
 	var sum uint16
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			sum += m.entries[i].value
 		}
 	}
@@ -486,31 +539,24 @@ func (e CharCharEntry) OrInsertWith(f func() uint16) uint16 {
 // guard against silent data loss this path panics if it detects a
 // resize happened during f — see the post-call check below.
 func (e CharCharEntry) AndModify(f func(*uint16)) CharCharEntry {
-	cap := len(e.m.entries)
-	if cap == 0 {
+	if e.m.size == 0 {
 		return e
 	}
-	mask := cap - 1
-	idx := int(e.m.hashKey(e.key)) & mask
-	for {
-		if !e.m.entries[idx].occupied {
-			return e
-		}
-		if e.m.entries[idx].key == e.key {
-			// Detect backing-slice identity before and after the callback.
-			// If the slice header changed (resize) or length changed (rehash),
-			// the pointer we passed to f aliased the pre-resize storage and
-			// the mutation is lost. Panic rather than silently dropping data.
-			prevPtr := &e.m.entries[0]
-			prevLen := len(e.m.entries)
-			f(&e.m.entries[idx].value)
-			if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
-				panic("CharCharEntry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
-			}
-			return e
-		}
-		idx = (idx + 1) & mask
+	idx, ok := e.m.findIndex(e.key)
+	if !ok {
+		return e
 	}
+	// Detect backing-slice identity before and after the callback.
+	// If the slice header changed (resize) or length changed (rehash),
+	// the pointer we passed to f aliased the pre-resize storage and
+	// the mutation is lost. Panic rather than silently dropping data.
+	prevPtr := &e.m.entries[0]
+	prevLen := len(e.m.entries)
+	f(&e.m.entries[idx].value)
+	if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
+		panic("CharCharEntry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
+	}
+	return e
 }
 
 func (m *CharChar) hashKey(key uint16) uint64 {
@@ -518,57 +564,55 @@ func (m *CharChar) hashKey(key uint16) uint64 {
 	return h ^ (h >> 32)
 }
 
-func (m *CharChar) needsResize() bool {
-	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
+// rehashForInsert is called when growthLeft has hit zero and one more entry
+// must be inserted. If live entries still fit at the current capacity the
+// table is rebuilt in place to flush tombstones; otherwise it doubles.
+func (m *CharChar) rehashForInsert() {
+	cap := len(m.entries)
+	if m.size+1 <= swissMaxLoad(cap) {
+		m.rehashTo(cap)
+	} else {
+		m.rehashTo(cap * 2)
+	}
 }
 
-func (m *CharChar) resize() {
+// rehashTo rebuilds the table at newCap, re-inserting every live entry into a
+// fresh (tombstone-free) table.
+func (m *CharChar) rehashTo(newCap int) {
 	oldEntries := m.entries
-	newCap := len(oldEntries) * 2
-	if newCap == 0 {
-		newCap = charCharDefaultCapacity
-	}
+	oldCtrl := m.ctrl
+	m.ctrl = newSwissCtrl(newCap)
 	m.entries = make([]charCharEntry, newCap)
 	m.size = 0
-
+	m.growthLeft = swissMaxLoad(newCap)
 	for i := range oldEntries {
-		if oldEntries[i].occupied {
-			m.Put(oldEntries[i].key, oldEntries[i].value)
+		if oldCtrl[i] <= 0x7F {
+			m.insertNoGrow(oldEntries[i].key, oldEntries[i].value)
 		}
 	}
 }
 
-// rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *CharChar) rehashFrom(deleted int, mask int) {
-	c := len(m.entries)
-	idx := (deleted + 1) & mask
-	for m.entries[idx].occupied {
-		ideal := int(m.hashKey(m.entries[idx].key)) & mask
-		distCurrent := (idx - ideal + c) & mask
-		distGap := (deleted - ideal + c) & mask
-		if distCurrent > distGap {
-			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = charCharEntry{}
-			deleted = idx
+// insertNoGrow inserts assuming the table has room and no equal key exists;
+// used only when rehashing into a fresh tombstone-free table.
+func (m *CharChar) insertNoGrow(key uint16, value uint16) {
+	cap := len(m.entries)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	for {
+		g := swissLoadGroup(m.ctrl, group)
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			m.entries[idx].key = key
+			m.entries[idx].value = value
+			swissSetCtrl(m.ctrl, idx, tag, cap)
+			m.size++
+			m.growthLeft--
+			return
 		}
-		idx = (idx + 1) & mask
-		if idx == deleted {
-			break
-		}
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
-}
-
-func nextPowerOfTwoCharChar(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

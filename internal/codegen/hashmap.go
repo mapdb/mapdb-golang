@@ -299,20 +299,24 @@ import (
 
 const (
 	{{.EntryStem}}DefaultCapacity = 16
-	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
 // {{.EntryStem}}Entry holds a single slot in the hash map for cache locality.
+// Occupancy is tracked out-of-band by the Swiss-table control bytes (ctrl), so
+// the entry carries only the key/value payload.
 type {{.EntryStem}}Entry struct {
-	key      {{.KeyType}}
-	value    {{.ValType}}
-	occupied bool
+	key   {{.KeyType}}
+	value {{.ValType}}
 }
 
 // {{.MapName}} is an open-addressing hash map with {{.KeyType}} keys and {{.ValType}} values.
+// It uses grouped Swiss-table probing: a SWAR control-byte matcher over groups
+// of 8 buckets plus a triangular probe sequence. Iteration order is unspecified.
 type {{.MapName}} struct {
-	entries []{{.EntryStem}}Entry
-	size    int
+	ctrl       []uint8
+	entries    []{{.EntryStem}}Entry
+	size       int
+	growthLeft int
 }
 
 // New{{.MapName}} creates a new empty {{.MapName}} with default capacity.
@@ -320,12 +324,15 @@ func New{{.MapName}}() *{{.MapName}} {
 	return New{{.MapName}}WithCapacity({{.EntryStem}}DefaultCapacity)
 }
 
-// New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
+// New{{.MapName}}WithCapacity creates a new empty {{.MapName}} sized to hold at
+// least the given number of entries without resizing.
 func New{{.MapName}}WithCapacity(capacity int) *{{.MapName}} {
-	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	cap := swissCapacityFor(capacity)
 	return &{{.MapName}}{
-		entries: make([]{{.EntryStem}}Entry, cap),
-		size:    0,
+		ctrl:       newSwissCtrl(cap),
+		entries:    make([]{{.EntryStem}}Entry, cap),
+		size:       0,
+		growthLeft: swissMaxLoad(cap),
 	}
 }
 
@@ -343,47 +350,75 @@ func {{.MapName}}Of(pairs ...struct {
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
-	if m.needsResize() {
-		m.resize()
+	if m.growthLeft == 0 {
+		m.rehashForInsert()
 	}
 	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	firstDeleted := -1
 
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.entries[idx].key) == {{.KeyBitsFn}}(key){{else}}m.entries[idx].key == key{{end}} {
+				old := m.entries[idx].value
+				m.entries[idx].value = value
+				return old, true
+			}
+		}
+		if firstDeleted < 0 {
+			if d := swissMatchByte(g, swissDeleted); d != 0 {
+				firstDeleted = (group + swissLowestLane(d)) & mask
+			}
+		}
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			if firstDeleted >= 0 {
+				idx = firstDeleted
+			} else {
+				m.growthLeft--
+			}
 			m.entries[idx].key = key
 			m.entries[idx].value = value
-			m.entries[idx].occupied = true
+			swissSetCtrl(m.ctrl, idx, tag, cap)
 			m.size++
 			return {{.ValZero}}, false
 		}
-		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.entries[idx].key) == {{.KeyBitsFn}}(key){{else}}m.entries[idx].key == key{{end}} {
-			old := m.entries[idx].value
-			m.entries[idx].value = value
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *{{.MapName}}) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
-	cap := len(m.entries)
-	if cap == 0 {
+	if m.size == 0 {
 		return {{.ValZero}}, false
 	}
+	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 
 	for {
-		if !m.entries[idx].occupied {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.entries[idx].key) == {{.KeyBitsFn}}(key){{else}}m.entries[idx].key == key{{end}} {
+				return m.entries[idx].value, true
+			}
+		}
+		if swissMatchEmpty(g) != 0 {
 			return {{.ValZero}}, false
 		}
-		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.entries[idx].key) == {{.KeyBitsFn}}(key){{else}}m.entries[idx].key == key{{end}} {
-			return m.entries[idx].value, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -397,32 +432,45 @@ func (m *{{.MapName}}) GetOrDefault(key {{.KeyType}}, defaultValue {{.ValType}})
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
-	cap := len(m.entries)
-	if cap == 0 {
+	if m.size == 0 {
 		return {{.ValZero}}, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		return {{.ValZero}}, false
+	}
+	old := m.entries[idx].value
+	// Always mark the slot DELETED (a tombstone). The spec's can_mark_empty
+	// optimization is unsound for the triangular probe sequence, so it is
+	// intentionally skipped. Zero the payload so the GC can reclaim any
+	// referenced memory.
+	swissSetCtrl(m.ctrl, idx, swissDeleted, len(m.entries))
+	m.entries[idx] = {{.EntryStem}}Entry{}
+	m.size--
+	return old, true
+}
 
+// findIndex returns the bucket index of key and true if present.
+func (m *{{.MapName}}) findIndex(key {{.KeyType}}) (int, bool) {
+	cap := len(m.entries)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 	for {
-		if !m.entries[idx].occupied {
-			return {{.ValZero}}, false
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.entries[idx].key) == {{.KeyBitsFn}}(key){{else}}m.entries[idx].key == key{{end}} {
+				return idx, true
+			}
 		}
-		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.entries[idx].key) == {{.KeyBitsFn}}(key){{else}}m.entries[idx].key == key{{end}} {
-			old := m.entries[idx].value
-			m.entries[idx].occupied = false
-			m.entries[idx].key = {{.KeyZero}}
-			m.entries[idx].value = {{.ValZero}}
-			m.size--
-			// Backward-shift deletion: the sibling of linear probing that
-			// closes the hole by pulling each subsequent probed-past entry
-			// one slot back until we reach an empty slot or an entry whose
-			// preferred index equals its current index. This is distinct
-			// from Robin Hood hashing (which is an insertion strategy).
-			m.rehashFrom(idx, mask)
-			return old, true
+		if swissMatchEmpty(g) != 0 {
+			return 0, false
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -435,7 +483,7 @@ func (m *{{.MapName}}) ContainsKey(key {{.KeyType}}) bool {
 // ContainsValue returns true if the map contains the given value.
 func (m *{{.MapName}}) ContainsValue(value {{.ValType}}) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && {{if .ValueIsFloat}}{{.ValBitsFn}}(m.entries[i].value) == {{.ValBitsFn}}(value){{else}}m.entries[i].value == value{{end}} {
+		if m.ctrl[i] <= 0x7F && {{if .ValueIsFloat}}{{.ValBitsFn}}(m.entries[i].value) == {{.ValBitsFn}}(value){{else}}m.entries[i].value == value{{end}} {
 			return true
 		}
 	}
@@ -447,19 +495,24 @@ func (m *{{.MapName}}) Len() int {
 	return m.size
 }
 
-// Clear removes all entries from the map.
+// Clear removes all entries from the map, retaining the allocation.
 func (m *{{.MapName}}) Clear() {
+	cap := len(m.entries)
+	for i := range m.ctrl {
+		m.ctrl[i] = swissEmpty
+	}
 	for i := range m.entries {
 		m.entries[i] = {{.EntryStem}}Entry{}
 	}
 	m.size = 0
+	m.growthLeft = swissMaxLoad(cap)
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
 func (m *{{.MapName}}) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].key, m.entries[i].value) {
 					return
 				}
@@ -472,7 +525,7 @@ func (m *{{.MapName}}) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 func (m *{{.MapName}}) Keys() iter.Seq[{{.KeyType}}] {
 	return func(yield func({{.KeyType}}) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].key) {
 					return
 				}
@@ -485,7 +538,7 @@ func (m *{{.MapName}}) Keys() iter.Seq[{{.KeyType}}] {
 func (m *{{.MapName}}) Values() iter.Seq[{{.ValType}}] {
 	return func(yield func({{.ValType}}) bool) {
 		for i := range m.entries {
-			if m.entries[i].occupied {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.entries[i].value) {
 					return
 				}
@@ -497,7 +550,7 @@ func (m *{{.MapName}}) Values() iter.Seq[{{.ValType}}] {
 // ForEach calls the given function for each key-value pair.
 func (m *{{.MapName}}) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -506,7 +559,7 @@ func (m *{{.MapName}}) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 // ForEachKey calls the given function for each key.
 func (m *{{.MapName}}) ForEachKey(f func({{.KeyType}})) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].key)
 		}
 	}
@@ -515,7 +568,7 @@ func (m *{{.MapName}}) ForEachKey(f func({{.KeyType}})) {
 // ForEachValue calls the given function for each value.
 func (m *{{.MapName}}) ForEachValue(f func({{.ValType}})) {
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			f(m.entries[i].value)
 		}
 	}
@@ -525,7 +578,7 @@ func (m *{{.MapName}}) ForEachValue(f func({{.ValType}})) {
 func (m *{{.MapName}}) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}} {
 	result := New{{.MapName}}()
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -536,7 +589,7 @@ func (m *{{.MapName}}) Select(predicate func({{.KeyType}}, {{.ValType}}) bool) *
 func (m *{{.MapName}}) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *{{.MapName}} {
 	result := New{{.MapName}}()
 	for i := range m.entries {
-		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && !predicate(m.entries[i].key, m.entries[i].value) {
 			result.Put(m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -546,7 +599,7 @@ func (m *{{.MapName}}) Reject(predicate func({{.KeyType}}, {{.ValType}}) bool) *
 // Detect returns the first key-value pair that satisfies the predicate, or zero values and false.
 func (m *{{.MapName}}) Detect(predicate func({{.KeyType}}, {{.ValType}}) bool) ({{.KeyType}}, {{.ValType}}, bool) {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return m.entries[i].key, m.entries[i].value, true
 		}
 	}
@@ -556,7 +609,7 @@ func (m *{{.MapName}}) Detect(predicate func({{.KeyType}}, {{.ValType}}) bool) (
 // AnySatisfy returns true if any key-value pair satisfies the predicate.
 func (m *{{.MapName}}) AnySatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return true
 		}
 	}
@@ -566,7 +619,7 @@ func (m *{{.MapName}}) AnySatisfy(predicate func({{.KeyType}}, {{.ValType}}) boo
 // AllSatisfy returns true if all key-value pairs satisfy the predicate.
 func (m *{{.MapName}}) AllSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && !predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && !predicate(m.entries[i].key, m.entries[i].value) {
 			return false
 		}
 	}
@@ -576,7 +629,7 @@ func (m *{{.MapName}}) AllSatisfy(predicate func({{.KeyType}}, {{.ValType}}) boo
 // NoneSatisfy returns true if no key-value pair satisfies the predicate.
 func (m *{{.MapName}}) NoneSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bool) bool {
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			return false
 		}
 	}
@@ -587,7 +640,7 @@ func (m *{{.MapName}}) NoneSatisfy(predicate func({{.KeyType}}, {{.ValType}}) bo
 func (m *{{.MapName}}) Count(predicate func({{.KeyType}}, {{.ValType}}) bool) int {
 	count := 0
 	for i := range m.entries {
-		if m.entries[i].occupied && predicate(m.entries[i].key, m.entries[i].value) {
+		if m.ctrl[i] <= 0x7F && predicate(m.entries[i].key, m.entries[i].value) {
 			count++
 		}
 	}
@@ -603,7 +656,7 @@ func (m *{{.MapName}}) String() string {
 	sb.WriteString("{")
 	first := true
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			if !first {
 				sb.WriteString(", ")
 			}
@@ -621,7 +674,7 @@ func (m *{{.MapName}}) Equals(other *{{.MapName}}) bool {
 		return false
 	}
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			v, ok := other.Get(m.entries[i].key)
 			if !ok || !({{if .ValueIsFloat}}{{.ValBitsFn}}(v) == {{.ValBitsFn}}(m.entries[i].value){{else}}v == m.entries[i].value{{end}}) {
 				return false
@@ -635,7 +688,7 @@ func (m *{{.MapName}}) Equals(other *{{.MapName}}) bool {
 func (m *{{.MapName}}) KeysToSlice() []{{.KeyType}} {
 	result := make([]{{.KeyType}}, 0, m.size)
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = append(result, m.entries[i].key)
 		}
 	}
@@ -646,7 +699,7 @@ func (m *{{.MapName}}) KeysToSlice() []{{.KeyType}} {
 func (m *{{.MapName}}) ValuesToSlice() []{{.ValType}} {
 	result := make([]{{.ValType}}, 0, m.size)
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = append(result, m.entries[i].value)
 		}
 	}
@@ -662,7 +715,7 @@ func (m *{{.MapName}}) ToImmutable() *Immutable{{.MapName}} {
 func (m *{{.MapName}}) InjectInto(initial {{.ValType}}, f func({{.ValType}}, {{.KeyType}}, {{.ValType}}) {{.ValType}}) {{.ValType}} {
 	result := initial
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			result = f(result, m.entries[i].key, m.entries[i].value)
 		}
 	}
@@ -720,7 +773,7 @@ func (m *{{.MapName}}) WithoutAllKeys(keys []{{.KeyType}}) *{{.MapName}} {
 func (m *{{.MapName}}) SumOfValues() {{.ValType}} {
 	var sum {{.ValType}}
 	for i := range m.entries {
-		if m.entries[i].occupied {
+		if m.ctrl[i] <= 0x7F {
 			sum += m.entries[i].value
 		}
 	}
@@ -775,31 +828,24 @@ func (e {{.MapName}}Entry) OrInsertWith(f func() {{.ValType}}) {{.ValType}} {
 // guard against silent data loss this path panics if it detects a
 // resize happened during f — see the post-call check below.
 func (e {{.MapName}}Entry) AndModify(f func(*{{.ValType}})) {{.MapName}}Entry {
-	cap := len(e.m.entries)
-	if cap == 0 {
+	if e.m.size == 0 {
 		return e
 	}
-	mask := cap - 1
-	idx := int(e.m.hashKey(e.key)) & mask
-	for {
-		if !e.m.entries[idx].occupied {
-			return e
-		}
-		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(e.m.entries[idx].key) == {{.KeyBitsFn}}(e.key){{else}}e.m.entries[idx].key == e.key{{end}} {
-			// Detect backing-slice identity before and after the callback.
-			// If the slice header changed (resize) or length changed (rehash),
-			// the pointer we passed to f aliased the pre-resize storage and
-			// the mutation is lost. Panic rather than silently dropping data.
-			prevPtr := &e.m.entries[0]
-			prevLen := len(e.m.entries)
-			f(&e.m.entries[idx].value)
-			if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
-				panic("{{.MapName}}Entry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
-			}
-			return e
-		}
-		idx = (idx + 1) & mask
+	idx, ok := e.m.findIndex(e.key)
+	if !ok {
+		return e
 	}
+	// Detect backing-slice identity before and after the callback.
+	// If the slice header changed (resize) or length changed (rehash),
+	// the pointer we passed to f aliased the pre-resize storage and
+	// the mutation is lost. Panic rather than silently dropping data.
+	prevPtr := &e.m.entries[0]
+	prevLen := len(e.m.entries)
+	f(&e.m.entries[idx].value)
+	if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
+		panic("{{.MapName}}Entry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
+	}
+	return e
 }
 
 func (m *{{.MapName}}) hashKey(key {{.KeyType}}) uint64 {
@@ -807,59 +853,57 @@ func (m *{{.MapName}}) hashKey(key {{.KeyType}}) uint64 {
 	return h ^ (h >> 32)
 }
 
-func (m *{{.MapName}}) needsResize() bool {
-	return (m.size+1)*4 >= len(m.entries)*3 // 0.75 load factor, integer math
+// rehashForInsert is called when growthLeft has hit zero and one more entry
+// must be inserted. If live entries still fit at the current capacity the
+// table is rebuilt in place to flush tombstones; otherwise it doubles.
+func (m *{{.MapName}}) rehashForInsert() {
+	cap := len(m.entries)
+	if m.size+1 <= swissMaxLoad(cap) {
+		m.rehashTo(cap)
+	} else {
+		m.rehashTo(cap * 2)
+	}
 }
 
-func (m *{{.MapName}}) resize() {
+// rehashTo rebuilds the table at newCap, re-inserting every live entry into a
+// fresh (tombstone-free) table.
+func (m *{{.MapName}}) rehashTo(newCap int) {
 	oldEntries := m.entries
-	newCap := len(oldEntries) * 2
-	if newCap == 0 {
-		newCap = {{.EntryStem}}DefaultCapacity
-	}
+	oldCtrl := m.ctrl
+	m.ctrl = newSwissCtrl(newCap)
 	m.entries = make([]{{.EntryStem}}Entry, newCap)
 	m.size = 0
-
+	m.growthLeft = swissMaxLoad(newCap)
 	for i := range oldEntries {
-		if oldEntries[i].occupied {
-			m.Put(oldEntries[i].key, oldEntries[i].value)
+		if oldCtrl[i] <= 0x7F {
+			m.insertNoGrow(oldEntries[i].key, oldEntries[i].value)
 		}
 	}
 }
 
-// rehashFrom fixes the invariant after a deletion using backward-shift.
-func (m *{{.MapName}}) rehashFrom(deleted int, mask int) {
-	c := len(m.entries)
-	idx := (deleted + 1) & mask
-	for m.entries[idx].occupied {
-		ideal := int(m.hashKey(m.entries[idx].key)) & mask
-		distCurrent := (idx - ideal + c) & mask
-		distGap := (deleted - ideal + c) & mask
-		if distCurrent > distGap {
-			m.entries[deleted] = m.entries[idx]
-			m.entries[idx] = {{.EntryStem}}Entry{}
-			deleted = idx
+// insertNoGrow inserts assuming the table has room and no equal key exists;
+// used only when rehashing into a fresh tombstone-free table.
+func (m *{{.MapName}}) insertNoGrow(key {{.KeyType}}, value {{.ValType}}) {
+	cap := len(m.entries)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	for {
+		g := swissLoadGroup(m.ctrl, group)
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			m.entries[idx].key = key
+			m.entries[idx].value = value
+			swissSetCtrl(m.ctrl, idx, tag, cap)
+			m.size++
+			m.growthLeft--
+			return
 		}
-		idx = (idx + 1) & mask
-		if idx == deleted {
-			break
-		}
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
-}
-
-func nextPowerOfTwo{{.MapName}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }
 `
 
@@ -1536,16 +1580,18 @@ import (
 
 const (
 	{{.EntryStem}}DefaultCapacity = 16
-	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
 // {{.MapName}} is an open-addressing hash map with generic comparable keys and {{.PrimType}} values.
-// The value type is specialized to avoid boxing overhead.
+// The value type is specialized to avoid boxing overhead. It uses grouped
+// Swiss-table probing (SWAR control-byte matcher + triangular probe sequence);
+// occupancy is tracked out-of-band by ctrl. Iteration order is unspecified.
 type {{.MapName}}[K comparable] struct {
-	keys     []K
-	values   []{{.PrimType}}
-	occupied []bool
-	size     int
+	ctrl       []uint8
+	keys       []K
+	values     []{{.PrimType}}
+	size       int
+	growthLeft int
 }
 
 // New{{.MapName}} creates a new empty {{.MapName}} with default capacity.
@@ -1553,60 +1599,98 @@ func New{{.MapName}}[K comparable]() *{{.MapName}}[K] {
 	return New{{.MapName}}WithCapacity[K]({{.EntryStem}}DefaultCapacity)
 }
 
-// New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
+// New{{.MapName}}WithCapacity creates a new empty {{.MapName}} sized to hold at
+// least the given number of entries without resizing.
 func New{{.MapName}}WithCapacity[K comparable](capacity int) *{{.MapName}}[K] {
-	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	cap := swissCapacityFor(capacity)
 	return &{{.MapName}}[K]{
-		keys:     make([]K, cap),
-		values:   make([]{{.PrimType}}, cap),
-		occupied: make([]bool, cap),
-		size:     0,
+		ctrl:       newSwissCtrl(cap),
+		keys:       make([]K, cap),
+		values:     make([]{{.PrimType}}, cap),
+		size:       0,
+		growthLeft: swissMaxLoad(cap),
 	}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}[K]) Put(key K, value {{.PrimType}}) ({{.PrimType}}, bool) {
-	if m.needsResize() {
-		m.resize()
+	if m.growthLeft == 0 {
+		m.rehashForInsert()
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	hash := hashComparable(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	firstDeleted := -1
 
 	for {
-		if !m.occupied[idx] {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.keys[idx] == key {
+				old := m.values[idx]
+				m.values[idx] = value
+				return old, true
+			}
+		}
+		if firstDeleted < 0 {
+			if d := swissMatchByte(g, swissDeleted); d != 0 {
+				firstDeleted = (group + swissLowestLane(d)) & mask
+			}
+		}
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			if firstDeleted >= 0 {
+				idx = firstDeleted
+			} else {
+				m.growthLeft--
+			}
 			m.keys[idx] = key
 			m.values[idx] = value
-			m.occupied[idx] = true
+			swissSetCtrl(m.ctrl, idx, tag, cap)
 			m.size++
 			return {{.PrimZero}}, false
 		}
-		if m.keys[idx] == key {
-			old := m.values[idx]
-			m.values[idx] = value
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *{{.MapName}}[K]) Get(key K) ({{.PrimType}}, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		return {{.PrimZero}}, false
 	}
-	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		return {{.PrimZero}}, false
+	}
+	return m.values[idx], true
+}
 
+// findIndex returns the bucket index of key and true if present.
+func (m *{{.MapName}}[K]) findIndex(key K) (int, bool) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := hashComparable(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 	for {
-		if !m.occupied[idx] {
-			return {{.PrimZero}}, false
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if m.keys[idx] == key {
+				return idx, true
+			}
 		}
-		if m.keys[idx] == key {
-			return m.values[idx], true
+		if swissMatchEmpty(g) != 0 {
+			return 0, false
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -1620,29 +1704,21 @@ func (m *{{.MapName}}[K]) GetOrDefault(key K, defaultValue {{.PrimType}}) {{.Pri
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}[K]) Remove(key K) ({{.PrimType}}, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		return {{.PrimZero}}, false
 	}
-	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
-
-	for {
-		if !m.occupied[idx] {
-			return {{.PrimZero}}, false
-		}
-		if m.keys[idx] == key {
-			old := m.values[idx]
-			m.occupied[idx] = false
-			var zeroK K
-			m.keys[idx] = zeroK
-			m.values[idx] = {{.PrimZero}}
-			m.size--
-			m.rehashFrom{{.MapName}}(idx, mask)
-			return old, true
-		}
-		idx = (idx + 1) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		return {{.PrimZero}}, false
 	}
+	old := m.values[idx]
+	// Always tombstone (DELETED); zero the slot so the GC can reclaim the key.
+	swissSetCtrl(m.ctrl, idx, swissDeleted, len(m.keys))
+	var zeroK K
+	m.keys[idx] = zeroK
+	m.values[idx] = {{.PrimZero}}
+	m.size--
+	return old, true
 }
 
 // ContainsKey returns true if the map contains the given key.
@@ -1656,22 +1732,26 @@ func (m *{{.MapName}}[K]) Len() int {
 	return m.size
 }
 
-// Clear removes all entries from the map.
+// Clear removes all entries from the map, retaining the allocation.
 func (m *{{.MapName}}[K]) Clear() {
 	var zeroK K
-	for i := range m.occupied {
-		m.occupied[i] = false
+	cap := len(m.keys)
+	for i := range m.ctrl {
+		m.ctrl[i] = swissEmpty
+	}
+	for i := range m.keys {
 		m.keys[i] = zeroK
 		m.values[i] = {{.PrimZero}}
 	}
 	m.size = 0
+	m.growthLeft = swissMaxLoad(cap)
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
 func (m *{{.MapName}}[K]) All() iter.Seq2[K, {{.PrimType}}] {
 	return func(yield func(K, {{.PrimType}}) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i], m.values[i]) {
 					return
 				}
@@ -1683,8 +1763,8 @@ func (m *{{.MapName}}[K]) All() iter.Seq2[K, {{.PrimType}}] {
 // Keys returns an iter.Seq that yields all keys.
 func (m *{{.MapName}}[K]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i]) {
 					return
 				}
@@ -1696,8 +1776,8 @@ func (m *{{.MapName}}[K]) Keys() iter.Seq[K] {
 // Values returns an iter.Seq that yields all values.
 func (m *{{.MapName}}[K]) Values() iter.Seq[{{.PrimType}}] {
 	return func(yield func({{.PrimType}}) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.values[i]) {
 					return
 				}
@@ -1708,8 +1788,8 @@ func (m *{{.MapName}}[K]) Values() iter.Seq[{{.PrimType}}] {
 
 // ForEach calls the given function for each key-value pair.
 func (m *{{.MapName}}[K]) ForEach(f func(K, {{.PrimType}})) {
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			f(m.keys[i], m.values[i])
 		}
 	}
@@ -1718,8 +1798,8 @@ func (m *{{.MapName}}[K]) ForEach(f func(K, {{.PrimType}})) {
 // Select returns a new map containing only entries that satisfy the predicate.
 func (m *{{.MapName}}[K]) Select(predicate func(K, {{.PrimType}}) bool) *{{.MapName}}[K] {
 	result := New{{.MapName}}[K]()
-	for i := range m.occupied {
-		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -1729,8 +1809,8 @@ func (m *{{.MapName}}[K]) Select(predicate func(K, {{.PrimType}}) bool) *{{.MapN
 // Reject returns a new map containing only entries that do not satisfy the predicate.
 func (m *{{.MapName}}[K]) Reject(predicate func(K, {{.PrimType}}) bool) *{{.MapName}}[K] {
 	result := New{{.MapName}}[K]()
-	for i := range m.occupied {
-		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -1745,8 +1825,8 @@ func (m *{{.MapName}}[K]) String() string {
 	var sb strings.Builder
 	sb.WriteString("{")
 	first := true
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			if !first {
 				sb.WriteString(", ")
 			}
@@ -1758,62 +1838,54 @@ func (m *{{.MapName}}[K]) String() string {
 	return sb.String()
 }
 
-func (m *{{.MapName}}[K]) needsResize() bool {
-	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+// rehashForInsert is called when growthLeft has hit zero and one more entry
+// must be inserted: rebuild in place to flush tombstones, or double.
+func (m *{{.MapName}}[K]) rehashForInsert() {
+	cap := len(m.keys)
+	if m.size+1 <= swissMaxLoad(cap) {
+		m.rehashTo(cap)
+	} else {
+		m.rehashTo(cap * 2)
+	}
 }
 
-func (m *{{.MapName}}[K]) resize() {
+func (m *{{.MapName}}[K]) rehashTo(newCap int) {
 	oldKeys := m.keys
 	oldValues := m.values
-	oldOccupied := m.occupied
-	newCap := len(oldKeys) * 2
-	if newCap == 0 {
-		newCap = {{.EntryStem}}DefaultCapacity
-	}
+	oldCtrl := m.ctrl
+	m.ctrl = newSwissCtrl(newCap)
 	m.keys = make([]K, newCap)
 	m.values = make([]{{.PrimType}}, newCap)
-	m.occupied = make([]bool, newCap)
 	m.size = 0
-
-	for i := range oldOccupied {
-		if oldOccupied[i] {
-			m.Put(oldKeys[i], oldValues[i])
+	m.growthLeft = swissMaxLoad(newCap)
+	for i := range oldKeys {
+		if oldCtrl[i] <= 0x7F {
+			m.insertNoGrow(oldKeys[i], oldValues[i])
 		}
 	}
 }
 
-func (m *{{.MapName}}[K]) rehashFrom{{.MapName}}(deleted int, mask int) {
-	idx := (deleted + 1) & mask
-	for m.occupied[idx] {
-		ideal := int(hashComparable(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
-			m.keys[deleted] = m.keys[idx]
-			m.values[deleted] = m.values[idx]
-			m.occupied[deleted] = true
-			m.occupied[idx] = false
-			var zeroK K
-			m.keys[idx] = zeroK
-			m.values[idx] = {{.PrimZero}}
-			deleted = idx
+func (m *{{.MapName}}[K]) insertNoGrow(key K, value {{.PrimType}}) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := hashComparable(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	for {
+		g := swissLoadGroup(m.ctrl, group)
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			m.keys[idx] = key
+			m.values[idx] = value
+			swissSetCtrl(m.ctrl, idx, tag, cap)
+			m.size++
+			m.growthLeft--
+			return
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
-}
-
-func nextPowerOfTwo{{.MapName}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }
 `
 
@@ -1915,16 +1987,18 @@ import (
 
 const (
 	{{.EntryStem}}DefaultCapacity = 16
-	// Load factor 3/4 = 0.75, using integer math to avoid float conversion per insert.
 )
 
 // {{.MapName}} is an open-addressing hash map with {{.PrimType}} keys and generic values.
-// The key type is specialized to avoid boxing overhead.
+// The key type is specialized to avoid boxing overhead. It uses grouped
+// Swiss-table probing (SWAR control-byte matcher + triangular probe sequence);
+// occupancy is tracked out-of-band by ctrl. Iteration order is unspecified.
 type {{.MapName}}[V any] struct {
-	keys     []{{.PrimType}}
-	values   []V
-	occupied []bool
-	size     int
+	ctrl       []uint8
+	keys       []{{.PrimType}}
+	values     []V
+	size       int
+	growthLeft int
 }
 
 // New{{.MapName}} creates a new empty {{.MapName}} with default capacity.
@@ -1932,63 +2006,101 @@ func New{{.MapName}}[V any]() *{{.MapName}}[V] {
 	return New{{.MapName}}WithCapacity[V]({{.EntryStem}}DefaultCapacity)
 }
 
-// New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
+// New{{.MapName}}WithCapacity creates a new empty {{.MapName}} sized to hold at
+// least the given number of entries without resizing.
 func New{{.MapName}}WithCapacity[V any](capacity int) *{{.MapName}}[V] {
-	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	cap := swissCapacityFor(capacity)
 	return &{{.MapName}}[V]{
-		keys:     make([]{{.PrimType}}, cap),
-		values:   make([]V, cap),
-		occupied: make([]bool, cap),
-		size:     0,
+		ctrl:       newSwissCtrl(cap),
+		keys:       make([]{{.PrimType}}, cap),
+		values:     make([]V, cap),
+		size:       0,
+		growthLeft: swissMaxLoad(cap),
 	}
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}[V]) Put(key {{.PrimType}}, value V) (V, bool) {
-	if m.needsResize() {
-		m.resize()
+	if m.growthLeft == 0 {
+		m.rehashForInsert()
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	firstDeleted := -1
 
 	for {
-		if !m.occupied[idx] {
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
+				old := m.values[idx]
+				m.values[idx] = value
+				return old, true
+			}
+		}
+		if firstDeleted < 0 {
+			if d := swissMatchByte(g, swissDeleted); d != 0 {
+				firstDeleted = (group + swissLowestLane(d)) & mask
+			}
+		}
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			if firstDeleted >= 0 {
+				idx = firstDeleted
+			} else {
+				m.growthLeft--
+			}
 			m.keys[idx] = key
 			m.values[idx] = value
-			m.occupied[idx] = true
+			swissSetCtrl(m.ctrl, idx, tag, cap)
 			m.size++
 			var zero V
 			return zero, false
 		}
-		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
-			old := m.values[idx]
-			m.values[idx] = value
-			return old, true
-		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
 func (m *{{.MapName}}[V]) Get(key {{.PrimType}}) (V, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		var zero V
 		return zero, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	return m.values[idx], true
+}
 
+// findIndex returns the bucket index of key and true if present.
+func (m *{{.MapName}}[V]) findIndex(key {{.PrimType}}) (int, bool) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
 	for {
-		if !m.occupied[idx] {
-			var zero V
-			return zero, false
+		g := swissLoadGroup(m.ctrl, group)
+		for matches := swissMatchByte(g, tag); matches != 0; matches &= matches - 1 {
+			idx := (group + swissLowestLane(matches)) & mask
+			if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
+				return idx, true
+			}
 		}
-		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
-			return m.values[idx], true
+		if swissMatchEmpty(g) != 0 {
+			return 0, false
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
 }
 
@@ -2002,31 +2114,23 @@ func (m *{{.MapName}}[V]) GetOrDefault(key {{.PrimType}}, defaultValue V) V {
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}[V]) Remove(key {{.PrimType}}) (V, bool) {
-	cap := len(m.keys)
-	if cap == 0 {
+	if m.size == 0 {
 		var zero V
 		return zero, false
 	}
-	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
-
-	for {
-		if !m.occupied[idx] {
-			var zero V
-			return zero, false
-		}
-		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.keys[idx]) == {{.KeyBitsFn}}(key){{else}}m.keys[idx] == key{{end}} {
-			old := m.values[idx]
-			m.occupied[idx] = false
-			m.keys[idx] = {{.PrimZero}}
-			var zeroV V
-			m.values[idx] = zeroV
-			m.size--
-			m.rehashFrom(idx, mask)
-			return old, true
-		}
-		idx = (idx + 1) & mask
+	idx, ok := m.findIndex(key)
+	if !ok {
+		var zero V
+		return zero, false
 	}
+	old := m.values[idx]
+	// Always tombstone (DELETED); zero the slot so the GC can reclaim the value.
+	swissSetCtrl(m.ctrl, idx, swissDeleted, len(m.keys))
+	m.keys[idx] = {{.PrimZero}}
+	var zeroV V
+	m.values[idx] = zeroV
+	m.size--
+	return old, true
 }
 
 // ContainsKey returns true if the map contains the given key.
@@ -2040,22 +2144,26 @@ func (m *{{.MapName}}[V]) Len() int {
 	return m.size
 }
 
-// Clear removes all entries from the map.
+// Clear removes all entries from the map, retaining the allocation.
 func (m *{{.MapName}}[V]) Clear() {
 	var zeroV V
-	for i := range m.occupied {
-		m.occupied[i] = false
+	cap := len(m.keys)
+	for i := range m.ctrl {
+		m.ctrl[i] = swissEmpty
+	}
+	for i := range m.keys {
 		m.keys[i] = {{.PrimZero}}
 		m.values[i] = zeroV
 	}
 	m.size = 0
+	m.growthLeft = swissMaxLoad(cap)
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
 func (m *{{.MapName}}[V]) All() iter.Seq2[{{.PrimType}}, V] {
 	return func(yield func({{.PrimType}}, V) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i], m.values[i]) {
 					return
 				}
@@ -2067,8 +2175,8 @@ func (m *{{.MapName}}[V]) All() iter.Seq2[{{.PrimType}}, V] {
 // Keys returns an iter.Seq that yields all keys.
 func (m *{{.MapName}}[V]) Keys() iter.Seq[{{.PrimType}}] {
 	return func(yield func({{.PrimType}}) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.keys[i]) {
 					return
 				}
@@ -2080,8 +2188,8 @@ func (m *{{.MapName}}[V]) Keys() iter.Seq[{{.PrimType}}] {
 // Values returns an iter.Seq that yields all values.
 func (m *{{.MapName}}[V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for i := range m.occupied {
-			if m.occupied[i] {
+		for i := range m.keys {
+			if m.ctrl[i] <= 0x7F {
 				if !yield(m.values[i]) {
 					return
 				}
@@ -2092,8 +2200,8 @@ func (m *{{.MapName}}[V]) Values() iter.Seq[V] {
 
 // ForEach calls the given function for each key-value pair.
 func (m *{{.MapName}}[V]) ForEach(f func({{.PrimType}}, V)) {
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			f(m.keys[i], m.values[i])
 		}
 	}
@@ -2102,8 +2210,8 @@ func (m *{{.MapName}}[V]) ForEach(f func({{.PrimType}}, V)) {
 // Select returns a new map containing only entries that satisfy the predicate.
 func (m *{{.MapName}}[V]) Select(predicate func({{.PrimType}}, V) bool) *{{.MapName}}[V] {
 	result := New{{.MapName}}[V]()
-	for i := range m.occupied {
-		if m.occupied[i] && predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -2113,8 +2221,8 @@ func (m *{{.MapName}}[V]) Select(predicate func({{.PrimType}}, V) bool) *{{.MapN
 // Reject returns a new map containing only entries that do not satisfy the predicate.
 func (m *{{.MapName}}[V]) Reject(predicate func({{.PrimType}}, V) bool) *{{.MapName}}[V] {
 	result := New{{.MapName}}[V]()
-	for i := range m.occupied {
-		if m.occupied[i] && !predicate(m.keys[i], m.values[i]) {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F && !predicate(m.keys[i], m.values[i]) {
 			result.Put(m.keys[i], m.values[i])
 		}
 	}
@@ -2129,8 +2237,8 @@ func (m *{{.MapName}}[V]) String() string {
 	var sb strings.Builder
 	sb.WriteString("{")
 	first := true
-	for i := range m.occupied {
-		if m.occupied[i] {
+	for i := range m.keys {
+		if m.ctrl[i] <= 0x7F {
 			if !first {
 				sb.WriteString(", ")
 			}
@@ -2147,62 +2255,54 @@ func (m *{{.MapName}}[V]) hashKey(key {{.PrimType}}) uint64 {
 	return h ^ (h >> 32)
 }
 
-func (m *{{.MapName}}[V]) needsResize() bool {
-	return (m.size+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+// rehashForInsert is called when growthLeft has hit zero and one more entry
+// must be inserted: rebuild in place to flush tombstones, or double.
+func (m *{{.MapName}}[V]) rehashForInsert() {
+	cap := len(m.keys)
+	if m.size+1 <= swissMaxLoad(cap) {
+		m.rehashTo(cap)
+	} else {
+		m.rehashTo(cap * 2)
+	}
 }
 
-func (m *{{.MapName}}[V]) resize() {
+func (m *{{.MapName}}[V]) rehashTo(newCap int) {
 	oldKeys := m.keys
 	oldValues := m.values
-	oldOccupied := m.occupied
-	newCap := len(oldKeys) * 2
-	if newCap == 0 {
-		newCap = {{.EntryStem}}DefaultCapacity
-	}
+	oldCtrl := m.ctrl
+	m.ctrl = newSwissCtrl(newCap)
 	m.keys = make([]{{.PrimType}}, newCap)
 	m.values = make([]V, newCap)
-	m.occupied = make([]bool, newCap)
 	m.size = 0
-
-	for i := range oldOccupied {
-		if oldOccupied[i] {
-			m.Put(oldKeys[i], oldValues[i])
+	m.growthLeft = swissMaxLoad(newCap)
+	for i := range oldKeys {
+		if oldCtrl[i] <= 0x7F {
+			m.insertNoGrow(oldKeys[i], oldValues[i])
 		}
 	}
 }
 
-func (m *{{.MapName}}[V]) rehashFrom(deleted int, mask int) {
-	idx := (deleted + 1) & mask
-	for m.occupied[idx] {
-		ideal := int(m.hashKey(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
-			m.keys[deleted] = m.keys[idx]
-			m.values[deleted] = m.values[idx]
-			m.occupied[deleted] = true
-			m.occupied[idx] = false
-			m.keys[idx] = {{.PrimZero}}
-			var zeroV V
-			m.values[idx] = zeroV
-			deleted = idx
+func (m *{{.MapName}}[V]) insertNoGrow(key {{.PrimType}}, value V) {
+	cap := len(m.keys)
+	mask := cap - 1
+	hash := m.hashKey(key)
+	tag := uint8(hash & 0x7F)
+	group := (int(hash>>7) & mask) &^ (swissGroupWidth - 1)
+	stride := 0
+	for {
+		g := swissLoadGroup(m.ctrl, group)
+		if empty := swissMatchEmpty(g); empty != 0 {
+			idx := (group + swissLowestLane(empty)) & mask
+			m.keys[idx] = key
+			m.values[idx] = value
+			swissSetCtrl(m.ctrl, idx, tag, cap)
+			m.size++
+			m.growthLeft--
+			return
 		}
-		idx = (idx + 1) & mask
+		stride += swissGroupWidth
+		group = (group + stride) & mask
 	}
-}
-
-func nextPowerOfTwo{{.MapName}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }
 `
 

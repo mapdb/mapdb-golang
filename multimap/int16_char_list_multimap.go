@@ -76,6 +76,45 @@ func NewInt16CharListFromSortedKeys(keys []int16, values []uint16) (*Int16CharLi
 	return m, nil
 }
 
+// NewInt16CharListFromSortedKeyValues builds a Int16CharList from input
+// sorted by ascending key and, within each key, ascending value. It validates
+// both key monotonicity and per-key value monotonicity (using the value type's
+// own comparator — the IEEE-754 total order for float values) in one pass.
+// Unlike set multimaps, list multimaps preserve equal adjacent values exactly.
+// keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. If your values are
+// not sorted within each key, use Int16CharListBulkLoad instead.
+func NewInt16CharListFromSortedKeyValues(keys []int16, values []uint16) (*Int16CharList, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt16CharListFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int16CharList{
+		data: make(map[int16][]uint16),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt16(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []uint16{}
+		for j < len(keys) && cmpKeyInt16(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 && cmpKeyChar(run[len(run)-1], v) > 0 {
+				return nil, pump.ErrNotSorted // value descends within key run
+			}
+			run = append(run, v)
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
+}
+
 // Put adds a value to the list for the given key.
 func (m *Int16CharList) Put(key int16, value uint16) {
 	if m.data == nil {

@@ -83,6 +83,48 @@ func NewFloat32Int16ListFromSortedKeys(keys []float32, values []int16) (*Float32
 	return m, nil
 }
 
+// NewFloat32Int16ListFromSortedKeyValues builds a Float32Int16List from input
+// sorted by ascending key and, within each key, ascending value. It validates
+// both key monotonicity and per-key value monotonicity (using the value type's
+// own comparator — the IEEE-754 total order for float values) in one pass.
+// Unlike set multimaps, list multimaps preserve equal adjacent values exactly.
+// keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. If your values are
+// not sorted within each key, use Float32Int16ListBulkLoad instead.
+func NewFloat32Int16ListFromSortedKeyValues(keys []float32, values []int16) (*Float32Int16List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewFloat32Int16ListFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Float32Int16List{
+		data: make(map[uint32][]int16),
+		keys: make(map[uint32]float32),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyFloat32(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []int16{}
+		for j < len(keys) && cmpKeyFloat32(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 && cmpKeyInt16(run[len(run)-1], v) > 0 {
+				return nil, pump.ErrNotSorted // value descends within key run
+			}
+			run = append(run, v)
+			j++
+		}
+		kb := math.Float32bits(key)
+		m.data[kb] = run
+		m.keys[kb] = key
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
+}
+
 // Put adds a value to the list for the given key.
 func (m *Float32Int16List) Put(key float32, value int16) {
 	if m.data == nil {

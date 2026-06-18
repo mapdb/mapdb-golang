@@ -76,6 +76,45 @@ func NewInt16Int64ListFromSortedKeys(keys []int16, values []int64) (*Int16Int64L
 	return m, nil
 }
 
+// NewInt16Int64ListFromSortedKeyValues builds a Int16Int64List from input
+// sorted by ascending key and, within each key, ascending value. It validates
+// both key monotonicity and per-key value monotonicity (using the value type's
+// own comparator — the IEEE-754 total order for float values) in one pass.
+// Unlike set multimaps, list multimaps preserve equal adjacent values exactly.
+// keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. If your values are
+// not sorted within each key, use Int16Int64ListBulkLoad instead.
+func NewInt16Int64ListFromSortedKeyValues(keys []int16, values []int64) (*Int16Int64List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt16Int64ListFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int16Int64List{
+		data: make(map[int16][]int64),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt16(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []int64{}
+		for j < len(keys) && cmpKeyInt16(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 && cmpKeyInt64(run[len(run)-1], v) > 0 {
+				return nil, pump.ErrNotSorted // value descends within key run
+			}
+			run = append(run, v)
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
+}
+
 // Put adds a value to the list for the given key.
 func (m *Int16Int64List) Put(key int16, value int64) {
 	if m.data == nil {

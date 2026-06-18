@@ -66,6 +66,34 @@ func TestListMultimapFromSortedKeys_OrderError(t *testing.T) {
 	}
 }
 
+func TestListMultimapFromSortedKeyValues_PreservesDuplicates(t *testing.T) {
+	keys := []int64{1, 1, 1, 2, 2}
+	vals := []int32{10, 10, 11, 20, 20}
+
+	built, err := NewInt64Int32ListFromSortedKeyValues(keys, vals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := built.GetAll(1); !reflect.DeepEqual(got, []int32{10, 10, 11}) {
+		t.Fatalf("key 1 values %v", got)
+	}
+	if got := built.GetAll(2); !reflect.DeepEqual(got, []int32{20, 20}) {
+		t.Fatalf("key 2 values %v", got)
+	}
+	if built.Len() != len(keys) {
+		t.Fatalf("len %d want %d", built.Len(), len(keys))
+	}
+}
+
+func TestListMultimapFromSortedKeyValues_OrderErrors(t *testing.T) {
+	if _, err := NewInt64Int32ListFromSortedKeyValues([]int64{1, 1, 1}, []int32{10, 9, 11}); !errors.Is(err, pump.ErrNotSorted) {
+		t.Fatalf("descending value: got %v, want ErrNotSorted", err)
+	}
+	if _, err := NewInt64Int32ListFromSortedKeyValues([]int64{1, 2, 1}, []int32{10, 20, 30}); !errors.Is(err, pump.ErrNotSorted) {
+		t.Fatalf("out-of-order key: got %v, want ErrNotSorted", err)
+	}
+}
+
 func TestSetMultimapFromSortedKeyValues_DedupesAndEqualsIncremental(t *testing.T) {
 	// sorted by key then value; value 50 repeated within key 5 must dedupe
 	keys := []int64{1, 2, 2, 5, 5, 5}

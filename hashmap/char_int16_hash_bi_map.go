@@ -36,12 +36,13 @@ func NewCharInt16BiMapWithCapacity(capacity int) *CharInt16BiMap {
 // CharInt16BiMapBulkLoad builds a CharInt16BiMap from keys/values in a
 // single pass, presizing both inner tables to fit len(keys) at the 0.75 load
 // factor. keys[i] and values[i] form one entry (a length mismatch panics). A
-// BiMap requires a bijection, so a duplicate key returns
-// pump.ErrDuplicateKey and a duplicate value returns
-// pump.ErrDuplicateValue — both regardless of policy (IgnoreDuplicates
-// skips a fully identical key+value re-entry but still rejects a conflicting
-// one). The input need not be sorted; the result is identical to the same pairs
-// inserted one-by-one with Put.
+// BiMap requires a bijection, so the duplicate policy DOES NOT apply: a
+// duplicate key returns pump.ErrDuplicateKey and a duplicate value returns
+// pump.ErrDuplicateValue, ALWAYS — even under IgnoreDuplicates and even for a
+// fully identical (key, value) pair (a repeated key breaks the single-pass
+// bijection build). The policy parameter is accepted for signature symmetry with
+// the other bulk loaders but is intentionally ignored. The input need not be
+// sorted; the result is identical to the same pairs inserted one-by-one with Put.
 func CharInt16BiMapBulkLoad(keys []uint16, values []int16, policy pump.DuplicatePolicy) (*CharInt16BiMap, error) {
 	if len(keys) != len(values) {
 		panic("mapdb: CharInt16BiMapBulkLoad: len(keys) != len(values)")
@@ -51,18 +52,18 @@ func CharInt16BiMapBulkLoad(keys []uint16, values []int16, policy pump.Duplicate
 		forward: NewCharInt16WithCapacity(cap),
 		reverse: NewInt16CharWithCapacity(cap),
 	}
+	// policy is intentionally ignored: a BiMap requires a bijection, so any
+	// duplicate key or value is always an error (even an identical pair, which
+	// repeats the key and breaks the single-pass bijection build).
+	_ = policy
 	for i := range keys {
 		key, value := keys[i], values[i]
 		_, hasKey := m.forward.Get(key)
-		oldKey, hasVal := m.reverse.Get(value)
-		if hasKey || hasVal {
-			if policy == pump.IgnoreDuplicates && hasKey && hasVal &&
-				(oldKey == key) {
-				continue // identical pair already present
-			}
-			if hasKey {
-				return nil, pump.ErrDuplicateKey
-			}
+		_, hasVal := m.reverse.Get(value)
+		if hasKey {
+			return nil, pump.ErrDuplicateKey
+		}
+		if hasVal {
 			return nil, pump.ErrDuplicateValue
 		}
 		m.forward.Put(key, value)

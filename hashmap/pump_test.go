@@ -184,3 +184,22 @@ func TestInt32Int32BiMapBulkLoad(t *testing.T) {
 		t.Fatalf("dup value: got %v", err)
 	}
 }
+
+// TestInt32Int32BiMapBulkLoad_IgnoreDuplicatesStillErrors verifies the BiMap
+// ignores the duplicate policy entirely: a duplicate key OR value is always an
+// error, even under IgnoreDuplicates and even for a fully identical (k, v) pair
+// (a repeated key breaks the single-pass bijection build).
+func TestInt32Int32BiMapBulkLoad_IgnoreDuplicatesStillErrors(t *testing.T) {
+	// identical duplicate pair must still error (regression: previously skipped)
+	if _, err := Int32Int32BiMapBulkLoad([]int32{1, 1}, []int32{10, 10}, pump.IgnoreDuplicates); !errors.Is(err, pump.ErrDuplicateKey) {
+		t.Fatalf("identical pair under IgnoreDuplicates: got %v, want ErrDuplicateKey", err)
+	}
+	// duplicate key under IgnoreDuplicates errors
+	if _, err := Int32Int32BiMapBulkLoad([]int32{1, 1}, []int32{10, 20}, pump.IgnoreDuplicates); !errors.Is(err, pump.ErrDuplicateKey) {
+		t.Fatalf("dup key under IgnoreDuplicates: got %v, want ErrDuplicateKey", err)
+	}
+	// duplicate value under IgnoreDuplicates errors
+	if _, err := Int32Int32BiMapBulkLoad([]int32{1, 2}, []int32{10, 10}, pump.IgnoreDuplicates); !errors.Is(err, pump.ErrDuplicateValue) {
+		t.Fatalf("dup value under IgnoreDuplicates: got %v, want ErrDuplicateValue", err)
+	}
+}

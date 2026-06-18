@@ -1,6 +1,10 @@
 package pump
 
-import "testing"
+import (
+	"math"
+	"math/bits"
+	"testing"
+)
 
 // TestHashCapacityFor_ZeroRehashFormula verifies the presize formula satisfies
 // the strict growth rule cap*3 >= 4*n + 1, which is the condition under which the
@@ -40,6 +44,47 @@ func TestHashCapacityFor_PowersOf3x2k(t *testing.T) {
 			t.Fatalf("n=%d: cap=%d rehashes (cap*3=%d < 4n+1=%d)", n, c, c*3, 4*n+1)
 		}
 	}
+}
+
+// TestHashCapacityFor_LargeBoundaryNoOverflow exercises n large enough that the
+// old int-arithmetic computation of 4*(n/3) wrapped past MaxInt and returned a
+// negative / tiny capacity. The capacity must stay a positive power of two that
+// satisfies the strict growth rule, with the intermediate computed in wider
+// arithmetic.
+func TestHashCapacityFor_LargeBoundaryNoOverflow(t *testing.T) {
+	// Largest n for which a power-of-two capacity still fits in a positive int:
+	// required = floor(4n/3)+1 must be <= 1<<(UintSize-2).
+	maxPow2 := 1 << (bits.UintSize - 2)
+	// pick an n just below the limit where 4*(n/3) would overflow int but the
+	// result is still representable.
+	n := (maxPow2/4)*3 - 8 // comfortably below the panic threshold, well above MaxInt/4
+	if n <= math.MaxInt32 {
+		// 32-bit platform: still ensure a value above MaxInt/4 is handled.
+		n = (math.MaxInt32 / 4) * 3
+	}
+	c := HashCapacityFor(n)
+	if c <= 0 {
+		t.Fatalf("HashCapacityFor(%d) = %d overflowed to non-positive", n, c)
+	}
+	if c&(c-1) != 0 {
+		t.Fatalf("HashCapacityFor(%d) = %d is not a power of two", n, c)
+	}
+	// strict growth rule cap*3 >= 4n+1, checked in uint64 to avoid the very
+	// overflow we are guarding against in the assertion itself.
+	if uint64(c)*3 < uint64(n)*4+1 {
+		t.Fatalf("HashCapacityFor(%d) = %d violates cap*3 >= 4n+1", n, c)
+	}
+}
+
+// TestHashCapacityFor_TooLargePanics verifies n with no representable capacity
+// panics rather than silently wrapping.
+func TestHashCapacityFor_TooLargePanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("HashCapacityFor(MaxInt) should panic, did not")
+		}
+	}()
+	HashCapacityFor(math.MaxInt)
 }
 
 // TestRedBlackRedLevel checks the JDK buildFromSorted red-level math for the

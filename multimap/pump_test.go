@@ -2,6 +2,7 @@ package multimap
 
 import (
 	"errors"
+	"math"
 	"reflect"
 	"sort"
 	"testing"
@@ -89,6 +90,37 @@ func TestSetMultimapFromSortedKeyValues_DedupesAndEqualsIncremental(t *testing.T
 	// key 5 should have {50, 51} (one 50 dropped)
 	if got := sortedInt32(built.GetAll(5)); !reflect.DeepEqual(got, []int32{50, 51}) {
 		t.Fatalf("dedupe broken: %v", got)
+	}
+}
+
+func TestSetMultimapFromSortedKeyValues_ValueOrderError(t *testing.T) {
+	// keys are monotonic but values within a key run descend: must error
+	// (regression for the bug where only key order was validated).
+	keys := []int64{1, 1, 1}
+	vals := []int32{2, 1, 2}
+	if _, err := NewInt64Int32SetFromSortedKeyValues(keys, vals); !errors.Is(err, pump.ErrNotSorted) {
+		t.Fatalf("out-of-order per-key values: got %v, want ErrNotSorted", err)
+	}
+	// a single descent at the end of a run also errors
+	if _, err := NewInt64Int32SetFromSortedKeyValues([]int64{5, 5}, []int32{51, 50}); !errors.Is(err, pump.ErrNotSorted) {
+		t.Fatalf("descending value: got %v, want ErrNotSorted", err)
+	}
+	// equal then descend (10,10,9): the 9 is out of order
+	if _, err := NewInt64Int32SetFromSortedKeyValues([]int64{7, 7, 7}, []int32{10, 10, 9}); !errors.Is(err, pump.ErrNotSorted) {
+		t.Fatalf("dup-then-descend: got %v, want ErrNotSorted", err)
+	}
+}
+
+func TestSetMultimapFromSortedKeyValues_FloatValueTotalOrder(t *testing.T) {
+	// float values must validate via the IEEE-754 total order, not raw <.
+	// A (positive) NaN sorts to the top, so a finite value after NaN descends.
+	nan := math.NaN()
+	if _, err := NewInt64Float64SetFromSortedKeyValues([]int64{1, 1}, []float64{nan, 1.0}); !errors.Is(err, pump.ErrNotSorted) {
+		t.Fatalf("value after NaN should be out of order: got %v", err)
+	}
+	// ascending floats within a key are accepted
+	if _, err := NewInt64Float64SetFromSortedKeyValues([]int64{1, 1, 1}, []float64{-1.0, 0.0, nan}); err != nil {
+		t.Fatalf("ascending float values rejected: %v", err)
 	}
 }
 

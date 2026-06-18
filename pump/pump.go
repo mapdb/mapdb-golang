@@ -7,7 +7,10 @@
 // import cycle.
 package pump
 
-import "errors"
+import (
+	"errors"
+	"math/bits"
+)
 
 // DuplicatePolicy controls how a bulk-load handles a duplicate key in the
 // source. There is deliberately no Overwrite ("last value wins"): in a
@@ -54,19 +57,27 @@ var ErrTooManyElements = errors.New("mapdb: bulk-load source exceeds the exact s
 //	required = floor(4*n/3) + 1     // == ceil((4n+1)/3); overflow-safe
 //	cap      = nextPow2(required)   // n == 0 -> 0, the empty-table sentinel
 //
-// 4*n is computed without overflowing via a division-decompose (4*n = 4*(n/3)*3
-// + 4*(n%3)), so the result is correct even for n near the platform word size.
-// The returned capacity is always a power of two (or 0 for n == 0); callers feed
-// it to their own nextPowerOfTwo helper, which is the identity on a power of two.
+// required is computed in unsigned-64 arithmetic via a division-decompose
+// (floor(4n/3) = 4*(n/3) + floor(4*(n%3)/3)), so the intermediate 4q never
+// overflows even for n near MaxInt. n so large that no power-of-two capacity
+// fits in a positive int (required would exceed the top representable power of
+// two) is a programmer error and panics rather than silently wrapping.
 func HashCapacityFor(n int) int {
 	if n <= 0 {
 		return 0
 	}
-	// required = floor(4n/3) + 1, computed overflow-safely.
-	q := n / 3
-	r := n % 3
+	// required = floor(4n/3) + 1, computed in uint64 so 4q cannot overflow.
+	q := uint64(n) / 3
+	r := uint64(n) % 3
 	required := q*4 + (r*4)/3 + 1
-	return nextPow2Int(required)
+	// nextPow2 must stay within a positive int. The largest power of two that
+	// fits is 1<<(bits.UintSize-2) (e.g. 1<<62 on 64-bit). If required exceeds
+	// it, no valid capacity exists.
+	maxPow2 := uint64(1) << (bits.UintSize - 2)
+	if required > maxPow2 {
+		panic("mapdb: HashCapacityFor: n too large for any hash-table capacity")
+	}
+	return nextPow2Int(int(required))
 }
 
 // RedBlackRedLevel returns the tree depth (0 == root) at which nodes must be

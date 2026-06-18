@@ -43,13 +43,15 @@ func Int8CharSetBulkLoad(keys []int8, values []uint16) *Int8CharSet {
 }
 
 // NewInt8CharSetFromSortedKeyValues builds a Int8CharSet from input sorted
-// by ascending key and, within each key, ascending value. It validates key
-// monotonicity in one pass and dedupes adjacent equal values per key (the sorted
-// equivalent of the linear-scan dedupe Put performs). keys[i] and values[i] form
-// one pair (a length mismatch panics). Out-of-order keys return
-// pump.ErrNotSorted. The result is observably identical to the same pairs
-// inserted with Put, provided values within a key are sorted (so equal values are
-// adjacent); if they are not, use Int8CharSetBulkLoad instead.
+// by ascending key and, within each key, ascending value. It validates both key
+// monotonicity AND per-key value monotonicity (using the value type's own
+// comparator — the IEEE-754 total order for float values) in one pass, deduping
+// equal values per key (the sorted equivalent of the linear-scan dedupe Put
+// performs). keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. The result is
+// observably identical to the same pairs inserted with Put; if your values are
+// not sorted within each key, use Int8CharSetBulkLoad instead.
 func NewInt8CharSetFromSortedKeyValues(keys []int8, values []uint16) (*Int8CharSet, error) {
 	if len(keys) != len(values) {
 		panic("mapdb: NewInt8CharSetFromSortedKeyValues: len(keys) != len(values)")
@@ -67,9 +69,17 @@ func NewInt8CharSetFromSortedKeyValues(keys []int8, values []uint16) (*Int8CharS
 		run := []uint16{}
 		for j < len(keys) && cmpKeyInt8(keys[j], key) == 0 {
 			v := values[j]
-			if len(run) == 0 || !(run[len(run)-1] == v) {
-				run = append(run, v)
+			if len(run) > 0 {
+				c := cmpKeyChar(run[len(run)-1], v)
+				if c > 0 {
+					return nil, pump.ErrNotSorted // value descends within key run
+				}
+				if c == 0 {
+					j++
+					continue // adjacent duplicate value (input is sorted, so equals are adjacent)
+				}
 			}
+			run = append(run, v)
 			j++
 		}
 		m.data[key] = run

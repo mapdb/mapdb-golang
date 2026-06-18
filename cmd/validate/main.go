@@ -32,6 +32,7 @@ import (
 	"github.com/mapdb/mapdb-golang/immutablesorted"
 	"github.com/mapdb/mapdb-golang/multimap"
 	"github.com/mapdb/mapdb-golang/rangev"
+	"github.com/mapdb/mapdb-golang/roaring"
 	"github.com/mapdb/mapdb-golang/treemap"
 	"github.com/mapdb/mapdb-golang/treeset"
 )
@@ -254,6 +255,8 @@ func main() {
 		runImmutableSortedSet(s)
 	case "HashPipeline":
 		runHashPipeline(s)
+	case "RoaringU32":
+		runRoaring(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -2199,4 +2202,225 @@ func runImmutableSortedSet(s scenario) {
 		}()
 		emit(s.Name, key, val, s.Assertions[key], modeNone)
 	}
+}
+
+// ---- RoaringU32 (spec/features/roaring-u32.md) ---------------------------
+//
+// A sparse, compressed u32 set. The i32 scenario values are bit-REINTERPRETED
+// to u32 (NOT sign-extended), then split into a 16-bit high key (chunk) and a
+// 16-bit low key. Ordering is UNSIGNED u32 ascending throughout (iteration,
+// min/max, serialized chunk order). The byte oracle is serialized_hex (lower-
+// case 0x-prefixed). Unknown ops/keys SKIP (forward-compat).
+//
+// Authoring rules enforced by SKIP (mirrors from_sorted/deserialize posture):
+//   - a `deserialize` op must be the ONLY op in its scenario;
+//   - a reversed add_range/remove_range (from_u32 > to_u32) is malformed;
+//   - a malformed `deserialize` hex literal is malformed.
+func runRoaring(s scenario) {
+	set, ok := buildRoaring(s.Operations)
+	if !ok {
+		return // SKIP (forward-compat / malformed authoring)
+	}
+	var other *roaring.RoaringU32
+	if s.Other != nil {
+		other, ok = buildRoaring(s.Other.Operations)
+		if !ok {
+			return
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalRoaringAssertion(key, set, other), s.Assertions[key], modeNone)
+	}
+}
+
+// buildRoaring applies the operation list to a fresh RoaringU32. ok is false
+// when the scenario must be SKIPPED (unknown op, reversed range, malformed
+// deserialize hex, or a deserialize op mixed with / not the sole op).
+func buildRoaring(ops []map[string]any) (*roaring.RoaringU32, bool) {
+	// A deserialize op must be the ONLY op in its scenario.
+	for _, op := range ops {
+		if op["op"] == "deserialize" {
+			if len(ops) != 1 {
+				fmt.Fprintln(os.Stderr, "skip: roaring deserialize op must be the only op (forward-compat)")
+				return nil, false
+			}
+			hexStr, isStr := op["bytes"].(string)
+			if !isStr {
+				fmt.Fprintln(os.Stderr, "skip: roaring deserialize op missing string bytes (forward-compat)")
+				return nil, false
+			}
+			raw, perr := roaringParseHex(hexStr)
+			if perr != nil {
+				fmt.Fprintf(os.Stderr, "skip: roaring deserialize bad hex: %v\n", perr)
+				return nil, false
+			}
+			set, derr := roaring.Deserialize(raw)
+			if derr != nil {
+				fmt.Fprintf(os.Stderr, "skip: roaring deserialize rejected bytes: %v\n", derr)
+				return nil, false
+			}
+			return set, true
+		}
+	}
+	set := roaring.NewRoaringU32()
+	for _, op := range ops {
+		switch op["op"] {
+		case "add":
+			set.Add(uint32(asInt32(op["value"])))
+		case "remove":
+			set.Remove(uint32(asInt32(op["value"])))
+		case "clear":
+			set.Clear()
+		case "add_range":
+			from, to := uint32(asInt32(op["from"])), uint32(asInt32(op["to"]))
+			if from > to {
+				fmt.Fprintf(os.Stderr, "skip: roaring add_range reversed (%d > %d) (forward-compat)\n", from, to)
+				return nil, false
+			}
+			for v := from; ; v++ {
+				set.Add(v)
+				if v == to {
+					break
+				}
+			}
+		case "remove_range":
+			from, to := uint32(asInt32(op["from"])), uint32(asInt32(op["to"]))
+			if from > to {
+				fmt.Fprintf(os.Stderr, "skip: roaring remove_range reversed (%d > %d) (forward-compat)\n", from, to)
+				return nil, false
+			}
+			for v := from; ; v++ {
+				set.Remove(v)
+				if v == to {
+					break
+				}
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "skip: unknown roaring op (forward-compat): %v\n", op["op"])
+			return nil, false
+		}
+	}
+	return set, true
+}
+
+// roaringParseHex decodes a "0x"-prefixed, even-length hex string into bytes.
+// Unlike the hash-pipeline parseHexBytes (which fatals on a bad literal), this
+// returns an error so a malformed roaring `deserialize` literal SKIPs the
+// scenario per the authoring rule.
+func roaringParseHex(hx string) ([]byte, error) {
+	if len(hx) < 2 || (hx[:2] != "0x" && hx[:2] != "0X") {
+		return nil, fmt.Errorf("missing 0x prefix")
+	}
+	body := hx[2:]
+	if len(body)%2 != 0 {
+		return nil, fmt.Errorf("odd-length hex string")
+	}
+	out := make([]byte, len(body)/2)
+	for i := 0; i < len(out); i++ {
+		hi, ok1 := hexNibble(body[2*i])
+		lo, ok2 := hexNibble(body[2*i+1])
+		if !ok1 || !ok2 {
+			return nil, fmt.Errorf("invalid hex digit")
+		}
+		out[i] = hi<<4 | lo
+	}
+	return out, nil
+}
+
+func hexNibble(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, true
+	}
+	return 0, false
+}
+
+// toHex renders bytes as a lower-case 0x-prefixed hex string (the byte oracle).
+func toHex(b []byte) string {
+	const hexDigits = "0123456789abcdef"
+	buf := make([]byte, 2+2*len(b))
+	buf[0], buf[1] = '0', 'x'
+	for i, x := range b {
+		buf[2+2*i] = hexDigits[x>>4]
+		buf[2+2*i+1] = hexDigits[x&0x0f]
+	}
+	return string(buf)
+}
+
+// roaringSortedArray returns the set's values (unsigned u32 ascending) emitted
+// as i32 (a two's-complement reinterpret of each u32). UNSIGNED-ascending is an
+// explicit-order key: it is NOT re-sorted signed.
+func roaringSortedArray(set *roaring.RoaringU32) []int32 {
+	vals := set.ToSortedSlice()
+	out := make([]int32, len(vals))
+	for i, v := range vals {
+		out[i] = int32(v)
+	}
+	return out
+}
+
+func evalRoaringAssertion(key string, set, other *roaring.RoaringU32) string {
+	switch key {
+	case "cardinality":
+		return strconv.FormatUint(set.Cardinality(), 10)
+	case "is_empty":
+		return strconv.FormatBool(set.IsEmpty())
+	case "chunk_count":
+		return strconv.Itoa(set.ChunkCount())
+	case "serialized_len":
+		return strconv.Itoa(len(set.Serialize()))
+	case "serialized_hex":
+		return toHex(set.Serialize())
+	case "container_types":
+		types := set.ContainerTypes()
+		quoted := make([]string, len(types))
+		for i, t := range types {
+			quoted[i] = `"` + t + `"`
+		}
+		return "[" + strings.Join(quoted, ",") + "]"
+	case "to_sorted_array":
+		return formatArray(roaringSortedArray(set))
+	case "min":
+		if v, ok := set.Min(); ok {
+			return strconv.FormatInt(int64(int32(v)), 10)
+		}
+		return "null"
+	case "max":
+		if v, ok := set.Max(); ok {
+			return strconv.FormatInt(int64(int32(v)), 10)
+		}
+		return "null"
+	}
+	if other != nil {
+		switch key {
+		case "union_serialized_hex":
+			return toHex(set.Or(other).Serialize())
+		case "union_cardinality":
+			return strconv.FormatUint(set.Or(other).Cardinality(), 10)
+		case "intersect_serialized_hex":
+			return toHex(set.And(other).Serialize())
+		case "intersect_cardinality":
+			return strconv.FormatUint(set.And(other).Cardinality(), 10)
+		case "and_not_serialized_hex":
+			return toHex(set.AndNot(other).Serialize())
+		case "and_not_cardinality":
+			return strconv.FormatUint(set.AndNot(other).Cardinality(), 10)
+		case "xor_serialized_hex":
+			return toHex(set.Xor(other).Serialize())
+		case "xor_cardinality":
+			return strconv.FormatUint(set.Xor(other).Cardinality(), 10)
+		}
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		v, err := strconv.ParseInt(rest, 10, 32)
+		if err != nil {
+			return unknown(key)
+		}
+		return strconv.FormatBool(set.Contains(uint32(int32(v))))
+	}
+	return unknown(key)
 }

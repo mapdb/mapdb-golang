@@ -26,6 +26,7 @@ import (
 
 	"github.com/mapdb/mapdb-golang/arraylist"
 	"github.com/mapdb/mapdb-golang/bag"
+	"github.com/mapdb/mapdb-golang/bloom"
 	"github.com/mapdb/mapdb-golang/hash"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
@@ -254,6 +255,8 @@ func main() {
 		runImmutableSortedSet(s)
 	case "HashPipeline":
 		runHashPipeline(s)
+	case "Bloom":
+		runBloom(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -629,6 +632,222 @@ func parseHexBytes(v any) []byte {
 		out[i] = byte(b)
 	}
 	return out
+}
+
+// ---- Bloom (spec/features/bloom.md) --------------------------------------
+//
+// A new collection kind riding the hash pipeline's Positions() byte path. The
+// scenario builds the filter via EXACTLY ONE with_params op (explicit (m,k);
+// never optimal -- the float trap is quarantined to native tests) followed by
+// add ops. A union scenario reads a second filter from the top-level "other"
+// block (same with_params + add shape); the union_* assertions describe
+// self.union(other). Unknown ops/keys/kinds SKIP (forward-compat). Out-of-range
+// or invalid params (m=0, m/k/v outside u32/i32, union param-mismatch) SKIP for
+// scenarios rather than panic.
+
+// buildBloom replays a with_params + add op list into a *bloom.Bloom. It returns
+// nil (with a skip reason) when the op list is malformed or out of the validated
+// range -- the runner then SKIPs the scenario rather than panicking.
+func buildBloom(ops []map[string]any) (*bloom.Bloom, string) {
+	withParamsCount := 0
+	for _, op := range ops {
+		if op["op"] == "with_params" {
+			withParamsCount++
+		}
+	}
+	// Exactly one with_params builds the filter (the from_sorted/HashPipeline
+	// rule); zero or multiple => malformed => SKIP.
+	if withParamsCount != 1 {
+		return nil, fmt.Sprintf("need exactly one with_params op, got %d", withParamsCount)
+	}
+	var b *bloom.Bloom
+	for _, op := range ops {
+		switch op["op"] {
+		case "with_params":
+			m, ok1 := bloomU32(op["m"])
+			k, ok2 := bloomU32(op["k"])
+			if !ok1 || !ok2 || m == 0 {
+				return nil, "with_params m/k out of range (m must be >= 1, m,k in u32)"
+			}
+			b = bloom.NewBloomWithParams(m, k)
+		case "add":
+			if b == nil {
+				return nil, "add before with_params"
+			}
+			v, ok := bloomI32(op["value"])
+			if !ok {
+				return nil, "add value out of i32 range"
+			}
+			b.Add(v)
+		default:
+			// Forward-compat: an unknown op makes the scenario un-runnable here.
+			return nil, fmt.Sprintf("unknown bloom op (forward-compat): %v", op["op"])
+		}
+	}
+	return b, ""
+}
+
+// bloomU32 parses an m/k operand to a uint32, reporting !ok when it is not an
+// integer in [0, 2^32-1] (so the runner SKIPs rather than panicking).
+func bloomU32(v any) (uint32, bool) {
+	var i int64
+	switch n := v.(type) {
+	case float64:
+		if n != math.Trunc(n) {
+			return 0, false
+		}
+		i = int64(n)
+	case json.Number:
+		x, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		i = x
+	default:
+		return 0, false
+	}
+	if i < 0 || i > math.MaxUint32 {
+		return 0, false
+	}
+	return uint32(i), true
+}
+
+// bloomI32 parses an element operand to an int32, reporting !ok when it is not an
+// integer in the signed i32 range.
+func bloomI32(v any) (int32, bool) {
+	var i int64
+	switch n := v.(type) {
+	case float64:
+		if n != math.Trunc(n) {
+			return 0, false
+		}
+		i = int64(n)
+	case json.Number:
+		x, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		i = x
+	default:
+		return 0, false
+	}
+	if i < math.MinInt32 || i > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(i), true
+}
+
+func bloomHex(bytes []byte) string {
+	var sb strings.Builder
+	sb.WriteString("0x")
+	for _, b := range bytes {
+		fmt.Fprintf(&sb, "%02x", b)
+	}
+	return sb.String()
+}
+
+func bloomSortedSetBits(b *bloom.Bloom) string {
+	// SetBits is already ascending; render as a JSON int array.
+	parts := []string{}
+	for _, x := range b.SetBits() {
+		parts = append(parts, strconv.FormatUint(uint64(x), 10))
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func runBloom(s scenario) {
+	b, skip := buildBloom(s.Operations)
+	if b == nil {
+		fmt.Fprintf(os.Stderr, "skip: malformed bloom scenario (%s): %s\n", skip, s.Name)
+		return
+	}
+	// Optional union partner from the top-level "other" block. Build it eagerly;
+	// a malformed/param-mismatched partner makes any union_* assertion un-runnable
+	// (the union_* eval then SKIPs that key).
+	var union *bloom.Bloom
+	if s.Other != nil {
+		other, oskip := buildBloom(s.Other.Operations)
+		if other == nil {
+			fmt.Fprintf(os.Stderr, "skip: malformed bloom other (%s): %s\n", oskip, s.Name)
+		} else if other.MBits() != b.MBits() || other.K() != b.K() {
+			// Param-mismatch union would panic in production; for a scenario we
+			// leave union nil so union_* keys SKIP instead of crashing.
+			fmt.Fprintf(os.Stderr, "skip: bloom union param mismatch in %s\n", s.Name)
+		} else {
+			union = b.Union(other)
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalBloomAssertion(key, b, union), s.Assertions[key], modeNone)
+	}
+}
+
+func evalBloomAssertion(key string, b, union *bloom.Bloom) string {
+	switch key {
+	case "m_bits":
+		return strconv.FormatUint(uint64(b.MBits()), 10)
+	case "k":
+		return strconv.FormatUint(uint64(b.K()), 10)
+	case "bit_count":
+		return strconv.FormatUint(uint64(b.BitCount()), 10)
+	case "is_empty":
+		return strconv.FormatBool(b.IsEmpty())
+	case "set_bits":
+		return bloomSortedSetBits(b)
+	case "bytes":
+		return bloomHex(b.ToBytes())
+	}
+	// union_* keys require the "other" partner; SKIP when it is absent.
+	switch key {
+	case "union_bit_count":
+		if union == nil {
+			return unknown(key)
+		}
+		return strconv.FormatUint(uint64(union.BitCount()), 10)
+	case "union_set_bits":
+		if union == nil {
+			return unknown(key)
+		}
+		return bloomSortedSetBits(union)
+	case "union_bytes":
+		if union == nil {
+			return unknown(key)
+		}
+		return bloomHex(union.ToBytes())
+	}
+	if rest, ok := strings.CutPrefix(key, "union_contains_"); ok {
+		if union == nil {
+			return unknown(key)
+		}
+		v, ok := bloomI32SuffixToInt(rest)
+		if !ok {
+			return unknown(key)
+		}
+		return strconv.FormatBool(union.MightContain(v))
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		v, ok := bloomI32SuffixToInt(rest)
+		if !ok {
+			return unknown(key)
+		}
+		return strconv.FormatBool(b.MightContain(v))
+	}
+	return unknown(key)
+}
+
+// bloomI32SuffixToInt parses a signed-i32 decimal suffix (matches
+// ^(-?[0-9]+)$ in the validated range); reports !ok for a non-i32 suffix so the
+// key SKIPs cleanly.
+func bloomI32SuffixToInt(s string) (int32, bool) {
+	digits := strings.TrimPrefix(s, "-")
+	if digits == "" || !isAllDigits(digits) {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return 0, false
+	}
+	return int32(n), true
 }
 
 // ---- HashMap<i32, i32> ---------------------------------------------------

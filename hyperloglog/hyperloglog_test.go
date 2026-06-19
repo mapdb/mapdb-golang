@@ -427,22 +427,29 @@ func TestAlphaMMatchesPinnedConstants(t *testing.T) {
 }
 
 func TestEstimateLargeRangeCorrectionIsFinite(t *testing.T) {
-	// Drive a high-register state (all registers NEAR the per-p max) via
-	// FromBytes so raw E exceeds (1/30)*2^64 while staying below 2^64; assert
-	// Estimate() is finite (the 2^64 ceiling keeps ln(1 - E/2^64)'s argument
-	// positive; a 2^32 ceiling would return NaN here).
+	// Drive a high-register state via FromBytes so raw E exceeds (1/30)*2^64;
+	// assert Estimate() is finite. Two sub-cases:
+	//   r = ceiling - 1: E in the large-range band but below 2^64, the log
+	//     correction fires; the 2^64 ceiling keeps ln(1 - E/2^64) > 0 (a 2^32
+	//     ceiling would return NaN here).
+	//   r = ceiling (fully saturated): every register at the per-p max — a
+	//     degenerate, Add-unreachable state constructible via FromBytes whose
+	//     raw E reaches/exceeds 2^64. The log-argument guard skips the
+	//     correction and returns the raw (large, finite) E. Without the guard,
+	//     ln(1 - E/2^64) = ln(<= 0) = NaN.
 	p := uint8(4)
-	nearMax := rhoCeiling(p) - 1
-	b := mustBytes(t, p)
-	for i := 5; i < len(b); i++ {
-		b[i] = nearMax
-	}
-	h, err := HyperLogLogFromBytes(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if est := h.Estimate(); math.IsInf(est, 0) || math.IsNaN(est) {
-		t.Fatalf("large-range estimate must be finite, got %v", est)
+	for _, r := range []byte{rhoCeiling(p) - 1, rhoCeiling(p)} {
+		b := mustBytes(t, p)
+		for i := 5; i < len(b); i++ {
+			b[i] = r
+		}
+		h, err := HyperLogLogFromBytes(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if est := h.Estimate(); math.IsInf(est, 0) || math.IsNaN(est) {
+			t.Fatalf("large-range estimate must be finite for all-%d registers, got %v", r, est)
+		}
 	}
 }
 

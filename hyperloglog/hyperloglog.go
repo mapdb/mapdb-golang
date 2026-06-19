@@ -188,7 +188,15 @@ func (h *HyperLogLog) Estimate() float64 {
 	// Large-range correction near the HASH-SPACE ceiling (2^64, NOT 2^32).
 	const two64 = 18446744073709551616.0 // 2^64, exactly representable.
 	if e > (1.0/30.0)*two64 {
-		return -two64 * math.Log(1.0-e/two64)
+		// Guard the log argument: for all reachable states E < 2^64 so
+		// (1 - E/2^64) > 0. A fully-saturated deserialized state (every
+		// register at the per-p ceiling, constructible via UnmarshalBinary but
+		// not via Add) can push raw E >= 2^64, making (1 - E/2^64) <= 0 and
+		// Log(<= 0) = NaN. Skip the log correction there and return the raw
+		// (large, finite) E so Estimate() stays finite as the spec mandates.
+		if e < two64 {
+			return -two64 * math.Log(1.0-e/two64)
+		}
 	}
 
 	return e

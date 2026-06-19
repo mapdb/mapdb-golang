@@ -26,6 +26,7 @@ import (
 
 	"github.com/mapdb/mapdb-golang/arraylist"
 	"github.com/mapdb/mapdb-golang/bag"
+	"github.com/mapdb/mapdb-golang/fenwick"
 	"github.com/mapdb/mapdb-golang/hash"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
@@ -168,7 +169,18 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 				case nil:
 					parts[i] = "null"
 				case string:
-					parts[i] = "\"" + ev + "\""
+					// The Fenwick `tree` canonical array encodes its i64
+					// elements as DECIMAL STRINGS (fenwick.md §"Scenario wire
+					// encoding"); the runner emits them as bare decimals, so the
+					// expected string element renders UNQUOTED to match (mirrors
+					// the Rust runner's FloatMode::None bare-decimal output).
+					// Other modeNone string arrays (HashMap<i64,i32> sorted_keys)
+					// stay quoted to match their quoted runner output.
+					if key == "tree" {
+						parts[i] = ev
+					} else {
+						parts[i] = "\"" + ev + "\""
+					}
 				default:
 					parts[i] = strconv.FormatInt(int64(ev.(float64)), 10)
 				}
@@ -254,6 +266,8 @@ func main() {
 		runImmutableSortedSet(s)
 	case "HashPipeline":
 		runHashPipeline(s)
+	case "FenwickTree":
+		runFenwick(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -629,6 +643,126 @@ func parseHexBytes(v any) []byte {
 		out[i] = byte(b)
 	}
 	return out
+}
+
+// ---- FenwickTree (spec/features/fenwick.md) -------------------------------
+//
+// A fixed-size i32-element / i64-accumulator Binary Indexed Tree. Construction
+// is EXACTLY ONE op (with_size or from_values) first, then any number of
+// update/set point ops (all indices in-range; out-of-range traps are
+// native-test-only). Sum-returning assertions (total, get_<i>, prefix_sum_<i>,
+// range_sum_<lo>_<hi>, and each tree element) are i64 and wire-encoded as
+// DECIMAL STRINGS (parsed straight to i64, never via f64); the runner accepts a
+// bare JSON number too (renderExpected under modeNone). tree is the canonical
+// 1-based BIT array in 1-based index order -- an explicit-order key, NOT sorted.
+// Unknown ops / kinds / assertion keys SKIP (forward-compat).
+//
+// i64 wire encoding: the runner emits every Fenwick i64 result via
+// strconv.FormatInt base 10 (a plain decimal). The JSON assertions carry the
+// authoritative i64 values as DECIMAL STRINGS (or bare numbers when small);
+// emit/renderExpected compare them as strings under modeNone, so a
+// decimal-string expected ("total": "8589934588") and the runner's decimal
+// output match without any f64 round-trip. Element operands (delta/value) stay
+// plain JSON numbers (they are i32).
+func runFenwick(s scenario) {
+	// Authoring rule: the FIRST op MUST be exactly one construction op
+	// (with_size OR from_values); a missing/late/duplicate construction op is a
+	// malformed scenario => SKIP (forward-compat), like the hash-pipeline
+	// single-op rule.
+	if len(s.Operations) == 0 {
+		fmt.Fprintln(os.Stderr, "skip: fenwick scenario must begin with a construction op (forward-compat)")
+		return
+	}
+	first, _ := s.Operations[0]["op"].(string)
+	var tree *fenwick.FenwickTree
+	switch first {
+	case "with_size":
+		n := asInt(s.Operations[0]["n"])
+		if n < 0 {
+			fmt.Fprintf(os.Stderr, "skip: fenwick with_size negative n (malformed): %d\n", n)
+			return
+		}
+		tree = fenwick.NewFenwickTreeWithSize(n)
+	case "from_values":
+		raw, ok := s.Operations[0]["values"].([]any)
+		if !ok {
+			fmt.Fprintln(os.Stderr, "skip: fenwick from_values needs values array (malformed)")
+			return
+		}
+		vals := make([]int32, len(raw))
+		for i, v := range raw {
+			vals[i] = asInt32(v)
+		}
+		tree = fenwick.NewFenwickTreeFromValues(vals)
+	default:
+		fmt.Fprintf(os.Stderr, "skip: fenwick first op must be with_size/from_values (forward-compat): %s\n", first)
+		return
+	}
+	// Any subsequent construction op is malformed => SKIP.
+	for _, op := range s.Operations[1:] {
+		switch op["op"] {
+		case "update":
+			tree.Update(asInt(op["index"]), asInt32(op["delta"]))
+		case "set":
+			tree.Set(asInt(op["index"]), asInt32(op["value"]))
+		case "with_size", "from_values":
+			fmt.Fprintln(os.Stderr, "skip: fenwick has a non-first construction op (malformed)")
+			return
+		default:
+			fmt.Fprintf(os.Stderr, "skip: unknown fenwick op (forward-compat): %v\n", op["op"])
+			return
+		}
+	}
+
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalFenwickAssertion(key, tree), s.Assertions[key], modeNone)
+	}
+}
+
+func evalFenwickAssertion(key string, tree *fenwick.FenwickTree) string {
+	switch {
+	case key == "size":
+		return strconv.Itoa(tree.Len())
+	case key == "is_empty":
+		return strconv.FormatBool(tree.IsEmpty())
+	case key == "total":
+		return strconv.FormatInt(tree.Total(), 10)
+	case key == "tree":
+		// Canonical 1-based BIT array, in 1-based index order (NOT sorted).
+		ct := tree.CanonicalTree()
+		parts := make([]string, len(ct))
+		for i, v := range ct {
+			parts[i] = strconv.FormatInt(v, 10)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	case strings.HasPrefix(key, "get_"):
+		i, err := strconv.Atoi(key[len("get_"):])
+		if err != nil {
+			return "UNKNOWN_ASSERTION:" + key
+		}
+		return strconv.FormatInt(tree.Get(i), 10)
+	case strings.HasPrefix(key, "prefix_sum_"):
+		i, err := strconv.Atoi(key[len("prefix_sum_"):])
+		if err != nil {
+			return "UNKNOWN_ASSERTION:" + key
+		}
+		return strconv.FormatInt(tree.PrefixSum(i), 10)
+	case strings.HasPrefix(key, "range_sum_"):
+		// ^range_sum_([0-9]+)_([0-9]+)$
+		rest := key[len("range_sum_"):]
+		us := strings.IndexByte(rest, '_')
+		if us < 0 {
+			return "UNKNOWN_ASSERTION:" + key
+		}
+		lo, errLo := strconv.Atoi(rest[:us])
+		hi, errHi := strconv.Atoi(rest[us+1:])
+		if errLo != nil || errHi != nil {
+			return "UNKNOWN_ASSERTION:" + key
+		}
+		return strconv.FormatInt(tree.RangeSum(lo, hi), 10)
+	default:
+		return "UNKNOWN_ASSERTION:" + key
+	}
 }
 
 // ---- HashMap<i32, i32> ---------------------------------------------------

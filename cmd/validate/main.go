@@ -26,6 +26,7 @@ import (
 
 	"github.com/mapdb/mapdb-golang/arraylist"
 	"github.com/mapdb/mapdb-golang/bag"
+	"github.com/mapdb/mapdb-golang/countmin"
 	"github.com/mapdb/mapdb-golang/hash"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
@@ -169,6 +170,21 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 					parts[i] = "null"
 				case string:
 					parts[i] = "\"" + ev + "\""
+				case []any:
+					// Nested array element: the Space-Saving monitored_set /
+					// top_k triples are [item, "count", "error"] arrays (item
+					// a bare int, count/error quoted u64 decimal strings). Render
+					// each inner element by the same i32-bare / string-quoted rule.
+					inner := make([]string, len(ev))
+					for j, ie := range ev {
+						switch iv := ie.(type) {
+						case string:
+							inner[j] = "\"" + iv + "\""
+						default:
+							inner[j] = strconv.FormatInt(int64(iv.(float64)), 10)
+						}
+					}
+					parts[i] = "[" + strings.Join(inner, ",") + "]"
 				default:
 					parts[i] = strconv.FormatInt(int64(ev.(float64)), 10)
 				}
@@ -254,6 +270,10 @@ func main() {
 		runImmutableSortedSet(s)
 	case "HashPipeline":
 		runHashPipeline(s)
+	case "CountMin":
+		runCountMin(s)
+	case "SpaceSaving":
+		runSpaceSaving(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -2199,4 +2219,231 @@ func runImmutableSortedSet(s scenario) {
 		}()
 		emit(s.Name, key, val, s.Assertions[key], modeNone)
 	}
+}
+
+// ---- CountMin (spec/features/count-min.md) -------------------------------
+//
+// A d x w integer counter matrix. Built by exactly ONE `with_params` op, first
+// (zero or multiple => malformed => SKIP, like HashPipeline); never `optimal`
+// (the float-derivation trap is kept out of the shared suite -- an
+// optimal/epsilon/delta op is unknown here => SKIP). Subsequent `add` ops carry
+// an i32 `value` and a `count` DECIMAL STRING (omitted => 1; may exceed 2^53).
+// Counters / estimate_<v> / total are u64 DECIMAL STRINGS (the 2^64 range
+// exceeds JSON-safe 2^53); depth/width are plain ints. `counters` is the
+// row-major (explicit-order, NOT sorted) primary oracle. Unknown ops/keys SKIP
+// (forward-compat).
+
+// parseCountOpt parses a `count` operand: a DECIMAL STRING parsed straight to
+// uint64 (never via f64), reusing the i64-suite's wide-integer discipline. A
+// bare JSON number is also accepted for small counts. Returns ok=false if
+// malformed (negative, non-numeric, or exceeding u64::MAX) so the caller SKIPs.
+// A nil/absent operand means count omitted => 1 (the add_one shape).
+func parseCountOpt(v any) (uint64, bool) {
+	switch n := v.(type) {
+	case nil:
+		return 1, true
+	case string:
+		c, err := strconv.ParseUint(n, 10, 64)
+		return c, err == nil
+	case json.Number:
+		c, err := strconv.ParseUint(n.String(), 10, 64)
+		return c, err == nil
+	case float64:
+		if n < 0 || n != math.Trunc(n) {
+			return 0, false
+		}
+		return uint64(n), true
+	}
+	return 0, false
+}
+
+// leadingOpIs reports whether the operations list has exactly one op named
+// `name` and it is the first op (the "exactly one leading X" authoring rule).
+func leadingOpIs(ops []map[string]any, name string) bool {
+	count := 0
+	for _, op := range ops {
+		if op["op"] == name {
+			count++
+		}
+	}
+	return count == 1 && len(ops) > 0 && ops[0]["op"] == name
+}
+
+func runCountMin(s scenario) {
+	if !leadingOpIs(s.Operations, "with_params") {
+		fmt.Fprintln(os.Stderr, "skip: CountMin scenario needs exactly one leading `with_params` op (forward-compat)")
+		return
+	}
+	ctor := s.Operations[0]
+	d := uint32(asInt(ctor["d"]))
+	w := uint32(asInt(ctor["w"]))
+	cms := countmin.NewCountMinWithParams(d, w)
+
+	for _, op := range s.Operations[1:] {
+		switch op["op"] {
+		case "add":
+			value := asInt32(op["value"])
+			count, ok := parseCountOpt(op["count"])
+			if !ok {
+				fmt.Fprintln(os.Stderr, "skip: CountMin add `count` is not a 0..=u64::MAX integer")
+				return
+			}
+			cms.Add(value, count)
+		default:
+			fmt.Fprintf(os.Stderr, "skip: unknown CountMin op (forward-compat): %v\n", op["op"])
+			return
+		}
+	}
+
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalCountMin(key, cms), s.Assertions[key], modeNone)
+	}
+}
+
+func evalCountMin(key string, cms *countmin.CountMin) string {
+	switch key {
+	case "counters":
+		// Row-major counter matrix, each u64 as a QUOTED decimal string;
+		// explicit order (matches the assertion array of decimal strings).
+		cs := cms.ToCounters()
+		parts := make([]string, len(cs))
+		for i, c := range cs {
+			parts[i] = "\"" + strconv.FormatUint(c, 10) + "\""
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	case "total":
+		return strconv.FormatUint(cms.Total(), 10)
+	case "depth":
+		return strconv.FormatUint(uint64(cms.Depth()), 10)
+	case "width":
+		return strconv.FormatUint(uint64(cms.Width()), 10)
+	}
+	if v, ok := estimateKey(key); ok {
+		return strconv.FormatUint(cms.Estimate(v), 10)
+	}
+	return unknown(key)
+}
+
+// estimateKey recognises an estimate_<v> assertion: <v> is a SIGNED base-10 i32
+// (exact ^estimate_(-?[0-9]+)$, full i32 range incl. negatives). A leading `+`
+// is rejected so the recogniser matches the documented regex.
+func estimateKey(key string) (int32, bool) {
+	rest, ok := strings.CutPrefix(key, "estimate_")
+	if !ok {
+		return 0, false
+	}
+	return parseSignedI32(rest)
+}
+
+// parseSignedI32 parses a signed base-10 i32, rejecting a leading `+` and any
+// non-digit body (matching the Rust runner's signed-suffix recogniser).
+func parseSignedI32(rest string) (int32, bool) {
+	digits := strings.TrimPrefix(rest, "-")
+	if digits == "" || strings.IndexFunc(digits, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+		return 0, false
+	}
+	v, err := strconv.ParseInt(rest, 10, 32)
+	if err != nil {
+		return 0, false
+	}
+	return int32(v), true
+}
+
+// ---- SpaceSaving (spec/features/count-min.md) ----------------------------
+//
+// A bounded heavy-hitters summary. Built by exactly ONE `with_capacity` op,
+// first (zero or multiple => SKIP). Subsequent `add` ops are applied IN LISTED
+// ORDER (Space-Saving is order-dependent -- a runner MUST NOT reorder). `value`
+// is an i32; `count` is a u64 decimal string (omitted => 1). monitored_set /
+// top_k_<k> are explicit-order arrays of [item, count_str, error_str] triples
+// in canonical order (count DESC, signed item ASC). count/error are u64 decimal
+// strings (2^64 range); size/capacity plain ints. Unknown ops/keys SKIP.
+
+func runSpaceSaving(s scenario) {
+	if !leadingOpIs(s.Operations, "with_capacity") {
+		fmt.Fprintln(os.Stderr, "skip: SpaceSaving scenario needs exactly one leading `with_capacity` op (forward-compat)")
+		return
+	}
+	m := uint32(asInt(s.Operations[0]["m"]))
+	ss := countmin.NewSpaceSaving(m)
+
+	for _, op := range s.Operations[1:] {
+		switch op["op"] {
+		case "add":
+			value := asInt32(op["value"])
+			count, ok := parseCountOpt(op["count"])
+			if !ok {
+				fmt.Fprintln(os.Stderr, "skip: SpaceSaving add `count` is not a 0..=u64::MAX integer")
+				return
+			}
+			ss.Add(value, count)
+		default:
+			fmt.Fprintf(os.Stderr, "skip: unknown SpaceSaving op (forward-compat): %v\n", op["op"])
+			return
+		}
+	}
+
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalSpaceSaving(key, ss), s.Assertions[key], modeNone)
+	}
+}
+
+// formatSSTriples renders an SSEntry list as a JSON array of
+// [item, "count", "error"] (item int, count/error u64 quoted decimal strings).
+func formatSSTriples(triples []countmin.SSEntry) string {
+	parts := make([]string, len(triples))
+	for i, t := range triples {
+		parts[i] = fmt.Sprintf("[%d,\"%s\",\"%s\"]",
+			t.Item, strconv.FormatUint(t.Count, 10), strconv.FormatUint(t.Error, 10))
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func evalSpaceSaving(key string, ss *countmin.SpaceSaving) string {
+	switch key {
+	case "monitored_set":
+		return formatSSTriples(ss.MonitoredSet())
+	case "size":
+		return strconv.FormatUint(uint64(ss.Size()), 10)
+	case "capacity":
+		return strconv.FormatUint(uint64(ss.Capacity()), 10)
+	}
+	if k, ok := topKKey(key); ok {
+		return formatSSTriples(ss.TopK(k))
+	}
+	if v, ok := ssSignedKey(key, "count_"); ok {
+		return strconv.FormatUint(ss.Count(v), 10)
+	}
+	if v, ok := ssSignedKey(key, "error_"); ok {
+		return strconv.FormatUint(ss.Error(v), 10)
+	}
+	return unknown(key)
+}
+
+// topKKey recognises a top_k_<k> assertion: <k> is a NON-NEGATIVE base-10 int
+// (exact ^top_k_([0-9]+)$).
+func topKKey(key string) (uint32, bool) {
+	rest, ok := strings.CutPrefix(key, "top_k_")
+	if !ok || rest == "" {
+		return 0, false
+	}
+	if strings.IndexFunc(rest, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+		return 0, false
+	}
+	v, err := strconv.ParseUint(rest, 10, 32)
+	if err != nil {
+		return 0, false
+	}
+	return uint32(v), true
+}
+
+// ssSignedKey recognises a <prefix><v> assertion whose <v> is a SIGNED base-10
+// i32 (full range incl. negatives; leading `+` rejected). Used for
+// count_<v>/error_<v>.
+func ssSignedKey(key, prefix string) (int32, bool) {
+	rest, ok := strings.CutPrefix(key, prefix)
+	if !ok {
+		return 0, false
+	}
+	return parseSignedI32(rest)
 }

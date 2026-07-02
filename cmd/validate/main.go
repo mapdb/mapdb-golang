@@ -16,6 +16,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -272,6 +273,10 @@ func main() {
 		runF32ArrayList(s)
 	case "Range<i32>":
 		runRange(s)
+	case "RangeSet<i32>":
+		runRangeSet(s)
+	case "RangeMap<i32, i32>":
+		runRangeMap(s)
 	case "ImmutableSortedMap<i32, i32>":
 		runImmutableSortedMap(s)
 	case "ImmutableSortedSet<i32>":
@@ -2733,6 +2738,301 @@ func evalRangeAssertion(key string, r, other rangev.Int32Range, hasOther bool) s
 		return strconv.FormatBool(ok && i.HasUpperBound())
 	}
 	return unknown(key)
+}
+
+// ---- RangeSet<i32> / RangeMap<i32, i32> -----------------------------------
+//
+// The auto-coalescing RangeSet / piecewise RangeMap (spec/features/
+// range-set-map.md). Routed through the PRODUCTION rangev.Int32RangeSet /
+// Int32Int32RangeMap — every assertion is proved against the real cut-algebra
+// coalescing/split/complement code, not re-derived here.
+//
+// A RangeSet/RangeMap is a STATEFUL structure built by a sequence of mutating
+// ops, each naming a `range` via the shared 10-range builder object:
+//
+//	RangeSet: {"op":"add","range":{...}} / {"op":"remove_range","range":{...}}
+//	          / {"op":"clear"}
+//	RangeMap: {"op":"put","range":{...},"value":N}
+//	          / {"op":"put_coalescing","range":{...},"value":N}
+//	          / {"op":"remove_range","range":{...}} / {"op":"clear"}
+//
+// An optional top-level `query` (same builder shape) supplies the range for
+// encloses_query / intersects_query / sub_range_set_ranges /
+// sub_range_map_entries. Unknown ops/keys/kinds SKIP (forward-compat).
+//
+// The as_ranges / complement_ranges / sub_range_set_ranges / as_map_of_ranges /
+// sub_range_map_entries arrays are EXPLICIT-ORDER (ascending by lower cut), each
+// element a fixed-shape range/entry object pinning the exact cut. Those object
+// assertions go through emitJSON (compact-JSON comparison) since the standard
+// renderExpected path does not canonicalise nested objects.
+
+// optI32JSON renders an (int32, ok) endpoint as the i32 decimal or null.
+func optI32JSON(v int32, ok bool) string {
+	if !ok {
+		return "null"
+	}
+	return strconv.FormatInt(int64(v), 10)
+}
+
+// boundTypeJSON renders a bound type as a quoted "open"/"closed" or null.
+func boundTypeJSON(bt rangev.BoundType, ok bool) string {
+	if !ok {
+		return "null"
+	}
+	return "\"" + bt.String() + "\""
+}
+
+// rangeObjStr serialises an Int32Range as the fixed-shape assertion object
+// {"lower":..,"lower_type":..,"upper":..,"upper_type":..} — endpoints are the
+// i32 value or null when unbounded; *_type is "open"/"closed"/null. The key
+// order matches the scenario JSON so emitJSON's compacted comparison agrees.
+func rangeObjStr(r rangev.Int32Range) string {
+	lv, lok := r.LowerEndpoint()
+	uv, uok := r.UpperEndpoint()
+	lt, ltok := r.LowerBoundType()
+	ut, utok := r.UpperBoundType()
+	return fmt.Sprintf(
+		"{\"lower\":%s,\"lower_type\":%s,\"upper\":%s,\"upper_type\":%s}",
+		optI32JSON(lv, lok), boundTypeJSON(lt, ltok),
+		optI32JSON(uv, uok), boundTypeJSON(ut, utok),
+	)
+}
+
+// entryObjStr serialises a (range, value) RangeMap entry: the range object plus
+// a trailing "value":<i32>.
+func entryObjStr(e rangev.Int32Int32Entry) string {
+	r := e.Range
+	lv, lok := r.LowerEndpoint()
+	uv, uok := r.UpperEndpoint()
+	lt, ltok := r.LowerBoundType()
+	ut, utok := r.UpperBoundType()
+	return fmt.Sprintf(
+		"{\"lower\":%s,\"lower_type\":%s,\"upper\":%s,\"upper_type\":%s,\"value\":%d}",
+		optI32JSON(lv, lok), boundTypeJSON(lt, ltok),
+		optI32JSON(uv, uok), boundTypeJSON(ut, utok), e.Value,
+	)
+}
+
+func rangeArrayStr(ranges []rangev.Int32Range) string {
+	parts := make([]string, len(ranges))
+	for i, r := range ranges {
+		parts[i] = rangeObjStr(r)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func entryArrayStr(entries []rangev.Int32Int32Entry) string {
+	parts := make([]string, len(entries))
+	for i, e := range entries {
+		parts[i] = entryObjStr(e)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// emitJSON prints a computed range-object assertion and compares it against the
+// COMPACTED expected JSON. The standard emit/renderExpected path is bypassed
+// because the expected value is a nested object (or array of objects); compact
+// canonicalisation (which preserves source key order, matching rangeObjStr's
+// fixed order) is the byte-for-byte oracle the Rust runner achieves via
+// serde_json's to_string(). UNKNOWN_ASSERTION:* is skipped silently.
+func emitJSON(name, key, computed string, expected json.RawMessage) {
+	if strings.HasPrefix(computed, "UNKNOWN_ASSERTION:") {
+		return
+	}
+	fmt.Printf("%s: %s\n", key, computed)
+	var buf bytes.Buffer
+	want := string(expected)
+	if err := json.Compact(&buf, expected); err == nil {
+		want = buf.String()
+	}
+	if computed != want {
+		fmt.Printf("FAIL %s %s: expected=%s got=%s\n", name, key, want, computed)
+		anyFail = true
+	}
+}
+
+// signedI32Suffix parses a signed base-10 i32 suffix (leading '-' allowed,
+// rejects '+') from a <prefix><N> key — the contains_<v> / get_<v> /
+// range_containing_<v> / get_entry_<v> convention. Returns (n, true) on a match.
+func signedI32Suffix(key, prefix string) (int32, bool) {
+	rest, ok := strings.CutPrefix(key, prefix)
+	if !ok {
+		return 0, false
+	}
+	digits := strings.TrimPrefix(rest, "-")
+	if digits == "" || !isAllDigits(digits) {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(rest, 10, 32)
+	if err != nil {
+		return 0, false
+	}
+	return int32(n), true
+}
+
+func runRangeSet(s scenario) {
+	set := rangev.NewInt32RangeSet()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			set.Add(buildRangeObj(op["range"].(map[string]any)))
+		case "remove_range":
+			set.Remove(buildRangeObj(op["range"].(map[string]any)))
+		case "clear":
+			set.Clear()
+		default:
+			// Forward-compat: unknown op kinds skip (do not crash the runner).
+		}
+	}
+	var query rangev.Int32Range
+	hasQuery := s.Query != nil
+	if hasQuery {
+		query = buildRangeObj(s.Query)
+	}
+	span, hasSpan := set.Span()
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		// Object-shaped assertions go through emitJSON; scalar ones through emit.
+		switch key {
+		case "as_ranges":
+			emitJSON(s.Name, key, rangeArrayStr(set.AsRanges()), s.Assertions[key])
+			continue
+		case "complement_ranges":
+			emitJSON(s.Name, key, rangeArrayStr(set.Complement().AsRanges()), s.Assertions[key])
+			continue
+		case "sub_range_set_ranges":
+			if hasQuery {
+				emitJSON(s.Name, key, rangeArrayStr(set.SubRangeSet(query).AsRanges()), s.Assertions[key])
+			}
+			continue
+		}
+		if n, ok := signedI32Suffix(key, "range_containing_"); ok {
+			if r, found := set.RangeContaining(n); found {
+				emitJSON(s.Name, key, rangeObjStr(r), s.Assertions[key])
+			} else {
+				emitJSON(s.Name, key, "null", s.Assertions[key])
+			}
+			continue
+		}
+		val := func() string {
+			switch key {
+			case "is_empty":
+				return strconv.FormatBool(set.IsEmpty())
+			case "span_lower":
+				if hasSpan {
+					return optInt32Str(span.LowerEndpoint())
+				}
+				return "null"
+			case "span_upper":
+				if hasSpan {
+					return optInt32Str(span.UpperEndpoint())
+				}
+				return "null"
+			case "span_lower_type":
+				if hasSpan {
+					return boundTypeStr(span.LowerBoundType())
+				}
+				return "null"
+			case "span_upper_type":
+				if hasSpan {
+					return boundTypeStr(span.UpperBoundType())
+				}
+				return "null"
+			case "encloses_query":
+				if hasQuery {
+					return strconv.FormatBool(set.Encloses(query))
+				}
+				return unknown(key)
+			case "intersects_query":
+				if hasQuery {
+					return strconv.FormatBool(set.Intersects(query))
+				}
+				return unknown(key)
+			}
+			if n, ok := signedI32Suffix(key, "contains_"); ok {
+				return strconv.FormatBool(set.Contains(n))
+			}
+			return unknown(key)
+		}()
+		emit(s.Name, key, val, s.Assertions[key], modeNone)
+	}
+}
+
+func runRangeMap(s scenario) {
+	m := rangev.NewInt32Int32RangeMap()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			m.Put(buildRangeObj(op["range"].(map[string]any)), asInt32(op["value"]))
+		case "put_coalescing":
+			m.PutCoalescing(buildRangeObj(op["range"].(map[string]any)), asInt32(op["value"]))
+		case "remove_range":
+			m.Remove(buildRangeObj(op["range"].(map[string]any)))
+		case "clear":
+			m.Clear()
+		default:
+			// Forward-compat: unknown op kinds skip.
+		}
+	}
+	var query rangev.Int32Range
+	hasQuery := s.Query != nil
+	if hasQuery {
+		query = buildRangeObj(s.Query)
+	}
+	span, hasSpan := m.Span()
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		switch key {
+		case "as_map_of_ranges":
+			emitJSON(s.Name, key, entryArrayStr(m.AsMapOfRanges()), s.Assertions[key])
+			continue
+		case "sub_range_map_entries":
+			if hasQuery {
+				emitJSON(s.Name, key, entryArrayStr(m.SubRangeMap(query).AsMapOfRanges()), s.Assertions[key])
+			}
+			continue
+		}
+		if n, ok := signedI32Suffix(key, "get_entry_"); ok {
+			if r, v, found := m.GetEntry(n); found {
+				emitJSON(s.Name, key, entryObjStr(rangev.Int32Int32Entry{Range: r, Value: v}), s.Assertions[key])
+			} else {
+				emitJSON(s.Name, key, "null", s.Assertions[key])
+			}
+			continue
+		}
+		val := func() string {
+			switch key {
+			case "is_empty":
+				return strconv.FormatBool(m.IsEmpty())
+			case "span_lower":
+				if hasSpan {
+					return optInt32Str(span.LowerEndpoint())
+				}
+				return "null"
+			case "span_upper":
+				if hasSpan {
+					return optInt32Str(span.UpperEndpoint())
+				}
+				return "null"
+			case "span_lower_type":
+				if hasSpan {
+					return boundTypeStr(span.LowerBoundType())
+				}
+				return "null"
+			case "span_upper_type":
+				if hasSpan {
+					return boundTypeStr(span.UpperBoundType())
+				}
+				return "null"
+			}
+			if n, ok := signedI32Suffix(key, "get_"); ok {
+				if v, found := m.Get(n); found {
+					return strconv.FormatInt(int64(v), 10)
+				}
+				return "null"
+			}
+			return unknown(key)
+		}()
+		emit(s.Name, key, val, s.Assertions[key], modeNone)
+	}
 }
 
 // ---- ImmutableSortedMap<i32, i32> / ImmutableSortedSet<i32> --------------

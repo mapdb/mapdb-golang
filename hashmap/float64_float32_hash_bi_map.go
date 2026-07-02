@@ -48,10 +48,9 @@ func Float64Float32BiMapBulkLoad(keys []float64, values []float32, policy pump.D
 	if len(keys) != len(values) {
 		panic("mapdb: Float64Float32BiMapBulkLoad: len(keys) != len(values)")
 	}
-	cap := pump.HashCapacityFor(len(keys))
 	m := &Float64Float32BiMap{
-		forward: NewFloat64Float32WithCapacity(cap),
-		reverse: NewFloat32Float64WithCapacity(cap),
+		forward: NewFloat64Float32WithCapacity(Float64Float32bulkCap(len(keys))),
+		reverse: NewFloat32Float64WithCapacity(Float32Float64bulkCap(len(values))),
 	}
 	// policy is intentionally ignored: a BiMap requires a bijection, so any
 	// duplicate key or value is always an error (even an identical pair, which

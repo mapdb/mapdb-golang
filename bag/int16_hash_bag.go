@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // HashInt16 is a bag (multiset) that counts occurrences of int16 values.
@@ -30,6 +32,37 @@ func HashInt16Of(values ...int16) *HashInt16 {
 		b.Add(v)
 	}
 	return b
+}
+
+// HashInt16BulkLoad builds a HashInt16 from values in a single pass,
+// presizing the backing count map for len(values). Duplicate values are counted
+// as occurrences; bag multiplicity is not a duplicate-key error.
+func HashInt16BulkLoad(values []int16) *HashInt16 {
+	b := &HashInt16{
+		counts: make(map[int16]int, pump.HashCapacityFor(len(values))),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b
+}
+
+// HashInt16BulkLoadExact is like HashInt16BulkLoad but presizes from an
+// exact total occurrence count and fails if values contains more than n items.
+func HashInt16BulkLoadExact(values []int16, n int) (*HashInt16, error) {
+	if n < 0 {
+		panic("mapdb: HashInt16BulkLoadExact: negative n")
+	}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	b := &HashInt16{
+		counts: make(map[int16]int, pump.HashCapacityFor(n)),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b, nil
 }
 
 // Add adds one occurrence of the value.

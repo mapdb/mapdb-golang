@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // HashInt64 is a bag (multiset) that counts occurrences of int64 values.
@@ -30,6 +32,37 @@ func HashInt64Of(values ...int64) *HashInt64 {
 		b.Add(v)
 	}
 	return b
+}
+
+// HashInt64BulkLoad builds a HashInt64 from values in a single pass,
+// presizing the backing count map for len(values). Duplicate values are counted
+// as occurrences; bag multiplicity is not a duplicate-key error.
+func HashInt64BulkLoad(values []int64) *HashInt64 {
+	b := &HashInt64{
+		counts: make(map[int64]int, pump.HashCapacityFor(len(values))),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b
+}
+
+// HashInt64BulkLoadExact is like HashInt64BulkLoad but presizes from an
+// exact total occurrence count and fails if values contains more than n items.
+func HashInt64BulkLoadExact(values []int64, n int) (*HashInt64, error) {
+	if n < 0 {
+		panic("mapdb: HashInt64BulkLoadExact: negative n")
+	}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	b := &HashInt64{
+		counts: make(map[int64]int, pump.HashCapacityFor(n)),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b, nil
 }
 
 // Add adds one occurrence of the value.

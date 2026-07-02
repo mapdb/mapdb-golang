@@ -8,6 +8,41 @@ import (
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
+func TestHashInt32BulkLoad_CountsDuplicates(t *testing.T) {
+	b := HashInt32BulkLoad([]int32{5, 1, 5, 2, 5, 1})
+	if b.Len() != 6 || b.SizeDistinct() != 3 {
+		t.Fatalf("len=%d distinct=%d", b.Len(), b.SizeDistinct())
+	}
+	if b.OccurrencesOf(5) != 3 || b.OccurrencesOf(1) != 2 || b.OccurrencesOf(2) != 1 {
+		t.Fatalf("bad counts: 5=%d 1=%d 2=%d", b.OccurrencesOf(5), b.OccurrencesOf(1), b.OccurrencesOf(2))
+	}
+}
+
+func TestHashInt32BulkLoadExact_TooManyCountsOccurrences(t *testing.T) {
+	if _, err := HashInt32BulkLoadExact([]int32{1, 1, 1}, 2); !errors.Is(err, pump.ErrTooManyElements) {
+		t.Fatalf("got %v, want ErrTooManyElements", err)
+	}
+	b, err := HashInt32BulkLoadExact([]int32{1, 1, 2}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Len() != 3 || b.OccurrencesOf(1) != 2 || b.OccurrencesOf(2) != 1 {
+		t.Fatalf("bad exact counts: len=%d 1=%d 2=%d", b.Len(), b.OccurrencesOf(1), b.OccurrencesOf(2))
+	}
+}
+
+func TestHashFloat64BulkLoad_FloatEdges(t *testing.T) {
+	negZero := math.Copysign(0, -1)
+	nan := math.NaN()
+	b := HashFloat64BulkLoad([]float64{negZero, 0, nan, nan})
+	if b.Len() != 4 || b.SizeDistinct() != 3 {
+		t.Fatalf("len=%d distinct=%d", b.Len(), b.SizeDistinct())
+	}
+	if b.OccurrencesOf(negZero) != 1 || b.OccurrencesOf(0) != 1 || b.OccurrencesOf(nan) != 2 {
+		t.Fatalf("bad float counts: -0=%d +0=%d nan=%d", b.OccurrencesOf(negZero), b.OccurrencesOf(0), b.OccurrencesOf(nan))
+	}
+}
+
 // TestTreeInt32Of_EqualsFromSorted verifies the O(n log n) Of path and the O(n)
 // FromSorted path produce identical entries/counts, and that they match a naive
 // repeated-Add bag.

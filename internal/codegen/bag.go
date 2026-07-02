@@ -126,6 +126,8 @@ import (
 	"math"
 {{- end}}
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 {{if .IsFloat}}
 // {{.SnakeName}}BagEntry stores the original {{.GoType}} value alongside its count.
@@ -167,6 +169,37 @@ func Hash{{.Name}}Of(values ...{{.GoType}}) *Hash{{.Name}} {
 		b.Add(v)
 	}
 	return b
+}
+
+// Hash{{.Name}}BulkLoad builds a Hash{{.Name}} from values in a single pass,
+// presizing the backing count map for len(values). Duplicate values are counted
+// as occurrences; bag multiplicity is not a duplicate-key error.
+func Hash{{.Name}}BulkLoad(values []{{.GoType}}) *Hash{{.Name}} {
+	b := &Hash{{.Name}}{
+		counts: make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}}, pump.HashCapacityFor(len(values))),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b
+}
+
+// Hash{{.Name}}BulkLoadExact is like Hash{{.Name}}BulkLoad but presizes from an
+// exact total occurrence count and fails if values contains more than n items.
+func Hash{{.Name}}BulkLoadExact(values []{{.GoType}}, n int) (*Hash{{.Name}}, error) {
+	if n < 0 {
+		panic("mapdb: Hash{{.Name}}BulkLoadExact: negative n")
+	}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	b := &Hash{{.Name}}{
+		counts: make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}}, pump.HashCapacityFor(n)),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b, nil
 }
 
 // Add adds one occurrence of the value.

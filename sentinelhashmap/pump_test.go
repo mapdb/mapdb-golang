@@ -55,6 +55,34 @@ func TestInt32Int32BulkLoadExact_ZeroRehash(t *testing.T) {
 	}
 }
 
+func TestInt32Int32BulkLoadExact_CollisionHeavyLayout(t *testing.T) {
+	keys := []int32{11, 32, 43, 64, 75, 96, 107, 128, 139, 160, 171, 181}
+	vals := make([]int32, len(keys))
+	for i := range vals {
+		vals[i] = int32(i * 10)
+	}
+	bulk, err := Int32Int32BulkLoadExact(keys, vals, len(keys), pump.ErrorOnDuplicate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	incr := NewInt32Int32WithCapacity(len(bulk.keys))
+	for i, k := range keys {
+		incr.Put(k, vals[i])
+	}
+	if len(incr.keys) != len(bulk.keys) {
+		t.Fatalf("incremental resized: %d vs %d", len(incr.keys), len(bulk.keys))
+	}
+	for i := range bulk.keys {
+		if bulk.keys[i] != incr.keys[i] || bulk.values[i] != incr.values[i] {
+			t.Fatalf("slot %d differs", i)
+		}
+	}
+	if bulk.zeroKeyPresent != incr.zeroKeyPresent || bulk.zeroKeyValue != incr.zeroKeyValue ||
+		bulk.oneKeyPresent != incr.oneKeyPresent || bulk.oneKeyValue != incr.oneKeyValue {
+		t.Fatal("sentinel fields differ")
+	}
+}
+
 func TestInt32Int32BulkLoad_SentinelKeys(t *testing.T) {
 	// keys 0 and 1 are the sentinels — they must route to dedicated fields
 	keys := []int32{0, 1, 5}

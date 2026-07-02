@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // HashInt8 is a bag (multiset) that counts occurrences of int8 values.
@@ -30,6 +32,37 @@ func HashInt8Of(values ...int8) *HashInt8 {
 		b.Add(v)
 	}
 	return b
+}
+
+// HashInt8BulkLoad builds a HashInt8 from values in a single pass,
+// presizing the backing count map for len(values). Duplicate values are counted
+// as occurrences; bag multiplicity is not a duplicate-key error.
+func HashInt8BulkLoad(values []int8) *HashInt8 {
+	b := &HashInt8{
+		counts: make(map[int8]int, pump.HashCapacityFor(len(values))),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b
+}
+
+// HashInt8BulkLoadExact is like HashInt8BulkLoad but presizes from an
+// exact total occurrence count and fails if values contains more than n items.
+func HashInt8BulkLoadExact(values []int8, n int) (*HashInt8, error) {
+	if n < 0 {
+		panic("mapdb: HashInt8BulkLoadExact: negative n")
+	}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	b := &HashInt8{
+		counts: make(map[int8]int, pump.HashCapacityFor(n)),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b, nil
 }
 
 // Add adds one occurrence of the value.

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // HashInt32 is a bag (multiset) that counts occurrences of int32 values.
@@ -30,6 +32,37 @@ func HashInt32Of(values ...int32) *HashInt32 {
 		b.Add(v)
 	}
 	return b
+}
+
+// HashInt32BulkLoad builds a HashInt32 from values in a single pass,
+// presizing the backing count map for len(values). Duplicate values are counted
+// as occurrences; bag multiplicity is not a duplicate-key error.
+func HashInt32BulkLoad(values []int32) *HashInt32 {
+	b := &HashInt32{
+		counts: make(map[int32]int, pump.HashCapacityFor(len(values))),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b
+}
+
+// HashInt32BulkLoadExact is like HashInt32BulkLoad but presizes from an
+// exact total occurrence count and fails if values contains more than n items.
+func HashInt32BulkLoadExact(values []int32, n int) (*HashInt32, error) {
+	if n < 0 {
+		panic("mapdb: HashInt32BulkLoadExact: negative n")
+	}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	b := &HashInt32{
+		counts: make(map[int32]int, pump.HashCapacityFor(n)),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b, nil
 }
 
 // Add adds one occurrence of the value.

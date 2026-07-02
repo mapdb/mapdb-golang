@@ -72,6 +72,30 @@ func TestInt32Int32BulkLoadExact_ByteIdenticalLayout(t *testing.T) {
 	}
 }
 
+func TestInt32Int32BulkLoadExact_CollisionHeavyLayout(t *testing.T) {
+	keys := []int32{11, 32, 43, 64, 75, 96, 107, 128, 139, 160, 171, 181}
+	vals := make([]int32, len(keys))
+	for i := range vals {
+		vals[i] = int32(i * 10)
+	}
+	bulk, err := Int32Int32BulkLoadExact(keys, vals, len(keys), pump.ErrorOnDuplicate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	incr := NewInt32Int32WithCapacity(len(bulk.entries))
+	for i, k := range keys {
+		incr.Put(k, vals[i])
+	}
+	if len(incr.entries) != len(bulk.entries) {
+		t.Fatalf("incremental resized: %d vs %d", len(incr.entries), len(bulk.entries))
+	}
+	for i := range bulk.entries {
+		if bulk.entries[i] != incr.entries[i] {
+			t.Fatalf("slot %d differs", i)
+		}
+	}
+}
+
 // TestInt32Int32BulkLoadExact_ZeroRehash asserts the table is presized so that no
 // rehash happens during the load, at the n = 3*2^k boundary that catches the
 // off-by-one in a naive ceil(n/0.75).
@@ -182,6 +206,9 @@ func TestInt32Int32BiMapBulkLoad(t *testing.T) {
 	}
 	if k, _ := m.GetKey(30); k != 3 {
 		t.Fatalf("reverse broken")
+	}
+	if len(m.forward.entries) != int32Int32DefaultCapacity || len(m.reverse.entries) != int32Int32DefaultCapacity {
+		t.Fatalf("small bimap load did not use default capacity floor: forward=%d reverse=%d", len(m.forward.entries), len(m.reverse.entries))
 	}
 	// duplicate key
 	if _, err := Int32Int32BiMapBulkLoad([]int32{1, 1}, []int32{10, 20}, pump.ErrorOnDuplicate); !errors.Is(err, pump.ErrDuplicateKey) {

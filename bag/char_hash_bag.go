@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // HashChar is a bag (multiset) that counts occurrences of uint16 values.
@@ -30,6 +32,37 @@ func HashCharOf(values ...uint16) *HashChar {
 		b.Add(v)
 	}
 	return b
+}
+
+// HashCharBulkLoad builds a HashChar from values in a single pass,
+// presizing the backing count map for len(values). Duplicate values are counted
+// as occurrences; bag multiplicity is not a duplicate-key error.
+func HashCharBulkLoad(values []uint16) *HashChar {
+	b := &HashChar{
+		counts: make(map[uint16]int, pump.HashCapacityFor(len(values))),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b
+}
+
+// HashCharBulkLoadExact is like HashCharBulkLoad but presizes from an
+// exact total occurrence count and fails if values contains more than n items.
+func HashCharBulkLoadExact(values []uint16, n int) (*HashChar, error) {
+	if n < 0 {
+		panic("mapdb: HashCharBulkLoadExact: negative n")
+	}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	b := &HashChar{
+		counts: make(map[uint16]int, pump.HashCapacityFor(n)),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b, nil
 }
 
 // Add adds one occurrence of the value.

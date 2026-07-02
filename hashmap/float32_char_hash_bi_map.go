@@ -48,10 +48,9 @@ func Float32CharBiMapBulkLoad(keys []float32, values []uint16, policy pump.Dupli
 	if len(keys) != len(values) {
 		panic("mapdb: Float32CharBiMapBulkLoad: len(keys) != len(values)")
 	}
-	cap := pump.HashCapacityFor(len(keys))
 	m := &Float32CharBiMap{
-		forward: NewFloat32CharWithCapacity(cap),
-		reverse: NewCharFloat32WithCapacity(cap),
+		forward: NewFloat32CharWithCapacity(Float32CharbulkCap(len(keys))),
+		reverse: NewCharFloat32WithCapacity(CharFloat32bulkCap(len(values))),
 	}
 	// policy is intentionally ignored: a BiMap requires a bijection, so any
 	// duplicate key or value is always an error (even an identical pair, which

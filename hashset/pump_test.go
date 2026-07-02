@@ -49,6 +49,26 @@ func TestInt32BulkLoadExact_ZeroRehash(t *testing.T) {
 	}
 }
 
+func TestInt32BulkLoadExact_CollisionHeavyLayout(t *testing.T) {
+	vals := []int32{11, 32, 43, 64, 75, 96, 107, 128, 139, 160, 171, 181}
+	bulk, err := Int32BulkLoadExact(vals, len(vals), pump.ErrorOnDuplicate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	incr := NewInt32WithCapacity(len(bulk.entries))
+	for _, v := range vals {
+		incr.Add(v)
+	}
+	if len(incr.entries) != len(bulk.entries) {
+		t.Fatalf("incremental resized: %d vs %d", len(incr.entries), len(bulk.entries))
+	}
+	for i := range bulk.entries {
+		if bulk.entries[i] != incr.entries[i] {
+			t.Fatalf("slot %d differs", i)
+		}
+	}
+}
+
 func TestInt32BulkLoadExact_TooMany(t *testing.T) {
 	if _, err := Int32BulkLoadExact([]int32{1, 2, 3}, 2, pump.ErrorOnDuplicate); !errors.Is(err, pump.ErrTooManyElements) {
 		t.Fatalf("got %v", err)

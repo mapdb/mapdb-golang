@@ -7,6 +7,8 @@ import (
 	"iter"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // float64BagEntry stores the original float64 value alongside its count.
@@ -41,6 +43,37 @@ func HashFloat64Of(values ...float64) *HashFloat64 {
 		b.Add(v)
 	}
 	return b
+}
+
+// HashFloat64BulkLoad builds a HashFloat64 from values in a single pass,
+// presizing the backing count map for len(values). Duplicate values are counted
+// as occurrences; bag multiplicity is not a duplicate-key error.
+func HashFloat64BulkLoad(values []float64) *HashFloat64 {
+	b := &HashFloat64{
+		counts: make(map[uint64]float64BagEntry, pump.HashCapacityFor(len(values))),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b
+}
+
+// HashFloat64BulkLoadExact is like HashFloat64BulkLoad but presizes from an
+// exact total occurrence count and fails if values contains more than n items.
+func HashFloat64BulkLoadExact(values []float64, n int) (*HashFloat64, error) {
+	if n < 0 {
+		panic("mapdb: HashFloat64BulkLoadExact: negative n")
+	}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	b := &HashFloat64{
+		counts: make(map[uint64]float64BagEntry, pump.HashCapacityFor(n)),
+	}
+	for _, v := range values {
+		b.Add(v)
+	}
+	return b, nil
 }
 
 // Add adds one occurrence of the value.

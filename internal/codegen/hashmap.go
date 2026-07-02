@@ -1519,10 +1519,9 @@ func {{.MapName}}BiMapBulkLoad(keys []{{.KeyType}}, values []{{.ValType}}, polic
 	if len(keys) != len(values) {
 		panic("mapdb: {{.MapName}}BiMapBulkLoad: len(keys) != len(values)")
 	}
-	cap := pump.HashCapacityFor(len(keys))
 	m := &{{.MapName}}BiMap{
-		forward: New{{.MapName}}WithCapacity(cap),
-		reverse: New{{.RevName}}WithCapacity(cap),
+		forward: New{{.MapName}}WithCapacity({{.MapName}}bulkCap(len(keys))),
+		reverse: New{{.RevName}}WithCapacity({{.RevName}}bulkCap(len(values))),
 	}
 	// policy is intentionally ignored: a BiMap requires a bijection, so any
 	// duplicate key or value is always an error (even an identical pair, which

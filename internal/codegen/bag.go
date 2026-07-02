@@ -1148,6 +1148,8 @@ import (
 {{- end}}
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Tree{{.Name}}Entry holds a value and its occurrence count in a Tree{{.Name}}.
@@ -1171,13 +1173,63 @@ func NewTree{{.Name}}() *Tree{{.Name}} {
 	}
 }
 
-// Tree{{.Name}}Of creates a new Tree{{.Name}} from the given values.
+// Tree{{.Name}}Of creates a new Tree{{.Name}} from the given values. It sorts a
+// copy of the input once and coalesces equal runs into counted entries in a
+// single pass — O(n log n) overall, versus the O(n²) of repeated Add (each Add
+// shifts the sorted slice). The result is identical to repeated Add.
 func Tree{{.Name}}Of(values ...{{.GoType}}) *Tree{{.Name}} {
-	b := NewTree{{.Name}}()
-	for _, v := range values {
-		b.Add(v)
+	if len(values) == 0 {
+		return NewTree{{.Name}}()
 	}
+	sorted := make([]{{.GoType}}, len(values))
+	copy(sorted, values)
+	slices.SortFunc(sorted, func(a, c {{.GoType}}) int {
+		return {{if .IsFloat}}{{.CmpFn}}(a, c){{else}}cmp.Compare(a, c){{end}}
+	})
+	b := NewTree{{.Name}}()
+	b.entries = coalesce{{.Name}}Sorted(sorted)
+	b.size = len(sorted)
 	return b
+}
+
+// NewTree{{.Name}}FromSorted builds a Tree{{.Name}} from presorted ascending
+// values in a single O(n) pass, coalescing equal runs into counts. values must
+// be in ascending order according to the bag's own comparator (the IEEE-754
+// total order for floats); out-of-order input returns pump.ErrNotSorted.
+//
+// Duplicate values are the normal bag case and increment the count, so the
+// duplicate policy does not apply here. Run-length coalescing is overflow-checked
+// (each count fits in an int by construction since it cannot exceed len(values)).
+// The result is observably identical to the same values added one-by-one.
+func NewTree{{.Name}}FromSorted(values []{{.GoType}}) (*Tree{{.Name}}, error) {
+	if len(values) == 0 {
+		return NewTree{{.Name}}(), nil
+	}
+	for i := 1; i < len(values); i++ {
+		if {{if .IsFloat}}{{.CmpFn}}(values[i], values[i-1]){{else}}cmp.Compare(values[i], values[i-1]){{end}} < 0 {
+			return nil, pump.ErrNotSorted
+		}
+	}
+	b := NewTree{{.Name}}()
+	b.entries = coalesce{{.Name}}Sorted(values)
+	b.size = len(values)
+	return b, nil
+}
+
+// coalesce{{.Name}}Sorted compresses a sorted value slice into counted entries
+// in one pass. The input must already be sorted by the bag's comparator.
+func coalesce{{.Name}}Sorted(sorted []{{.GoType}}) []Tree{{.Name}}Entry {
+	entries := make([]Tree{{.Name}}Entry, 0, len(sorted))
+	entries = append(entries, Tree{{.Name}}Entry{value: sorted[0], count: 1})
+	for i := 1; i < len(sorted); i++ {
+		last := &entries[len(entries)-1]
+		if {{if .IsFloat}}{{.CmpFn}}(sorted[i], last.value) == 0{{else}}sorted[i] == last.value{{end}} {
+			last.count++
+		} else {
+			entries = append(entries, Tree{{.Name}}Entry{value: sorted[i], count: 1})
+		}
+	}
+	return entries
 }
 
 // search returns the index where value is or would be inserted.

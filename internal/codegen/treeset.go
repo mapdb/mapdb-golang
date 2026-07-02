@@ -83,6 +83,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -580,6 +582,120 @@ func (s *{{.Name}}) String() string {
 	}
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// --- Data pump (bulk import) ---
+
+// New{{.Name}}FromSorted builds a {{.Name}} from presorted, ascending values in
+// a single O(n) pass, skipping the per-insert rebalancing of Add. values must be
+// in ascending order according to the set's own comparator (the IEEE-754 total
+// order for float values).
+//
+// On an out-of-order value it returns pump.ErrNotSorted. On a duplicate it
+// returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the duplicate is skipped. A failed
+// build returns a nil set, never a half-built one. The result is observably
+// identical to the same values inserted one-by-one with Add, and is a valid
+// red-black tree so later Add/Remove preserve the invariant.
+func New{{.Name}}FromSorted(values []{{.GoType}}, policy pump.DuplicatePolicy) (*{{.Name}}, error) {
+	dv, err := dedup{{.Name}}Sorted(values, policy)
+	if err != nil {
+		return nil, err
+	}
+	s := New{{.Name}}()
+	s.root = s.build{{.SnakeName}}(dv, 0, len(dv)-1, 0, pump.RedBlackRedLevel(len(dv)), nil)
+	s.size = len(dv)
+	return s, nil
+}
+
+// dedup{{.Name}}Sorted validates ascending order and applies the duplicate
+// policy, returning a compacted value slice.
+func dedup{{.Name}}Sorted(values []{{.GoType}}, policy pump.DuplicatePolicy) ([]{{.GoType}}, error) {
+	if len(values) == 0 {
+		return values, nil
+	}
+	out := make([]{{.GoType}}, 0, len(values))
+	out = append(out, values[0])
+	for i := 1; i < len(values); i++ {
+		cmp := {{if .IsFloat}}{{.CmpFn}}(values[i], values[i-1]){{else}}cmp{{.Name}}(values[i], values[i-1]){{end}}
+		if cmp < 0 {
+			return nil, pump.ErrNotSorted
+		}
+		if cmp == 0 {
+			if policy == pump.IgnoreDuplicates {
+				continue
+			}
+			return nil, pump.ErrDuplicateKey
+		}
+		out = append(out, values[i])
+	}
+	return out, nil
+}
+
+{{if not .IsFloat}}
+// cmp{{.Name}} is the three-way ordering used by the bulk-load validator for
+// integer/char values (float values use the IEEE total-order helper instead).
+func cmp{{.Name}}(a, b {{.GoType}}) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+{{end}}
+
+// build{{.SnakeName}} recursively builds a perfectly balanced subtree over
+// [lo, hi], colouring nodes on redLevel red and all others black (classic JDK
+// buildFromSorted).
+func (s *{{.Name}}) build{{.SnakeName}}(values []{{.GoType}}, lo, hi, level, redLevel int, parent *{{.SnakeName}}Node) *{{.SnakeName}}Node {
+	if lo > hi {
+		return nil
+	}
+	mid := (lo + hi) / 2
+	node := &{{.SnakeName}}Node{key: values[mid], parent: parent, color: {{.SnakeName}}NodeBlack}
+	if level == redLevel {
+		node.color = {{.SnakeName}}NodeRed
+	}
+	node.left = s.build{{.SnakeName}}(values, lo, mid-1, level+1, redLevel, node)
+	node.right = s.build{{.SnakeName}}(values, mid+1, hi, level+1, redLevel, node)
+	return node
+}
+
+// {{.Name}}Sink is a streaming builder for a {{.Name}}: callers Add ascending
+// values, then Build the finished set. It is a thin wrapper over
+// New{{.Name}}FromSorted. After an error or after Build the sink is poisoned and
+// further Add/Build calls panic.
+type {{.Name}}Sink struct {
+	values []{{.GoType}}
+	policy pump.DuplicatePolicy
+	done   bool
+}
+
+// New{{.Name}}Sink creates a streaming sink with the given duplicate policy.
+func New{{.Name}}Sink(policy pump.DuplicatePolicy) *{{.Name}}Sink {
+	return &{{.Name}}Sink{policy: policy}
+}
+
+// Add appends one value. Values must be supplied in ascending order; order and
+// duplicate violations are reported by Build. Calling Add after Build panics.
+func (s *{{.Name}}Sink) Add(value {{.GoType}}) {
+	if s.done {
+		panic("mapdb: Add on a finished {{.Name}}Sink")
+	}
+	s.values = append(s.values, value)
+}
+
+// Build finishes the sink and returns the set. The sink is poisoned afterwards
+// (a second Build panics).
+func (s *{{.Name}}Sink) Build() (*{{.Name}}, error) {
+	if s.done {
+		panic("mapdb: Build on a finished {{.Name}}Sink")
+	}
+	s.done = true
+	return New{{.Name}}FromSorted(s.values, s.policy)
 }
 
 // --- Red-black tree internals (same as TreeMap) ---

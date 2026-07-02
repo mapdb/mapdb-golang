@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -45,6 +47,79 @@ func Int8Of(values ...int8) *Int8 {
 		s.Add(v)
 	}
 	return s
+}
+
+// Int8BulkLoad builds a Int8 from values in a single pass, presizing
+// the table once to fit len(values) at the 0.75 load factor. The input need not
+// be sorted. On a duplicate value it returns pump.ErrDuplicateKey unless
+// policy is pump.IgnoreDuplicates, in which case duplicates are skipped.
+// The result is observably identical to the same values inserted one-by-one with
+// Add. The size is a hint; use Int8BulkLoadExact for the zero-rehash
+// guarantee.
+func Int8BulkLoad(values []int8, policy pump.DuplicatePolicy) (*Int8, error) {
+	s := &Int8{entries: make([]int8Entry, Int8bulkCap(len(values)))}
+	for _, v := range values {
+		if s.needsResize() {
+			s.resize()
+		}
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// Int8BulkLoadExact is like Int8BulkLoad but guarantees zero mid-load
+// rehash: the table is sized for exactly n consumed values. It returns
+// pump.ErrTooManyElements if the source yields more than n values, even when
+// the extra values are duplicates skipped by pump.IgnoreDuplicates. n must be
+// non-negative (negative panics).
+func Int8BulkLoadExact(values []int8, n int, policy pump.DuplicatePolicy) (*Int8, error) {
+	if n < 0 {
+		panic("mapdb: Int8BulkLoadExact: negative n")
+	}
+	s := &Int8{entries: make([]int8Entry, Int8bulkCap(n))}
+	if len(values) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	for _, v := range values {
+		if _, err := s.bulkAdd(v, policy); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// bulkAdd inserts a single value via the ordinary probe without a resize check
+// (callers guarantee capacity), applying the duplicate policy.
+func (s *Int8) bulkAdd(value int8, policy pump.DuplicatePolicy) (bool, error) {
+	mask := len(s.entries) - 1
+	idx := int(s.hash(value)) & mask
+	for {
+		if !s.entries[idx].occupied {
+			s.entries[idx].key = value
+			s.entries[idx].occupied = true
+			s.size++
+			return false, nil
+		}
+		if s.entries[idx].key == value {
+			if policy == pump.IgnoreDuplicates {
+				return true, nil
+			}
+			return true, pump.ErrDuplicateKey
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// Int8bulkCap returns the presized table capacity for n values that avoids
+// any mid-load rehash, floored at the family default.
+func Int8bulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < int8DefaultCapacity {
+		return int8DefaultCapacity
+	}
+	return c
 }
 
 // Add inserts a value into the set. Returns true if the value was added (not already present).

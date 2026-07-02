@@ -5,6 +5,8 @@ package multimap
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int8CharList is a list multimap from int8 keys to uint16 values.
@@ -20,6 +22,97 @@ func NewInt8CharList() *Int8CharList {
 		data: make(map[int8][]uint16),
 		size: 0,
 	}
+}
+
+// Int8CharListBulkLoad builds a Int8CharList from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; values are
+// appended in input order, exactly as repeated Put. Duplicate keys are the normal
+// grouping case and the duplicate policy does not apply (a list multimap keeps
+// every value).
+func Int8CharListBulkLoad(keys []int8, values []uint16) *Int8CharList {
+	if len(keys) != len(values) {
+		panic("mapdb: Int8CharListBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int8CharList{
+		data: make(map[int8][]uint16, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt8CharListFromSortedKeys builds a Int8CharList from input grouped
+// by ascending key: all values for a key are contiguous, and keys appear in
+// ascending order (the IEEE-754 total order for float keys). It validates the key
+// monotonicity in one pass and assigns each key's value slice directly, preserving
+// value order within a key run. keys[i] and values[i] form one pair (a length
+// mismatch panics). Out-of-order or interleaved keys return pump.ErrNotSorted.
+// The result is observably identical to the same pairs inserted with Put.
+func NewInt8CharListFromSortedKeys(keys []int8, values []uint16) (*Int8CharList, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt8CharListFromSortedKeys: len(keys) != len(values)")
+	}
+	m := &Int8CharList{
+		data: make(map[int8][]uint16),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt8(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []uint16{}
+		for j < len(keys) && cmpKeyInt8(keys[j], key) == 0 {
+			run = append(run, values[j])
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
+}
+
+// NewInt8CharListFromSortedKeyValues builds a Int8CharList from input
+// sorted by ascending key and, within each key, ascending value. It validates
+// both key monotonicity and per-key value monotonicity (using the value type's
+// own comparator — the IEEE-754 total order for float values) in one pass.
+// Unlike set multimaps, list multimaps preserve equal adjacent values exactly.
+// keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. If your values are
+// not sorted within each key, use Int8CharListBulkLoad instead.
+func NewInt8CharListFromSortedKeyValues(keys []int8, values []uint16) (*Int8CharList, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt8CharListFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int8CharList{
+		data: make(map[int8][]uint16),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt8(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []uint16{}
+		for j < len(keys) && cmpKeyInt8(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 && cmpKeyChar(run[len(run)-1], v) > 0 {
+				return nil, pump.ErrNotSorted // value descends within key run
+			}
+			run = append(run, v)
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the list for the given key.

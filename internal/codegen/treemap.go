@@ -130,6 +130,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -924,6 +926,137 @@ func (m *{{.MapName}}) deleteNode(z *{{.NodeName}}TreeNode) {
 		}
 	}
 	m.fixSizeToRoot(fixSizeFrom)
+}
+
+// --- Data pump (bulk import) ---
+
+// New{{.MapName}}FromSorted builds a {{.MapName}} from presorted, ascending keys
+// in a single O(n) pass, skipping the per-insert rebalancing of Put. keys must
+// be in ascending order according to the map's own comparator (the IEEE-754
+// total order for float keys); keys[i] and values[i] form one entry, so the two
+// slices must have equal length (a length mismatch is a programmer error and
+// panics).
+//
+// On an out-of-order key it returns pump.ErrNotSorted. On a duplicate key
+// it returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the first value for a key is kept
+// and the rest are skipped. A failed build returns a nil map and never a
+// half-built one.
+//
+// The result is observably identical to the same entries inserted one-by-one
+// with Put: same iteration order, same lookups. The tree is a valid red-black
+// tree, so later Put/Remove preserve the invariant.
+func New{{.MapName}}FromSorted(keys []{{.KeyType}}, values []{{.ValType}}, policy pump.DuplicatePolicy) (*{{.MapName}}, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: New{{.MapName}}FromSorted: len(keys) != len(values)")
+	}
+	dk, dv, err := dedup{{.MapName}}Sorted(keys, values, policy)
+	if err != nil {
+		return nil, err
+	}
+	m := New{{.MapName}}()
+	m.root = m.build{{.NodeName}}(dk, dv, 0, len(dk)-1, 0, pump.RedBlackRedLevel(len(dk)), nil)
+	m.size = len(dk)
+	return m, nil
+}
+
+// dedup{{.MapName}}Sorted validates ascending order and applies the duplicate
+// policy, returning compacted key/value slices. Equal adjacent keys are the only
+// duplicates possible in sorted input.
+func dedup{{.MapName}}Sorted(keys []{{.KeyType}}, values []{{.ValType}}, policy pump.DuplicatePolicy) ([]{{.KeyType}}, []{{.ValType}}, error) {
+	if len(keys) == 0 {
+		return keys, values, nil
+	}
+	outK := make([]{{.KeyType}}, 0, len(keys))
+	outV := make([]{{.ValType}}, 0, len(keys))
+	outK = append(outK, keys[0])
+	outV = append(outV, values[0])
+	for i := 1; i < len(keys); i++ {
+		cmp := {{if .KeyIsFloat}}{{.CmpFn}}(keys[i], keys[i-1]){{else}}cmp{{.MapName}}(keys[i], keys[i-1]){{end}}
+		if cmp < 0 {
+			return nil, nil, pump.ErrNotSorted
+		}
+		if cmp == 0 {
+			if policy == pump.IgnoreDuplicates {
+				continue
+			}
+			return nil, nil, pump.ErrDuplicateKey
+		}
+		outK = append(outK, keys[i])
+		outV = append(outV, values[i])
+	}
+	return outK, outV, nil
+}
+
+{{if not .KeyIsFloat}}
+// cmp{{.MapName}} is the three-way ordering used by the bulk-load validator for
+// integer/char keys (float keys use the IEEE total-order helper instead).
+func cmp{{.MapName}}(a, b {{.KeyType}}) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+{{end}}
+
+// build{{.NodeName}} recursively builds a perfectly balanced subtree from the
+// sorted slices over [lo, hi], colouring nodes on redLevel red and all others
+// black (the classic JDK buildFromSorted). parent wires the back-pointers.
+func (m *{{.MapName}}) build{{.NodeName}}(keys []{{.KeyType}}, values []{{.ValType}}, lo, hi, level, redLevel int, parent *{{.NodeName}}TreeNode) *{{.NodeName}}TreeNode {
+	if lo > hi {
+		return nil
+	}
+	mid := (lo + hi) / 2
+	node := &{{.NodeName}}TreeNode{key: keys[mid], value: values[mid], parent: parent, color: {{.NodeName}}TreeNodeBlack}
+	if level == redLevel {
+		node.color = {{.NodeName}}TreeNodeRed
+	}
+	node.left = m.build{{.NodeName}}(keys, values, lo, mid-1, level+1, redLevel, node)
+	node.right = m.build{{.NodeName}}(keys, values, mid+1, hi, level+1, redLevel, node)
+	return node
+}
+
+// {{.MapName}}Sink is a streaming builder for a {{.MapName}}: callers Put
+// ascending entries one at a time, then Build the finished map. It is a thin
+// wrapper over New{{.MapName}}FromSorted (entries are buffered, then built in one
+// pass), so the build logic and contract live in one place. After an error, or
+// after Build, the sink is poisoned and further Put/Build calls panic.
+type {{.MapName}}Sink struct {
+	keys   []{{.KeyType}}
+	values []{{.ValType}}
+	policy pump.DuplicatePolicy
+	done   bool
+}
+
+// New{{.MapName}}Sink creates a streaming sink with the given duplicate policy.
+func New{{.MapName}}Sink(policy pump.DuplicatePolicy) *{{.MapName}}Sink {
+	return &{{.MapName}}Sink{policy: policy}
+}
+
+// Put appends one entry. Entries must be supplied in ascending key order; order
+// and duplicate violations are reported by Build, not here (the buffer-then-build
+// shape detects them in one pass). Calling Put after Build panics.
+func (s *{{.MapName}}Sink) Put(key {{.KeyType}}, value {{.ValType}}) {
+	if s.done {
+		panic("mapdb: Put on a finished {{.MapName}}Sink")
+	}
+	s.keys = append(s.keys, key)
+	s.values = append(s.values, value)
+}
+
+// Build finishes the sink and returns the map. The sink is poisoned afterwards
+// (a second Build panics). On an order/duplicate error the map is nil and the
+// sink is still poisoned.
+func (s *{{.MapName}}Sink) Build() (*{{.MapName}}, error) {
+	if s.done {
+		panic("mapdb: Build on a finished {{.MapName}}Sink")
+	}
+	s.done = true
+	return New{{.MapName}}FromSorted(s.keys, s.values, s.policy)
 }
 
 func (m *{{.MapName}}) fixAfterDelete(x *{{.NodeName}}TreeNode) {

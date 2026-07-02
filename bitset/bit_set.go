@@ -27,6 +27,48 @@ func NewBitSetOfLength(nBits int) *BitSet {
 	return &BitSet{words: make([]uint64, nWords), bitLength: nBits}
 }
 
+// BitSetOfIndices builds a BitSet with the given bit indices set, sizing the
+// backing words once for the maximum index in a single O(n) pass instead of
+// growing on each Set. Indices need not be sorted; a negative index panics. It is
+// the BitSet's bulk-load convenience and yields the same BitSet as repeated Set.
+func BitSetOfIndices(indices ...int) *BitSet {
+	max := -1
+	for _, i := range indices {
+		if i < 0 {
+			panic("BitSet: bit index must not be negative")
+		}
+		if i > max {
+			max = i
+		}
+	}
+	b := NewBitSetOfLength(max + 1)
+	for _, i := range indices {
+		b.words[i/bitsPerWord] |= 1 << uint(i%bitsPerWord)
+	}
+	return b
+}
+
+// SetAll sets every bit in indices in a single pass, presizing the backing words
+// once for the maximum index. Indices need not be sorted; a negative index
+// panics. Equivalent to calling Set for each index but without per-index growth.
+func (b *BitSet) SetAll(indices ...int) {
+	max := -1
+	for _, i := range indices {
+		if i < 0 {
+			panic("BitSet: bit index must not be negative")
+		}
+		if i > max {
+			max = i
+		}
+	}
+	if max >= 0 {
+		b.ensure(max)
+	}
+	for _, i := range indices {
+		b.words[i/bitsPerWord] |= 1 << uint(i%bitsPerWord)
+	}
+}
+
 func (b *BitSet) ensure(bit int) {
 	if bit < 0 {
 		panic("BitSet: bit index must not be negative")

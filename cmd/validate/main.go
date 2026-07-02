@@ -37,6 +37,7 @@ import (
 	"github.com/mapdb/mapdb-golang/hyperloglog"
 	"github.com/mapdb/mapdb-golang/immutablesorted"
 	"github.com/mapdb/mapdb-golang/multimap"
+	"github.com/mapdb/mapdb-golang/pump"
 	"github.com/mapdb/mapdb-golang/rangev"
 	"github.com/mapdb/mapdb-golang/roaring"
 	"github.com/mapdb/mapdb-golang/treemap"
@@ -44,11 +45,12 @@ import (
 )
 
 type scenario struct {
-	Name       string                     `json:"name"`
-	Collection string                     `json:"collection"`
-	Operations []map[string]any           `json:"operations"`
-	Assertions map[string]json.RawMessage `json:"assertions"`
-	Other      *otherSpec                 `json:"other,omitempty"`
+	Name         string                     `json:"name"`
+	Collection   string                     `json:"collection"`
+	Construction string                     `json:"construction,omitempty"`
+	Operations   []map[string]any           `json:"operations"`
+	Assertions   map[string]json.RawMessage `json:"assertions"`
+	Other        *otherSpec                 `json:"other,omitempty"`
 	// Query is the optional single top-level range (NavigableMap/Set) the
 	// range_* assertions refer to; same range-builder shape as the `range`
 	// field on a remove_range op.
@@ -1412,24 +1414,44 @@ func evalRoaringAssertion(key string, set, other *roaring.RoaringU32) string {
 // ---- HashMap<i32, i32> ---------------------------------------------------
 
 func runHashMap(s scenario) {
-	m := hashmap.NewInt32Int32()
-	for _, op := range s.Operations {
-		switch op["op"] {
-		case "put":
-			m.Put(asInt32(op["key"]), asInt32(op["value"]))
-		case "remove":
-			m.Remove(asInt32(op["key"]))
-		case "addToValue":
-			m.AddToValue(asInt32(op["key"]), asInt32(op["delta"]))
-		case "clear":
-			m.Clear()
-		default:
-			fatalf("unknown hashmap op: %v", op["op"])
+	var m *hashmap.Int32Int32
+	if s.Construction == "bulkLoadExact" {
+		keys, vals := int32Pairs(s.Operations)
+		var err error
+		m, err = hashmap.Int32Int32BulkLoadExact(keys, vals, len(keys), pump.ErrorOnDuplicate)
+		if err != nil {
+			fatalf("bulkLoadExact failed: %v", err)
+		}
+	} else {
+		m = hashmap.NewInt32Int32()
+		for _, op := range s.Operations {
+			switch op["op"] {
+			case "put":
+				m.Put(asInt32(op["key"]), asInt32(op["value"]))
+			case "remove":
+				m.Remove(asInt32(op["key"]))
+			case "addToValue":
+				m.AddToValue(asInt32(op["key"]), asInt32(op["delta"]))
+			case "clear":
+				m.Clear()
+			default:
+				fatalf("unknown hashmap op: %v", op["op"])
+			}
 		}
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
 		emit(s.Name, key, evalMapAssertion(key, m), s.Assertions[key], modeNone)
 	}
+}
+
+func int32Pairs(ops []map[string]any) ([]int32, []int32) {
+	keys := make([]int32, 0, len(ops))
+	vals := make([]int32, 0, len(ops))
+	for _, op := range ops {
+		keys = append(keys, asInt32(op["key"]))
+		vals = append(vals, asInt32(op["value"]))
+	}
+	return keys, vals
 }
 
 func evalMapAssertion(key string, m *hashmap.Int32Int32) string {
@@ -1579,8 +1601,41 @@ type i64Multimap interface {
 	Keys() []int64
 }
 
-func runI64ListMultimap(s scenario) { runI64Multimap(s, multimap.NewInt64Int32List()) }
-func runI64SetMultimap(s scenario)  { runI64Multimap(s, multimap.NewInt64Int32Set()) }
+func runI64ListMultimap(s scenario) {
+	if s.Construction == "fromSortedKeyValues" {
+		keys, vals := i64Pairs(s.Operations)
+		m, err := multimap.NewInt64Int32ListFromSortedKeyValues(keys, vals)
+		if err != nil {
+			fatalf("fromSortedKeyValues failed: %v", err)
+		}
+		runI64MultimapAssertions(s, m)
+		return
+	}
+	runI64Multimap(s, multimap.NewInt64Int32List())
+}
+
+func runI64SetMultimap(s scenario) {
+	if s.Construction == "fromSortedKeyValues" {
+		keys, vals := i64Pairs(s.Operations)
+		m, err := multimap.NewInt64Int32SetFromSortedKeyValues(keys, vals)
+		if err != nil {
+			fatalf("fromSortedKeyValues failed: %v", err)
+		}
+		runI64MultimapAssertions(s, m)
+		return
+	}
+	runI64Multimap(s, multimap.NewInt64Int32Set())
+}
+
+func i64Pairs(ops []map[string]any) ([]int64, []int32) {
+	keys := make([]int64, 0, len(ops))
+	vals := make([]int32, 0, len(ops))
+	for _, op := range ops {
+		keys = append(keys, parseI64Operand(op["key"]))
+		vals = append(vals, asInt32(op["value"]))
+	}
+	return keys, vals
+}
 
 func runI64Multimap(s scenario, m i64Multimap) {
 	for _, op := range s.Operations {
@@ -1593,6 +1648,10 @@ func runI64Multimap(s scenario, m i64Multimap) {
 			fatalf("unknown i64-multimap op: %v", op["op"])
 		}
 	}
+	runI64MultimapAssertions(s, m)
+}
+
+func runI64MultimapAssertions(s scenario, m i64Multimap) {
 	for _, key := range sortedAssertionKeys(s.Assertions) {
 		emit(s.Name, key, evalI64MultimapAssertion(key, m), s.Assertions[key], modeNone)
 	}
@@ -2265,37 +2324,47 @@ func runTreeSet(s scenario) {
 // ---- TreeMap<i32, i32> ---------------------------------------------------
 
 func runTreeMap(s scenario) {
-	m := treemap.NewInt32Int32()
+	var m *treemap.Int32Int32
 	var log navLog
-	for _, op := range s.Operations {
-		switch op["op"] {
-		case "put":
-			m.Put(asInt32(op["key"]), asInt32(op["value"]))
-		case "remove":
-			m.Remove(asInt32(op["key"]))
-		case "clear":
-			m.Clear()
-		case "poll_first":
-			if k, v, ok := m.PollFirstEntry(); ok {
-				log.pollFirstKeys = append(log.pollFirstKeys, i32p(k))
-				log.pollFirstValues = append(log.pollFirstValues, i32p(v))
-			} else {
-				log.pollFirstKeys = append(log.pollFirstKeys, nil)
-				log.pollFirstValues = append(log.pollFirstValues, nil)
+	if s.Construction == "fromSorted" {
+		keys, vals := int32Pairs(s.Operations)
+		var err error
+		m, err = treemap.NewInt32Int32FromSorted(keys, vals, pump.ErrorOnDuplicate)
+		if err != nil {
+			fatalf("fromSorted failed: %v", err)
+		}
+	} else {
+		m = treemap.NewInt32Int32()
+		for _, op := range s.Operations {
+			switch op["op"] {
+			case "put":
+				m.Put(asInt32(op["key"]), asInt32(op["value"]))
+			case "remove":
+				m.Remove(asInt32(op["key"]))
+			case "clear":
+				m.Clear()
+			case "poll_first":
+				if k, v, ok := m.PollFirstEntry(); ok {
+					log.pollFirstKeys = append(log.pollFirstKeys, i32p(k))
+					log.pollFirstValues = append(log.pollFirstValues, i32p(v))
+				} else {
+					log.pollFirstKeys = append(log.pollFirstKeys, nil)
+					log.pollFirstValues = append(log.pollFirstValues, nil)
+				}
+			case "poll_last":
+				if k, v, ok := m.PollLastEntry(); ok {
+					log.pollLastKeys = append(log.pollLastKeys, i32p(k))
+					log.pollLastValues = append(log.pollLastValues, i32p(v))
+				} else {
+					log.pollLastKeys = append(log.pollLastKeys, nil)
+					log.pollLastValues = append(log.pollLastValues, nil)
+				}
+			case "remove_range":
+				r := buildRangeObj(op["range"].(map[string]any))
+				log.removeRangeCount = append(log.removeRangeCount, int32(m.RemoveRange(r)))
+			default:
+				fatalf("unknown treemap op: %v", op["op"])
 			}
-		case "poll_last":
-			if k, v, ok := m.PollLastEntry(); ok {
-				log.pollLastKeys = append(log.pollLastKeys, i32p(k))
-				log.pollLastValues = append(log.pollLastValues, i32p(v))
-			} else {
-				log.pollLastKeys = append(log.pollLastKeys, nil)
-				log.pollLastValues = append(log.pollLastValues, nil)
-			}
-		case "remove_range":
-			r := buildRangeObj(op["range"].(map[string]any))
-			log.removeRangeCount = append(log.removeRangeCount, int32(m.RemoveRange(r)))
-		default:
-			// Forward-compat: skip unknown ops.
 		}
 	}
 	var query rangev.Int32Range

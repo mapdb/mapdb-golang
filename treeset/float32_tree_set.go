@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -503,6 +505,105 @@ func (s *Float32) String() string {
 	}
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// --- Data pump (bulk import) ---
+
+// NewFloat32FromSorted builds a Float32 from presorted, ascending values in
+// a single O(n) pass, skipping the per-insert rebalancing of Add. values must be
+// in ascending order according to the set's own comparator (the IEEE-754 total
+// order for float values).
+//
+// On an out-of-order value it returns pump.ErrNotSorted. On a duplicate it
+// returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the duplicate is skipped. A failed
+// build returns a nil set, never a half-built one. The result is observably
+// identical to the same values inserted one-by-one with Add, and is a valid
+// red-black tree so later Add/Remove preserve the invariant.
+func NewFloat32FromSorted(values []float32, policy pump.DuplicatePolicy) (*Float32, error) {
+	dv, err := dedupFloat32Sorted(values, policy)
+	if err != nil {
+		return nil, err
+	}
+	s := NewFloat32()
+	s.root = s.buildfloat32(dv, 0, len(dv)-1, 0, pump.RedBlackRedLevel(len(dv)), nil)
+	s.size = len(dv)
+	return s, nil
+}
+
+// dedupFloat32Sorted validates ascending order and applies the duplicate
+// policy, returning a compacted value slice.
+func dedupFloat32Sorted(values []float32, policy pump.DuplicatePolicy) ([]float32, error) {
+	if len(values) == 0 {
+		return values, nil
+	}
+	out := make([]float32, 0, len(values))
+	out = append(out, values[0])
+	for i := 1; i < len(values); i++ {
+		cmp := cmpFloat32(values[i], values[i-1])
+		if cmp < 0 {
+			return nil, pump.ErrNotSorted
+		}
+		if cmp == 0 {
+			if policy == pump.IgnoreDuplicates {
+				continue
+			}
+			return nil, pump.ErrDuplicateKey
+		}
+		out = append(out, values[i])
+	}
+	return out, nil
+}
+
+// buildfloat32 recursively builds a perfectly balanced subtree over
+// [lo, hi], colouring nodes on redLevel red and all others black (classic JDK
+// buildFromSorted).
+func (s *Float32) buildfloat32(values []float32, lo, hi, level, redLevel int, parent *float32Node) *float32Node {
+	if lo > hi {
+		return nil
+	}
+	mid := (lo + hi) / 2
+	node := &float32Node{key: values[mid], parent: parent, color: float32NodeBlack}
+	if level == redLevel {
+		node.color = float32NodeRed
+	}
+	node.left = s.buildfloat32(values, lo, mid-1, level+1, redLevel, node)
+	node.right = s.buildfloat32(values, mid+1, hi, level+1, redLevel, node)
+	return node
+}
+
+// Float32Sink is a streaming builder for a Float32: callers Add ascending
+// values, then Build the finished set. It is a thin wrapper over
+// NewFloat32FromSorted. After an error or after Build the sink is poisoned and
+// further Add/Build calls panic.
+type Float32Sink struct {
+	values []float32
+	policy pump.DuplicatePolicy
+	done   bool
+}
+
+// NewFloat32Sink creates a streaming sink with the given duplicate policy.
+func NewFloat32Sink(policy pump.DuplicatePolicy) *Float32Sink {
+	return &Float32Sink{policy: policy}
+}
+
+// Add appends one value. Values must be supplied in ascending order; order and
+// duplicate violations are reported by Build. Calling Add after Build panics.
+func (s *Float32Sink) Add(value float32) {
+	if s.done {
+		panic("mapdb: Add on a finished Float32Sink")
+	}
+	s.values = append(s.values, value)
+}
+
+// Build finishes the sink and returns the set. The sink is poisoned afterwards
+// (a second Build panics).
+func (s *Float32Sink) Build() (*Float32, error) {
+	if s.done {
+		panic("mapdb: Build on a finished Float32Sink")
+	}
+	s.done = true
+	return NewFloat32FromSorted(s.values, s.policy)
 }
 
 // --- Red-black tree internals (same as TreeMap) ---

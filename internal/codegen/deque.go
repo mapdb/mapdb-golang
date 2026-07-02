@@ -147,6 +147,17 @@ func New{{.Name}}() *{{.Name}} {
 	return &{{.Name}}{items: make([]{{.GoType}}, initial{{.Name}}DequeCap)}
 }
 
+// New{{.Name}}WithCapacity creates a new empty {{.Name}} whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
+	if capacity < 0 {
+		panic("mapdb: New{{.Name}}WithCapacity: negative capacity")
+	}
+	return &{{.Name}}{items: make([]{{.GoType}}, ceilPow2{{.Name}}Deque(capacity))}
+}
+
 // {{.Name}}Of creates a new {{.Name}} from the given values in
 // front-to-back order.
 func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {

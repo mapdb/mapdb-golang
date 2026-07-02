@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Float32Float64Set is a set multimap from float32 keys to float64 values.
@@ -23,6 +25,75 @@ func NewFloat32Float64Set() *Float32Float64Set {
 		keys: make(map[uint32]float32),
 		size: 0,
 	}
+}
+
+// Float32Float64SetBulkLoad builds a Float32Float64Set from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func Float32Float64SetBulkLoad(keys []float32, values []float64) *Float32Float64Set {
+	if len(keys) != len(values) {
+		panic("mapdb: Float32Float64SetBulkLoad: len(keys) != len(values)")
+	}
+	m := &Float32Float64Set{
+		data: make(map[uint32][]float64, len(keys)),
+		keys: make(map[uint32]float32, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewFloat32Float64SetFromSortedKeyValues builds a Float32Float64Set from input sorted
+// by ascending key and, within each key, ascending value. It validates both key
+// monotonicity AND per-key value monotonicity (using the value type's own
+// comparator — the IEEE-754 total order for float values) in one pass, deduping
+// equal values per key (the sorted equivalent of the linear-scan dedupe Put
+// performs). keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. The result is
+// observably identical to the same pairs inserted with Put; if your values are
+// not sorted within each key, use Float32Float64SetBulkLoad instead.
+func NewFloat32Float64SetFromSortedKeyValues(keys []float32, values []float64) (*Float32Float64Set, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewFloat32Float64SetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Float32Float64Set{
+		data: make(map[uint32][]float64),
+		keys: make(map[uint32]float32),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyFloat32(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float64{}
+		for j < len(keys) && cmpKeyFloat32(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 {
+				c := cmpKeyFloat64(run[len(run)-1], v)
+				if c > 0 {
+					return nil, pump.ErrNotSorted // value descends within key run
+				}
+				if c == 0 {
+					j++
+					continue // adjacent duplicate value (input is sorted, so equals are adjacent)
+				}
+			}
+			run = append(run, v)
+			j++
+		}
+		kb := math.Float32bits(key)
+		m.data[kb] = run
+		m.keys[kb] = key
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

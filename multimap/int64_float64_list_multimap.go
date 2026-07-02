@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int64Float64List is a list multimap from int64 keys to float64 values.
@@ -21,6 +23,97 @@ func NewInt64Float64List() *Int64Float64List {
 		data: make(map[int64][]float64),
 		size: 0,
 	}
+}
+
+// Int64Float64ListBulkLoad builds a Int64Float64List from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; values are
+// appended in input order, exactly as repeated Put. Duplicate keys are the normal
+// grouping case and the duplicate policy does not apply (a list multimap keeps
+// every value).
+func Int64Float64ListBulkLoad(keys []int64, values []float64) *Int64Float64List {
+	if len(keys) != len(values) {
+		panic("mapdb: Int64Float64ListBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int64Float64List{
+		data: make(map[int64][]float64, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt64Float64ListFromSortedKeys builds a Int64Float64List from input grouped
+// by ascending key: all values for a key are contiguous, and keys appear in
+// ascending order (the IEEE-754 total order for float keys). It validates the key
+// monotonicity in one pass and assigns each key's value slice directly, preserving
+// value order within a key run. keys[i] and values[i] form one pair (a length
+// mismatch panics). Out-of-order or interleaved keys return pump.ErrNotSorted.
+// The result is observably identical to the same pairs inserted with Put.
+func NewInt64Float64ListFromSortedKeys(keys []int64, values []float64) (*Int64Float64List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt64Float64ListFromSortedKeys: len(keys) != len(values)")
+	}
+	m := &Int64Float64List{
+		data: make(map[int64][]float64),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt64(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float64{}
+		for j < len(keys) && cmpKeyInt64(keys[j], key) == 0 {
+			run = append(run, values[j])
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
+}
+
+// NewInt64Float64ListFromSortedKeyValues builds a Int64Float64List from input
+// sorted by ascending key and, within each key, ascending value. It validates
+// both key monotonicity and per-key value monotonicity (using the value type's
+// own comparator — the IEEE-754 total order for float values) in one pass.
+// Unlike set multimaps, list multimaps preserve equal adjacent values exactly.
+// keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. If your values are
+// not sorted within each key, use Int64Float64ListBulkLoad instead.
+func NewInt64Float64ListFromSortedKeyValues(keys []int64, values []float64) (*Int64Float64List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt64Float64ListFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int64Float64List{
+		data: make(map[int64][]float64),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt64(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float64{}
+		for j < len(keys) && cmpKeyInt64(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 && cmpKeyFloat64(run[len(run)-1], v) > 0 {
+				return nil, pump.ErrNotSorted // value descends within key run
+			}
+			run = append(run, v)
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the list for the given key.

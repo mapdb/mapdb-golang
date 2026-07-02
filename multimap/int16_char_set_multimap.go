@@ -5,6 +5,8 @@ package multimap
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Int16CharSet is a set multimap from int16 keys to uint16 values.
@@ -20,6 +22,71 @@ func NewInt16CharSet() *Int16CharSet {
 		data: make(map[int16][]uint16),
 		size: 0,
 	}
+}
+
+// Int16CharSetBulkLoad builds a Int16CharSet from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func Int16CharSetBulkLoad(keys []int16, values []uint16) *Int16CharSet {
+	if len(keys) != len(values) {
+		panic("mapdb: Int16CharSetBulkLoad: len(keys) != len(values)")
+	}
+	m := &Int16CharSet{
+		data: make(map[int16][]uint16, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewInt16CharSetFromSortedKeyValues builds a Int16CharSet from input sorted
+// by ascending key and, within each key, ascending value. It validates both key
+// monotonicity AND per-key value monotonicity (using the value type's own
+// comparator — the IEEE-754 total order for float values) in one pass, deduping
+// equal values per key (the sorted equivalent of the linear-scan dedupe Put
+// performs). keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. The result is
+// observably identical to the same pairs inserted with Put; if your values are
+// not sorted within each key, use Int16CharSetBulkLoad instead.
+func NewInt16CharSetFromSortedKeyValues(keys []int16, values []uint16) (*Int16CharSet, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewInt16CharSetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Int16CharSet{
+		data: make(map[int16][]uint16),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyInt16(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []uint16{}
+		for j < len(keys) && cmpKeyInt16(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 {
+				c := cmpKeyChar(run[len(run)-1], v)
+				if c > 0 {
+					return nil, pump.ErrNotSorted // value descends within key run
+				}
+				if c == 0 {
+					j++
+					continue // adjacent duplicate value (input is sorted, so equals are adjacent)
+				}
+			}
+			run = append(run, v)
+			j++
+		}
+		m.data[key] = run
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -502,6 +504,118 @@ func (s *Int64) String() string {
 	}
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// --- Data pump (bulk import) ---
+
+// NewInt64FromSorted builds a Int64 from presorted, ascending values in
+// a single O(n) pass, skipping the per-insert rebalancing of Add. values must be
+// in ascending order according to the set's own comparator (the IEEE-754 total
+// order for float values).
+//
+// On an out-of-order value it returns pump.ErrNotSorted. On a duplicate it
+// returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the duplicate is skipped. A failed
+// build returns a nil set, never a half-built one. The result is observably
+// identical to the same values inserted one-by-one with Add, and is a valid
+// red-black tree so later Add/Remove preserve the invariant.
+func NewInt64FromSorted(values []int64, policy pump.DuplicatePolicy) (*Int64, error) {
+	dv, err := dedupInt64Sorted(values, policy)
+	if err != nil {
+		return nil, err
+	}
+	s := NewInt64()
+	s.root = s.buildint64(dv, 0, len(dv)-1, 0, pump.RedBlackRedLevel(len(dv)), nil)
+	s.size = len(dv)
+	return s, nil
+}
+
+// dedupInt64Sorted validates ascending order and applies the duplicate
+// policy, returning a compacted value slice.
+func dedupInt64Sorted(values []int64, policy pump.DuplicatePolicy) ([]int64, error) {
+	if len(values) == 0 {
+		return values, nil
+	}
+	out := make([]int64, 0, len(values))
+	out = append(out, values[0])
+	for i := 1; i < len(values); i++ {
+		cmp := cmpInt64(values[i], values[i-1])
+		if cmp < 0 {
+			return nil, pump.ErrNotSorted
+		}
+		if cmp == 0 {
+			if policy == pump.IgnoreDuplicates {
+				continue
+			}
+			return nil, pump.ErrDuplicateKey
+		}
+		out = append(out, values[i])
+	}
+	return out, nil
+}
+
+// cmpInt64 is the three-way ordering used by the bulk-load validator for
+// integer/char values (float values use the IEEE total-order helper instead).
+func cmpInt64(a, b int64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// buildint64 recursively builds a perfectly balanced subtree over
+// [lo, hi], colouring nodes on redLevel red and all others black (classic JDK
+// buildFromSorted).
+func (s *Int64) buildint64(values []int64, lo, hi, level, redLevel int, parent *int64Node) *int64Node {
+	if lo > hi {
+		return nil
+	}
+	mid := (lo + hi) / 2
+	node := &int64Node{key: values[mid], parent: parent, color: int64NodeBlack}
+	if level == redLevel {
+		node.color = int64NodeRed
+	}
+	node.left = s.buildint64(values, lo, mid-1, level+1, redLevel, node)
+	node.right = s.buildint64(values, mid+1, hi, level+1, redLevel, node)
+	return node
+}
+
+// Int64Sink is a streaming builder for a Int64: callers Add ascending
+// values, then Build the finished set. It is a thin wrapper over
+// NewInt64FromSorted. After an error or after Build the sink is poisoned and
+// further Add/Build calls panic.
+type Int64Sink struct {
+	values []int64
+	policy pump.DuplicatePolicy
+	done   bool
+}
+
+// NewInt64Sink creates a streaming sink with the given duplicate policy.
+func NewInt64Sink(policy pump.DuplicatePolicy) *Int64Sink {
+	return &Int64Sink{policy: policy}
+}
+
+// Add appends one value. Values must be supplied in ascending order; order and
+// duplicate violations are reported by Build. Calling Add after Build panics.
+func (s *Int64Sink) Add(value int64) {
+	if s.done {
+		panic("mapdb: Add on a finished Int64Sink")
+	}
+	s.values = append(s.values, value)
+}
+
+// Build finishes the sink and returns the set. The sink is poisoned afterwards
+// (a second Build panics).
+func (s *Int64Sink) Build() (*Int64, error) {
+	if s.done {
+		panic("mapdb: Build on a finished Int64Sink")
+	}
+	s.done = true
+	return NewInt64FromSorted(s.values, s.policy)
 }
 
 // --- Red-black tree internals (same as TreeMap) ---

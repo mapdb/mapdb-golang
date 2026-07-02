@@ -43,6 +43,17 @@ func NewChar() *Char {
 	return &Char{items: make([]uint16, initialCharDequeCap)}
 }
 
+// NewCharWithCapacity creates a new empty Char whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func NewCharWithCapacity(capacity int) *Char {
+	if capacity < 0 {
+		panic("mapdb: NewCharWithCapacity: negative capacity")
+	}
+	return &Char{items: make([]uint16, ceilPow2CharDeque(capacity))}
+}
+
 // CharOf creates a new Char from the given values in
 // front-to-back order.
 func CharOf(values ...uint16) *Char {

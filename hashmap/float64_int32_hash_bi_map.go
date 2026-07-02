@@ -7,6 +7,8 @@ import (
 	"iter"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Float64Int32BiMap is a bidirectional map with float64 keys and int32 values.
@@ -30,6 +32,45 @@ func NewFloat64Int32BiMapWithCapacity(capacity int) *Float64Int32BiMap {
 		forward: NewFloat64Int32WithCapacity(capacity),
 		reverse: NewInt32Float64WithCapacity(capacity),
 	}
+}
+
+// Float64Int32BiMapBulkLoad builds a Float64Int32BiMap from keys/values in a
+// single pass, presizing both inner tables to fit len(keys) at the 0.75 load
+// factor. keys[i] and values[i] form one entry (a length mismatch panics). A
+// BiMap requires a bijection, so the duplicate policy DOES NOT apply: a
+// duplicate key returns pump.ErrDuplicateKey and a duplicate value returns
+// pump.ErrDuplicateValue, ALWAYS — even under IgnoreDuplicates and even for a
+// fully identical (key, value) pair (a repeated key breaks the single-pass
+// bijection build). The policy parameter is accepted for signature symmetry with
+// the other bulk loaders but is intentionally ignored. The input need not be
+// sorted; the result is identical to the same pairs inserted one-by-one with Put.
+func Float64Int32BiMapBulkLoad(keys []float64, values []int32, policy pump.DuplicatePolicy) (*Float64Int32BiMap, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: Float64Int32BiMapBulkLoad: len(keys) != len(values)")
+	}
+	cap := pump.HashCapacityFor(len(keys))
+	m := &Float64Int32BiMap{
+		forward: NewFloat64Int32WithCapacity(cap),
+		reverse: NewInt32Float64WithCapacity(cap),
+	}
+	// policy is intentionally ignored: a BiMap requires a bijection, so any
+	// duplicate key or value is always an error (even an identical pair, which
+	// repeats the key and breaks the single-pass bijection build).
+	_ = policy
+	for i := range keys {
+		key, value := keys[i], values[i]
+		_, hasKey := m.forward.Get(key)
+		_, hasVal := m.reverse.Get(value)
+		if hasKey {
+			return nil, pump.ErrDuplicateKey
+		}
+		if hasVal {
+			return nil, pump.ErrDuplicateValue
+		}
+		m.forward.Put(key, value)
+		m.reverse.Put(value, key)
+	}
+	return m, nil
 }
 
 // Put inserts or updates a key-value pair in both directions.

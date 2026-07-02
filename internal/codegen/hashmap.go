@@ -295,6 +295,8 @@ import (
 	"math"
 {{- end}}
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -339,6 +341,104 @@ func {{.MapName}}Of(pairs ...struct {
 		m.Put(p.Key, p.Value)
 	}
 	return m
+}
+
+// {{.MapName}}BulkLoad builds a {{.MapName}} from keys/values in a single pass,
+// presizing the table once to fit len(keys) at the 0.75 load factor. keys[i] and
+// values[i] form one entry, so the slices must have equal length (a mismatch is a
+// programmer error and panics). The input need not be sorted.
+//
+// On a duplicate key it returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the first value for a key is kept.
+// The result is observably identical to the same entries inserted one-by-one
+// with Put into a table of the same final capacity (same probe layout, same
+// iteration order). The size is a hint: this constructor may grow if the source
+// has more distinct keys than expected — use {{.MapName}}BulkLoadExact for the
+// zero-rehash guarantee.
+func {{.MapName}}BulkLoad(keys []{{.KeyType}}, values []{{.ValType}}, policy pump.DuplicatePolicy) (*{{.MapName}}, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: {{.MapName}}BulkLoad: len(keys) != len(values)")
+	}
+	m := &{{.MapName}}{entries: make([]{{.EntryStem}}Entry, {{.MapName}}bulkCap(len(keys)))}
+	if err := m.bulkInsert(keys, values, policy); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// {{.MapName}}BulkLoadExact is like {{.MapName}}BulkLoad but guarantees zero
+// mid-load rehash: the table is sized for exactly n consumed entries. It returns
+// pump.ErrTooManyElements if the source yields more than n entries, even when
+// the extra entries are duplicate keys skipped by pump.IgnoreDuplicates. n must
+// be non-negative (negative panics).
+func {{.MapName}}BulkLoadExact(keys []{{.KeyType}}, values []{{.ValType}}, n int, policy pump.DuplicatePolicy) (*{{.MapName}}, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: {{.MapName}}BulkLoadExact: len(keys) != len(values)")
+	}
+	if n < 0 {
+		panic("mapdb: {{.MapName}}BulkLoadExact: negative n")
+	}
+	m := &{{.MapName}}{entries: make([]{{.EntryStem}}Entry, {{.MapName}}bulkCap(n))}
+	if len(keys) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	for i := range keys {
+		dup, err := m.bulkPut(keys[i], values[i], policy)
+		if err != nil {
+			return nil, err
+		}
+		_ = dup
+	}
+	return m, nil
+}
+
+// bulkInsert inserts every (key, value) pair into a presized table, growing if a
+// duplicate-free run would cross the load factor (only possible in the hint path).
+func (m *{{.MapName}}) bulkInsert(keys []{{.KeyType}}, values []{{.ValType}}, policy pump.DuplicatePolicy) error {
+	for i := range keys {
+		if m.needsResize() {
+			m.resize()
+		}
+		if _, err := m.bulkPut(keys[i], values[i], policy); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// bulkPut inserts a single entry via the ordinary probe without a resize check
+// (callers guarantee capacity). It applies the duplicate policy and reports
+// whether the key was already present.
+func (m *{{.MapName}}) bulkPut(key {{.KeyType}}, value {{.ValType}}, policy pump.DuplicatePolicy) (bool, error) {
+	mask := len(m.entries) - 1
+	idx := int(m.hashKey(key)) & mask
+	for {
+		if !m.entries[idx].occupied {
+			m.entries[idx].key = key
+			m.entries[idx].value = value
+			m.entries[idx].occupied = true
+			m.size++
+			return false, nil
+		}
+		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(m.entries[idx].key) == {{.KeyBitsFn}}(key){{else}}m.entries[idx].key == key{{end}} {
+			if policy == pump.IgnoreDuplicates {
+				return true, nil
+			}
+			return true, pump.ErrDuplicateKey
+		}
+		idx = (idx + 1) & mask
+	}
+}
+
+// {{.MapName}}bulkCap returns the presized table capacity for n entries that
+// avoids any mid-load rehash, using the shared zero-rehash formula. It widens to
+// the family's default minimum so very small loads still get a usable table.
+func {{.MapName}}bulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < {{.EntryStem}}DefaultCapacity {
+		return {{.EntryStem}}DefaultCapacity
+	}
+	return c
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
@@ -1378,6 +1478,8 @@ import (
 	"math"
 {{- end}}
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // {{.MapName}}BiMap is a bidirectional map with {{.KeyType}} keys and {{.ValType}} values.
@@ -1401,6 +1503,45 @@ func New{{.MapName}}BiMapWithCapacity(capacity int) *{{.MapName}}BiMap {
 		forward: New{{.MapName}}WithCapacity(capacity),
 		reverse: New{{.RevName}}WithCapacity(capacity),
 	}
+}
+
+// {{.MapName}}BiMapBulkLoad builds a {{.MapName}}BiMap from keys/values in a
+// single pass, presizing both inner tables to fit len(keys) at the 0.75 load
+// factor. keys[i] and values[i] form one entry (a length mismatch panics). A
+// BiMap requires a bijection, so the duplicate policy DOES NOT apply: a
+// duplicate key returns pump.ErrDuplicateKey and a duplicate value returns
+// pump.ErrDuplicateValue, ALWAYS — even under IgnoreDuplicates and even for a
+// fully identical (key, value) pair (a repeated key breaks the single-pass
+// bijection build). The policy parameter is accepted for signature symmetry with
+// the other bulk loaders but is intentionally ignored. The input need not be
+// sorted; the result is identical to the same pairs inserted one-by-one with Put.
+func {{.MapName}}BiMapBulkLoad(keys []{{.KeyType}}, values []{{.ValType}}, policy pump.DuplicatePolicy) (*{{.MapName}}BiMap, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: {{.MapName}}BiMapBulkLoad: len(keys) != len(values)")
+	}
+	cap := pump.HashCapacityFor(len(keys))
+	m := &{{.MapName}}BiMap{
+		forward: New{{.MapName}}WithCapacity(cap),
+		reverse: New{{.RevName}}WithCapacity(cap),
+	}
+	// policy is intentionally ignored: a BiMap requires a bijection, so any
+	// duplicate key or value is always an error (even an identical pair, which
+	// repeats the key and breaks the single-pass bijection build).
+	_ = policy
+	for i := range keys {
+		key, value := keys[i], values[i]
+		_, hasKey := m.forward.Get(key)
+		_, hasVal := m.reverse.Get(value)
+		if hasKey {
+			return nil, pump.ErrDuplicateKey
+		}
+		if hasVal {
+			return nil, pump.ErrDuplicateValue
+		}
+		m.forward.Put(key, value)
+		m.reverse.Put(value, key)
+	}
+	return m, nil
 }
 
 // Put inserts or updates a key-value pair in both directions.

@@ -44,6 +44,17 @@ func NewFloat32() *Float32 {
 	return &Float32{items: make([]float32, initialFloat32DequeCap)}
 }
 
+// NewFloat32WithCapacity creates a new empty Float32 whose backing ring
+// buffer is sized (rounded up to a power of two) to hold capacity elements
+// without growing. It is the deque's bulk-load convenience: presize once, then
+// push the prepared values in a single O(n) pass. A negative capacity panics.
+func NewFloat32WithCapacity(capacity int) *Float32 {
+	if capacity < 0 {
+		panic("mapdb: NewFloat32WithCapacity: negative capacity")
+	}
+	return &Float32{items: make([]float32, ceilPow2Float32Deque(capacity))}
+}
+
 // Float32Of creates a new Float32 from the given values in
 // front-to-back order.
 func Float32Of(values ...float32) *Float32 {

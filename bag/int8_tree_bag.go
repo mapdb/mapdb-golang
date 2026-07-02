@@ -8,6 +8,8 @@ import (
 	"iter"
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // TreeInt8Entry holds a value and its occurrence count in a TreeInt8.
@@ -31,13 +33,63 @@ func NewTreeInt8() *TreeInt8 {
 	}
 }
 
-// TreeInt8Of creates a new TreeInt8 from the given values.
+// TreeInt8Of creates a new TreeInt8 from the given values. It sorts a
+// copy of the input once and coalesces equal runs into counted entries in a
+// single pass — O(n log n) overall, versus the O(n²) of repeated Add (each Add
+// shifts the sorted slice). The result is identical to repeated Add.
 func TreeInt8Of(values ...int8) *TreeInt8 {
-	b := NewTreeInt8()
-	for _, v := range values {
-		b.Add(v)
+	if len(values) == 0 {
+		return NewTreeInt8()
 	}
+	sorted := make([]int8, len(values))
+	copy(sorted, values)
+	slices.SortFunc(sorted, func(a, c int8) int {
+		return cmp.Compare(a, c)
+	})
+	b := NewTreeInt8()
+	b.entries = coalesceInt8Sorted(sorted)
+	b.size = len(sorted)
 	return b
+}
+
+// NewTreeInt8FromSorted builds a TreeInt8 from presorted ascending
+// values in a single O(n) pass, coalescing equal runs into counts. values must
+// be in ascending order according to the bag's own comparator (the IEEE-754
+// total order for floats); out-of-order input returns pump.ErrNotSorted.
+//
+// Duplicate values are the normal bag case and increment the count, so the
+// duplicate policy does not apply here. Run-length coalescing is overflow-checked
+// (each count fits in an int by construction since it cannot exceed len(values)).
+// The result is observably identical to the same values added one-by-one.
+func NewTreeInt8FromSorted(values []int8) (*TreeInt8, error) {
+	if len(values) == 0 {
+		return NewTreeInt8(), nil
+	}
+	for i := 1; i < len(values); i++ {
+		if cmp.Compare(values[i], values[i-1]) < 0 {
+			return nil, pump.ErrNotSorted
+		}
+	}
+	b := NewTreeInt8()
+	b.entries = coalesceInt8Sorted(values)
+	b.size = len(values)
+	return b, nil
+}
+
+// coalesceInt8Sorted compresses a sorted value slice into counted entries
+// in one pass. The input must already be sorted by the bag's comparator.
+func coalesceInt8Sorted(sorted []int8) []TreeInt8Entry {
+	entries := make([]TreeInt8Entry, 0, len(sorted))
+	entries = append(entries, TreeInt8Entry{value: sorted[0], count: 1})
+	for i := 1; i < len(sorted); i++ {
+		last := &entries[len(entries)-1]
+		if sorted[i] == last.value {
+			last.count++
+		} else {
+			entries = append(entries, TreeInt8Entry{value: sorted[i], count: 1})
+		}
+	}
+	return entries
 }
 
 // search returns the index where value is or would be inserted.

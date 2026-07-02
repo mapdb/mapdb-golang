@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -502,6 +504,118 @@ func (s *Int8) String() string {
 	}
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// --- Data pump (bulk import) ---
+
+// NewInt8FromSorted builds a Int8 from presorted, ascending values in
+// a single O(n) pass, skipping the per-insert rebalancing of Add. values must be
+// in ascending order according to the set's own comparator (the IEEE-754 total
+// order for float values).
+//
+// On an out-of-order value it returns pump.ErrNotSorted. On a duplicate it
+// returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the duplicate is skipped. A failed
+// build returns a nil set, never a half-built one. The result is observably
+// identical to the same values inserted one-by-one with Add, and is a valid
+// red-black tree so later Add/Remove preserve the invariant.
+func NewInt8FromSorted(values []int8, policy pump.DuplicatePolicy) (*Int8, error) {
+	dv, err := dedupInt8Sorted(values, policy)
+	if err != nil {
+		return nil, err
+	}
+	s := NewInt8()
+	s.root = s.buildint8(dv, 0, len(dv)-1, 0, pump.RedBlackRedLevel(len(dv)), nil)
+	s.size = len(dv)
+	return s, nil
+}
+
+// dedupInt8Sorted validates ascending order and applies the duplicate
+// policy, returning a compacted value slice.
+func dedupInt8Sorted(values []int8, policy pump.DuplicatePolicy) ([]int8, error) {
+	if len(values) == 0 {
+		return values, nil
+	}
+	out := make([]int8, 0, len(values))
+	out = append(out, values[0])
+	for i := 1; i < len(values); i++ {
+		cmp := cmpInt8(values[i], values[i-1])
+		if cmp < 0 {
+			return nil, pump.ErrNotSorted
+		}
+		if cmp == 0 {
+			if policy == pump.IgnoreDuplicates {
+				continue
+			}
+			return nil, pump.ErrDuplicateKey
+		}
+		out = append(out, values[i])
+	}
+	return out, nil
+}
+
+// cmpInt8 is the three-way ordering used by the bulk-load validator for
+// integer/char values (float values use the IEEE total-order helper instead).
+func cmpInt8(a, b int8) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// buildint8 recursively builds a perfectly balanced subtree over
+// [lo, hi], colouring nodes on redLevel red and all others black (classic JDK
+// buildFromSorted).
+func (s *Int8) buildint8(values []int8, lo, hi, level, redLevel int, parent *int8Node) *int8Node {
+	if lo > hi {
+		return nil
+	}
+	mid := (lo + hi) / 2
+	node := &int8Node{key: values[mid], parent: parent, color: int8NodeBlack}
+	if level == redLevel {
+		node.color = int8NodeRed
+	}
+	node.left = s.buildint8(values, lo, mid-1, level+1, redLevel, node)
+	node.right = s.buildint8(values, mid+1, hi, level+1, redLevel, node)
+	return node
+}
+
+// Int8Sink is a streaming builder for a Int8: callers Add ascending
+// values, then Build the finished set. It is a thin wrapper over
+// NewInt8FromSorted. After an error or after Build the sink is poisoned and
+// further Add/Build calls panic.
+type Int8Sink struct {
+	values []int8
+	policy pump.DuplicatePolicy
+	done   bool
+}
+
+// NewInt8Sink creates a streaming sink with the given duplicate policy.
+func NewInt8Sink(policy pump.DuplicatePolicy) *Int8Sink {
+	return &Int8Sink{policy: policy}
+}
+
+// Add appends one value. Values must be supplied in ascending order; order and
+// duplicate violations are reported by Build. Calling Add after Build panics.
+func (s *Int8Sink) Add(value int8) {
+	if s.done {
+		panic("mapdb: Add on a finished Int8Sink")
+	}
+	s.values = append(s.values, value)
+}
+
+// Build finishes the sink and returns the set. The sink is poisoned afterwards
+// (a second Build panics).
+func (s *Int8Sink) Build() (*Int8, error) {
+	if s.done {
+		panic("mapdb: Build on a finished Int8Sink")
+	}
+	s.done = true
+	return NewInt8FromSorted(s.values, s.policy)
 }
 
 // --- Red-black tree internals (same as TreeMap) ---

@@ -7,6 +7,8 @@ import (
 	"iter"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -45,6 +47,77 @@ func NewCharFloat32WithCapacity(capacity int) *CharFloat32 {
 		values: make([]float32, cap),
 		size:   0,
 	}
+}
+
+// CharFloat32BulkLoad builds a CharFloat32 from keys/values in a single pass,
+// presizing the table once to fit len(keys) at the 0.75 load factor. keys[i] and
+// values[i] form one entry (a length mismatch panics). The input need not be
+// sorted. Sentinel keys (0/1/-0.0) are routed through their dedicated fields by
+// the ordinary Put path, so the result is observably identical to one-by-one Put.
+//
+// On a duplicate key it returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the first value for a key is kept.
+// The size is a hint; use CharFloat32BulkLoadExact for the zero-rehash
+// guarantee.
+func CharFloat32BulkLoad(keys []uint16, values []float32, policy pump.DuplicatePolicy) (*CharFloat32, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: CharFloat32BulkLoad: len(keys) != len(values)")
+	}
+	m := NewCharFloat32WithCapacity(CharFloat32bulkCap(len(keys)))
+	for i := range keys {
+		if err := m.bulkPut(keys[i], values[i], policy); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+// CharFloat32BulkLoadExact is like CharFloat32BulkLoad but guarantees zero
+// mid-load rehash: the table is sized for exactly n consumed entries. It returns
+// pump.ErrTooManyElements if the source yields more than n entries, even when
+// the extra entries are duplicate keys skipped by pump.IgnoreDuplicates. n must
+// be non-negative (negative panics).
+func CharFloat32BulkLoadExact(keys []uint16, values []float32, n int, policy pump.DuplicatePolicy) (*CharFloat32, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: CharFloat32BulkLoadExact: len(keys) != len(values)")
+	}
+	if n < 0 {
+		panic("mapdb: CharFloat32BulkLoadExact: negative n")
+	}
+	m := NewCharFloat32WithCapacity(CharFloat32bulkCap(n))
+	if len(keys) > n {
+		return nil, pump.ErrTooManyElements
+	}
+	for i := range keys {
+		if err := m.bulkPut(keys[i], values[i], policy); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+// bulkPut inserts a single entry, applying the duplicate policy. It reuses Put so
+// the sentinel-key routing stays in one place; the presize means Put never
+// rehashes.
+func (m *CharFloat32) bulkPut(key uint16, value float32, policy pump.DuplicatePolicy) error {
+	if m.ContainsKey(key) {
+		if policy == pump.IgnoreDuplicates {
+			return nil
+		}
+		return pump.ErrDuplicateKey
+	}
+	m.Put(key, value)
+	return nil
+}
+
+// CharFloat32bulkCap returns the presized table capacity for n entries that
+// avoids any mid-load rehash, floored at the family default.
+func CharFloat32bulkCap(n int) int {
+	c := pump.HashCapacityFor(n)
+	if c < charFloat32DefaultCapacity {
+		return charFloat32DefaultCapacity
+	}
+	return c
 }
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.

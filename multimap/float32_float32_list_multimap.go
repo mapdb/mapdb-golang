@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // Float32Float32List is a list multimap from float32 keys to float32 values.
@@ -23,6 +25,104 @@ func NewFloat32Float32List() *Float32Float32List {
 		keys: make(map[uint32]float32),
 		size: 0,
 	}
+}
+
+// Float32Float32ListBulkLoad builds a Float32Float32List from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; values are
+// appended in input order, exactly as repeated Put. Duplicate keys are the normal
+// grouping case and the duplicate policy does not apply (a list multimap keeps
+// every value).
+func Float32Float32ListBulkLoad(keys []float32, values []float32) *Float32Float32List {
+	if len(keys) != len(values) {
+		panic("mapdb: Float32Float32ListBulkLoad: len(keys) != len(values)")
+	}
+	m := &Float32Float32List{
+		data: make(map[uint32][]float32, len(keys)),
+		keys: make(map[uint32]float32, len(keys)),
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// NewFloat32Float32ListFromSortedKeys builds a Float32Float32List from input grouped
+// by ascending key: all values for a key are contiguous, and keys appear in
+// ascending order (the IEEE-754 total order for float keys). It validates the key
+// monotonicity in one pass and assigns each key's value slice directly, preserving
+// value order within a key run. keys[i] and values[i] form one pair (a length
+// mismatch panics). Out-of-order or interleaved keys return pump.ErrNotSorted.
+// The result is observably identical to the same pairs inserted with Put.
+func NewFloat32Float32ListFromSortedKeys(keys []float32, values []float32) (*Float32Float32List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewFloat32Float32ListFromSortedKeys: len(keys) != len(values)")
+	}
+	m := &Float32Float32List{
+		data: make(map[uint32][]float32),
+		keys: make(map[uint32]float32),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyFloat32(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float32{}
+		for j < len(keys) && cmpKeyFloat32(keys[j], key) == 0 {
+			run = append(run, values[j])
+			j++
+		}
+		kb := math.Float32bits(key)
+		m.data[kb] = run
+		m.keys[kb] = key
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
+}
+
+// NewFloat32Float32ListFromSortedKeyValues builds a Float32Float32List from input
+// sorted by ascending key and, within each key, ascending value. It validates
+// both key monotonicity and per-key value monotonicity (using the value type's
+// own comparator — the IEEE-754 total order for float values) in one pass.
+// Unlike set multimaps, list multimaps preserve equal adjacent values exactly.
+// keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. If your values are
+// not sorted within each key, use Float32Float32ListBulkLoad instead.
+func NewFloat32Float32ListFromSortedKeyValues(keys []float32, values []float32) (*Float32Float32List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewFloat32Float32ListFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &Float32Float32List{
+		data: make(map[uint32][]float32),
+		keys: make(map[uint32]float32),
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKeyFloat32(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []float32{}
+		for j < len(keys) && cmpKeyFloat32(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 && cmpKeyFloat32(run[len(run)-1], v) > 0 {
+				return nil, pump.ErrNotSorted // value descends within key run
+			}
+			run = append(run, v)
+			j++
+		}
+		kb := math.Float32bits(key)
+		m.data[kb] = run
+		m.keys[kb] = key
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the list for the given key.

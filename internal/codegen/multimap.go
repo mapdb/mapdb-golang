@@ -46,6 +46,8 @@ type mmData struct {
 	KeyIsFloat  bool
 	KeyBitsFn   string // math.Float32bits / math.Float64bits (float keys only)
 	KeyBitsType string // uint32 / uint64 (the builtin-map key type, float keys only)
+	KeyIntType  string // int32 / int64 (signed bit type for the float total order)
+	KeyBitShift int    // 31 / 63 (sign-bit position for the float total order)
 
 	// ValueIsFloat selects bit-pattern value equality (Equals always; set Put /
 	// ContainsKeyValue dedup additionally).
@@ -74,6 +76,7 @@ func genMultimap() error {
 
 	list := template.Must(template.New("mm-list").Parse(listMultimapTmpl))
 	set := template.Must(template.New("mm-set").Parse(setMultimapTmpl))
+	keyCmp := template.Must(template.New("mm-keycmp").Parse(multimapKeyCmpTmpl))
 
 	write := func(name string, tmpl *template.Template, data mmData) error {
 		var buf bytes.Buffer
@@ -130,10 +133,67 @@ func genMultimap() error {
 				return err
 			}
 		}
+		// One key comparator per key primitive (depends only on the key type),
+		// used by the FromSorted bulk-load validators.
+		kd := mmData{
+			KeyName:    k.Name,
+			KeyType:    k.GoType,
+			KeySnake:   k.SnakeName,
+			KeyIsFloat: k.IsFloating,
+			NeedsMath:  k.IsFloating,
+		}
+		if k.IsFloating {
+			kd.KeyBitsFn = floatBitsFn(k)
+			kd.KeyBitsType = fmt.Sprintf("uint%d", k.ByteSize*8)
+			kd.KeyIntType = fmt.Sprintf("int%d", k.ByteSize*8)
+			kd.KeyBitShift = k.ByteSize*8 - 1
+		}
+		if err := write(k.SnakeName+"_key_cmp.go", keyCmp, kd); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
+
+const multimapKeyCmpTmpl = genHeader + `package multimap
+
+{{- if .KeyIsFloat}}
+
+import "math"
+{{- end}}
+
+// cmpKey{{.KeyName}} is the three-way ordering for {{.KeyType}} multimap keys used
+// by the FromSorted bulk-load validators.
+{{- if .KeyIsFloat}} For float keys it is the IEEE-754 total order (matching the
+// tree families), so NaN sorts to the top and ±0 stay distinct.
+{{- end}}
+func cmpKey{{.KeyName}}(a, b {{.KeyType}}) int {
+{{- if .KeyIsFloat}}
+	ai := {{.KeyIntType}}({{.KeyBitsFn}}(a))
+	bi := {{.KeyIntType}}({{.KeyBitsFn}}(b))
+	ai ^= {{.KeyIntType}}({{.KeyBitsType}}(ai>>{{.KeyBitShift}}) >> 1)
+	bi ^= {{.KeyIntType}}({{.KeyBitsType}}(bi>>{{.KeyBitShift}}) >> 1)
+	switch {
+	case ai < bi:
+		return -1
+	case ai > bi:
+		return 1
+	default:
+		return 0
+	}
+{{- else}}
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+{{- end}}
+}
+`
 
 const listMultimapTmpl = genHeader + `package multimap
 
@@ -143,6 +203,8 @@ import (
 {{- end}}
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // {{.MapName}}List is a list multimap from {{.KeyType}} keys to {{.ValType}} values.
@@ -164,6 +226,118 @@ func New{{.MapName}}List() *{{.MapName}}List {
 {{- end}}
 		size: 0,
 	}
+}
+
+// {{.MapName}}ListBulkLoad builds a {{.MapName}}List from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; values are
+// appended in input order, exactly as repeated Put. Duplicate keys are the normal
+// grouping case and the duplicate policy does not apply (a list multimap keeps
+// every value).
+func {{.MapName}}ListBulkLoad(keys []{{.KeyType}}, values []{{.ValType}}) *{{.MapName}}List {
+	if len(keys) != len(values) {
+		panic("mapdb: {{.MapName}}ListBulkLoad: len(keys) != len(values)")
+	}
+	m := &{{.MapName}}List{
+		data: make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}, len(keys)),
+{{- if .KeyIsFloat}}
+		keys: make(map[{{.KeyBitsType}}]{{.KeyType}}, len(keys)),
+{{- end}}
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// New{{.MapName}}ListFromSortedKeys builds a {{.MapName}}List from input grouped
+// by ascending key: all values for a key are contiguous, and keys appear in
+// ascending order (the IEEE-754 total order for float keys). It validates the key
+// monotonicity in one pass and assigns each key's value slice directly, preserving
+// value order within a key run. keys[i] and values[i] form one pair (a length
+// mismatch panics). Out-of-order or interleaved keys return pump.ErrNotSorted.
+// The result is observably identical to the same pairs inserted with Put.
+func New{{.MapName}}ListFromSortedKeys(keys []{{.KeyType}}, values []{{.ValType}}) (*{{.MapName}}List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: New{{.MapName}}ListFromSortedKeys: len(keys) != len(values)")
+	}
+	m := &{{.MapName}}List{
+		data: make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}),
+{{- if .KeyIsFloat}}
+		keys: make(map[{{.KeyBitsType}}]{{.KeyType}}),
+{{- end}}
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKey{{.KeyName}}(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []{{.ValType}}{}
+		for j < len(keys) && cmpKey{{.KeyName}}(keys[j], key) == 0 {
+			run = append(run, values[j])
+			j++
+		}
+{{- if .KeyIsFloat}}
+		kb := {{.KeyBitsFn}}(key)
+		m.data[kb] = run
+		m.keys[kb] = key
+{{- else}}
+		m.data[key] = run
+{{- end}}
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
+}
+
+// New{{.MapName}}ListFromSortedKeyValues builds a {{.MapName}}List from input
+// sorted by ascending key and, within each key, ascending value. It validates
+// both key monotonicity and per-key value monotonicity (using the value type's
+// own comparator — the IEEE-754 total order for float values) in one pass.
+// Unlike set multimaps, list multimaps preserve equal adjacent values exactly.
+// keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. If your values are
+// not sorted within each key, use {{.MapName}}ListBulkLoad instead.
+func New{{.MapName}}ListFromSortedKeyValues(keys []{{.KeyType}}, values []{{.ValType}}) (*{{.MapName}}List, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: New{{.MapName}}ListFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &{{.MapName}}List{
+		data: make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}),
+{{- if .KeyIsFloat}}
+		keys: make(map[{{.KeyBitsType}}]{{.KeyType}}),
+{{- end}}
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKey{{.KeyName}}(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []{{.ValType}}{}
+		for j < len(keys) && cmpKey{{.KeyName}}(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 && cmpKey{{.ValName}}(run[len(run)-1], v) > 0 {
+				return nil, pump.ErrNotSorted // value descends within key run
+			}
+			run = append(run, v)
+			j++
+		}
+{{- if .KeyIsFloat}}
+		kb := {{.KeyBitsFn}}(key)
+		m.data[kb] = run
+		m.keys[kb] = key
+{{- else}}
+		m.data[key] = run
+{{- end}}
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the list for the given key.
@@ -422,6 +596,8 @@ import (
 {{- end}}
 	"fmt"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // {{.MapName}}Set is a set multimap from {{.KeyType}} keys to {{.ValType}} values.
@@ -443,6 +619,83 @@ func New{{.MapName}}Set() *{{.MapName}}Set {
 {{- end}}
 		size: 0,
 	}
+}
+
+// {{.MapName}}SetBulkLoad builds a {{.MapName}}Set from keys/values in a single
+// pass, presizing the backing map for the input. keys[i] and values[i] form one
+// pair (a length mismatch panics). The input need not be sorted; per-key value
+// duplicates are dropped exactly as repeated Put. Duplicate keys are the normal
+// grouping case, so the duplicate policy does not apply.
+func {{.MapName}}SetBulkLoad(keys []{{.KeyType}}, values []{{.ValType}}) *{{.MapName}}Set {
+	if len(keys) != len(values) {
+		panic("mapdb: {{.MapName}}SetBulkLoad: len(keys) != len(values)")
+	}
+	m := &{{.MapName}}Set{
+		data: make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}, len(keys)),
+{{- if .KeyIsFloat}}
+		keys: make(map[{{.KeyBitsType}}]{{.KeyType}}, len(keys)),
+{{- end}}
+	}
+	for i := range keys {
+		m.Put(keys[i], values[i])
+	}
+	return m
+}
+
+// New{{.MapName}}SetFromSortedKeyValues builds a {{.MapName}}Set from input sorted
+// by ascending key and, within each key, ascending value. It validates both key
+// monotonicity AND per-key value monotonicity (using the value type's own
+// comparator — the IEEE-754 total order for float values) in one pass, deduping
+// equal values per key (the sorted equivalent of the linear-scan dedupe Put
+// performs). keys[i] and values[i] form one pair (a length mismatch panics).
+// Out-of-order keys, or values that descend within a key run, return
+// pump.ErrNotSorted before any partial collection is built. The result is
+// observably identical to the same pairs inserted with Put; if your values are
+// not sorted within each key, use {{.MapName}}SetBulkLoad instead.
+func New{{.MapName}}SetFromSortedKeyValues(keys []{{.KeyType}}, values []{{.ValType}}) (*{{.MapName}}Set, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: New{{.MapName}}SetFromSortedKeyValues: len(keys) != len(values)")
+	}
+	m := &{{.MapName}}Set{
+		data: make(map[{{if .KeyIsFloat}}{{.KeyBitsType}}{{else}}{{.KeyType}}{{end}}][]{{.ValType}}),
+{{- if .KeyIsFloat}}
+		keys: make(map[{{.KeyBitsType}}]{{.KeyType}}),
+{{- end}}
+	}
+	i := 0
+	for i < len(keys) {
+		key := keys[i]
+		if i > 0 && cmpKey{{.KeyName}}(key, keys[i-1]) <= 0 {
+			return nil, pump.ErrNotSorted
+		}
+		j := i
+		run := []{{.ValType}}{}
+		for j < len(keys) && cmpKey{{.KeyName}}(keys[j], key) == 0 {
+			v := values[j]
+			if len(run) > 0 {
+				c := cmpKey{{.ValName}}(run[len(run)-1], v)
+				if c > 0 {
+					return nil, pump.ErrNotSorted // value descends within key run
+				}
+				if c == 0 {
+					j++
+					continue // adjacent duplicate value (input is sorted, so equals are adjacent)
+				}
+			}
+			run = append(run, v)
+			j++
+		}
+{{- if .KeyIsFloat}}
+		kb := {{.KeyBitsFn}}(key)
+		m.data[kb] = run
+		m.keys[kb] = key
+{{- else}}
+		m.data[key] = run
+{{- end}}
+		m.size += len(run)
+		i = j
+	}
+	return m, nil
 }
 
 // Put adds a value to the set for the given key. Idempotent: a duplicate

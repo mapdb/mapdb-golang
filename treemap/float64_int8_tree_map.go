@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 const (
@@ -800,6 +802,122 @@ func (m *Float64Int8) deleteNode(z *float64Int8TreeNode) {
 		}
 	}
 	m.fixSizeToRoot(fixSizeFrom)
+}
+
+// --- Data pump (bulk import) ---
+
+// NewFloat64Int8FromSorted builds a Float64Int8 from presorted, ascending keys
+// in a single O(n) pass, skipping the per-insert rebalancing of Put. keys must
+// be in ascending order according to the map's own comparator (the IEEE-754
+// total order for float keys); keys[i] and values[i] form one entry, so the two
+// slices must have equal length (a length mismatch is a programmer error and
+// panics).
+//
+// On an out-of-order key it returns pump.ErrNotSorted. On a duplicate key
+// it returns pump.ErrDuplicateKey unless policy is
+// pump.IgnoreDuplicates, in which case the first value for a key is kept
+// and the rest are skipped. A failed build returns a nil map and never a
+// half-built one.
+//
+// The result is observably identical to the same entries inserted one-by-one
+// with Put: same iteration order, same lookups. The tree is a valid red-black
+// tree, so later Put/Remove preserve the invariant.
+func NewFloat64Int8FromSorted(keys []float64, values []int8, policy pump.DuplicatePolicy) (*Float64Int8, error) {
+	if len(keys) != len(values) {
+		panic("mapdb: NewFloat64Int8FromSorted: len(keys) != len(values)")
+	}
+	dk, dv, err := dedupFloat64Int8Sorted(keys, values, policy)
+	if err != nil {
+		return nil, err
+	}
+	m := NewFloat64Int8()
+	m.root = m.buildfloat64Int8(dk, dv, 0, len(dk)-1, 0, pump.RedBlackRedLevel(len(dk)), nil)
+	m.size = len(dk)
+	return m, nil
+}
+
+// dedupFloat64Int8Sorted validates ascending order and applies the duplicate
+// policy, returning compacted key/value slices. Equal adjacent keys are the only
+// duplicates possible in sorted input.
+func dedupFloat64Int8Sorted(keys []float64, values []int8, policy pump.DuplicatePolicy) ([]float64, []int8, error) {
+	if len(keys) == 0 {
+		return keys, values, nil
+	}
+	outK := make([]float64, 0, len(keys))
+	outV := make([]int8, 0, len(keys))
+	outK = append(outK, keys[0])
+	outV = append(outV, values[0])
+	for i := 1; i < len(keys); i++ {
+		cmp := cmpFloat64(keys[i], keys[i-1])
+		if cmp < 0 {
+			return nil, nil, pump.ErrNotSorted
+		}
+		if cmp == 0 {
+			if policy == pump.IgnoreDuplicates {
+				continue
+			}
+			return nil, nil, pump.ErrDuplicateKey
+		}
+		outK = append(outK, keys[i])
+		outV = append(outV, values[i])
+	}
+	return outK, outV, nil
+}
+
+// buildfloat64Int8 recursively builds a perfectly balanced subtree from the
+// sorted slices over [lo, hi], colouring nodes on redLevel red and all others
+// black (the classic JDK buildFromSorted). parent wires the back-pointers.
+func (m *Float64Int8) buildfloat64Int8(keys []float64, values []int8, lo, hi, level, redLevel int, parent *float64Int8TreeNode) *float64Int8TreeNode {
+	if lo > hi {
+		return nil
+	}
+	mid := (lo + hi) / 2
+	node := &float64Int8TreeNode{key: keys[mid], value: values[mid], parent: parent, color: float64Int8TreeNodeBlack}
+	if level == redLevel {
+		node.color = float64Int8TreeNodeRed
+	}
+	node.left = m.buildfloat64Int8(keys, values, lo, mid-1, level+1, redLevel, node)
+	node.right = m.buildfloat64Int8(keys, values, mid+1, hi, level+1, redLevel, node)
+	return node
+}
+
+// Float64Int8Sink is a streaming builder for a Float64Int8: callers Put
+// ascending entries one at a time, then Build the finished map. It is a thin
+// wrapper over NewFloat64Int8FromSorted (entries are buffered, then built in one
+// pass), so the build logic and contract live in one place. After an error, or
+// after Build, the sink is poisoned and further Put/Build calls panic.
+type Float64Int8Sink struct {
+	keys   []float64
+	values []int8
+	policy pump.DuplicatePolicy
+	done   bool
+}
+
+// NewFloat64Int8Sink creates a streaming sink with the given duplicate policy.
+func NewFloat64Int8Sink(policy pump.DuplicatePolicy) *Float64Int8Sink {
+	return &Float64Int8Sink{policy: policy}
+}
+
+// Put appends one entry. Entries must be supplied in ascending key order; order
+// and duplicate violations are reported by Build, not here (the buffer-then-build
+// shape detects them in one pass). Calling Put after Build panics.
+func (s *Float64Int8Sink) Put(key float64, value int8) {
+	if s.done {
+		panic("mapdb: Put on a finished Float64Int8Sink")
+	}
+	s.keys = append(s.keys, key)
+	s.values = append(s.values, value)
+}
+
+// Build finishes the sink and returns the map. The sink is poisoned afterwards
+// (a second Build panics). On an order/duplicate error the map is nil and the
+// sink is still poisoned.
+func (s *Float64Int8Sink) Build() (*Float64Int8, error) {
+	if s.done {
+		panic("mapdb: Build on a finished Float64Int8Sink")
+	}
+	s.done = true
+	return NewFloat64Int8FromSorted(s.keys, s.values, s.policy)
 }
 
 func (m *Float64Int8) fixAfterDelete(x *float64Int8TreeNode) {

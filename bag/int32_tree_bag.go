@@ -8,6 +8,8 @@ import (
 	"iter"
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // TreeInt32Entry holds a value and its occurrence count in a TreeInt32.
@@ -31,13 +33,63 @@ func NewTreeInt32() *TreeInt32 {
 	}
 }
 
-// TreeInt32Of creates a new TreeInt32 from the given values.
+// TreeInt32Of creates a new TreeInt32 from the given values. It sorts a
+// copy of the input once and coalesces equal runs into counted entries in a
+// single pass — O(n log n) overall, versus the O(n²) of repeated Add (each Add
+// shifts the sorted slice). The result is identical to repeated Add.
 func TreeInt32Of(values ...int32) *TreeInt32 {
-	b := NewTreeInt32()
-	for _, v := range values {
-		b.Add(v)
+	if len(values) == 0 {
+		return NewTreeInt32()
 	}
+	sorted := make([]int32, len(values))
+	copy(sorted, values)
+	slices.SortFunc(sorted, func(a, c int32) int {
+		return cmp.Compare(a, c)
+	})
+	b := NewTreeInt32()
+	b.entries = coalesceInt32Sorted(sorted)
+	b.size = len(sorted)
 	return b
+}
+
+// NewTreeInt32FromSorted builds a TreeInt32 from presorted ascending
+// values in a single O(n) pass, coalescing equal runs into counts. values must
+// be in ascending order according to the bag's own comparator (the IEEE-754
+// total order for floats); out-of-order input returns pump.ErrNotSorted.
+//
+// Duplicate values are the normal bag case and increment the count, so the
+// duplicate policy does not apply here. Run-length coalescing is overflow-checked
+// (each count fits in an int by construction since it cannot exceed len(values)).
+// The result is observably identical to the same values added one-by-one.
+func NewTreeInt32FromSorted(values []int32) (*TreeInt32, error) {
+	if len(values) == 0 {
+		return NewTreeInt32(), nil
+	}
+	for i := 1; i < len(values); i++ {
+		if cmp.Compare(values[i], values[i-1]) < 0 {
+			return nil, pump.ErrNotSorted
+		}
+	}
+	b := NewTreeInt32()
+	b.entries = coalesceInt32Sorted(values)
+	b.size = len(values)
+	return b, nil
+}
+
+// coalesceInt32Sorted compresses a sorted value slice into counted entries
+// in one pass. The input must already be sorted by the bag's comparator.
+func coalesceInt32Sorted(sorted []int32) []TreeInt32Entry {
+	entries := make([]TreeInt32Entry, 0, len(sorted))
+	entries = append(entries, TreeInt32Entry{value: sorted[0], count: 1})
+	for i := 1; i < len(sorted); i++ {
+		last := &entries[len(entries)-1]
+		if sorted[i] == last.value {
+			last.count++
+		} else {
+			entries = append(entries, TreeInt32Entry{value: sorted[i], count: 1})
+		}
+	}
+	return entries
 }
 
 // search returns the index where value is or would be inserted.

@@ -20,6 +20,19 @@ func NewInt32() *Int32 {
 	}
 }
 
+// NewInt32WithCapacity creates a new empty Int32 that can hold capacity
+// values before its backing slice grows. It is the stack's bulk-load convenience:
+// presize once, then Push the prepared values in a single O(n) pass with no
+// intermediate reallocation. A negative capacity panics.
+func NewInt32WithCapacity(capacity int) *Int32 {
+	if capacity < 0 {
+		panic("mapdb: NewInt32WithCapacity: negative capacity")
+	}
+	return &Int32{
+		items: make([]int32, 0, capacity),
+	}
+}
+
 // Int32Of creates a new Int32 from the given values.
 // The last value becomes the top of the stack.
 func Int32Of(values ...int32) *Int32 {

@@ -20,6 +20,19 @@ func NewChar() *Char {
 	}
 }
 
+// NewCharWithCapacity creates a new empty Char that can hold capacity
+// values before its backing slice grows. It is the stack's bulk-load convenience:
+// presize once, then Push the prepared values in a single O(n) pass with no
+// intermediate reallocation. A negative capacity panics.
+func NewCharWithCapacity(capacity int) *Char {
+	if capacity < 0 {
+		panic("mapdb: NewCharWithCapacity: negative capacity")
+	}
+	return &Char{
+		items: make([]uint16, 0, capacity),
+	}
+}
+
 // CharOf creates a new Char from the given values.
 // The last value becomes the top of the stack.
 func CharOf(values ...uint16) *Char {

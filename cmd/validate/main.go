@@ -30,6 +30,7 @@ import (
 	"github.com/mapdb/mapdb-golang/hash"
 	"github.com/mapdb/mapdb-golang/hashmap"
 	"github.com/mapdb/mapdb-golang/hashset"
+	"github.com/mapdb/mapdb-golang/hyperloglog"
 	"github.com/mapdb/mapdb-golang/immutablesorted"
 	"github.com/mapdb/mapdb-golang/multimap"
 	"github.com/mapdb/mapdb-golang/rangev"
@@ -257,6 +258,8 @@ func main() {
 		runHashPipeline(s)
 	case "Bloom":
 		runBloom(s)
+	case "HyperLogLog":
+		runHyperLogLog(s)
 	default:
 		// Forward-compat (README "unknown collection kinds skip"): a runner
 		// that does not understand a collection kind must SKIP, not fail, so
@@ -330,6 +333,39 @@ func asInt(v any) int {
 	}
 	fatalf("expected integer, got %T (%v)", v, v)
 	return 0
+}
+
+// tryInt is the non-fatal variant of asInt: it returns ok=false on a missing
+// (nil) or non-numeric operand instead of fataling. Used by builders that must
+// SKIP a malformed scenario (forward-compat), mirroring the Rust runner's
+// `as_u64()?` / `as_i64()?` which yield None rather than panicking.
+func tryInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(i), true
+	}
+	return 0, false
+}
+
+// tryInt32 is the non-fatal variant of asInt32 (see tryInt).
+func tryInt32(v any) (int32, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int32(int64(n)), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int32(i), true
+	}
+	return 0, false
 }
 
 // Q4 float operand encoding (see cross-language-validation/README.md
@@ -848,6 +884,138 @@ func bloomI32SuffixToInt(s string) (int32, bool) {
 		return 0, false
 	}
 	return int32(n), true
+}
+
+// ---- HyperLogLog (spec/features/hyperloglog.md) ---------------------------
+//
+// A stored cardinality sketch. The cross-language oracle is the INTEGER
+// register array (via register_hex / nonzero_registers / max_register /
+// register_at_N) -- NEVER the float estimate (float-quarantine Rule Q1; there
+// is deliberately NO estimate assertion key here). Exactly one builder op,
+// first: either a with_precision(p) (then zero or more add/merge) OR a single
+// from_bytes. Zero/two builders or an add before the builder => malformed =>
+// SKIP. A merge consumes the scenario's `other` HyperLogLog. Unknown
+// ops/keys/kinds SKIP (forward-compat).
+
+// buildHLL builds a HyperLogLog from an op list (used for the primary and the
+// `other` block). Returns ok=false (=> caller SKIPs) when the op list is
+// malformed for the harness: not starting with exactly one builder, an
+// add/merge before the builder, an out-of-range with_precision, or a bad
+// from_bytes.
+func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperLogLog, bool) {
+	if len(operations) == 0 {
+		return hyperloglog.HyperLogLog{}, false
+	}
+	first := operations[0]
+	var hll hyperloglog.HyperLogLog
+	switch first["op"] {
+	case "with_precision":
+		// Non-fatal operand parse: a missing/mistyped `p` is a malformed
+		// scenario -> SKIP (mirrors Rust build_hll's `first["p"].as_u64()?`,
+		// which returns None rather than panicking).
+		pv, ok := tryInt(first["p"])
+		if !ok {
+			fmt.Fprintln(os.Stderr, "skip: HyperLogLog with_precision needs an integer p (forward-compat)")
+			return hyperloglog.HyperLogLog{}, false
+		}
+		p := uint8(pv)
+		h, err := hyperloglog.NewHyperLogLogWithPrecision(p)
+		if err != nil {
+			// Out-of-range p is a construction error -> SKIP (the harness cannot
+			// build the probe). The native tests pin the error path itself.
+			fmt.Fprintf(os.Stderr, "skip: HyperLogLog with_precision error: %v\n", err)
+			return hyperloglog.HyperLogLog{}, false
+		}
+		hll = h
+	case "from_bytes":
+		// from_bytes is the SOLE op when present (full state replacement, first
+		// op or malformed). Reject any trailing ops.
+		if len(operations) != 1 {
+			fmt.Fprintln(os.Stderr, "skip: from_bytes must be the only op (forward-compat)")
+			return hyperloglog.HyperLogLog{}, false
+		}
+		b := parseHexBytes(first["bytes"])
+		h, err := hyperloglog.HyperLogLogFromBytes(b)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "skip: HyperLogLog from_bytes error: %v\n", err)
+			return hyperloglog.HyperLogLog{}, false
+		}
+		hll = h
+	default:
+		fmt.Fprintln(os.Stderr, "skip: HyperLogLog first op must be a builder (forward-compat)")
+		return hyperloglog.HyperLogLog{}, false
+	}
+
+	for _, op := range operations[1:] {
+		switch op["op"] {
+		case "add":
+			// Non-fatal operand parse (mirrors Rust `op["value"].as_i64()?`):
+			// a missing/mistyped `value` => malformed => SKIP.
+			v, ok := tryInt32(op["value"])
+			if !ok {
+				fmt.Fprintln(os.Stderr, "skip: HyperLogLog add needs an integer value (forward-compat)")
+				return hyperloglog.HyperLogLog{}, false
+			}
+			hll.Add(v)
+		case "merge":
+			// Merge the scenario's `other` HyperLogLog (built by its own op list)
+			// by element-wise register max.
+			if other == nil {
+				fmt.Fprintln(os.Stderr, "skip: HyperLogLog merge needs an `other` block (forward-compat)")
+				return hyperloglog.HyperLogLog{}, false
+			}
+			otherHLL, ok := buildHLL(other.Operations, nil)
+			if !ok {
+				return hyperloglog.HyperLogLog{}, false
+			}
+			if err := hll.Merge(&otherHLL); err != nil {
+				fmt.Fprintf(os.Stderr, "skip: HyperLogLog merge error: %v\n", err)
+				return hyperloglog.HyperLogLog{}, false
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "skip: unknown HyperLogLog op (forward-compat): %v\n", op["op"])
+			return hyperloglog.HyperLogLog{}, false
+		}
+	}
+	return hll, true
+}
+
+func runHyperLogLog(s scenario) {
+	hll, ok := buildHLL(s.Operations, s.Other)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "skip: malformed HyperLogLog scenario (forward-compat)")
+		return
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalHLLAssertion(key, &hll), s.Assertions[key], modeNone)
+	}
+}
+
+func evalHLLAssertion(key string, hll *hyperloglog.HyperLogLog) string {
+	switch {
+	case key == "register_hex":
+		// The PRIMARY integer oracle: the full serialized form (HLL1 + p +
+		// register bytes) as a lower-case, 0x-prefixed hex string.
+		var sb strings.Builder
+		sb.WriteString("0x")
+		for _, b := range hll.ToBytes() {
+			fmt.Fprintf(&sb, "%02x", b)
+		}
+		return sb.String()
+	case key == "nonzero_registers":
+		return strconv.FormatUint(uint64(hll.NonzeroRegisters()), 10)
+	case key == "max_register":
+		return strconv.FormatUint(uint64(hll.MaxRegister()), 10)
+	// NOTE: there is deliberately NO estimate key (float-quarantine Q1).
+	case strings.HasPrefix(key, "register_at_"):
+		n, err := strconv.Atoi(key[len("register_at_"):])
+		if err != nil || n < 0 || n >= hll.RegisterCount() {
+			return unknown(key)
+		}
+		return strconv.FormatUint(uint64(hll.Registers()[n]), 10)
+	default:
+		return unknown(key)
+	}
 }
 
 // ---- HashMap<i32, i32> ---------------------------------------------------

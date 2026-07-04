@@ -9,11 +9,17 @@ import (
 	"testing"
 )
 
-// directiveRe matches the codegen go:generate directive and captures the
+// directiveRe matches an ACTIVE codegen go:generate directive and captures the
 // subcommand argument, e.g. "arraylist" in
 //
 //	//go:generate go run ../internal/codegen arraylist
-var directiveRe = regexp.MustCompile(`go:generate go run \.\./internal/codegen (\w+)`)
+//
+// It is anchored to the start of a line (Go only honours a go:generate directive
+// whose "//go:generate" begins the line) so a commented-out or disabled variant
+// like "// disabled: //go:generate …" or "////go:generate …" is NOT counted as
+// wired — otherwise the consistency guard could pass while a package's real
+// generation was switched off.
+var directiveRe = regexp.MustCompile(`(?m)^//go:generate go run \.\./internal/codegen (\w+)\s*$`)
 
 // TestManifestMatchesGenerators makes the manifest load-bearing: it asserts that
 // Families lists exactly the collection packages wired to the generator via a

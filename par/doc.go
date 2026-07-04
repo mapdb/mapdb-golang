@@ -55,12 +55,12 @@
 // # Scope
 //
 // Implemented: [FromSlice], the generic [From] over any [Segmenter], and the
-// chunk-pump [FromSeq]; terminals ForEach/Count/Filter/Reduce/Any/All/None/Find
-// and the free functions [Map]/[Fold]/[MapErr]/[Sum]/[MinFunc]/[MaxFunc]/[TopK]/
-// [CountBy]/[AggregateBy], plus the fallible ForEachErr/FilterErr twins; panic
-// containment and cancellation throughout, and the §8 crossover benchmarks that
-// justify MinPerWorker. Not yet built (later slices): FromMap over a Segmenter2,
-// the streaming MapSeq/Reorder, and GroupBy into a collection family and the
-// generated Par() collection on-ramp (both blocked on the collection-import
-// direction). Nothing here imports the collection families, so it stays additive.
+// chunk-pump [FromSeq]; terminals ForEach/Count/Filter/Reduce/Any/All/None/Find,
+// the free functions [Map]/[MapSeq]/[Fold]/[MapErr]/[Sum]/[MinFunc]/[MaxFunc]/
+// [TopK]/[CountBy]/[AggregateBy], plus the fallible ForEachErr/FilterErr twins;
+// panic containment and cancellation throughout, and the §8 crossover benchmarks
+// that justify MinPerWorker. Not yet built: FromMap over a Segmenter2, and GroupBy
+// into a collection family and the generated Par() collection on-ramp (both
+// blocked on the collection-import direction). Nothing here imports the collection
+// families, so it stays additive.
 package par

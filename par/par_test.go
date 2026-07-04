@@ -412,6 +412,122 @@ func TestSearchReduceCancelled(t *testing.T) {
 	}
 }
 
+func TestForEachErrSuccess(t *testing.T) {
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	var seen [10_000]int32
+	err := v.ForEachErr(context.Background(), func(_ context.Context, x int) error {
+		atomic.AddInt32(&seen[x], 1)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("ForEachErr: %v", err)
+	}
+	for i, c := range seen {
+		if c != 1 {
+			t.Fatalf("element %d visited %d times, want 1", i, c)
+		}
+	}
+}
+
+func TestForEachErrPropagatesAndCancels(t *testing.T) {
+	sentinel := errors.New("sentinel")
+	v := FromSlice(iotaSlice(1_000_000), Workers(8), MinPerWorker(1))
+	var calls int64
+	err := v.ForEachErr(context.Background(), func(_ context.Context, x int) error {
+		atomic.AddInt64(&calls, 1)
+		if x == 0 {
+			return sentinel
+		}
+		return nil
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("err = %v, want sentinel", err)
+	}
+	if c := atomic.LoadInt64(&calls); c >= 1_000_000 {
+		t.Fatalf("first error did not cancel siblings: %d calls", c)
+	}
+}
+
+func TestMapErr(t *testing.T) {
+	v := FromSlice(iotaSlice(5000), Workers(8), MinPerWorker(1))
+	got, err := MapErr(context.Background(), v, func(_ context.Context, x int) (int, error) {
+		return x * 2, nil
+	})
+	if err != nil {
+		t.Fatalf("MapErr: %v", err)
+	}
+	for i, x := range got {
+		if x != i*2 {
+			t.Fatalf("got[%d] = %d, want %d", i, x, i*2)
+		}
+	}
+
+	boom := errors.New("boom")
+	res, err := MapErr(context.Background(), v, func(_ context.Context, x int) (int, error) {
+		if x == 2500 {
+			return 0, boom
+		}
+		return x, nil
+	})
+	if !errors.Is(err, boom) || res != nil {
+		t.Fatalf("MapErr(fail) = (%v, %v), want (nil, boom)", res, err)
+	}
+}
+
+func TestFilterErr(t *testing.T) {
+	v := FromSlice(iotaSlice(9000), Workers(8), MinPerWorker(1))
+	got, err := v.FilterErr(context.Background(), func(_ context.Context, x int) (bool, error) {
+		return x%3 == 0, nil
+	})
+	if err != nil {
+		t.Fatalf("FilterErr: %v", err)
+	}
+	if !sort.IntsAreSorted(got) || len(got) != 3000 {
+		t.Fatalf("FilterErr result wrong: sorted=%v len=%d", sort.IntsAreSorted(got), len(got))
+	}
+	for i, x := range got {
+		if x != i*3 {
+			t.Fatalf("got[%d] = %d, want %d", i, x, i*3)
+		}
+	}
+}
+
+// TestErrCallbackObservesCancellation is the whole point of the ctx-aware twins:
+// when one worker errors, a sibling blocked inside its callback must be released
+// via the ctx it was handed — otherwise the op would hang. The test completing
+// (not timing out) proves the callback's ctx becomes done.
+func TestErrCallbackObservesCancellation(t *testing.T) {
+	sentinel := errors.New("trigger")
+	v := FromSlice(iotaSlice(100_000), Workers(4), MinPerWorker(1))
+	err := v.ForEachErr(context.Background(), func(cctx context.Context, x int) error {
+		if x == 0 {
+			return sentinel // segment 0 trips immediately, cancelling the rest
+		}
+		// Every other element blocks until cancellation reaches its ctx.
+		<-cctx.Done()
+		return cctx.Err()
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("err = %v, want sentinel (first error wins before cancel)", err)
+	}
+}
+
+func TestErrOpsPanicContained(t *testing.T) {
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	defer func() {
+		if _, ok := recover().(*PanicError); !ok {
+			t.Fatal("want *PanicError from a panicking …Err callback")
+		}
+	}()
+	_, _ = MapErr(context.Background(), v, func(_ context.Context, x int) (int, error) {
+		if x == 5000 {
+			panic("boom")
+		}
+		return x, nil
+	})
+	t.Fatal("unreachable")
+}
+
 func TestConcurrentAccumulationRaceFree(t *testing.T) {
 	// A mutex-guarded sink under -race proves the engine adds no data race of
 	// its own; the user is responsible for the callback's own safety.

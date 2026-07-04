@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/segment"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -280,6 +281,55 @@ func (s *Int8) All() iter.Seq[int8] {
 		}
 		inorder(s.root)
 	}
+}
+
+// Segments cuts the set into up to n balanced, contiguous, non-overlapping views
+// over the SORTED order (k = min(n, Len), or 1 when empty) whose concatenation
+// reproduces All in ascending order — so a *Int8 satisfies
+// par.Segmenter[int8] and feeds par.From with ORDERED segments, each
+// covering a contiguous rank range.
+//
+// Boundaries come from the per-node subtree-size augmentation: each view walks
+// only its rank range in-order, pruning whole subtrees that fall outside it, so
+// the split is O(Len + n·height) total, not O(Len·log Len). The views are live
+// over the tree: mutating the set while a view is consumed is undefined behavior.
+func (s *Int8) Segments(n int) []iter.Seq[int8] {
+	ranges := segment.SplitRanges(s.size, n)
+	segs := make([]iter.Seq[int8], len(ranges))
+	for i := range ranges {
+		lo, hi := ranges[i][0], ranges[i][1] // per-iteration copies for this view's closure
+		segs[i] = func(yield func(int8) bool) {
+			// In-order walk yielding elements whose 0-based rank is in [lo, hi).
+			// base is the rank of the first element in node's subtree; the node's
+			// own rank is base + size(node.left). Subtrees entirely outside
+			// [lo, hi) are pruned via the size augmentation.
+			var walk func(node *int8Node, base int) bool
+			walk = func(node *int8Node, base int) bool {
+				if node == nil {
+					return true
+				}
+				rank := base + int8NodeSize(node.left)
+				if lo < rank { // left subtree holds ranks [base, rank)
+					if !walk(node.left, base) {
+						return false
+					}
+				}
+				if rank >= lo && rank < hi {
+					if !yield(node.key) {
+						return false
+					}
+				}
+				if hi > rank+1 { // right subtree holds ranks [rank+1, base+size)
+					if !walk(node.right, rank+1) {
+						return false
+					}
+				}
+				return true
+			}
+			walk(s.root, 0)
+		}
+	}
+	return segs
 }
 
 // RangeValues returns an iter.Seq that yields elements in [from, to).

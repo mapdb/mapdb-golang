@@ -238,3 +238,10 @@ func (h *HashMultimap[K, V]) String() string {
 	sb.WriteString("}")
 	return sb.String()
 }
+
+// HashMultimap models the mutable multimap interface (11 §4): a grouping terminal
+// can return MutableMultimap[K,V] rather than this concrete type.
+var (
+	_ MutableMultimap[int, string] = (*HashMultimap[int, string])(nil)
+	_ MutableMultimap[int, int]    = (*HashMultimap[int, int])(nil)
+)

@@ -226,3 +226,51 @@ type MutableBiMap[K, V comparable] interface {
 	Remove(key K) (V, bool)
 	Clear()
 }
+
+// ── Multimap interfaces ───────────────────────────────────────────────
+
+// Multimap is the read-only interface for a key→many-values grouping. Satisfied by
+// HashMultimap and the ordered TreeMultimap; the K-any relaxation (11 §4) is what
+// lets the comparator-backed tree multimap model it. This is the interface a
+// grouping terminal (stream/par GroupBy) can return instead of a concrete
+// *HashMultimap — the whole point of giving multimaps an interface (11 §4).
+//
+// Multimap is NOT a MapIterable: its Get returns []V (a key's values), not a
+// single (V, bool), so the two do not share a contract.
+type Multimap[K any, V any] interface {
+	// Get returns a copy of the values stored under key (nil if the key is
+	// absent); the returned slice is safe to retain and mutate. GetCopy is an
+	// explicit alias for call sites that want the copy semantics spelled out.
+	Get(key K) []V
+	GetCopy(key K) []V
+	// ContainsKey reports whether key has at least one value.
+	ContainsKey(key K) bool
+	// Len is the total number of key-value pairs; SizeDistinct is the number of
+	// distinct keys.
+	Len() int
+	SizeDistinct() int
+	// All yields every key-value pair (a key with n values yields n times); Keys
+	// yields each distinct key once; Values yields every value across all keys.
+	All() iter.Seq2[K, V]
+	Keys() iter.Seq[K]
+	Values() iter.Seq[V]
+	// ForEach visits every pair; ForEachKey visits each distinct key once;
+	// ForEachKeyMultiValues visits each key with its whole (copied) value slice.
+	ForEach(f func(K, V))
+	ForEachKey(f func(K))
+	ForEachKeyMultiValues(f func(K, []V))
+}
+
+// MutableMultimap extends Multimap with mutation.
+type MutableMultimap[K any, V any] interface {
+	Multimap[K, V]
+	// Put adds value under key; PutAll adds several values under key at once.
+	Put(key K, value V)
+	PutAll(key K, values ...V)
+	// RemoveKey removes and returns all values previously under key (nil if
+	// absent). RemoveMatching removes the values equal to target (per eq) under
+	// key and returns how many were removed.
+	RemoveKey(key K) []V
+	RemoveMatching(key K, target V, eq func(V, V) bool) int
+	Clear()
+}

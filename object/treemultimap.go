@@ -211,3 +211,11 @@ func (t *TreeMultimap[K, V]) String() string {
 	sb.WriteString("}")
 	return sb.String()
 }
+
+// TreeMultimap is the ordered MutableMultimap. The []int-key assert is
+// load-bearing — a non-comparable key type-checks only because Multimap is K-any
+// (11 §4); ordering comes from the Comparator.
+var (
+	_ MutableMultimap[int, string]   = (*TreeMultimap[int, string])(nil)
+	_ MutableMultimap[[]int, string] = (*TreeMultimap[[]int, string])(nil)
+)

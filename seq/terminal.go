@@ -17,6 +17,26 @@ func (s Seq[T]) ForEach(f func(T)) {
 	}
 }
 
+// Into pours every element of s into dst via dst.Add and returns dst, bridging a
+// lazy Seq to any collection with the Adder capability (Add(value) bool) — a list,
+// set, bag, or any user type with that method. It is the bulk-load counterpart to
+// GroupByInto. A free function, not a method, because the sink type cannot be a
+// Seq method's type parameter.
+//
+// The bool that Add returns — insertion info for sets, always true for lists and
+// bags — is deliberately IGNORED: pouring duplicates into a set must not truncate
+// the pipeline. A stop-capable sink, if ever needed, gets its own protocol (its
+// false meaning "stop"); the two meanings never share the Add method (11 §4).
+//
+// Eager, O(n) over a finite s; an infinite s never returns (bound it with Take
+// first).
+func Into[T any, A interface{ Add(T) bool }](s Seq[T], dst A) A {
+	for v := range s {
+		dst.Add(v)
+	}
+	return dst
+}
+
 // ToSlice materializes all elements into a new slice, in order. Eager, O(n).
 func (s Seq[T]) ToSlice() []T {
 	var out []T

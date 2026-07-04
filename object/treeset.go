@@ -125,6 +125,38 @@ func (s *TreeSet[T]) ToSlice() []T {
 	return result
 }
 
+// AnySatisfy returns true if any element satisfies the predicate.
+func (s *TreeSet[T]) AnySatisfy(predicate func(T) bool) bool {
+	for v := range s.All() {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+// AllSatisfy returns true if all elements satisfy the predicate (vacuously true
+// when empty).
+func (s *TreeSet[T]) AllSatisfy(predicate func(T) bool) bool {
+	for v := range s.All() {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+// NoneSatisfy returns true if no element satisfies the predicate (vacuously true
+// when empty).
+func (s *TreeSet[T]) NoneSatisfy(predicate func(T) bool) bool {
+	for v := range s.All() {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
 // SelectWhere returns a new TreeSet with elements satisfying the predicate.
 //
 // Named SelectWhere (not Select) so the bare Select name is reserved for the
@@ -175,3 +207,11 @@ func (s *TreeSet[T]) String() string {
 	b.WriteByte('}')
 	return b.String()
 }
+
+// TreeSet now satisfies the mutable-set hierarchy: the T-any relaxation of
+// Searchable/Collection (11 §4) plus the predicate-query methods above let a
+// comparator-backed set join alongside the hash sets.
+var (
+	_ MutableSet[int]    = (*TreeSet[int])(nil)
+	_ MutableSet[string] = (*TreeSet[string])(nil)
+)

@@ -30,8 +30,13 @@ type Iterable[T any] interface {
 }
 
 // Searchable supports membership and predicate queries.
-// T must be comparable so Contains can use ==.
-type Searchable[T comparable] interface {
+//
+// T is unconstrained (any): membership semantics belong to the implementation,
+// not the interface. A hash-backed type compares with ==; a tree-backed type
+// uses its Comparator; a strategy-backed type uses its equality strategy. This is
+// why TreeSet/TreeMultimap/strategy types — the ones with the richest APIs — can
+// satisfy the hierarchy at all (11 §4).
+type Searchable[T any] interface {
 	Contains(value T) bool
 	AnySatisfy(predicate func(T) bool) bool
 	AllSatisfy(predicate func(T) bool) bool
@@ -46,7 +51,7 @@ type Convertible[T any] interface {
 // ── Composed collection interfaces ────────────────────────────────────
 
 // Collection is the full read-only interface for any collection.
-type Collection[T comparable] interface {
+type Collection[T any] interface {
 	Sized
 	Iterable[T]
 	Searchable[T]
@@ -54,7 +59,7 @@ type Collection[T comparable] interface {
 }
 
 // MutableCollection adds Clear to Collection.
-type MutableCollection[T comparable] interface {
+type MutableCollection[T any] interface {
 	Collection[T]
 	Clear()
 }
@@ -62,14 +67,14 @@ type MutableCollection[T comparable] interface {
 // ── Category interfaces ───────────────────────────────────────────────
 
 // List is the read-only interface for ordered collections with positional access.
-type List[T comparable] interface {
+type List[T any] interface {
 	Collection[T]
 	Get(index int) T
 	IndexOf(value T) int
 }
 
 // MutableList extends List with mutation.
-type MutableList[T comparable] interface {
+type MutableList[T any] interface {
 	List[T]
 	MutableCollection[T]
 	Add(value T)
@@ -77,12 +82,12 @@ type MutableList[T comparable] interface {
 }
 
 // Set is the read-only interface for collections with unique elements.
-type Set[T comparable] interface {
+type Set[T any] interface {
 	Collection[T]
 }
 
 // MutableSet extends Set with insertion and removal.
-type MutableSet[T comparable] interface {
+type MutableSet[T any] interface {
 	Set[T]
 	MutableCollection[T]
 	Add(value T) bool
@@ -90,27 +95,27 @@ type MutableSet[T comparable] interface {
 }
 
 // Bag is the read-only interface for multisets (elements with occurrence counts).
-type Bag[T comparable] interface {
+type Bag[T any] interface {
 	Collection[T]
 	OccurrencesOf(value T) int
 	SizeDistinct() int
 }
 
 // MutableBag extends Bag with insertion.
-type MutableBag[T comparable] interface {
+type MutableBag[T any] interface {
 	Bag[T]
 	MutableCollection[T]
 	Add(value T)
 }
 
 // Stack is the read-only interface for LIFO stacks.
-type Stack[T comparable] interface {
+type Stack[T any] interface {
 	Collection[T]
 	Peek() (T, bool)
 }
 
 // MutableStack extends Stack with push/pop.
-type MutableStack[T comparable] interface {
+type MutableStack[T any] interface {
 	Stack[T]
 	MutableCollection[T]
 	Push(value T)
@@ -120,7 +125,12 @@ type MutableStack[T comparable] interface {
 // ── Map interfaces ────────────────────────────────────────────────────
 
 // MapIterable is the read-only interface for any key-value map.
-type MapIterable[K comparable, V any] interface {
+//
+// K is unconstrained (any): key identity belongs to the implementation — a
+// hash-backed map compares keys with == (and constrains K comparable itself), a
+// tree-backed map uses its Comparator. Relaxing K here is what lets TreeMap/
+// TreeMultimap/HashMultimap satisfy the map hierarchy (11 §4).
+type MapIterable[K any, V any] interface {
 	Get(key K) (V, bool)
 	ContainsKey(key K) bool
 	Len() int
@@ -134,7 +144,7 @@ type MapIterable[K comparable, V any] interface {
 }
 
 // MutableMap extends MapIterable with mutation.
-type MutableMap[K comparable, V any] interface {
+type MutableMap[K any, V any] interface {
 	MapIterable[K, V]
 	Put(key K, value V) (V, bool)
 	Remove(key K) (V, bool)

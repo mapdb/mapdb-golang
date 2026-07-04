@@ -168,6 +168,38 @@ func (m *TreeMap[K, V]) ForEach(f func(K, V)) {
 	m.inOrder(m.root, func(k K, v V) bool { f(k, v); return true })
 }
 
+// AnySatisfy returns true if any entry satisfies the predicate.
+func (m *TreeMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
+	for k, v := range m.All() {
+		if predicate(k, v) {
+			return true
+		}
+	}
+	return false
+}
+
+// AllSatisfy returns true if all entries satisfy the predicate (vacuously true
+// when empty).
+func (m *TreeMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
+	for k, v := range m.All() {
+		if !predicate(k, v) {
+			return false
+		}
+	}
+	return true
+}
+
+// NoneSatisfy returns true if no entry satisfies the predicate (vacuously true
+// when empty).
+func (m *TreeMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
+	for k, v := range m.All() {
+		if predicate(k, v) {
+			return false
+		}
+	}
+	return true
+}
+
 func (m *TreeMap[K, V]) Select(predicate func(K, V) bool) *TreeMap[K, V] {
 	result := NewTreeMap[K, V](m.cmp)
 	m.ForEach(func(k K, v V) {
@@ -757,3 +789,11 @@ func (m *TreeMap[K, V]) fixAfterDelete(n *tmNode[K, V]) {
 		n.red = false
 	}
 }
+
+// TreeMap now satisfies the mutable-map hierarchy: the K-any relaxation of
+// MapIterable (11 §4) plus the predicate-query methods above let a
+// comparator-backed map join alongside the hash maps.
+var (
+	_ MutableMap[string, int] = (*TreeMap[string, int])(nil)
+	_ MutableMap[int, string] = (*TreeMap[int, string])(nil)
+)

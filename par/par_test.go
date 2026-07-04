@@ -528,6 +528,68 @@ func TestErrOpsPanicContained(t *testing.T) {
 	t.Fatal("unreachable")
 }
 
+func TestCountBy(t *testing.T) {
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	got, err := CountBy(context.Background(), v, func(x int) int { return x % 10 })
+	if err != nil {
+		t.Fatalf("CountBy: %v", err)
+	}
+	if len(got) != 10 {
+		t.Fatalf("CountBy keys = %d, want 10", len(got))
+	}
+	for k, c := range got {
+		if c != 1000 {
+			t.Fatalf("bucket %d = %d, want 1000", k, c)
+		}
+	}
+}
+
+func TestAggregateBySum(t *testing.T) {
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	got, err := AggregateBy(context.Background(), v,
+		func(x int) int { return x % 4 },    // key
+		func() int { return 0 },             // newAcc
+		func(a, x int) int { return a + x }, // acc within segment
+		func(a, b int) int { return a + b }, // merge across segments (associative)
+	)
+	if err != nil {
+		t.Fatalf("AggregateBy: %v", err)
+	}
+	// Independent oracle: sum of all x with x%4 == k.
+	want := map[int]int{}
+	for x := 0; x < 10_000; x++ {
+		want[x%4] += x
+	}
+	if len(got) != len(want) {
+		t.Fatalf("keys = %d, want %d", len(got), len(want))
+	}
+	for k, w := range want {
+		if got[k] != w {
+			t.Fatalf("bucket %d = %d, want %d", k, got[k], w)
+		}
+	}
+}
+
+func TestAggregateByEmptyAndCancel(t *testing.T) {
+	empty := FromSlice([]int{}, Workers(8), MinPerWorker(1))
+	got, err := CountBy(context.Background(), empty, func(x int) int { return x })
+	if err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("CountBy(empty) = (%v, %v), want (empty non-nil, nil)", got, err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	if _, err := CountBy(ctx, v, func(x int) int { return x }); !errors.Is(err, context.Canceled) {
+		t.Fatalf("CountBy(cancelled) err = %v, want context.Canceled", err)
+	}
+	if _, err := AggregateBy(ctx, v, func(x int) int { return x },
+		func() int { return 0 }, func(a, x int) int { return a + x }, func(a, b int) int { return a + b },
+	); !errors.Is(err, context.Canceled) {
+		t.Fatalf("AggregateBy(cancelled) err = %v, want context.Canceled", err)
+	}
+}
+
 func TestConcurrentAccumulationRaceFree(t *testing.T) {
 	// A mutex-guarded sink under -race proves the engine adds no data race of
 	// its own; the user is responsible for the callback's own safety.

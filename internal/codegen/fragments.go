@@ -11,7 +11,9 @@ import "text/template"
 //
 // Fragments are the mechanism that turns a cross-cutting method from N per-family
 // hand-pastes into a one-place edit (see todo/fable-golang/14 §1a). They are
-// parameterized by the shared data contract every per-family struct exposes:
+// parameterized by a shared data contract that a per-family struct opts into by
+// adding the fields a fragment it invokes needs (today only alData/stData/pqData
+// carry .Recv, for contains_slice):
 //
 //	.Recv    receiver variable (l, s, q, m, …)
 //	.Name    concrete type identifier stem (Int32, Float32, Char, …)
@@ -41,6 +43,12 @@ func ({{.Recv}} *{{.Name}}) Contains(value {{.GoType}}) bool {
 // so every family sees the same fragment set. Because fragments contains only
 // {{define}} blocks, prepending it never adds output to a body that invokes no
 // fragment.
+//
+// Concatenating fragments ahead of body in a single Parse (rather than two
+// successive Parse calls) is deliberate: it makes a duplicate {{define}} name a
+// loud parse-time panic instead of a silent redefinition. The cost is that a
+// parse error in a family body reports a line number offset by the fragment
+// prefix's length, not the body-relative line.
 func parse(name, body string) *template.Template {
 	return template.Must(template.New(name).Parse(fragments + body))
 }

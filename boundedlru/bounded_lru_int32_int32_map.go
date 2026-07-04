@@ -103,6 +103,19 @@ type BoundedLruInt32Int32Map struct {
 	hasTTL bool
 	// onEvict is the optional eviction callback (key, value-at-eviction, cause).
 	onEvict func(key int32, value int32, cause EvictionCause)
+	// inCallback is true while onEvict is running. Re-entering any mutating
+	// method from the callback corrupts the arena (e.g. ExpireEntries holds
+	// collected victim indices that a reentrant mutation invalidates), so the
+	// guarded methods panic instead of silently corrupting.
+	inCallback bool
+}
+
+// assertNotInCallback panics if called while the eviction callback is running.
+// Mutating (or recency-refreshing) the map from inside onEvict is forbidden.
+func (m *BoundedLruInt32Int32Map) assertNotInCallback() {
+	if m.inCallback {
+		panic("boundedlru: reentrant call from eviction callback")
+	}
 }
 
 // BuilderBoundedLruInt32Int32Map builds a BoundedLruInt32Int32Map. maxSize is
@@ -271,6 +284,7 @@ func (m *BoundedLruInt32Int32Map) Put(key int32, value int32) (int32, bool) {
 // of key; a new-key insert at capacity evicts the LRU entry first
 // (evict-before-insert). Returns the previous value and whether one existed.
 func (m *BoundedLruInt32Int32Map) PutAt(key int32, value int32, now uint64) (int32, bool) {
+	m.assertNotInCallback()
 	expireAt := neverExpire
 	if m.hasTTL {
 		expireAt = saturatingAdd(now, m.ttl)
@@ -308,6 +322,7 @@ func (m *BoundedLruInt32Int32Map) PutAt(key int32, value int32, now uint64) (int
 
 // Get looks up key. On a hit it refreshes recency; on a miss it does nothing.
 func (m *BoundedLruInt32Int32Map) Get(key int32) (int32, bool) {
+	m.assertNotInCallback() // a hit refreshes recency, mutating LRU order
 	if idx, ok := m.index[key]; ok {
 		v := m.arena[idx].value
 		m.touch(idx)
@@ -337,6 +352,7 @@ func (m *BoundedLruInt32Int32Map) ContainsKey(key int32) bool {
 // callback (manual removal is not an eviction). Returns the removed value and
 // whether it was present.
 func (m *BoundedLruInt32Int32Map) Remove(key int32) (int32, bool) {
+	m.assertNotInCallback()
 	idx, ok := m.index[key]
 	if !ok {
 		return 0, false
@@ -351,6 +367,7 @@ func (m *BoundedLruInt32Int32Map) Remove(key int32) (int32, bool) {
 // Clear removes all entries. It does NOT invoke the eviction callback for the
 // cleared entries (bulk manual removal is not eviction).
 func (m *BoundedLruInt32Int32Map) Clear() {
+	m.assertNotInCallback()
 	m.index = make(map[int32]int)
 	m.arena = m.arena[:0]
 	m.freeHead = nilIdx
@@ -367,7 +384,13 @@ func (m *BoundedLruInt32Int32Map) evictNode(idx int, cause EvictionCause) {
 	m.unlink(idx)
 	m.freeNode(idx)
 	if m.onEvict != nil {
-		m.onEvict(key, value, cause)
+		m.inCallback = true
+		// Clear the flag even if the callback panics, so a recovered panic does
+		// not leave the map permanently wedged.
+		func() {
+			defer func() { m.inCallback = false }()
+			m.onEvict(key, value, cause)
+		}()
 	}
 }
 
@@ -377,6 +400,7 @@ func (m *BoundedLruInt32Int32Map) evictNode(idx int, cause EvictionCause) {
 // count removed. This is the only time-driven eviction; surviving entries'
 // recency is unchanged. A no-TTL map never expires anything.
 func (m *BoundedLruInt32Int32Map) ExpireEntries(now uint64) int {
+	m.assertNotInCallback()
 	if !m.hasTTL {
 		return 0
 	}

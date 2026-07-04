@@ -61,17 +61,30 @@ func (m *Int32Int32RangeMap) PutCoalescing(r Int32Range, value int32) {
 		return
 	}
 	m.clipOut(r)
-	// Span over every connected entry with an EQUAL value, dropping them.
+	// Span over every connected entry with an EQUAL value, dropping them. This
+	// repeats to a fixpoint rather than taking a single ascending pass: growing
+	// `merged` (in EITHER direction) can newly connect it to an entry that was
+	// already visited earlier in the pass, so one pass is direction-biased
+	// (a chain of abutting equal-valued entries coalesces rightward but not
+	// leftward). Iterating until no entry is absorbed makes the result
+	// direction-independent and leaves no two connected equal-valued entries.
 	merged := r
-	out := make([]Int32Int32Entry, 0, len(m.entries)+1)
-	for _, e := range m.entries {
-		if e.Value == value && e.Range.IsConnected(merged) {
-			merged = e.Range.Span(merged)
-		} else {
-			out = append(out, e)
+	for {
+		grew := false
+		out := m.entries[:0]
+		for _, e := range m.entries {
+			if e.Value == value && e.Range.IsConnected(merged) {
+				merged = e.Range.Span(merged)
+				grew = true
+			} else {
+				out = append(out, e)
+			}
+		}
+		m.entries = out
+		if !grew {
+			break
 		}
 	}
-	m.entries = out
 	m.insertEntry(merged, value)
 }
 

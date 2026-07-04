@@ -35,6 +35,39 @@ func TestFromChannelEarlyBreakDoesNotClose(t *testing.T) {
 	}
 }
 
+func TestFromChannelCtxCancelInterruptsIdle(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	idle := make(chan int) // open, never sent to, never closed
+	done := make(chan struct{})
+	go func() {
+		FromChannelCtx(ctx, idle).ForEach(func(int) {})
+		close(done)
+	}()
+	cancel() // must wake the idle receive and let the range return
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("FromChannelCtx did not return after ctx cancel on an idle channel")
+	}
+}
+
+func TestToChannelOverCtxSourceClosesOnCancelWhenIdle(t *testing.T) {
+	// The composition the package caveat is about: a ctx-aware source lets
+	// ToChannel actually close on cancel even though the source is idle.
+	ctx, cancel := context.WithCancel(context.Background())
+	idle := make(chan int)
+	out := ToChannel(ctx, FromChannelCtx(ctx, idle), 0)
+	cancel()
+	select {
+	case _, ok := <-out:
+		if ok {
+			t.Fatal("expected closed channel, got a value")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("ToChannel did not close on cancel with a ctx-aware idle source")
+	}
+}
+
 func TestToChannel(t *testing.T) {
 	out := ToChannel(context.Background(), Of(1, 2, 3, 4), 2)
 	var got []int

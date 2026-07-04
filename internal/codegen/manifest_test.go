@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -71,6 +72,44 @@ func TestManifestMatchesGenerators(t *testing.T) {
 	if t.Failed() {
 		t.Logf("wired=%v declared=%v", sortedKeys(wired), sortedKeys(declared))
 	}
+}
+
+// TestManifestVariantsMatchFiles guards the manifest's structured Immutable and
+// Synchronized facts against reality: they must agree with the presence of
+// immutable_*.go / synchronized_*.go generated files in the family's package.
+// This is the automated check for the class of error a manual audit caught in
+// the descriptive columns — a stale boolean here now fails the build instead of
+// silently shipping a wrong cell in the family matrix.
+func TestManifestVariantsMatchFiles(t *testing.T) {
+	repoRoot, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range Families {
+		dir := filepath.Join(repoRoot, f.Package)
+		if got := hasGenerated(t, dir, "immutable_*.go"); got != f.Immutable {
+			t.Errorf("%s: manifest Immutable=%v but immutable_*.go present=%v", f.Package, f.Immutable, got)
+		}
+		if got := hasGenerated(t, dir, "synchronized_*.go"); got != f.Synchronized {
+			t.Errorf("%s: manifest Synchronized=%v but synchronized_*.go present=%v", f.Package, f.Synchronized, got)
+		}
+	}
+}
+
+// hasGenerated reports whether dir holds at least one non-test source file
+// matching pattern.
+func hasGenerated(t *testing.T, dir, pattern string) bool {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(dir, pattern))
+	if err != nil {
+		t.Fatalf("glob %s: %v", pattern, err)
+	}
+	for _, m := range matches {
+		if !strings.HasSuffix(m, "_test.go") {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedKeys(m map[string]bool) []string {

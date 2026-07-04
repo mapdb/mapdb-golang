@@ -51,6 +51,22 @@ func TestStopOnErrClean(t *testing.T) {
 	}
 }
 
+func TestStopOnErrResetsAcrossRanges(t *testing.T) {
+	boom := errors.New("boom")
+	// A re-runnable fallible source: errors on the 2nd element every range.
+	s, errf := StopOnErr(fallible([]int{1, 2, 3}, []error{nil, boom, nil}))
+	// first range hits the error
+	if got := s.ToSlice(); !slices.Equal(got, []int{1}) || errf() != boom {
+		t.Fatalf("first range = %v err=%v", got, errf())
+	}
+	// second range breaks BEFORE reaching the error: accessor must reflect the
+	// most recent range (nil), not the stale boom.
+	_ = s.Take(1).ToSlice()
+	if errf() != nil {
+		t.Errorf("accessor after clean partial re-range = %v, want nil", errf())
+	}
+}
+
 func TestSkipErr(t *testing.T) {
 	boom := errors.New("boom")
 	var seen []error

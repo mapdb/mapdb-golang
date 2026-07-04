@@ -24,11 +24,12 @@ import (
 	"os"
 )
 
-// generators maps each codegen subcommand to its generator function. The family
-// keys (every key except "matrix", the manifest's own renderer) are kept in
-// lockstep with the manifest (Families) and the per-package go:generate
-// directives by TestManifestMatchesGenerators — adding a family means updating
-// all three, and the test fails otherwise.
+// generators maps each codegen subcommand to its generator function. The
+// per-family keys — every key except the two non-family subcommands "matrix"
+// (renders FAMILY_MATRIX.md) and "interfaces" (renders the collection interface
+// vocabulary) — are kept in lockstep with the manifest (Families) and the
+// per-package go:generate directives by TestManifestMatchesGenerators, which
+// applies the same exclusion. Adding a family means updating all three.
 var generators = map[string]func() error{
 	"arraylist":       genArrayList,
 	"interval":        genInterval,

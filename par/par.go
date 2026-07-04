@@ -24,8 +24,10 @@ var errGoexit = errors.New("par: worker exited abnormally (runtime.Goexit)")
 // Segmenter is the one capability the parallel design rests on: a source that
 // can cut itself into k ≤ n independently iterable, re-runnable, non-overlapping
 // views that together cover it. k may be less than n (small or hard-to-split
-// sources may return 1). Views are live: mutating the source while segment seqs
-// are being consumed is undefined behavior.
+// sources may return 1). Views are live and their boundaries are fixed from the
+// source's state at the Segments call: mutating the source any time after
+// Segments returns and before the returned views are exhausted or discarded is
+// undefined behavior.
 type Segmenter[T any] interface {
 	Segments(n int) []iter.Seq[T]
 }

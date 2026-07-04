@@ -292,7 +292,10 @@ func (s *Int32) All() iter.Seq[int32] {
 // Boundaries come from the per-node subtree-size augmentation: each view walks
 // only its rank range in-order, pruning whole subtrees that fall outside it, so
 // the split is O(Len + n·height) total, not O(Len·log Len). The views are live
-// over the tree: mutating the set while a view is consumed is undefined behavior.
+// over the tree, and the rank ranges are fixed from Len at the moment of this
+// call: mutating the set any time after Segments returns and before the returned
+// views are exhausted or discarded is undefined behavior (a resize shifts every
+// rank, so stale ranges would drop or double elements).
 func (s *Int32) Segments(n int) []iter.Seq[int32] {
 	ranges := segment.SplitRanges(s.size, n)
 	segs := make([]iter.Seq[int32], len(ranges))

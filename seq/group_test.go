@@ -63,6 +63,31 @@ func TestWindow(t *testing.T) {
 	}
 }
 
+func TestWindowOutputsDoNotAlias(t *testing.T) {
+	var got [][]int
+	for w := range Window(Of(1, 2, 3, 4), 2) {
+		got = append(got, w)
+	}
+	// Mutating an earlier retained window must not disturb a later one.
+	got[0][0] = 999
+	if !slices.Equal(got[1], []int{2, 3}) {
+		t.Errorf("windows alias the internal buffer: got[1]=%v", got[1])
+	}
+}
+
+func TestZipEarlyBreakStops(t *testing.T) {
+	// Zip against an infinite b, taken to 1: the Pull must stop cleanly and the
+	// range must short-circuit rather than spin.
+	nats := Iterate(0, func(n int) int { return n + 1 })
+	n := 0
+	for range Zip(Of("a", "b", "c"), nats).Keys().Take(1).Std() {
+		n++
+	}
+	if n != 1 {
+		t.Errorf("Zip early break yielded %d, want 1", n)
+	}
+}
+
 func TestWindowNonPositivePanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {

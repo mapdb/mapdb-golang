@@ -137,7 +137,8 @@ func AggregateBy[V any, K comparable, A any](s Seq[V], key func(V) K, newAcc fun
 }
 
 // Average returns the arithmetic mean of the elements as a float64 and true, or
-// 0 and false for an empty sequence. Eager, O(n). ⟨EC: averageOf⟩
+// 0 and false for an empty sequence. Eager, O(n) time, O(1) memory.
+// ⟨EC: averageOf⟩
 func Average[V Numeric](s Seq[V]) (float64, bool) {
 	var total float64
 	n := 0

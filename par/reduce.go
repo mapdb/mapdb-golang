@@ -24,7 +24,7 @@ type Numeric interface {
 // Floating-point summation is order-dependent, so the result may differ slightly
 // from a sequential sum across worker counts.
 func Sum[T Numeric](ctx context.Context, v View[T]) (T, error) {
-	partials, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (T, error) {
+	partials, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (T, error) {
 		var s T
 		for x := range seg {
 			if cancelled(cctx) {
@@ -63,7 +63,7 @@ func MaxFunc[T any](ctx context.Context, v View[T], less func(a, b T) bool) (T, 
 // replace best; earliest-by-segment-order wins ties because replacement requires
 // strictly-better, never equal.
 func extremum[T any](ctx context.Context, v View[T], better func(candidate, best T) bool) (T, bool, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (opt[T], error) {
+	parts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (opt[T], error) {
 		var best opt[T]
 		for x := range seg {
 			if cancelled(cctx) {

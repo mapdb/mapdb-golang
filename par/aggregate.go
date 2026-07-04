@@ -21,7 +21,7 @@ import (
 // by key, how many elements mapped to it. Free function because K is a fresh type
 // parameter. Returns an empty (non-nil) map for an empty source.
 func CountBy[T any, K comparable](ctx context.Context, v View[T], key func(T) K) (map[K]int, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (map[K]int, error) {
+	parts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (map[K]int, error) {
 		m := make(map[K]int)
 		for x := range seg {
 			if cancelled(cctx) {
@@ -58,7 +58,7 @@ func AggregateBy[T any, K comparable, A any](
 	acc func(A, T) A,
 	merge func(A, A) A,
 ) (map[K]A, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (map[K]A, error) {
+	parts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (map[K]A, error) {
 		m := make(map[K]A)
 		for x := range seg {
 			if cancelled(cctx) {

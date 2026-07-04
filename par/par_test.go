@@ -608,3 +608,177 @@ func TestConcurrentAccumulationRaceFree(t *testing.T) {
 		t.Fatalf("sum = %d, want %d", sum, want)
 	}
 }
+
+// ── chunk-pump (FromSeq) ───────────────────────────────────────────────────
+
+// seqOfSlice is a re-runnable iter.Seq over xs (test helper).
+func seqOfSlice(xs []int) iter.Seq[int] {
+	return func(yield func(int) bool) {
+		for _, x := range xs {
+			if !yield(x) {
+				return
+			}
+		}
+	}
+}
+
+// countFrom is an UNBOUNDED iter.Seq: start, start+1, … forever. Terminals that
+// don't terminate over it will hang the test (that's the point).
+func countFrom(start int) iter.Seq[int] {
+	return func(yield func(int) bool) {
+		for i := start; ; i++ {
+			if !yield(i) {
+				return
+			}
+		}
+	}
+}
+
+func TestFromSeqCountSum(t *testing.T) {
+	v := FromSeq(seqOfSlice(iotaSlice(10_000)), Workers(4), MinPerWorker(64))
+	ctx := context.Background()
+	if got, err := v.Count(ctx, func(x int) bool { return x%2 == 0 }); err != nil || got != 5000 {
+		t.Fatalf("Count = (%d, %v), want (5000, nil)", got, err)
+	}
+	if got, err := Sum(ctx, v); err != nil || got != 10_000*9_999/2 {
+		t.Fatalf("Sum = (%d, %v)", got, err)
+	}
+}
+
+func TestFromSeqMapUnorderedButComplete(t *testing.T) {
+	v := FromSeq(seqOfSlice(iotaSlice(3000)), Workers(4), MinPerWorker(32))
+	got, err := Map(context.Background(), v, func(x int) int { return x * 2 })
+	if err != nil {
+		t.Fatalf("Map: %v", err)
+	}
+	if len(got) != 3000 {
+		t.Fatalf("Map len = %d, want 3000", len(got))
+	}
+	sort.Ints(got) // chunk-pump results are unordered; the SET must be complete
+	for i, x := range got {
+		if x != i*2 {
+			t.Fatalf("after sort got[%d] = %d, want %d", i, x, i*2)
+		}
+	}
+}
+
+func TestFromSeqCountBy(t *testing.T) {
+	v := FromSeq(seqOfSlice(iotaSlice(10_000)), Workers(4), MinPerWorker(64))
+	got, err := CountBy(context.Background(), v, func(x int) int { return x % 10 })
+	if err != nil {
+		t.Fatalf("CountBy: %v", err)
+	}
+	for k, c := range got {
+		if c != 1000 {
+			t.Fatalf("bucket %d = %d, want 1000", k, c)
+		}
+	}
+}
+
+func TestFromSeqReRunnableOverSlice(t *testing.T) {
+	v := FromSeq(seqOfSlice(iotaSlice(5000)), Workers(4), MinPerWorker(64))
+	for run := 0; run < 3; run++ {
+		got, err := v.Count(context.Background(), func(int) bool { return true })
+		if err != nil || got != 5000 {
+			t.Fatalf("run %d: Count = (%d, %v), want (5000, nil)", run, got, err)
+		}
+	}
+}
+
+func TestFromSeqEmpty(t *testing.T) {
+	v := FromSeq(seqOfSlice(nil), Workers(4), MinPerWorker(64))
+	if got, err := v.Count(context.Background(), func(int) bool { return true }); err != nil || got != 0 {
+		t.Fatalf("Count(empty) = (%d, %v), want (0, nil)", got, err)
+	}
+}
+
+// The critical property: short-circuit terminals must TERMINATE over an unbounded
+// source by stopping the puller. If the puller ignored the early-done flag these
+// would hang.
+func TestFromSeqAnyTerminatesOverUnbounded(t *testing.T) {
+	v := FromSeq(countFrom(0), Workers(4), MinPerWorker(16))
+	got, err := v.Any(context.Background(), func(x int) bool { return x == 5 })
+	if err != nil || !got {
+		t.Fatalf("Any = (%v, %v), want (true, nil)", got, err)
+	}
+}
+
+func TestFromSeqFindTerminatesOverUnbounded(t *testing.T) {
+	v := FromSeq(countFrom(0), Workers(4), MinPerWorker(16))
+	got, ok, err := v.Find(context.Background(), func(x int) bool { return x == 7 })
+	if err != nil || !ok || !(got == 7 || got >= 0) {
+		t.Fatalf("Find = (%d, %v, %v), want a match", got, ok, err)
+	}
+}
+
+func TestFromSeqAllNoneFinite(t *testing.T) {
+	v := FromSeq(seqOfSlice(iotaSlice(1000)), Workers(4), MinPerWorker(16))
+	ctx := context.Background()
+	if got, err := v.All(ctx, func(x int) bool { return x >= 0 }); err != nil || !got {
+		t.Fatalf("All = (%v, %v), want (true, nil)", got, err)
+	}
+	if got, err := v.None(ctx, func(x int) bool { return x < 0 }); err != nil || !got {
+		t.Fatalf("None = (%v, %v), want (true, nil)", got, err)
+	}
+}
+
+// Error-based cancellation must also stop the puller (via the internal ctx),
+// terminating a fallible op over an unbounded source.
+func TestFromSeqForEachErrTerminatesOverUnbounded(t *testing.T) {
+	sentinel := errors.New("sentinel")
+	v := FromSeq(countFrom(0), Workers(4), MinPerWorker(16))
+	err := v.ForEachErr(context.Background(), func(_ context.Context, x int) error {
+		if x >= 50 {
+			return sentinel
+		}
+		return nil
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("err = %v, want sentinel", err)
+	}
+}
+
+// External cancellation must terminate AND be reported (chunk-pump workers stop by
+// ceasing to receive, so runChunks' final ctx.Err() check is what surfaces it).
+func TestFromSeqExternalCancelTerminatesAndReports(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	v := FromSeq(countFrom(0), Workers(4), MinPerWorker(16))
+	var n int64
+	err := v.ForEach(ctx, func(int) {
+		if atomic.AddInt64(&n, 1) == 100 {
+			cancel()
+		}
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+func TestFromSeqPreCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	v := FromSeq(seqOfSlice(iotaSlice(10_000)), Workers(4), MinPerWorker(16))
+	called := int32(0)
+	got, err := v.Count(ctx, func(int) bool { atomic.AddInt32(&called, 1); return true })
+	if !errors.Is(err, context.Canceled) || got != 0 {
+		t.Fatalf("Count(pre-cancel) = (%d, %v), want (0, Canceled)", got, err)
+	}
+	if atomic.LoadInt32(&called) != 0 {
+		t.Fatalf("pred called %d times on pre-cancel, want 0", called)
+	}
+}
+
+func TestFromSeqPanicContained(t *testing.T) {
+	v := FromSeq(seqOfSlice(iotaSlice(10_000)), Workers(4), MinPerWorker(16))
+	defer func() {
+		if _, ok := recover().(*PanicError); !ok {
+			t.Fatalf("want *PanicError from a panicking chunk-pump callback")
+		}
+	}()
+	_ = v.ForEach(context.Background(), func(x int) {
+		if x == 5000 {
+			panic("boom")
+		}
+	})
+	t.Fatal("unreachable")
+}

@@ -43,12 +43,24 @@
 // goroutine overhead isn't worth it. MinPerWorker's default is provisional
 // pending the crossover benchmarks of 13-parallel-design.md §8.
 //
-// # Scope (first slice)
+// # Two execution models
 //
-// Implemented: [FromSlice] and the generic [From] over any [Segmenter]; the
-// terminals ForEach/Count/Filter/Reduce and the free functions [Map]/[Fold];
-// panic containment and cancellation. Not yet built (later slices): the
-// chunk-pump FromSeq/FromMap, short-circuiting Any/Find, the fallible …Err twins,
-// GroupBy/TopK/Sum and other reducers, and the generated Par() collection
-// on-ramp. Nothing here imports the collection families, so it stays additive.
+// Segment-based views ([FromSlice], [From]) split a source into balanced pieces;
+// terminals preserve segment (source) order. Chunk-pump views ([FromSeq]) drain a
+// single-shot, unsplittable seq through one puller into a bounded worker pool;
+// terminals are unordered and consume the source once. Both share the same
+// terminal API and the same panic/cancellation contracts — the ordering and
+// single-pass differences are documented per constructor.
+//
+// # Scope
+//
+// Implemented: [FromSlice], the generic [From] over any [Segmenter], and the
+// chunk-pump [FromSeq]; terminals ForEach/Count/Filter/Reduce/Any/All/None/Find
+// and the free functions [Map]/[Fold]/[MapErr]/[Sum]/[MinFunc]/[MaxFunc]/
+// [CountBy]/[AggregateBy], plus the fallible ForEachErr/FilterErr twins; panic
+// containment and cancellation throughout. Not yet built (later slices): FromMap
+// over a Segmenter2, the streaming MapSeq/Reorder, TopK, GroupBy into a collection
+// family, the crossover benchmarks that set MinPerWorker (§8), and the generated
+// Par() collection on-ramp. Nothing here imports the collection families, so it
+// stays additive.
 package par

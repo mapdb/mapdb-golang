@@ -16,7 +16,7 @@ import (
 // interleave arbitrarily, so f must be safe for concurrent invocation. Returns
 // ctx.Err() if cancelled before completion; re-panics (as *PanicError) if f panics.
 func (v View[T]) ForEach(ctx context.Context, f func(T)) error {
-	_, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (struct{}, error) {
+	_, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (struct{}, error) {
 		for x := range seg {
 			if cancelled(cctx) {
 				return struct{}{}, cctx.Err()
@@ -30,7 +30,7 @@ func (v View[T]) ForEach(ctx context.Context, f func(T)) error {
 
 // Count returns the number of elements satisfying pred, summed across segments.
 func (v View[T]) Count(ctx context.Context, pred func(T) bool) (int, error) {
-	counts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (int, error) {
+	counts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (int, error) {
 		c := 0
 		for x := range seg {
 			if cancelled(cctx) {
@@ -55,7 +55,7 @@ func (v View[T]) Count(ctx context.Context, pred func(T) bool) (int, error) {
 // Filter returns the elements satisfying pred, in source (segment) order. O(n)
 // in the number of matches.
 func (v View[T]) Filter(ctx context.Context, pred func(T) bool) ([]T, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]T, error) {
+	parts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]T, error) {
 		var out []T
 		for x := range seg {
 			if cancelled(cctx) {
@@ -79,7 +79,7 @@ func (v View[T]) Filter(ctx context.Context, pred func(T) bool) ([]T, error) {
 // documented, not checked. For a non-associative element step, use Fold, whose
 // per-segment accumulator only needs merge to be associative.
 func (v View[T]) Reduce(ctx context.Context, identity T, op func(acc, x T) T) (T, error) {
-	partials, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (T, error) {
+	partials, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (T, error) {
 		acc := identity
 		for x := range seg {
 			if cancelled(cctx) {

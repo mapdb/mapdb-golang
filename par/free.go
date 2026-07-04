@@ -15,7 +15,7 @@ import (
 // (segment) order. A free function, not a method, because Go methods cannot
 // introduce the new type parameter R.
 func Map[T, R any](ctx context.Context, v View[T], f func(T) R) ([]R, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]R, error) {
+	parts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]R, error) {
 		var out []R
 		for x := range seg {
 			if cancelled(cctx) {
@@ -38,7 +38,7 @@ func Map[T, R any](ctx context.Context, v View[T], f func(T) R) ([]R, error) {
 // order-dependent within a segment. This is the escape hatch from Reduce's
 // stronger associativity requirement.
 func Fold[T, A any](ctx context.Context, v View[T], newAcc func() A, acc func(A, T) A, merge func(A, A) A) (A, error) {
-	partials, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (A, error) {
+	partials, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (A, error) {
 		a := newAcc()
 		for x := range seg {
 			if cancelled(cctx) {

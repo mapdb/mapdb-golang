@@ -24,7 +24,7 @@ import (
 // cancellation, or nil. Like ForEach it is unordered, so f must be safe for
 // concurrent invocation.
 func (v View[T]) ForEachErr(ctx context.Context, f func(context.Context, T) error) error {
-	_, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (struct{}, error) {
+	_, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (struct{}, error) {
 		for x := range seg {
 			if cancelled(cctx) {
 				return struct{}{}, cctx.Err()
@@ -42,7 +42,7 @@ func (v View[T]) ForEachErr(ctx context.Context, f func(context.Context, T) erro
 // order. The first pred error aborts the whole operation (siblings cancelled) and
 // the partial results are discarded.
 func (v View[T]) FilterErr(ctx context.Context, pred func(context.Context, T) (bool, error)) ([]T, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]T, error) {
+	parts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]T, error) {
 		var out []T
 		for x := range seg {
 			if cancelled(cctx) {
@@ -69,7 +69,7 @@ func (v View[T]) FilterErr(ctx context.Context, pred func(context.Context, T) (b
 // cancelled) and no partial slice is returned. A free function, not a method,
 // because Go methods cannot introduce the new type parameter R.
 func MapErr[T, R any](ctx context.Context, v View[T], f func(context.Context, T) (R, error)) ([]R, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]R, error) {
+	parts, err := run(ctx, v, func(cctx context.Context, seg iter.Seq[T]) ([]R, error) {
 		var out []R
 		for x := range seg {
 			if cancelled(cctx) {

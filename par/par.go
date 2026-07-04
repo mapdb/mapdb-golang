@@ -124,12 +124,18 @@ func (c config) segmentCount(size int) int {
 	return w
 }
 
-// View is a reusable handle over a splittable source plus its execution config.
-// It performs no work and starts no goroutines until a terminal op runs. The
-// zero View is not usable; construct one with FromSlice or From.
+// View is a reusable handle over a source plus its execution config. It performs
+// no work and starts no goroutines until a terminal op runs. The zero View is not
+// usable; construct one with FromSlice, From, or FromSeq.
+//
+// A View is either segment-based (segment != nil — a splittable source, terminals
+// preserve segment order) or a chunk-pump (pump != nil — an unsplittable single-
+// shot seq, terminals are unordered; see FromSeq). Exactly one is set.
 type View[T any] struct {
 	// segment produces up to n balanced, re-runnable, non-overlapping segments.
 	segment func(n int) []iter.Seq[T]
+	// pump is the single-shot source for the chunk-pump execution model (§6).
+	pump iter.Seq[T]
 	// size is the element count if known, else -1 (drives the sequential fallback).
 	size int
 	cfg  config
@@ -148,10 +154,29 @@ func From[T any](src Segmenter[T], opts ...Option) View[T] {
 
 // ── internal executor ─────────────────────────────────────────────────────
 
-// work is a per-segment task. It must honor ctx cancellation while iterating
-// (select on ctx.Done()); the executor relies on it to stop a running segment
-// when a sibling fails, cancels, or panics.
+// work is a per-unit task (a segment, or a chunk of the pump). It must honor ctx
+// cancellation while iterating (select on ctx.Done()); the executor relies on it
+// to stop a running unit when a sibling fails, cancels, or panics.
 type work[T, R any] func(ctx context.Context, seg iter.Seq[T]) (R, error)
+
+// run dispatches to the segment or chunk-pump engine and collects per-unit
+// results. Segment results are in segment order; chunk-pump results are in
+// completion order (unordered). Used by the non-short-circuiting terminals.
+func run[T, R any](ctx context.Context, v View[T], w work[T, R]) ([]R, error) {
+	return runEarly(ctx, v, w, nil)
+}
+
+// runEarly is run with an optional early-stop predicate for short-circuiting
+// terminals (Any/Find). earlyDone is consulted only by the chunk-pump puller, so
+// it can stop draining an unbounded source once the terminal has its answer; the
+// segment engine ignores it (segments are finite and its workers short-circuit
+// via their own polled flag).
+func runEarly[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone func() bool) ([]R, error) {
+	if v.pump != nil {
+		return runChunks(ctx, v, w, earlyDone)
+	}
+	return runSegments(ctx, v, w)
+}
 
 // runSegments splits v, runs work on each segment across a bounded pool, and
 // returns the per-segment results in segment order. The first error or panic
@@ -270,5 +295,158 @@ func cancelled(ctx context.Context) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// runChunks is the chunk-pump engine (§6): one puller goroutine drains the
+// single-shot pump seq into MinPerWorker-sized []T chunks over a bounded channel;
+// Workers goroutines consume chunks and run w on each (as a seq over the chunk).
+// Per-chunk results accumulate in COMPLETION ORDER (unordered). Backpressure is
+// the channel depth (2×workers). Semantics differ from the segment engine in two
+// documented ways: results are unordered, and external cancellation IS reported
+// via a final ctx.Err() check — chunk-pump workers stop by ceasing to receive
+// rather than by returning an error, so nothing else would surface it.
+//
+// Panic/error containment matches runSegments: first panic wins (re-raised as
+// *PanicError after all goroutines drain), first error cancels the rest. A
+// worker panic/error and external cancel all cancel the internal ctx, which
+// unblocks the puller's send and releases the workers.
+func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone func() bool) ([]R, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	workers := v.cfg.workers
+	if workers < 1 {
+		workers = 1
+	}
+	chunkSize := v.cfg.minPerWorker
+	if chunkSize < 1 {
+		chunkSize = 1
+	}
+
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	chunks := make(chan []T, 2*workers)
+
+	var mu sync.Mutex
+	var results []R
+	var firstErr error
+	var panicVal *PanicError
+	fail := func(err error) {
+		mu.Lock()
+		if firstErr == nil {
+			firstErr = err
+			cancel()
+		}
+		mu.Unlock()
+	}
+	failPanic := func(rec any, stack []byte) {
+		mu.Lock()
+		if panicVal == nil {
+			panicVal = &PanicError{Value: rec, Stack: stack}
+			cancel()
+		}
+		mu.Unlock()
+	}
+
+	// Puller: drain the pump into chunks. Stops on cancellation or early-done,
+	// closes the channel on exit so workers terminate.
+	var pwg sync.WaitGroup
+	pwg.Add(1)
+	go func() {
+		defer pwg.Done()
+		defer close(chunks)
+		buf := make([]T, 0, chunkSize)
+		send := func() bool { // returns false if the op is winding down
+			select {
+			case chunks <- buf:
+				buf = make([]T, 0, chunkSize)
+				return true
+			case <-cctx.Done():
+				return false
+			}
+		}
+		for x := range v.pump {
+			if cancelled(cctx) || (earlyDone != nil && earlyDone()) {
+				return
+			}
+			buf = append(buf, x)
+			if len(buf) == chunkSize {
+				if !send() {
+					return
+				}
+			}
+		}
+		if len(buf) > 0 {
+			send() // final partial chunk; result ignored (we close regardless)
+		}
+	}()
+
+	// Workers: consume chunks, run w on each, accumulate results in completion order.
+	var wwg sync.WaitGroup
+	wwg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wwg.Done()
+			for {
+				var chunk []T
+				select {
+				case c, ok := <-chunks:
+					if !ok {
+						return // channel closed and drained
+					}
+					chunk = c
+				case <-cctx.Done():
+					return
+				}
+				r, pv, err := runOne(cctx, sliceSeq(chunk), w)
+				if pv != nil {
+					failPanic(pv.Value, pv.Stack)
+					continue
+				}
+				if err != nil {
+					fail(err)
+					continue
+				}
+				mu.Lock()
+				results = append(results, r)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wwg.Wait()
+	pwg.Wait()
+
+	if panicVal != nil {
+		panic(panicVal)
+	}
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	// Unlike the segment engine, DO check the caller ctx: chunk-pump workers stop
+	// by not receiving, not by returning an error, so external cancellation would
+	// otherwise be swallowed. earlyDone cancels only the puller's local flow (it
+	// does not cancel cctx), so a short-circuit success leaves the caller ctx live
+	// and is not misreported here.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// sliceSeq is a re-runnable iter.Seq over xs (a materialized chunk).
+func sliceSeq[T any](xs []T) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for _, x := range xs {
+			if !yield(x) {
+				return
+			}
+		}
 	}
 }

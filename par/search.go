@@ -48,10 +48,12 @@ func (v View[T]) None(ctx context.Context, pred func(T) bool) (bool, error) {
 }
 
 // anyMatch is the shared short-circuiting existential scan. Workers poll a shared
-// atomic.Bool so a match in one segment halts the others at their next element.
+// atomic.Bool so a match in one unit halts the others at their next element; the
+// same flag is the chunk-pump's early-done signal, so it stops the puller and
+// terminates over an unbounded source.
 func anyMatch[T any](ctx context.Context, v View[T], pred func(T) bool) (bool, error) {
 	var found atomic.Bool
-	_, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (struct{}, error) {
+	_, err := runEarly(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (struct{}, error) {
 		for x := range seg {
 			if found.Load() {
 				return struct{}{}, nil
@@ -65,30 +67,35 @@ func anyMatch[T any](ctx context.Context, v View[T], pred func(T) bool) (bool, e
 			}
 		}
 		return struct{}{}, nil
-	})
+	}, found.Load)
 	if err != nil {
 		return false, err
 	}
 	return found.Load(), nil
 }
 
-// Find returns the first element (in segment order) satisfying pred, and whether
-// one was found. Each segment scans only until its own first match; the earliest
-// segment's match wins. Later segments are not cancelled by an earlier match
-// (that would risk cancelling a still-searching earlier segment and losing the
-// true first) — cross-segment short-circuit is a later refinement.
+// Find returns a matching element and whether one was found. Over a segment-based
+// view it is the FIRST match in segment order: each segment scans only until its
+// own first match and the earliest segment's match wins; later segments are not
+// cancelled by an earlier match (that would risk cancelling a still-searching
+// earlier segment and losing the true first). Over a FromSeq (chunk-pump) view
+// the source is unordered, so Find returns an ARBITRARY match — the found flag
+// only stops the puller so it terminates over an unbounded source; it never makes
+// a worker abandon a scan, so segment ordering is preserved on the segment path.
 func (v View[T]) Find(ctx context.Context, pred func(T) bool) (T, bool, error) {
-	parts, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (opt[T], error) {
+	var found atomic.Bool
+	parts, err := runEarly(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (opt[T], error) {
 		for x := range seg {
 			if cancelled(cctx) {
 				return opt[T]{}, cctx.Err()
 			}
 			if pred(x) {
+				found.Store(true)
 				return opt[T]{x, true}, nil
 			}
 		}
 		return opt[T]{}, nil
-	})
+	}, found.Load)
 	var zero T
 	if err != nil {
 		return zero, false, err

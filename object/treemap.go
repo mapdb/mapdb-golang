@@ -792,8 +792,10 @@ func (m *TreeMap[K, V]) fixAfterDelete(n *tmNode[K, V]) {
 
 // TreeMap now satisfies the mutable-map hierarchy: the K-any relaxation of
 // MapIterable (11 §4) plus the predicate-query methods above let a
-// comparator-backed map join alongside the hash maps.
+// comparator-backed map join alongside the hash maps. The []int-key instantiation
+// is load-bearing — a non-comparable key type-checks only because MapIterable no
+// longer requires K comparable (ordering comes from the Comparator).
 var (
-	_ MutableMap[string, int] = (*TreeMap[string, int])(nil)
-	_ MutableMap[int, string] = (*TreeMap[int, string])(nil)
+	_ MutableMap[int, string]   = (*TreeMap[int, string])(nil)
+	_ MutableMap[[]int, string] = (*TreeMap[[]int, string])(nil)
 )

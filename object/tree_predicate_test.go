@@ -87,3 +87,31 @@ func TestTreeMapPredicateQueries(t *testing.T) {
 		t.Errorf("via MapIterable interface: Len = %d, want 3", mi.Len())
 	}
 }
+
+// A NON-comparable element type ([]int) reaching the hierarchy through a strategy
+// is the whole point of the comparable→any relaxation. Identity is the element's
+// length here (contrived, but non-comparable and strategy-driven).
+func TestStrategyPredicateQueriesNonComparable(t *testing.T) {
+	byLen := ByField(func(x []int) int { return len(x) })
+	s := NewHashSetWithStrategy[[]int](byLen)
+	s.Add([]int{1})
+	s.Add([]int{1, 2})
+	s.Add([]int{1, 2, 3})
+
+	if !s.AnySatisfy(func(x []int) bool { return len(x) == 2 }) {
+		t.Error("AnySatisfy(len==2) = false, want true")
+	}
+	if !s.AllSatisfy(func(x []int) bool { return len(x) >= 1 }) {
+		t.Error("AllSatisfy(len>=1) = false, want true")
+	}
+	if !s.NoneSatisfy(func(x []int) bool { return len(x) == 9 }) {
+		t.Error("NoneSatisfy(len==9) = false, want true")
+	}
+
+	// The relaxation's payoff: a non-comparable element type used through the
+	// MutableSet interface. This assignment does not compile under [T comparable].
+	var set MutableSet[[]int] = s
+	if set.Len() != 3 {
+		t.Errorf("via MutableSet[[]int]: Len = %d, want 3", set.Len())
+	}
+}

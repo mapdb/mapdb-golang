@@ -34,8 +34,8 @@ type Iterable[T any] interface {
 // T is unconstrained (any): membership semantics belong to the implementation,
 // not the interface. A hash-backed type compares with ==; a tree-backed type
 // uses its Comparator; a strategy-backed type uses its equality strategy. This is
-// why TreeSet/TreeMultimap/strategy types — the ones with the richest APIs — can
-// satisfy the hierarchy at all (11 §4).
+// why TreeSet and HashSetWithStrategy — comparator/strategy types with the richest
+// APIs — can satisfy the hierarchy at all (11 §4).
 type Searchable[T any] interface {
 	Contains(value T) bool
 	AnySatisfy(predicate func(T) bool) bool
@@ -128,8 +128,10 @@ type MutableStack[T any] interface {
 //
 // K is unconstrained (any): key identity belongs to the implementation — a
 // hash-backed map compares keys with == (and constrains K comparable itself), a
-// tree-backed map uses its Comparator. Relaxing K here is what lets TreeMap/
-// TreeMultimap/HashMultimap satisfy the map hierarchy (11 §4).
+// tree-backed map uses its Comparator, a strategy-backed map uses its strategy.
+// Relaxing K here is what lets TreeMap and HashMapWithStrategy satisfy the map
+// hierarchy (11 §4). Multimaps (Get returns []V, distinct Put shape) do NOT model
+// MapIterable — they get their own Multimap interface in a later slice.
 type MapIterable[K any, V any] interface {
 	Get(key K) (V, bool)
 	ContainsKey(key K) bool

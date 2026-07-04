@@ -146,6 +146,38 @@ func (s *HashSetWithStrategy[T]) ToSlice() []T {
 	return result
 }
 
+// AnySatisfy returns true if any element satisfies the predicate.
+func (s *HashSetWithStrategy[T]) AnySatisfy(predicate func(T) bool) bool {
+	for v := range s.All() {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+
+// AllSatisfy returns true if all elements satisfy the predicate (vacuously true
+// when empty).
+func (s *HashSetWithStrategy[T]) AllSatisfy(predicate func(T) bool) bool {
+	for v := range s.All() {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
+// NoneSatisfy returns true if no element satisfies the predicate (vacuously true
+// when empty).
+func (s *HashSetWithStrategy[T]) NoneSatisfy(predicate func(T) bool) bool {
+	for v := range s.All() {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *HashSetWithStrategy[T]) Select(predicate func(T) bool) *HashSetWithStrategy[T] {
 	result := NewHashSetWithStrategy(s.strategy)
 	s.ForEach(func(v T) {
@@ -267,3 +299,12 @@ func strategyNextPow2(n int) int {
 	n++
 	return n
 }
+
+// Strategy sets are the exemplar of the comparable→any relaxation (11 §4): a
+// non-comparable element type ([]int) satisfies MutableSet only because the
+// hierarchy no longer requires comparable — this assert would not compile before
+// the relaxation. Identity comes from the strategy, not ==.
+var (
+	_ MutableSet[int]   = (*HashSetWithStrategy[int])(nil)
+	_ MutableSet[[]int] = (*HashSetWithStrategy[[]int])(nil)
+)

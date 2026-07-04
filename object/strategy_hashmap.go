@@ -177,6 +177,38 @@ func (m *HashMapWithStrategy[K, V]) ForEach(f func(K, V)) {
 	}
 }
 
+// AnySatisfy returns true if any entry satisfies the predicate.
+func (m *HashMapWithStrategy[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
+	for k, v := range m.All() {
+		if predicate(k, v) {
+			return true
+		}
+	}
+	return false
+}
+
+// AllSatisfy returns true if all entries satisfy the predicate (vacuously true
+// when empty).
+func (m *HashMapWithStrategy[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
+	for k, v := range m.All() {
+		if !predicate(k, v) {
+			return false
+		}
+	}
+	return true
+}
+
+// NoneSatisfy returns true if no entry satisfies the predicate (vacuously true
+// when empty).
+func (m *HashMapWithStrategy[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
+	for k, v := range m.All() {
+		if predicate(k, v) {
+			return false
+		}
+	}
+	return true
+}
+
 func (m *HashMapWithStrategy[K, V]) Select(predicate func(K, V) bool) *HashMapWithStrategy[K, V] {
 	result := NewHashMapWithStrategy[K, V](m.strategy)
 	m.ForEach(func(k K, v V) {
@@ -273,3 +305,12 @@ func (m *HashMapWithStrategy[K, V]) rehashFrom(deleted, mask int) {
 		}
 	}
 }
+
+// Strategy maps join the map hierarchy under the K→any relaxation (11 §4): a
+// non-comparable key type ([]int) satisfies MutableMap only because MapIterable no
+// longer requires K comparable — this assert would not compile before. Key
+// identity comes from the strategy, not ==.
+var (
+	_ MutableMap[int, string]   = (*HashMapWithStrategy[int, string])(nil)
+	_ MutableMap[[]int, string] = (*HashMapWithStrategy[[]int, string])(nil)
+)

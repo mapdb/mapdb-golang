@@ -210,8 +210,10 @@ func (s *TreeSet[T]) String() string {
 
 // TreeSet now satisfies the mutable-set hierarchy: the T-any relaxation of
 // Searchable/Collection (11 §4) plus the predicate-query methods above let a
-// comparator-backed set join alongside the hash sets.
+// comparator-backed set join alongside the hash sets. The []int instantiation is
+// load-bearing — a non-comparable element type type-checks only because the
+// hierarchy no longer requires comparable (ordering comes from the Comparator).
 var (
-	_ MutableSet[int]    = (*TreeSet[int])(nil)
-	_ MutableSet[string] = (*TreeSet[string])(nil)
+	_ MutableSet[int]   = (*TreeSet[int])(nil)
+	_ MutableSet[[]int] = (*TreeSet[[]int])(nil)
 )

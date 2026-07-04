@@ -32,6 +32,9 @@ not `arraylist.Int32ArrayList`). Primitive counts by type:
 | `tuple` | `tuple.Int32Int64Pair` | 49 pairs + Object variants |
 | `interval` | `interval.Int32` | signed int types only (4) |
 
+See [`collection/FAMILY_MATRIX.md`](collection/FAMILY_MATRIX.md) — generated from the
+codegen manifest — for each family's storage, ordering, and available variants.
+
 `uint16` is the Go mapping of Java's `char` — it flows through every template that supports unsigned arithmetic. `bool` is supported on HashSet today; extending it to the other containers is tracked as follow-up work (requires gating out the Sort / Sum / Min / Max / BinarySearch paths in the individual templates).
 
 The bag package keeps a discriminator (hash- vs tree-backed) in front of the
@@ -39,7 +42,7 @@ primitive: `bag.HashInt32` and `bag.TreeInt32`. The multimap package keeps the
 list-vs-set discriminator after the key/value names: `multimap.Int32Int32List`
 and `multimap.Int32Int32Set`.
 
-Every mutable type has an `Immutable` counterpart (`arraylist.ImmutableInt32`, etc.) obtained via `ToImmutable()`. A `Synchronized` wrapper exposes the full mutable surface under an internal `sync.RWMutex` so reads, writes, and callback-based functional methods can be mixed freely from multiple goroutines. The base (open-addressed and map-backed) types are usable from their zero value (lazy-initialized on first write), except the `BiMap` types, which must be created via their `New…BiMap` constructors; the `Synchronized*` wrappers are construct-only — use their `NewSynchronized*` constructors.
+Most mutable types have an `Immutable` counterpart (`arraylist.ImmutableInt32`, etc.) obtained via `ToImmutable()` and a `Synchronized` wrapper — see the [family matrix](collection/FAMILY_MATRIX.md) for which. The `Synchronized` wrapper exposes the full mutable surface under an internal `sync.RWMutex` so reads, writes, and callback-based functional methods can be mixed freely from multiple goroutines. The base (open-addressed and map-backed) types are usable from their zero value (lazy-initialized on first write), except the `BiMap` types, which must be created via their `New…BiMap` constructors; the `Synchronized*` wrappers are construct-only — use their `NewSynchronized*` constructors.
 
 ## Object Collections
 

@@ -57,6 +57,8 @@ func main() {
 		err = genBag()
 	case "tuple":
 		err = genTuple()
+	case "matrix":
+		err = genFamilyMatrix()
 	default:
 		err = fmt.Errorf("unknown collection %q", os.Args[1])
 	}

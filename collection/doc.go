@@ -17,4 +17,10 @@
 // One set of interfaces exists per supported primitive (Int32*, Int64*,
 // Float64*, …) because Go has no generic method specialization across primitives.
 // The files are hand-maintained to mirror the shapes in object/interfaces.go.
+//
+// FAMILY_MATRIX.md in this directory is generated from the codegen manifest
+// (internal/codegen/manifest.go) and lists every code-generated collection
+// family with its storage, ordering, type coverage, and variants.
+//
+//go:generate go run ../internal/codegen matrix
 package collection

@@ -51,9 +51,12 @@ func (e *PanicError) Unwrap() error {
 	return nil
 }
 
-// defaultMinPerWorker is the provisional per-worker element floor below which an
-// input runs sequentially. 13-parallel-design.md §8 replaces this guess with a
-// measured crossover point.
+// defaultMinPerWorker is the per-worker element floor below which an input runs
+// sequentially. 1024 sits at the trivial-callback crossover measured by
+// BenchmarkCountCrossover (§8): on a 32-core host, ~750–1024 elements/worker is
+// where a worker's ~1µs spawn/schedule overhead stops dominating a trivial
+// callback. It is a floor, not a target — callers with expensive callbacks lower
+// it via MinPerWorker (their crossover is far smaller).
 const defaultMinPerWorker = 1024
 
 // Option configures a View's execution. Options are applied at construction.
@@ -76,7 +79,8 @@ func Workers(n int) Option {
 
 // MinPerWorker sets the minimum elements per worker; a sized source with fewer
 // than this many elements per potential worker uses fewer workers, and one below
-// the floor runs sequentially. Values < 1 are ignored. Default provisional (§8).
+// the floor runs sequentially. Values < 1 are ignored. Default 1024 (measured;
+// see defaultMinPerWorker) — lower it for expensive per-element callbacks.
 func MinPerWorker(n int) Option {
 	return func(c *config) {
 		if n >= 1 {

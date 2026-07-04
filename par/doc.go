@@ -40,8 +40,8 @@
 // source returns k ≤ n, and one goroutine runs per returned segment, so
 // concurrency never exceeds Workers. When the source reports its size, small
 // inputs fall back to a single segment (sequential) below MinPerWorker — the
-// goroutine overhead isn't worth it. MinPerWorker's default is provisional
-// pending the crossover benchmarks of 13-parallel-design.md §8.
+// goroutine overhead isn't worth it. MinPerWorker's default (1024) is the
+// trivial-callback crossover measured by BenchmarkCountCrossover (§8).
 //
 // # Two execution models
 //

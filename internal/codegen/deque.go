@@ -58,8 +58,8 @@ func genDeque() error {
 		return err
 	}
 
-	base := template.Must(template.New("dq-base").Parse(arrayDequeTmpl))
-	synchronized := template.Must(template.New("dq-sync").Parse(synchronizedArrayDequeTmpl))
+	base := parse("dq-base", arrayDequeTmpl)
+	synchronized := parse("dq-sync", synchronizedArrayDequeTmpl)
 
 	write := func(name string, tmpl *template.Template, data dqData) error {
 		var buf bytes.Buffer

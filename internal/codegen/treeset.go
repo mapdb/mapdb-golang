@@ -38,7 +38,7 @@ func genTreeSet() error {
 		return err
 	}
 
-	base := template.Must(template.New("ts-base").Parse(treeSetTmpl))
+	base := parse("ts-base", treeSetTmpl)
 
 	write := func(name string, tmpl *template.Template, data tsData) error {
 		var buf bytes.Buffer

@@ -152,14 +152,14 @@ func genHashMap() error {
 		return err
 	}
 
-	base := template.Must(template.New("hm-base").Parse(hashMapTmpl))
-	immutable := template.Must(template.New("hm-immutable").Parse(immutableHashMapTmpl))
-	synchronized := template.Must(template.New("hm-sync").Parse(synchronizedHashMapTmpl))
-	bimap := template.Must(template.New("hm-bimap").Parse(hashBiMapTmpl))
-	objKey := template.Must(template.New("hm-objkey").Parse(objectKeyHashMapTmpl))
-	objKeyImm := template.Must(template.New("hm-objkey-imm").Parse(immutableObjectKeyHashMapTmpl))
-	objVal := template.Must(template.New("hm-objval").Parse(objectValueHashMapTmpl))
-	objValImm := template.Must(template.New("hm-objval-imm").Parse(immutableObjectValueHashMapTmpl))
+	base := parse("hm-base", hashMapTmpl)
+	immutable := parse("hm-immutable", immutableHashMapTmpl)
+	synchronized := parse("hm-sync", synchronizedHashMapTmpl)
+	bimap := parse("hm-bimap", hashBiMapTmpl)
+	objKey := parse("hm-objkey", objectKeyHashMapTmpl)
+	objKeyImm := parse("hm-objkey-imm", immutableObjectKeyHashMapTmpl)
+	objVal := parse("hm-objval", objectValueHashMapTmpl)
+	objValImm := parse("hm-objval-imm", immutableObjectValueHashMapTmpl)
 
 	writeData := func(name string, tmpl *template.Template, data any) error {
 		var buf bytes.Buffer

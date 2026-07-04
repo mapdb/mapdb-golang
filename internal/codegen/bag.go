@@ -61,10 +61,10 @@ func genBag() error {
 		return err
 	}
 
-	hash := template.Must(template.New("bag-hash").Parse(hashBagTmpl))
-	immutable := template.Must(template.New("bag-immutable").Parse(immutableHashBagTmpl))
-	synchronized := template.Must(template.New("bag-sync").Parse(synchronizedHashBagTmpl))
-	tree := template.Must(template.New("bag-tree").Parse(treeBagTmpl))
+	hash := parse("bag-hash", hashBagTmpl)
+	immutable := parse("bag-immutable", immutableHashBagTmpl)
+	synchronized := parse("bag-sync", synchronizedHashBagTmpl)
+	tree := parse("bag-tree", treeBagTmpl)
 
 	write := func(name string, tmpl *template.Template, data bagData) error {
 		var buf bytes.Buffer

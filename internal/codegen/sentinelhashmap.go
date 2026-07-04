@@ -6,7 +6,6 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
-	"text/template"
 )
 
 // shmData is the per key/value view the sentinelhashmap template iterates over.
@@ -75,7 +74,7 @@ func genSentinelHashMap() error {
 		return err
 	}
 
-	base := template.Must(template.New("shm-base").Parse(sentinelHashMapTmpl))
+	base := parse("shm-base", sentinelHashMapTmpl)
 
 	write := func(name string, data shmData) error {
 		var buf bytes.Buffer

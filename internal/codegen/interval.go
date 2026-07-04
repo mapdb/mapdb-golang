@@ -6,7 +6,6 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
-	"text/template"
 )
 
 // genInterval is invoked from interval/ via go:generate. It writes one
@@ -19,8 +18,8 @@ func genInterval() error {
 		return err
 	}
 
-	applies := template.Must(template.New("interval").Parse(intervalTmpl))
-	stub := template.Must(template.New("interval-stub").Parse(intervalStubTmpl))
+	applies := parse("interval", intervalTmpl)
+	stub := parse("interval-stub", intervalStubTmpl)
 
 	for _, p := range Primitives() {
 		if p.IsChar {

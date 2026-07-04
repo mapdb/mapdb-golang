@@ -69,9 +69,9 @@ func genHashSet() error {
 		return err
 	}
 
-	base := template.Must(template.New("hs-base").Parse(hashSetTmpl))
-	immutable := template.Must(template.New("hs-immutable").Parse(immutableHashSetTmpl))
-	synchronized := template.Must(template.New("hs-sync").Parse(synchronizedHashSetTmpl))
+	base := parse("hs-base", hashSetTmpl)
+	immutable := parse("hs-immutable", immutableHashSetTmpl)
+	synchronized := parse("hs-sync", synchronizedHashSetTmpl)
 
 	write := func(name string, tmpl *template.Template, data hsData) error {
 		var buf bytes.Buffer

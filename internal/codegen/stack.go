@@ -35,9 +35,9 @@ func genStack() error {
 		return err
 	}
 
-	base := template.Must(template.New("st-base").Parse(arrayStackTmpl))
-	immutable := template.Must(template.New("st-immutable").Parse(immutableArrayStackTmpl))
-	synchronized := template.Must(template.New("st-sync").Parse(synchronizedArrayStackTmpl))
+	base := parse("st-base", arrayStackTmpl)
+	immutable := parse("st-immutable", immutableArrayStackTmpl)
+	synchronized := parse("st-sync", synchronizedArrayStackTmpl)
 
 	write := func(name string, tmpl *template.Template, data stData) error {
 		var buf bytes.Buffer

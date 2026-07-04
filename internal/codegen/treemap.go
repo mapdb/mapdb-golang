@@ -6,7 +6,6 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
-	"text/template"
 )
 
 // tmData is the per key/value view the treemap template iterates over.
@@ -59,7 +58,7 @@ func genTreeMap() error {
 		return err
 	}
 
-	base := template.Must(template.New("tm-base").Parse(treeMapTmpl))
+	base := parse("tm-base", treeMapTmpl)
 
 	write := func(name string, data tmData) error {
 		var buf bytes.Buffer

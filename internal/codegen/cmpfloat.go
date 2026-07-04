@@ -6,7 +6,6 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
-	"text/template"
 )
 
 // genCmpFloat writes cmp_float.go into the current working directory for the
@@ -20,7 +19,7 @@ func genCmpFloat(pkg string) error {
 	if err != nil {
 		return err
 	}
-	tmpl := template.Must(template.New("cmpfloat").Parse(cmpFloatTmpl))
+	tmpl := parse("cmpfloat", cmpFloatTmpl)
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, struct{ Package string }{Package: pkg}); err != nil {
 		return fmt.Errorf("execute cmp_float.go: %w", err)

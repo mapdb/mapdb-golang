@@ -32,9 +32,9 @@ func genArrayList() error {
 		return err
 	}
 
-	base := template.Must(template.New("al-base").Parse(arrayListTmpl))
-	immutable := template.Must(template.New("al-immutable").Parse(immutableArrayListTmpl))
-	synchronized := template.Must(template.New("al-sync").Parse(synchronizedArrayListTmpl))
+	base := parse("al-base", arrayListTmpl)
+	immutable := parse("al-immutable", immutableArrayListTmpl)
+	synchronized := parse("al-sync", synchronizedArrayListTmpl)
 
 	write := func(name string, tmpl *template.Template, data alData) error {
 		var buf bytes.Buffer

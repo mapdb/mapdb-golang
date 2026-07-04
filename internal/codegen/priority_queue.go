@@ -44,8 +44,8 @@ func genPriorityQueue() error {
 		return err
 	}
 
-	base := template.Must(template.New("pq-base").Parse(priorityQueueTmpl))
-	synchronized := template.Must(template.New("pq-sync").Parse(synchronizedPriorityQueueTmpl))
+	base := parse("pq-base", priorityQueueTmpl)
+	synchronized := parse("pq-sync", synchronizedPriorityQueueTmpl)
 
 	write := func(name string, tmpl *template.Template, data pqData) error {
 		var buf bytes.Buffer

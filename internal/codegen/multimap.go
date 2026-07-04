@@ -74,9 +74,9 @@ func genMultimap() error {
 		return err
 	}
 
-	list := template.Must(template.New("mm-list").Parse(listMultimapTmpl))
-	set := template.Must(template.New("mm-set").Parse(setMultimapTmpl))
-	keyCmp := template.Must(template.New("mm-keycmp").Parse(multimapKeyCmpTmpl))
+	list := parse("mm-list", listMultimapTmpl)
+	set := parse("mm-set", setMultimapTmpl)
+	keyCmp := parse("mm-keycmp", multimapKeyCmpTmpl)
 
 	write := func(name string, tmpl *template.Template, data mmData) error {
 		var buf bytes.Buffer

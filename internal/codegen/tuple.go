@@ -91,9 +91,9 @@ func genTuple() error {
 		return err
 	}
 
-	pairTmpl := template.Must(template.New("pair").Parse(pairTmpl))
-	objKeyTmpl := template.Must(template.New("objkey-pair").Parse(objectKeyPairTmpl))
-	objValTmpl := template.Must(template.New("objval-pair").Parse(objectValuePairTmpl))
+	pairTmpl := parse("pair", pairTmpl)
+	objKeyTmpl := parse("objkey-pair", objectKeyPairTmpl)
+	objValTmpl := parse("objval-pair", objectValuePairTmpl)
 
 	write := func(name string, tmpl *template.Template, data any) error {
 		var buf bytes.Buffer

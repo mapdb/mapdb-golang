@@ -23,7 +23,9 @@ var _ par.Segmenter[int32] = (*interval.Int32)(nil)
 // TestSegmentsConcatInOrder pins the Segments law for the ORDERED, virtual
 // interval: concat(Segments(n)) equals All() as a SEQUENCE (intervals are
 // ordered and Segments follow the index space), ∀ n including n>len and n=1,
-// across ascending, descending, and stepped intervals plus the empty case.
+// across ascending, descending, stepped, and single-element intervals. (An empty
+// interval is not publicly constructible — see the "single" case note; SplitIndex's
+// total=0 path is covered in internal/segment.)
 func TestSegmentsConcatInOrder(t *testing.T) {
 	cases := []struct {
 		name           string

@@ -66,12 +66,13 @@ func HashInt64BulkLoadExact(values []int64, n int) (*HashInt64, error) {
 }
 
 // Add adds one occurrence of the value.
-func (b *HashInt64) Add(value int64) {
+func (b *HashInt64) Add(value int64) bool {
 	if b.counts == nil {
 		b.counts = make(map[int64]int)
 	}
 	b.counts[value]++
 	b.size++
+	return true // a bag always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddOccurrences adds the given number of occurrences of the value.

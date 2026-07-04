@@ -58,10 +58,10 @@ func (l *SynchronizedInt64) snapshot() []int64 {
 
 // ── simple writes ─────────────────────────────────────────────────────
 
-func (l *SynchronizedInt64) Add(value int64) {
+func (l *SynchronizedInt64) Add(value int64) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.Add(value)
+	return l.delegate.Add(value)
 }
 
 func (l *SynchronizedInt64) AddAll(values ...int64) {

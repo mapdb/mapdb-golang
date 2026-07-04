@@ -36,8 +36,9 @@ func Int64Of(values ...int64) *Int64 {
 }
 
 // Add appends a value to the end of the list.
-func (l *Int64) Add(value int64) {
+func (l *Int64) Add(value int64) bool {
 	l.items = append(l.items, value)
+	return true // a list always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddAll appends all values to the end of the list.

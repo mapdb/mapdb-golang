@@ -125,8 +125,9 @@ func (a *ArrayList[T]) IndexOf(value T) int {
 
 // ── MutableList ───────────────────────────────────────────────────────
 
-func (a *ArrayList[T]) Add(value T) {
+func (a *ArrayList[T]) Add(value T) bool {
 	a.items = append(a.items, value)
+	return true // a list always accepts the element (Adder contract; result ignored by Into)
 }
 
 func (a *ArrayList[T]) Set(index int, value T) T {

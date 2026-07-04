@@ -82,9 +82,11 @@ type Int8MutableCollection interface {
 // a concrete type. They mirror Java's IntList / IntSet / IntBag / IntStack
 // hierarchy and the matching trait/comptime layers in Rust and Zig.
 //
-// Note: each category uses its own Add() method shape to match Go's
-// type-specific signatures (lists Add() void; sets Add() bool; bags
-// Add() int returning new occurrence count; stacks use Push instead).
+// Note: every mutable non-stack category exposes the unified Add(value) bool
+// (the Int8Adder capability): lists and bags always return true (they always
+// accept the element), sets return whether the value was newly inserted. Stacks
+// use Push instead. The bool is collection-specific insertion info that bulk
+// loaders (seq.Into) ignore.
 
 // Int8List is the read-only interface for ordered lists with positional
 // access. Satisfied by: Int8ArrayList, ImmutableInt8ArrayList.
@@ -104,8 +106,9 @@ type Int8MutableList interface {
 	Int8List
 	Int8MutableCollection
 
-	// Add appends a value to the end of the list.
-	Add(value int8)
+	// Add appends a value to the end of the list. Returns true always (a list
+	// always accepts the element); the bool is the Int8Adder contract.
+	Add(value int8) bool
 
 	// Set sets the value at the given index, returning the previous value.
 	// It panics on out-of-range index.
@@ -146,8 +149,9 @@ type Int8MutableBag interface {
 	Int8Bag
 	Int8MutableCollection
 
-	// Add adds one occurrence of value.
-	Add(value int8)
+	// Add adds one occurrence of value. Returns true always (a bag always accepts
+	// the element); the bool is the Int8Adder contract.
+	Add(value int8) bool
 }
 
 // Int8Stack read-only LIFO stack. Peek returns the top element or an error if empty.
@@ -170,4 +174,15 @@ type Int8MutableStack interface {
 
 	// Pop removes and returns the top element. The bool is false if empty.
 	Pop() (int8, bool)
+}
+
+// ── Framework capability interfaces ────────────────────────────────────
+
+// Int8Adder is the single-element insertion capability shared by every
+// mutable non-stack collection (Int8ArrayList, Int8HashSet,
+// Int8HashBag, Int8TreeSet, Int8TreeBag, …). It is the sink a bulk
+// loader targets: the bool reports collection-specific insertion info (lists/bags
+// always true, sets whether newly inserted) and bulk loaders ignore it.
+type Int8Adder interface {
+	Add(value int8) bool
 }

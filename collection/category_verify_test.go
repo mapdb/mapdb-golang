@@ -110,3 +110,14 @@ var _ Int32MutableStack = (*stack.Int32)(nil)
 var _ Int32Set = (*hashset.ImmutableInt32)(nil)
 var _ Int32Bag = (*bag.ImmutableHashInt32)(nil)
 var _ Int32Stack = (*stack.ImmutableInt32)(nil)
+
+// ── Adder capability ──────────────────────────────────────────────────
+// Every mutable non-stack collection exposes the unified Add(value) bool, so it
+// satisfies Int32Adder — the sink a bulk loader targets.
+var (
+	_ Int32Adder = (*arraylist.Int32)(nil)
+	_ Int32Adder = (*hashset.Int32)(nil)
+	_ Int32Adder = (*treeset.Int32)(nil)
+	_ Int32Adder = (*bag.HashInt32)(nil)
+	_ Int32Adder = (*bag.TreeInt32)(nil)
+)

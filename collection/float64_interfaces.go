@@ -82,9 +82,11 @@ type Float64MutableCollection interface {
 // a concrete type. They mirror Java's IntList / IntSet / IntBag / IntStack
 // hierarchy and the matching trait/comptime layers in Rust and Zig.
 //
-// Note: each category uses its own Add() method shape to match Go's
-// type-specific signatures (lists Add() void; sets Add() bool; bags
-// Add() int returning new occurrence count; stacks use Push instead).
+// Note: every mutable non-stack category exposes the unified Add(value) bool
+// (the Float64Adder capability): lists and bags always return true (they always
+// accept the element), sets return whether the value was newly inserted. Stacks
+// use Push instead. The bool is collection-specific insertion info that bulk
+// loaders (seq.Into) ignore.
 
 // Float64List is the read-only interface for ordered lists with positional
 // access. Satisfied by: Float64ArrayList, ImmutableFloat64ArrayList.
@@ -104,8 +106,9 @@ type Float64MutableList interface {
 	Float64List
 	Float64MutableCollection
 
-	// Add appends a value to the end of the list.
-	Add(value float64)
+	// Add appends a value to the end of the list. Returns true always (a list
+	// always accepts the element); the bool is the Float64Adder contract.
+	Add(value float64) bool
 
 	// Set sets the value at the given index, returning the previous value.
 	// It panics on out-of-range index.
@@ -146,8 +149,9 @@ type Float64MutableBag interface {
 	Float64Bag
 	Float64MutableCollection
 
-	// Add adds one occurrence of value.
-	Add(value float64)
+	// Add adds one occurrence of value. Returns true always (a bag always accepts
+	// the element); the bool is the Float64Adder contract.
+	Add(value float64) bool
 }
 
 // Float64Stack read-only LIFO stack. Peek returns the top element or an error if empty.
@@ -170,4 +174,15 @@ type Float64MutableStack interface {
 
 	// Pop removes and returns the top element. The bool is false if empty.
 	Pop() (float64, bool)
+}
+
+// ── Framework capability interfaces ────────────────────────────────────
+
+// Float64Adder is the single-element insertion capability shared by every
+// mutable non-stack collection (Float64ArrayList, Float64HashSet,
+// Float64HashBag, Float64TreeSet, Float64TreeBag, …). It is the sink a bulk
+// loader targets: the bool reports collection-specific insertion info (lists/bags
+// always true, sets whether newly inserted) and bulk loaders ignore it.
+type Float64Adder interface {
+	Add(value float64) bool
 }

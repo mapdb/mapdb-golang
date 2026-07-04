@@ -82,9 +82,11 @@ type Float32MutableCollection interface {
 // a concrete type. They mirror Java's IntList / IntSet / IntBag / IntStack
 // hierarchy and the matching trait/comptime layers in Rust and Zig.
 //
-// Note: each category uses its own Add() method shape to match Go's
-// type-specific signatures (lists Add() void; sets Add() bool; bags
-// Add() int returning new occurrence count; stacks use Push instead).
+// Note: every mutable non-stack category exposes the unified Add(value) bool
+// (the Float32Adder capability): lists and bags always return true (they always
+// accept the element), sets return whether the value was newly inserted. Stacks
+// use Push instead. The bool is collection-specific insertion info that bulk
+// loaders (seq.Into) ignore.
 
 // Float32List is the read-only interface for ordered lists with positional
 // access. Satisfied by: Float32ArrayList, ImmutableFloat32ArrayList.
@@ -104,8 +106,9 @@ type Float32MutableList interface {
 	Float32List
 	Float32MutableCollection
 
-	// Add appends a value to the end of the list.
-	Add(value float32)
+	// Add appends a value to the end of the list. Returns true always (a list
+	// always accepts the element); the bool is the Float32Adder contract.
+	Add(value float32) bool
 
 	// Set sets the value at the given index, returning the previous value.
 	// It panics on out-of-range index.
@@ -146,8 +149,9 @@ type Float32MutableBag interface {
 	Float32Bag
 	Float32MutableCollection
 
-	// Add adds one occurrence of value.
-	Add(value float32)
+	// Add adds one occurrence of value. Returns true always (a bag always accepts
+	// the element); the bool is the Float32Adder contract.
+	Add(value float32) bool
 }
 
 // Float32Stack read-only LIFO stack. Peek returns the top element or an error if empty.
@@ -170,4 +174,15 @@ type Float32MutableStack interface {
 
 	// Pop removes and returns the top element. The bool is false if empty.
 	Pop() (float32, bool)
+}
+
+// ── Framework capability interfaces ────────────────────────────────────
+
+// Float32Adder is the single-element insertion capability shared by every
+// mutable non-stack collection (Float32ArrayList, Float32HashSet,
+// Float32HashBag, Float32TreeSet, Float32TreeBag, …). It is the sink a bulk
+// loader targets: the bool reports collection-specific insertion info (lists/bags
+// always true, sets whether newly inserted) and bulk loaders ignore it.
+type Float32Adder interface {
+	Add(value float32) bool
 }

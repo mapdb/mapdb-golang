@@ -36,8 +36,9 @@ func Int8Of(values ...int8) *Int8 {
 }
 
 // Add appends a value to the end of the list.
-func (l *Int8) Add(value int8) {
+func (l *Int8) Add(value int8) bool {
 	l.items = append(l.items, value)
+	return true // a list always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddAll appends all values to the end of the list.

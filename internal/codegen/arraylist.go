@@ -132,8 +132,9 @@ func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
 }
 
 // Add appends a value to the end of the list.
-func (l *{{.Name}}) Add(value {{.GoType}}) {
+func (l *{{.Name}}) Add(value {{.GoType}}) bool {
 	l.items = append(l.items, value)
+	return true // a list always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddAll appends all values to the end of the list.
@@ -692,10 +693,10 @@ func (l *Synchronized{{.Name}}) snapshot() []{{.GoType}} {
 
 // ── simple writes ─────────────────────────────────────────────────────
 
-func (l *Synchronized{{.Name}}) Add(value {{.GoType}}) {
+func (l *Synchronized{{.Name}}) Add(value {{.GoType}}) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.delegate.Add(value)
+	return l.delegate.Add(value)
 }
 
 func (l *Synchronized{{.Name}}) AddAll(values ...{{.GoType}}) {

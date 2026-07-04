@@ -122,12 +122,13 @@ func (b *HashBag[T]) ToSlice() []T {
 
 // ── MutableBag ────────────────────────────────────────────────────────
 
-func (b *HashBag[T]) Add(value T) {
+func (b *HashBag[T]) Add(value T) bool {
 	if b.counts == nil {
 		b.counts = make(map[T]int)
 	}
 	b.counts[value]++
 	b.size++
+	return true // a bag always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddOccurrences adds multiple occurrences of value.

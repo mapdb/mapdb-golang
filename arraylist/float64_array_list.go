@@ -36,8 +36,9 @@ func Float64Of(values ...float64) *Float64 {
 }
 
 // Add appends a value to the end of the list.
-func (l *Float64) Add(value float64) {
+func (l *Float64) Add(value float64) bool {
 	l.items = append(l.items, value)
+	return true // a list always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddAll appends all values to the end of the list.

@@ -203,7 +203,7 @@ func Hash{{.Name}}BulkLoadExact(values []{{.GoType}}, n int) (*Hash{{.Name}}, er
 }
 
 // Add adds one occurrence of the value.
-func (b *Hash{{.Name}}) Add(value {{.GoType}}) {
+func (b *Hash{{.Name}}) Add(value {{.GoType}}) bool {
 	if b.counts == nil {
 		b.counts = make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}})
 	}
@@ -218,6 +218,7 @@ func (b *Hash{{.Name}}) Add(value {{.GoType}}) {
 	b.counts[value]++
 	b.size++
 {{- end}}
+	return true // a bag always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
@@ -900,10 +901,10 @@ func (b *SynchronizedHash{{.Name}}) snapshotDistinct() (values []{{.GoType}}, co
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (b *SynchronizedHash{{.Name}}) Add(value {{.GoType}}) {
+func (b *SynchronizedHash{{.Name}}) Add(value {{.GoType}}) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.Add(value)
+	return b.delegate.Add(value)
 }
 
 func (b *SynchronizedHash{{.Name}}) AddOccurrences(value {{.GoType}}, occurrences int) int {
@@ -1283,18 +1284,19 @@ func (b *Tree{{.Name}}) search(value {{.GoType}}) (int, bool) {
 }
 
 // Add adds one occurrence of the value.
-func (b *Tree{{.Name}}) Add(value {{.GoType}}) {
+func (b *Tree{{.Name}}) Add(value {{.GoType}}) bool {
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
 		b.size++
-		return
+		return true
 	}
 	// Insert at idx to keep sorted order
 	b.entries = append(b.entries, Tree{{.Name}}Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
 	b.entries[idx] = Tree{{.Name}}Entry{value: value, count: 1}
 	b.size++
+	return true // a bag always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddOccurrences adds the given number of occurrences of the value.

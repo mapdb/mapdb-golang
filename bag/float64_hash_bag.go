@@ -77,7 +77,7 @@ func HashFloat64BulkLoadExact(values []float64, n int) (*HashFloat64, error) {
 }
 
 // Add adds one occurrence of the value.
-func (b *HashFloat64) Add(value float64) {
+func (b *HashFloat64) Add(value float64) bool {
 	if b.counts == nil {
 		b.counts = make(map[uint64]float64BagEntry)
 	}
@@ -87,6 +87,7 @@ func (b *HashFloat64) Add(value float64) {
 	e.count++
 	b.counts[k] = e
 	b.size++
+	return true // a bag always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddOccurrences adds the given number of occurrences of the value.

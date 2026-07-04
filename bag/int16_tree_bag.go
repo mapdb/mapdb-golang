@@ -110,18 +110,19 @@ func (b *TreeInt16) search(value int16) (int, bool) {
 }
 
 // Add adds one occurrence of the value.
-func (b *TreeInt16) Add(value int16) {
+func (b *TreeInt16) Add(value int16) bool {
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
 		b.size++
-		return
+		return true
 	}
 	// Insert at idx to keep sorted order
 	b.entries = append(b.entries, TreeInt16Entry{})
 	copy(b.entries[idx+1:], b.entries[idx:])
 	b.entries[idx] = TreeInt16Entry{value: value, count: 1}
 	b.size++
+	return true // a bag always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddOccurrences adds the given number of occurrences of the value.

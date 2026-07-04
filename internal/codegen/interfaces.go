@@ -128,9 +128,11 @@ type {{.Name}}MutableCollection interface {
 // a concrete type. They mirror Java's IntList / IntSet / IntBag / IntStack
 // hierarchy and the matching trait/comptime layers in Rust and Zig.
 //
-// Note: each category uses its own Add() method shape to match Go's
-// type-specific signatures (lists Add() void; sets Add() bool; bags
-// Add() int returning new occurrence count; stacks use Push instead).
+// Note: every mutable non-stack category exposes the unified Add(value) bool
+// (the {{.Name}}Adder capability): lists and bags always return true (they always
+// accept the element), sets return whether the value was newly inserted. Stacks
+// use Push instead. The bool is collection-specific insertion info that bulk
+// loaders (seq.Into) ignore.
 
 // {{.Name}}List is the read-only interface for ordered lists with positional
 // access. Satisfied by: {{.Name}}ArrayList, Immutable{{.Name}}ArrayList.
@@ -150,8 +152,9 @@ type {{.Name}}MutableList interface {
 	{{.Name}}List
 	{{.Name}}MutableCollection
 
-	// Add appends a value to the end of the list.
-	Add(value {{.GoType}})
+	// Add appends a value to the end of the list. Returns true always (a list
+	// always accepts the element); the bool is the {{.Name}}Adder contract.
+	Add(value {{.GoType}}) bool
 
 	// Set sets the value at the given index, returning the previous value.
 	// It panics on out-of-range index.
@@ -192,8 +195,9 @@ type {{.Name}}MutableBag interface {
 	{{.Name}}Bag
 	{{.Name}}MutableCollection
 
-	// Add adds one occurrence of value.
-	Add(value {{.GoType}})
+	// Add adds one occurrence of value. Returns true always (a bag always accepts
+	// the element); the bool is the {{.Name}}Adder contract.
+	Add(value {{.GoType}}) bool
 }
 
 // {{.Name}}Stack read-only LIFO stack. Peek returns the top element or an error if empty.
@@ -216,5 +220,16 @@ type {{.Name}}MutableStack interface {
 
 	// Pop removes and returns the top element. The bool is false if empty.
 	Pop() ({{.GoType}}, bool)
+}
+
+// ── Framework capability interfaces ────────────────────────────────────
+
+// {{.Name}}Adder is the single-element insertion capability shared by every
+// mutable non-stack collection ({{.Name}}ArrayList, {{.Name}}HashSet,
+// {{.Name}}HashBag, {{.Name}}TreeSet, {{.Name}}TreeBag, …). It is the sink a bulk
+// loader targets: the bool reports collection-specific insertion info (lists/bags
+// always true, sets whether newly inserted) and bulk loaders ignore it.
+type {{.Name}}Adder interface {
+	Add(value {{.GoType}}) bool
 }
 `

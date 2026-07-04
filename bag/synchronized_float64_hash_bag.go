@@ -44,10 +44,10 @@ func (b *SynchronizedHashFloat64) snapshotDistinct() (values []float64, counts [
 
 // ── writes ────────────────────────────────────────────────────────────
 
-func (b *SynchronizedHashFloat64) Add(value float64) {
+func (b *SynchronizedHashFloat64) Add(value float64) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.delegate.Add(value)
+	return b.delegate.Add(value)
 }
 
 func (b *SynchronizedHashFloat64) AddOccurrences(value float64, occurrences int) int {

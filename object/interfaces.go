@@ -77,7 +77,9 @@ type List[T any] interface {
 type MutableList[T any] interface {
 	List[T]
 	MutableCollection[T]
-	Add(value T)
+	// Add appends value; returns true always (a list always accepts the element).
+	// The bool is the Adder contract, ignored by bulk loaders.
+	Add(value T) bool
 	Set(index int, value T) T
 }
 
@@ -127,7 +129,9 @@ type Bag[T any] interface {
 type MutableBag[T any] interface {
 	Bag[T]
 	MutableCollection[T]
-	Add(value T)
+	// Add adds one occurrence of value; returns true always. The bool is the Adder
+	// contract, ignored by bulk loaders.
+	Add(value T) bool
 }
 
 // Stack is the read-only interface for LIFO stacks.
@@ -142,6 +146,22 @@ type MutableStack[T any] interface {
 	MutableCollection[T]
 	Push(value T)
 	Pop() (T, bool)
+}
+
+// ── Framework capability interfaces ────────────────────────────────────
+
+// Adder is the single-element insertion capability shared by every mutable
+// non-stack collection (ArrayList, HashSet, TreeSet, HashBag, strategy sets, …).
+// It is the sink a bulk loader targets — a future seq.Into(seq, dst Adder[T]).
+//
+// The bool is collection-specific insertion info: a list or bag always returns
+// true (it always accepts the element); a set returns whether the value was newly
+// inserted. It is deliberately named Adder, not Sink: bulk loaders IGNORE the
+// bool (pouring duplicates into a set must not truncate the pipeline), so a
+// false must never read as backpressure. A stop-capable sink, if ever needed,
+// gets its own method (TryAdd) — the two meanings never share a name (11 §4).
+type Adder[T any] interface {
+	Add(value T) bool
 }
 
 // ── Map interfaces ────────────────────────────────────────────────────

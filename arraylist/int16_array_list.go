@@ -36,8 +36,9 @@ func Int16Of(values ...int16) *Int16 {
 }
 
 // Add appends a value to the end of the list.
-func (l *Int16) Add(value int16) {
+func (l *Int16) Add(value int16) bool {
 	l.items = append(l.items, value)
+	return true // a list always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddAll appends all values to the end of the list.

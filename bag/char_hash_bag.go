@@ -66,12 +66,13 @@ func HashCharBulkLoadExact(values []uint16, n int) (*HashChar, error) {
 }
 
 // Add adds one occurrence of the value.
-func (b *HashChar) Add(value uint16) {
+func (b *HashChar) Add(value uint16) bool {
 	if b.counts == nil {
 		b.counts = make(map[uint16]int)
 	}
 	b.counts[value]++
 	b.size++
+	return true // a bag always accepts the element (Adder contract; result ignored by Into)
 }
 
 // AddOccurrences adds the given number of occurrences of the value.

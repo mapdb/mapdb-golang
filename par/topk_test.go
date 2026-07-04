@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 )
 
@@ -150,5 +151,70 @@ func TestTopKCancelled(t *testing.T) {
 	_, err := TopK(ctx, FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1)), 10, less)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+// cancellingLess is a valid comparator that cancels the ctx once it has been
+// consulted `after` times — the deterministic mid-run cancel pattern (a worker
+// observes cancellation between elements and returns cctx.Err()).
+func cancellingLess(cancel context.CancelFunc, after int32) func(a, b int) bool {
+	var calls int32
+	return func(a, b int) bool {
+		if atomic.AddInt32(&calls, 1) == after {
+			cancel()
+		}
+		return a < b
+	}
+}
+
+func TestTopKCancelMidRunSegment(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	v := FromSlice(iotaSlice(200_000), Workers(8), MinPerWorker(1))
+	_, err := TopK(ctx, v, 16, cancellingLess(cancel, 20))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("segment mid-run err = %v, want context.Canceled", err)
+	}
+}
+
+func TestTopKCancelMidRunChunkPump(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	// countFrom is unbounded — only cancellation stops it, proving the chunk-pump
+	// surfaces external cancel (and does not hang).
+	v := FromSeq(countFrom(0), Workers(8), MinPerWorker(64))
+	_, err := TopK(ctx, v, 16, cancellingLess(cancel, 20))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("chunk-pump mid-run err = %v, want context.Canceled", err)
+	}
+}
+
+// TestTopKBoundaryK pins k at 1, len-1 and len over unsorted data with duplicates
+// at the boundary — the extraction/off-by-one cases the large happy-path tests
+// don't isolate. Values and order are asserted (the k-th boundary here never
+// splits a tie group, so the result is fully determined).
+func TestTopKBoundaryK(t *testing.T) {
+	src := []int{5, 1, 5, 3, 2, 4, 1} // len 7; dups at max (5,5) and min (1,1)
+	cases := []struct {
+		k    int
+		want []int
+	}{
+		{1, []int{5}},
+		{6, []int{5, 5, 4, 3, 2, 1}},    // len-1: drops one (tied) 1
+		{7, []int{5, 5, 4, 3, 2, 1, 1}}, // len: full descending sort
+		{8, []int{5, 5, 4, 3, 2, 1, 1}}, // k>len: all, no over-pop
+	}
+	for _, c := range cases {
+		v := FromSlice(append([]int(nil), src...), Workers(4), MinPerWorker(1))
+		got, err := TopK(context.Background(), v, c.k, less)
+		if err != nil {
+			t.Fatalf("k=%d: %v", c.k, err)
+		}
+		if len(got) != len(c.want) {
+			t.Fatalf("k=%d: got %v, want %v", c.k, got, c.want)
+		}
+		for i := range c.want {
+			if got[i] != c.want[i] {
+				t.Fatalf("k=%d: got %v, want %v", c.k, got, c.want)
+			}
+		}
 	}
 }

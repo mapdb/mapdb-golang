@@ -39,6 +39,11 @@ func TestManifestMatchesGenerators(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// nonFamily are subcommands that are not per-family generators: the "matrix"
+	// renderer and the "interfaces" vocabulary generator. They are excluded from
+	// every family set below.
+	nonFamily := map[string]bool{"matrix": true, "interfaces": true}
+
 	wired := map[string]bool{}
 	for _, e := range entries {
 		if !e.IsDir() {
@@ -50,7 +55,7 @@ func TestManifestMatchesGenerators(t *testing.T) {
 			continue // package has no doc.go / no directive
 		}
 		for _, m := range directiveRe.FindAllSubmatch(src, -1) {
-			if name := string(m[1]); name != "matrix" {
+			if name := string(m[1]); !nonFamily[name] {
 				wired[name] = true
 			}
 		}
@@ -64,11 +69,9 @@ func TestManifestMatchesGenerators(t *testing.T) {
 		declared[f.Package] = true
 	}
 
-	// registered = the main() dispatch registry, minus the "matrix" renderer
-	// subcommand (which is not a family).
 	registered := map[string]bool{}
 	for name := range generators {
-		if name != "matrix" {
+		if !nonFamily[name] {
 			registered[name] = true
 		}
 	}

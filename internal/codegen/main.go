@@ -44,6 +44,7 @@ var generators = map[string]func() error{
 	"bag":             genBag,
 	"tuple":           genTuple,
 	"matrix":          genFamilyMatrix,
+	"interfaces":      genInterfaces,
 }
 
 func main() {

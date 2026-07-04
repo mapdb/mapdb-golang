@@ -11,6 +11,7 @@ import (
 
 // alData is the per-primitive view the arraylist templates iterate over.
 type alData struct {
+	Recv      string // receiver variable for shared fragments (always "l")
 	Name      string // Int32, Float32, Char (identifier stem)
 	GoType    string // int32, float32, uint16
 	SnakeName string
@@ -51,6 +52,7 @@ func genArrayList() error {
 
 	for _, p := range Primitives() {
 		data := alData{
+			Recv:      "l",
 			Name:      p.Name,
 			GoType:    p.GoType,
 			SnakeName: p.SnakeName,
@@ -184,14 +186,7 @@ func (l *{{.Name}}) Remove(value {{.GoType}}) bool {
 }
 
 // Contains returns true if the list contains the given value.
-func (l *{{.Name}}) Contains(value {{.GoType}}) bool {
-	for _, v := range l.items {
-		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
-			return true
-		}
-	}
-	return false
-}
+{{template "contains_slice" .}}
 
 // IndexOf returns the index of the first occurrence of the value, or -1 if not found.
 func (l *{{.Name}}) IndexOf(value {{.GoType}}) int {

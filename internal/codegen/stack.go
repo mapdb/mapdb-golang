@@ -18,6 +18,7 @@ import (
 // pieces are the zero literal used in the Pop/Peek/PeekAt error returns and
 // Detect, plus the float bit-pattern equality function.
 type stData struct {
+	Recv      string // receiver variable for shared fragments (always "s")
 	Name      string // Int32, Float32, Char (identifier stem)
 	GoType    string // int32, float32, uint16 (Go element type)
 	SnakeName string // int32, float32, char (file-name stem)
@@ -54,6 +55,7 @@ func genStack() error {
 
 	for _, p := range Primitives() {
 		data := stData{
+			Recv:      "s",
 			Name:      p.Name,
 			GoType:    p.GoType,
 			SnakeName: p.SnakeName,
@@ -172,14 +174,7 @@ func (s *{{.Name}}) Clear() {
 }
 
 // Contains returns true if the stack contains the given value.
-func (s *{{.Name}}) Contains(value {{.GoType}}) bool {
-	for _, v := range s.items {
-		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
-			return true
-		}
-	}
-	return false
-}
+{{template "contains_slice" .}}
 
 // All returns an iter.Seq that yields elements from top to bottom.
 func (s *{{.Name}}) All() iter.Seq[{{.GoType}}] {

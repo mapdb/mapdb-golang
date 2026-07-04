@@ -26,6 +26,7 @@ import (
 //
 // Float base files additionally import "math" for the bit-pattern equality.
 type pqData struct {
+	Recv      string // receiver variable for shared fragments (always "q")
 	Name      string // Int32, Float32, Char (identifier stem)
 	GoType    string // int32, float32, uint16 (Go element type)
 	SnakeName string // int32, float32, char (file-name stem)
@@ -62,6 +63,7 @@ func genPriorityQueue() error {
 
 	for _, p := range Primitives() {
 		data := pqData{
+			Recv:      "q",
 			Name:      p.Name,
 			GoType:    p.GoType,
 			SnakeName: p.SnakeName,
@@ -160,14 +162,7 @@ func (q *{{.Name}}) Len() int { return len(q.items) }
 func (q *{{.Name}}) Clear() { q.items = q.items[:0] }
 
 // Contains returns true if the queue contains the given value. O(n).
-func (q *{{.Name}}) Contains(value {{.GoType}}) bool {
-	for _, v := range q.items {
-		if {{if .IsFloat}}{{.BitsFn}}(v) == {{.BitsFn}}(value){{else}}v == value{{end}} {
-			return true
-		}
-	}
-	return false
-}
+{{template "contains_slice" .}}
 
 // ToSlice returns a copy of the internal heap array (NOT sorted).
 func (q *{{.Name}}) ToSlice() []{{.GoType}} {

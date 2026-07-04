@@ -2,8 +2,11 @@ package bitset
 
 import (
 	"fmt"
+	"iter"
 	"math/bits"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // BitSet is a compact bit-packed storage for booleans backed by []uint64.
@@ -252,6 +255,47 @@ func (b *BitSet) ToSlice() []int {
 		bit = b.NextSetBit(bit + 1)
 	}
 	return out
+}
+
+// All returns an iter.Seq over the set bit positions in ascending order. O(n) in
+// the bit length; non-destructive.
+func (b *BitSet) All() iter.Seq[int] {
+	return func(yield func(int) bool) {
+		for bit := b.NextSetBit(0); bit >= 0; bit = b.NextSetBit(bit + 1) {
+			if !yield(bit) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts the bitset into up to n views by splitting the backing WORD array
+// into balanced contiguous word ranges; each view yields the set bit positions in
+// its word range, ascending. The views are non-overlapping and together cover
+// every set bit exactly once, so a *BitSet satisfies par.Segmenter[int] and feeds
+// par.From directly. Balancing is by WORD count, not popcount, so the views span
+// roughly equal index ranges but may differ in element count when set bits
+// cluster. The views are live over the backing words: mutating the bitset while a
+// view is consumed is undefined behavior.
+func (b *BitSet) Segments(n int) []iter.Seq[int] {
+	ranges := segment.SplitRanges(len(b.words), n)
+	segs := make([]iter.Seq[int], len(ranges))
+	for i, r := range ranges {
+		wlo, whi := r[0], r[1] // per-iteration copies for this view's closure
+		segs[i] = func(yield func(int) bool) {
+			for wi := wlo; wi < whi; wi++ {
+				w := b.words[wi]
+				base := wi * bitsPerWord
+				for w != 0 {
+					if !yield(base + bits.TrailingZeros64(w)) {
+						return
+					}
+					w &= w - 1 // clear the lowest set bit
+				}
+			}
+		}
+	}
+	return segs
 }
 
 // Equals returns true if both BitSets have the same length and bits.

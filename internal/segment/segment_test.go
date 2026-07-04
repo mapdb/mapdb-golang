@@ -116,6 +116,54 @@ func TestSplitIndexMatchesSplit(t *testing.T) {
 	}
 }
 
+// TestSplitRangesTileIndexSpace pins the range core both splitters delegate to:
+// the returned [lo,hi) ranges tile [0,total) with no gap or overlap, number
+// min(n,total) (clamped to >= 1), and are balanced to within one.
+func TestSplitRangesTileIndexSpace(t *testing.T) {
+	for _, total := range []int{0, 1, 7, 8, 100} {
+		for _, n := range []int{1, 2, 3, 7, total, total + 1, 1000} {
+			ranges := SplitRanges(total, n)
+
+			wantK := n
+			if wantK > total {
+				wantK = total
+			}
+			if wantK < 1 {
+				wantK = 1
+			}
+			if len(ranges) != wantK {
+				t.Fatalf("total=%d n=%d: %d ranges, want %d", total, n, len(ranges), wantK)
+			}
+
+			// Contiguous tiling from 0 to total, no gap/overlap.
+			prev := 0
+			minLen, maxLen := 1<<62, -1
+			for i, r := range ranges {
+				if r[0] != prev {
+					t.Fatalf("total=%d n=%d range %d starts at %d, want %d (gap/overlap)", total, n, i, r[0], prev)
+				}
+				if r[1] < r[0] {
+					t.Fatalf("total=%d n=%d range %d is inverted: %v", total, n, i, r)
+				}
+				l := r[1] - r[0]
+				if l < minLen {
+					minLen = l
+				}
+				if l > maxLen {
+					maxLen = l
+				}
+				prev = r[1]
+			}
+			if prev != total {
+				t.Fatalf("total=%d n=%d: ranges end at %d, want %d", total, n, prev, total)
+			}
+			if total > 0 && maxLen-minLen > 1 {
+				t.Fatalf("total=%d n=%d: unbalanced ranges (min %d, max %d)", total, n, minLen, maxLen)
+			}
+		}
+	}
+}
+
 // TestSplitEarlyBreakStops confirms a consumer that stops early does not panic
 // and the range simply ends (yield returning false is honored).
 func TestSplitEarlyBreakStops(t *testing.T) {

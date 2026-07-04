@@ -38,30 +38,49 @@ func Split[T any](xs []T, n int) []iter.Seq[T] {
 // Split(xs, n) is exactly SplitIndex(len(xs), n, index-into-xs); routing both
 // through one core keeps every family's segmentation identical by construction.
 func SplitIndex[T any](total, n int, at func(int) T) []iter.Seq[T] {
+	ranges := SplitRanges(total, n)
+	segs := make([]iter.Seq[T], len(ranges))
+	for i, r := range ranges {
+		lo, hi := r[0], r[1] // per-iteration copies; each closure gets its own range
+		segs[i] = func(yield func(T) bool) {
+			for j := lo; j < hi; j++ {
+				if !yield(at(j)) {
+					return
+				}
+			}
+		}
+	}
+	return segs
+}
+
+// SplitRanges returns the balanced, contiguous, non-overlapping [lo,hi) index
+// ranges that Split and SplitIndex partition [0,total) into: min(n,total) ranges
+// (or a single empty [0,0) range when total == 0 or n < 1), with the total%n
+// remainder spread one extra index each across the leading ranges. It is the
+// range core both splitters delegate to.
+//
+// Exposed for sources whose elements are NOT one-per-index, where SplitIndex does
+// not fit — e.g. a bitset dividing its backing word array, each word range then
+// expanding to the set bit positions it contains. Returned as [2]int{lo, hi}
+// pairs; the ranges tile [0,total) with no gap or overlap.
+func SplitRanges(total, n int) [][2]int {
 	if n > total {
 		n = total
 	}
 	if n < 1 {
 		n = 1
 	}
-	segs := make([]iter.Seq[T], n)
+	ranges := make([][2]int, n)
 	chunk := total / n
 	remainder := total % n
 	lo := 0
-	for i := range segs {
+	for i := range ranges {
 		hi := lo + chunk
 		if i < remainder {
 			hi++
 		}
-		l, h := lo, hi // snapshot the range for this view's closure
-		segs[i] = func(yield func(T) bool) {
-			for j := l; j < h; j++ {
-				if !yield(at(j)) {
-					return
-				}
-			}
-		}
+		ranges[i] = [2]int{lo, hi}
 		lo = hi
 	}
-	return segs
+	return ranges
 }

@@ -1,7 +1,10 @@
 package bitset
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedBitSet is a thread-safe wrapper around BitSet.
@@ -129,6 +132,28 @@ func (b *SynchronizedBitSet) ToSlice() []int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a snapshot of the set bit positions (ascending).
+// The snapshot is taken once under RLock; iteration is lock-free.
+func (b *SynchronizedBitSet) All() iter.Seq[int] {
+	snapshot := b.ToSlice()
+	return func(yield func(int) bool) {
+		for _, bit := range snapshot {
+			if !yield(bit) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a snapshot of the set bit positions into up to n balanced,
+// contiguous, non-overlapping views covering it exactly once, satisfying
+// par.Segmenter[int]. The snapshot (ToSlice) is taken once under RLock; the views
+// iterate it lock-free. Because the snapshot is a materialized ascending slice,
+// balancing here is by element count (unlike the base's by-word split).
+func (b *SynchronizedBitSet) Segments(n int) []iter.Seq[int] {
+	return segment.Split(b.ToSlice(), n)
 }
 
 func (b *SynchronizedBitSet) Equals(other *SynchronizedBitSet) bool {

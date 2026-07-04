@@ -890,6 +890,10 @@ func (m *CharInt8) buildcharInt8(keys []uint16, values []int8, lo, hi, level, re
 	}
 	node.left = m.buildcharInt8(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildcharInt8(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + charInt8TreeNodeSize(node.left) + charInt8TreeNodeSize(node.right)
 	return node
 }
 

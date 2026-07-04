@@ -878,6 +878,10 @@ func (m *Float64Int64) buildfloat64Int64(keys []float64, values []int64, lo, hi,
 	}
 	node.left = m.buildfloat64Int64(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildfloat64Int64(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + float64Int64TreeNodeSize(node.left) + float64Int64TreeNodeSize(node.right)
 	return node
 }
 

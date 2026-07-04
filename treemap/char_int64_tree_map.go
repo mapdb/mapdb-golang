@@ -890,6 +890,10 @@ func (m *CharInt64) buildcharInt64(keys []uint16, values []int64, lo, hi, level,
 	}
 	node.left = m.buildcharInt64(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildcharInt64(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + charInt64TreeNodeSize(node.left) + charInt64TreeNodeSize(node.right)
 	return node
 }
 

@@ -890,6 +890,10 @@ func (m *CharFloat32) buildcharFloat32(keys []uint16, values []float32, lo, hi, 
 	}
 	node.left = m.buildcharFloat32(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildcharFloat32(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + charFloat32TreeNodeSize(node.left) + charFloat32TreeNodeSize(node.right)
 	return node
 }
 

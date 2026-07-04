@@ -268,11 +268,13 @@ func (m *Float32Object[V]) resize() {
 }
 
 func (m *Float32Object[V]) rehashFrom(deleted int, mask int) {
+	c := len(m.keys)
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(m.hashKey(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
+		distCurrent := (idx - ideal + c) & mask
+		distGap := (deleted - ideal + c) & mask
+		if distCurrent > distGap {
 			m.keys[deleted] = m.keys[idx]
 			m.values[deleted] = m.values[idx]
 			m.occupied[deleted] = true
@@ -283,6 +285,9 @@ func (m *Float32Object[V]) rehashFrom(deleted int, mask int) {
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
+		if idx == deleted {
+			break
+		}
 	}
 }
 

@@ -1017,6 +1017,10 @@ func (m *{{.MapName}}) build{{.NodeName}}(keys []{{.KeyType}}, values []{{.ValTy
 	}
 	node.left = m.build{{.NodeName}}(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.build{{.NodeName}}(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + {{.NodeName}}TreeNodeSize(node.left) + {{.NodeName}}TreeNodeSize(node.right)
 	return node
 }
 

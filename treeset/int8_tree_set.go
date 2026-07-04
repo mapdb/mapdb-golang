@@ -581,6 +581,10 @@ func (s *Int8) buildint8(values []int8, lo, hi, level, redLevel int, parent *int
 	}
 	node.left = s.buildint8(values, lo, mid-1, level+1, redLevel, node)
 	node.right = s.buildint8(values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Add. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + int8NodeSize(node.left) + int8NodeSize(node.right)
 	return node
 }
 

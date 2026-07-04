@@ -581,6 +581,10 @@ func (s *Int16) buildint16(values []int16, lo, hi, level, redLevel int, parent *
 	}
 	node.left = s.buildint16(values, lo, mid-1, level+1, redLevel, node)
 	node.right = s.buildint16(values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Add. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + int16NodeSize(node.left) + int16NodeSize(node.right)
 	return node
 }
 

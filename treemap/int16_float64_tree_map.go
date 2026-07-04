@@ -890,6 +890,10 @@ func (m *Int16Float64) buildint16Float64(keys []int16, values []float64, lo, hi,
 	}
 	node.left = m.buildint16Float64(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildint16Float64(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + int16Float64TreeNodeSize(node.left) + int16Float64TreeNodeSize(node.right)
 	return node
 }
 

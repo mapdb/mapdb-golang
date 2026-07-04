@@ -30,6 +30,12 @@ type Float64Int32 struct {
 	values []int32
 	size   int
 
+	// tombstones counts RemovedKey slots in the regular table. They occupy a
+	// slot until a rehash reclaims them, so they must count toward the load
+	// factor — otherwise Put/Remove churn fills the table with tombstones,
+	// leaving no empty slot and hanging every probe loop forever.
+	tombstones int
+
 	// Sentinel key storage — keys 0 and 1 are valid user keys but also
 	// serve as empty/removed markers in the table, so we store them separately.
 	zeroKeyPresent    bool
@@ -177,6 +183,7 @@ func (m *Float64Int32) putRegular(key float64, value int32) (int32, bool) {
 		if k == empty {
 			if firstRemoved >= 0 {
 				idx = firstRemoved
+				m.tombstones-- // reusing a tombstone slot
 			}
 			m.keys[idx] = key
 			m.values[idx] = value
@@ -301,6 +308,7 @@ func (m *Float64Int32) removeRegular(key float64) (int32, bool) {
 			m.keys[idx] = float64Int32RemovedKey
 			m.values[idx] = 0
 			m.size--
+			m.tombstones++
 			return old, true
 		}
 		idx = (idx + 1) & mask
@@ -352,6 +360,7 @@ func (m *Float64Int32) Clear() {
 	m.oneKeyPresent = false
 	m.oneKeyValue = 0
 	m.size = 0
+	m.tombstones = 0
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
@@ -534,7 +543,12 @@ func (m *Float64Int32) needsResize() bool {
 	if m.oneKeyPresent {
 		regularEntries--
 	}
-	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+	// Tombstones occupy regular-table slots until the next rehash reclaims
+	// them, so they count toward occupancy alongside live regular entries
+	// (Eclipse Collections' occupiedWithSentinels). Omitting them lets churn
+	// fill the table with tombstones and hang every probe loop.
+	occupied := regularEntries + m.tombstones
+	return (occupied+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
 func (m *Float64Int32) resize() {
@@ -556,6 +570,7 @@ func (m *Float64Int32) resize() {
 	m.keys = make([]float64, newCap)
 	m.values = make([]int32, newCap)
 	m.size = 0
+	m.tombstones = 0 // fresh table drops all tombstones
 	m.zeroKeyPresent = false
 	m.negZeroKeyPresent = false
 	m.oneKeyPresent = false

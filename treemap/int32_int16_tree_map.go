@@ -890,6 +890,10 @@ func (m *Int32Int16) buildint32Int16(keys []int32, values []int16, lo, hi, level
 	}
 	node.left = m.buildint32Int16(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildint32Int16(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + int32Int16TreeNodeSize(node.left) + int32Int16TreeNodeSize(node.right)
 	return node
 }
 

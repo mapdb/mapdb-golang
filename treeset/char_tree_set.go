@@ -581,6 +581,10 @@ func (s *Char) buildchar(values []uint16, lo, hi, level, redLevel int, parent *c
 	}
 	node.left = s.buildchar(values, lo, mid-1, level+1, redLevel, node)
 	node.right = s.buildchar(values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Add. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + charNodeSize(node.left) + charNodeSize(node.right)
 	return node
 }
 

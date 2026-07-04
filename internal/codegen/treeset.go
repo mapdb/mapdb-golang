@@ -661,6 +661,10 @@ func (s *{{.Name}}) build{{.SnakeName}}(values []{{.GoType}}, lo, hi, level, red
 	}
 	node.left = s.build{{.SnakeName}}(values, lo, mid-1, level+1, redLevel, node)
 	node.right = s.build{{.SnakeName}}(values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Add. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + {{.SnakeName}}NodeSize(node.left) + {{.SnakeName}}NodeSize(node.right)
 	return node
 }
 

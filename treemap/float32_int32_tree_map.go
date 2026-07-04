@@ -878,6 +878,10 @@ func (m *Float32Int32) buildfloat32Int32(keys []float32, values []int32, lo, hi,
 	}
 	node.left = m.buildfloat32Int32(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildfloat32Int32(keys, values, mid+1, hi, level+1, redLevel, node)
+	// Set the subtree-size augmentation bottom-up so Rank/Select work after a
+	// bulk load exactly as they do after one-by-one Put. Children are already
+	// built above, so their sizes are final here.
+	node.size = 1 + float32Int32TreeNodeSize(node.left) + float32Int32TreeNodeSize(node.right)
 	return node
 }
 

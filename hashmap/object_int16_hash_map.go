@@ -257,11 +257,13 @@ func (m *ObjectInt16[K]) resize() {
 }
 
 func (m *ObjectInt16[K]) rehashFromObjectInt16(deleted int, mask int) {
+	c := len(m.keys)
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(hashComparable(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
+		distCurrent := (idx - ideal + c) & mask
+		distGap := (deleted - ideal + c) & mask
+		if distCurrent > distGap {
 			m.keys[deleted] = m.keys[idx]
 			m.values[deleted] = m.values[idx]
 			m.occupied[deleted] = true
@@ -272,6 +274,9 @@ func (m *ObjectInt16[K]) rehashFromObjectInt16(deleted int, mask int) {
 			deleted = idx
 		}
 		idx = (idx + 1) & mask
+		if idx == deleted {
+			break
+		}
 	}
 }
 

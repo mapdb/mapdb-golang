@@ -973,12 +973,12 @@ func bloomI32SuffixToInt(s string) (int32, bool) {
 // malformed for the harness: not starting with exactly one builder, an
 // add/merge before the builder, an out-of-range with_precision, or a bad
 // from_bytes.
-func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperLogLog, bool) {
+func buildHLL(operations []map[string]any, other *otherSpec) (*hyperloglog.HyperLogLog, bool) {
 	if len(operations) == 0 {
-		return hyperloglog.HyperLogLog{}, false
+		return nil, false
 	}
 	first := operations[0]
-	var hll hyperloglog.HyperLogLog
+	var hll *hyperloglog.HyperLogLog
 	switch first["op"] {
 	case "with_precision":
 		// Non-fatal operand parse: a missing/mistyped `p` is a malformed
@@ -987,7 +987,7 @@ func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperL
 		pv, ok := tryInt(first["p"])
 		if !ok {
 			fmt.Fprintln(os.Stderr, "skip: HyperLogLog with_precision needs an integer p (forward-compat)")
-			return hyperloglog.HyperLogLog{}, false
+			return nil, false
 		}
 		p := uint8(pv)
 		h, err := hyperloglog.NewHyperLogLogWithPrecision(p)
@@ -995,7 +995,7 @@ func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperL
 			// Out-of-range p is a construction error -> SKIP (the harness cannot
 			// build the probe). The native tests pin the error path itself.
 			fmt.Fprintf(os.Stderr, "skip: HyperLogLog with_precision error: %v\n", err)
-			return hyperloglog.HyperLogLog{}, false
+			return nil, false
 		}
 		hll = h
 	case "from_bytes":
@@ -1003,18 +1003,18 @@ func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperL
 		// op or malformed). Reject any trailing ops.
 		if len(operations) != 1 {
 			fmt.Fprintln(os.Stderr, "skip: from_bytes must be the only op (forward-compat)")
-			return hyperloglog.HyperLogLog{}, false
+			return nil, false
 		}
 		b := parseHexBytes(first["bytes"])
 		h, err := hyperloglog.HyperLogLogFromBytes(b)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "skip: HyperLogLog from_bytes error: %v\n", err)
-			return hyperloglog.HyperLogLog{}, false
+			return nil, false
 		}
 		hll = h
 	default:
 		fmt.Fprintln(os.Stderr, "skip: HyperLogLog first op must be a builder (forward-compat)")
-		return hyperloglog.HyperLogLog{}, false
+		return nil, false
 	}
 
 	for _, op := range operations[1:] {
@@ -1025,7 +1025,7 @@ func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperL
 			v, ok := tryInt32(op["value"])
 			if !ok {
 				fmt.Fprintln(os.Stderr, "skip: HyperLogLog add needs an integer value (forward-compat)")
-				return hyperloglog.HyperLogLog{}, false
+				return nil, false
 			}
 			hll.Add(v)
 		case "merge":
@@ -1033,19 +1033,19 @@ func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperL
 			// by element-wise register max.
 			if other == nil {
 				fmt.Fprintln(os.Stderr, "skip: HyperLogLog merge needs an `other` block (forward-compat)")
-				return hyperloglog.HyperLogLog{}, false
+				return nil, false
 			}
 			otherHLL, ok := buildHLL(other.Operations, nil)
 			if !ok {
-				return hyperloglog.HyperLogLog{}, false
+				return nil, false
 			}
-			if err := hll.Merge(&otherHLL); err != nil {
+			if err := hll.Merge(otherHLL); err != nil {
 				fmt.Fprintf(os.Stderr, "skip: HyperLogLog merge error: %v\n", err)
-				return hyperloglog.HyperLogLog{}, false
+				return nil, false
 			}
 		default:
 			fmt.Fprintf(os.Stderr, "skip: unknown HyperLogLog op (forward-compat): %v\n", op["op"])
-			return hyperloglog.HyperLogLog{}, false
+			return nil, false
 		}
 	}
 	return hll, true
@@ -1058,7 +1058,7 @@ func runHyperLogLog(s scenario) {
 		return
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
-		emit(s.Name, key, evalHLLAssertion(key, &hll), s.Assertions[key], modeNone)
+		emit(s.Name, key, evalHLLAssertion(key, hll), s.Assertions[key], modeNone)
 	}
 }
 

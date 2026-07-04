@@ -15,7 +15,7 @@ import (
 	"github.com/mapdb/mapdb-golang/hash"
 )
 
-func mustNew(t *testing.T, p uint8) HyperLogLog {
+func mustNew(t *testing.T, p uint8) *HyperLogLog {
 	t.Helper()
 	h, err := NewHyperLogLogWithPrecision(p)
 	if err != nil {
@@ -231,7 +231,7 @@ func TestMergeIsElementwiseMax(t *testing.T) {
 			expected[i] = bb
 		}
 	}
-	if err := a.Merge(&b); err != nil {
+	if err := a.Merge(b); err != nil {
 		t.Fatalf("merge: %v", err)
 	}
 	if !bytes.Equal(a.Registers(), expected) {
@@ -241,7 +241,7 @@ func TestMergeIsElementwiseMax(t *testing.T) {
 
 func TestMergeCommutativeAndIdempotent(t *testing.T) {
 	p := uint8(5)
-	build := func(items ...int32) HyperLogLog {
+	build := func(items ...int32) *HyperLogLog {
 		h := mustNew(t, p)
 		for _, v := range items {
 			h.Add(v)
@@ -250,12 +250,12 @@ func TestMergeCommutativeAndIdempotent(t *testing.T) {
 	}
 	ab := build(10, 20, 30)
 	bset := build(30, 40, 50)
-	if err := ab.Merge(&bset); err != nil {
+	if err := ab.Merge(bset); err != nil {
 		t.Fatal(err)
 	}
 	ba := build(30, 40, 50)
 	aset := build(10, 20, 30)
-	if err := ba.Merge(&aset); err != nil {
+	if err := ba.Merge(aset); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(ab.Registers(), ba.Registers()) {
@@ -263,7 +263,7 @@ func TestMergeCommutativeAndIdempotent(t *testing.T) {
 	}
 	a := build(10, 20, 30)
 	aa := build(10, 20, 30)
-	if err := aa.Merge(&a); err != nil {
+	if err := aa.Merge(a); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(aa.Registers(), a.Registers()) {
@@ -274,7 +274,7 @@ func TestMergeCommutativeAndIdempotent(t *testing.T) {
 func TestMergePMismatchErrors(t *testing.T) {
 	a := mustNew(t, 4)
 	b := mustNew(t, 5)
-	if err := a.Merge(&b); err == nil {
+	if err := a.Merge(b); err == nil {
 		t.Fatal("p-mismatch merge must error")
 	}
 }

@@ -50,6 +50,9 @@ func (h *HashMultimap[K, V]) Put(k K, v V) {
 
 // PutAll appends every value in values to the list at key k.
 func (h *HashMultimap[K, V]) PutAll(k K, values ...V) {
+	if len(values) == 0 {
+		return // no values → no key (matches TreeMultimap; avoids a phantom key)
+	}
 	if h.m == nil {
 		h.m = make(map[K][]V)
 	}

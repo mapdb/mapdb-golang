@@ -28,6 +28,13 @@ func TestInt32Int32_ChurnDoesNotHang(t *testing.T) {
 	if m.Len() != 0 {
 		t.Fatalf("Len() = %d, want 0", m.Len())
 	}
+	// The table must NOT grow without bound under pure churn: tombstone-pressure
+	// resizes rehash at the same capacity instead of doubling. With a live set of
+	// at most one entry the table stays tiny; before the resize fix it grew to
+	// O(total removes) (~131072 slots for this loop).
+	if got := len(m.keys); got > 64 {
+		t.Fatalf("table grew to %d slots under pure churn (live set ~1); resize should reclaim tombstones in place", got)
+	}
 
 	// Interleaved churn that keeps a rolling window of live keys, exercising both
 	// tombstone reuse and rehash-driven reclamation.

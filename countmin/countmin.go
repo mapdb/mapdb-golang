@@ -102,6 +102,12 @@ func NewCountMinOptimal(epsilon, delta float64) *CountMin {
 	if !(isFiniteGE1(w) && isFiniteGE1(d)) {
 		panic("CountMin optimal produced a non-finite (d, w)")
 	}
+	// Reject out-of-uint32-range widths/depths: float→uint32 conversion of a
+	// value above MaxUint32 is implementation-defined per the Go spec (e.g.
+	// tiny epsilon → w ≈ 2.7e10). Mirror bloom.Optimal's explicit bound.
+	if w > float64(math.MaxUint32) || d > float64(math.MaxUint32) {
+		panic("CountMin optimal produced (d, w) exceeding uint32")
+	}
 	return NewCountMinWithParams(uint32(d), uint32(w))
 }
 

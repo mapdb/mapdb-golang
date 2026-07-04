@@ -498,9 +498,26 @@ func (m *Int32Int64) needsResize() bool {
 func (m *Int32Int64) resize() {
 	oldKeys := m.keys
 	oldValues := m.values
-	newCap := len(oldKeys) * 2
+
+	// Size the new table from the count of LIVE regular entries, not the raw
+	// slot count. A resize triggered by tombstone pressure (few live entries,
+	// many tombstones) rehashes at the same capacity to reclaim the tombstones;
+	// only genuine data growth doubles. Without this split, pure Put/Remove
+	// churn keeps tripping the load factor via tombstones and grows the table
+	// without bound (Eclipse Collections splits maxOccupiedWithData ->
+	// rehashAndGrow from maxOccupiedWithSentinels -> same-size rehash).
+	live := m.size
+	if m.zeroKeyPresent {
+		live--
+	}
+	if m.oneKeyPresent {
+		live--
+	}
+	newCap := len(oldKeys)
 	if newCap == 0 {
 		newCap = int32Int64DefaultCapacity
+	} else if (live+1)*4 >= newCap*3 {
+		newCap *= 2 // live entries alone exceed the load factor -> grow
 	}
 
 	// Save sentinel state

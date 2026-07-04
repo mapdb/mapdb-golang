@@ -68,12 +68,12 @@ type HyperLogLog struct {
 // p must be in [4, 18]; otherwise an error is returned (never a silent clamp --
 // a clamp would let two ports build differently-sized arrays from the same
 // nominal p).
-func NewHyperLogLogWithPrecision(p uint8) (HyperLogLog, error) {
+func NewHyperLogLogWithPrecision(p uint8) (*HyperLogLog, error) {
 	if p < MinPrecision || p > MaxPrecision {
-		return HyperLogLog{}, badPrecisionError(p)
+		return nil, badPrecisionError(p)
 	}
 	m := 1 << p
-	return HyperLogLog{p: p, registers: make([]uint8, m)}, nil
+	return &HyperLogLog{p: p, registers: make([]uint8, m)}, nil
 }
 
 // Precision returns the precision p (log2(m)).
@@ -115,8 +115,15 @@ func (h *HyperLogLog) Add(item int32) {
 	}
 }
 
-// Registers returns the raw register array (the cross-language oracle bytes).
-func (h *HyperLogLog) Registers() []uint8 { return h.registers }
+// Registers returns a copy of the register array (the cross-language oracle
+// bytes). A copy — not the internal slice — so callers cannot mutate the sketch
+// into states HyperLogLogFromBytes rejects (matches every sibling accessor:
+// countmin.ToCounters, fenwick.CanonicalTree, bloom.ToBytes, roaring.ToSortedSlice).
+func (h *HyperLogLog) Registers() []uint8 {
+	out := make([]uint8, len(h.registers))
+	copy(out, h.registers)
+	return out
+}
 
 // NonzeroRegisters returns the count of registers > 0 (= m - V, where V is the
 // zero count).
@@ -230,34 +237,34 @@ func (h *HyperLogLog) ToBytes() []byte {
 // HyperLogLogFromBytes deserializes from the v1 wire form. Rejects (single MUST
 // rule so no two ports disagree on validity): too short, bad magic, p out of
 // range, length != 5 + 2^p, or any register byte > 64 - p + 1.
-func HyperLogLogFromBytes(b []byte) (HyperLogLog, error) {
+func HyperLogLogFromBytes(b []byte) (*HyperLogLog, error) {
 	if len(b) < 5 {
-		return HyperLogLog{}, tooShortError(len(b))
+		return nil, tooShortError(len(b))
 	}
 	var m4 [4]byte
 	copy(m4[:], b[0:4])
 	if m4 != magic {
-		return HyperLogLog{}, badMagicError(m4)
+		return nil, badMagicError(m4)
 	}
 	p := b[4]
 	if p < MinPrecision || p > MaxPrecision {
-		return HyperLogLog{}, badPrecisionError(p)
+		return nil, badPrecisionError(p)
 	}
 	m := 1 << p
 	expected := 5 + m
 	if len(b) != expected {
-		return HyperLogLog{}, lengthMismatchError(expected, len(b))
+		return nil, lengthMismatchError(expected, len(b))
 	}
 	ceiling := rhoCeiling(p)
 	regs := b[5:]
 	for i, r := range regs {
 		if r > ceiling {
-			return HyperLogLog{}, registerOutOfRangeError(i, r, ceiling)
+			return nil, registerOutOfRangeError(i, r, ceiling)
 		}
 	}
 	out := make([]uint8, m)
 	copy(out, regs)
-	return HyperLogLog{p: p, registers: out}, nil
+	return &HyperLogLog{p: p, registers: out}, nil
 }
 
 // ---- Errors --------------------------------------------------------------

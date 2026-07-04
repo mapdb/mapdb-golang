@@ -136,6 +136,11 @@ type View[T any] struct {
 	segment func(n int) []iter.Seq[T]
 	// pump is the single-shot source for the chunk-pump execution model (§6).
 	pump iter.Seq[T]
+	// pumpCtx is the ctx-aware chunk-pump source: it is handed the engine's
+	// internal context so a blocking receive can select on cancellation and
+	// short-circuit teardown (FromSeqCtx). Exactly one of pump/pumpCtx is set on a
+	// chunk-pump view.
+	pumpCtx func(ctx context.Context) iter.Seq[T]
 	// size is the element count if known, else -1 (drives the sequential fallback).
 	size int
 	cfg  config
@@ -172,7 +177,7 @@ func run[T, R any](ctx context.Context, v View[T], w work[T, R]) ([]R, error) {
 // segment engine ignores it (segments are finite and its workers short-circuit
 // via their own polled flag).
 func runEarly[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone func() bool) ([]R, error) {
-	if v.pump != nil {
+	if v.pump != nil || v.pumpCtx != nil {
 		return runChunks(ctx, v, w, earlyDone)
 	}
 	return runSegments(ctx, v, w)
@@ -302,15 +307,25 @@ func cancelled(ctx context.Context) bool {
 // single-shot pump seq into MinPerWorker-sized []T chunks over a bounded channel;
 // Workers goroutines consume chunks and run w on each (as a seq over the chunk).
 // Per-chunk results accumulate in COMPLETION ORDER (unordered). Backpressure is
-// the channel depth (2×workers). Semantics differ from the segment engine in two
-// documented ways: results are unordered, and external cancellation IS reported
-// via a final ctx.Err() check — chunk-pump workers stop by ceasing to receive
-// rather than by returning an error, so nothing else would surface it.
+// the channel depth (2×workers).
+//
+// Semantics vs the segment engine (documented on FromSeq): results are unordered,
+// and external cancellation IS reported via a final ctx.Err() check — chunk-pump
+// workers stop by ceasing to receive rather than by returning an error, so
+// nothing else would surface it.
+//
+// Cancellation reaches the source only cooperatively: the puller can stop the
+// source at a yield boundary, and — for a ctx-aware source (pumpCtx / FromSeqCtx)
+// bound to cctx — a blocking receive can select on cctx and unblock. A short-
+// circuit (earlyDone) cancels cctx so it tears such a source down; the resulting
+// context.Canceled artifact is discounted at the join (short-circuit still
+// succeeds). A plain pump that blocks between yields is only stopped once it
+// yields again — see FromSeq.
 //
 // Panic/error containment matches runSegments: first panic wins (re-raised as
-// *PanicError after all goroutines drain), first error cancels the rest. A
-// worker panic/error and external cancel all cancel the internal ctx, which
-// unblocks the puller's send and releases the workers.
+// *PanicError after all goroutines drain), first real error cancels the rest, and
+// a worker that exits via runtime.Goexit is reported as errGoexit rather than
+// silently dropping its chunk.
 func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone func() bool) ([]R, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -330,6 +345,11 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	source := v.pump
+	if v.pumpCtx != nil {
+		source = v.pumpCtx(cctx) // bind a ctx-aware source to the engine ctx
+	}
 
 	chunks := make(chan []T, 2*workers)
 
@@ -354,7 +374,7 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 		mu.Unlock()
 	}
 
-	// Puller: drain the pump into chunks. Stops on cancellation or early-done,
+	// Puller: drain the source into chunks. Stops on cancellation or early-done,
 	// closes the channel on exit so workers terminate.
 	var pwg sync.WaitGroup
 	pwg.Add(1)
@@ -371,7 +391,7 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 				return false
 			}
 		}
-		for x := range v.pump {
+		for x := range source {
 			if cancelled(cctx) || (earlyDone != nil && earlyDone()) {
 				return
 			}
@@ -404,18 +424,36 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 				case <-cctx.Done():
 					return
 				}
-				r, pv, err := runOne(cctx, sliceSeq(chunk), w)
-				if pv != nil {
-					failPanic(pv.Value, pv.Stack)
-					continue
+				// Process one chunk with the same panic + Goexit containment as the
+				// segment worker: a callback that exits via runtime.Goexit must be
+				// reported (errGoexit), not silently drop the chunk's result.
+				normal := false
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							failPanic(rec, debug.Stack())
+							return
+						}
+						if !normal {
+							fail(errGoexit)
+						}
+					}()
+					r, err := w(cctx, sliceSeq(chunk))
+					normal = true
+					if err != nil {
+						fail(err)
+						return
+					}
+					mu.Lock()
+					results = append(results, r)
+					mu.Unlock()
+				}()
+				// Short-circuit: cancel cctx so a ctx-aware source and the siblings
+				// tear down promptly (the join discounts the resulting cancel).
+				if earlyDone != nil && earlyDone() {
+					cancel()
+					return
 				}
-				if err != nil {
-					fail(err)
-					continue
-				}
-				mu.Lock()
-				results = append(results, r)
-				mu.Unlock()
 			}
 		}()
 	}
@@ -427,13 +465,18 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 		panic(panicVal)
 	}
 	if firstErr != nil {
-		return nil, firstErr
+		// A short-circuit cancels cctx, so a sibling mid-chunk may report
+		// context.Canceled; that is an artifact of our own teardown, not a real
+		// failure, so discount it when the terminal actually short-circuited.
+		// Real callback errors (and external cancel, caught below) still surface.
+		shortCircuited := earlyDone != nil && earlyDone()
+		if !(shortCircuited && errors.Is(firstErr, context.Canceled)) {
+			return nil, firstErr
+		}
 	}
-	// Unlike the segment engine, DO check the caller ctx: chunk-pump workers stop
-	// by not receiving, not by returning an error, so external cancellation would
-	// otherwise be swallowed. earlyDone cancels only the puller's local flow (it
-	// does not cancel cctx), so a short-circuit success leaves the caller ctx live
-	// and is not misreported here.
+	// Chunk-pump workers stop by not receiving, not by erroring, so external
+	// cancellation is surfaced here. earlyDone does not cancel the CALLER ctx, so a
+	// short-circuit success leaves it live and is not misreported.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

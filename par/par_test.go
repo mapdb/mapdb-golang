@@ -782,3 +782,84 @@ func TestFromSeqPanicContained(t *testing.T) {
 	})
 	t.Fatal("unreachable")
 }
+
+// ── chunk-pump review fixes: Goexit report + blocking-source teardown ───────
+
+// chanSeqCtx is a ctx-aware channel source: its receive selects on ctx.Done(), so
+// the engine can tear it down even while it is blocked waiting for a value.
+func chanSeqCtx(ctx context.Context, ch <-chan int) iter.Seq[int] {
+	return func(yield func(int) bool) {
+		for {
+			select {
+			case v, ok := <-ch:
+				if !ok {
+					return
+				}
+				if !yield(v) {
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+}
+
+func TestFromSeqWorkerGoexitReported(t *testing.T) {
+	v := FromSeq(seqOfSlice(iotaSlice(10_000)), Workers(4), MinPerWorker(16))
+	got, err := Map(context.Background(), v, func(x int) int {
+		if x == 5000 {
+			runtime.Goexit()
+		}
+		return x
+	})
+	if !errors.Is(err, errGoexit) {
+		t.Fatalf("err = %v, want errGoexit (Goexit must not be silently dropped)", err)
+	}
+	if got != nil {
+		t.Fatalf("result should be discarded on error, got len %d", len(got))
+	}
+}
+
+// External cancellation must tear down a BLOCKING source (would hang if the
+// source's receive did not observe the engine ctx).
+func TestFromSeqCtxExternalCancelBlockingSource(t *testing.T) {
+	ch := make(chan int) // never sends, never closes → the source blocks
+	ctx, cancel := context.WithCancel(context.Background())
+	v := FromSeqCtx(func(c context.Context) iter.Seq[int] { return chanSeqCtx(c, ch) },
+		Workers(4), MinPerWorker(16))
+	go cancel()
+	err := v.ForEach(ctx, func(int) {})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+// Short-circuit over a ctx-aware source that yields one match then goes quiet must
+// terminate: earlyDone cancels the engine ctx, unblocking the idle source. This
+// hangs without the fix.
+func TestFromSeqCtxAnyShortCircuitBlockingSource(t *testing.T) {
+	ch := make(chan int, 1)
+	ch <- 42 // one matching value; channel then stays open and quiet (blocks)
+	v := FromSeqCtx(func(c context.Context) iter.Seq[int] { return chanSeqCtx(c, ch) },
+		Workers(2), MinPerWorker(1))
+	got, err := v.Any(context.Background(), func(x int) bool { return x == 42 })
+	if err != nil || !got {
+		t.Fatalf("Any = (%v, %v), want (true, nil)", got, err)
+	}
+}
+
+// A ctx-aware source that eventually closes drives a normal (uncancelled) run.
+func TestFromSeqCtxNormalCompletion(t *testing.T) {
+	ch := make(chan int, 100)
+	for i := 0; i < 100; i++ {
+		ch <- i
+	}
+	close(ch)
+	v := FromSeqCtx(func(c context.Context) iter.Seq[int] { return chanSeqCtx(c, ch) },
+		Workers(4), MinPerWorker(8))
+	got, err := v.Count(context.Background(), func(x int) bool { return x%2 == 0 })
+	if err != nil || got != 50 {
+		t.Fatalf("Count = (%d, %v), want (50, nil)", got, err)
+	}
+}

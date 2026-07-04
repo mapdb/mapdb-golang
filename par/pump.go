@@ -6,7 +6,10 @@
 
 package par
 
-import "iter"
+import (
+	"context"
+	"iter"
+)
 
 // FromSeq builds a chunk-pump View over a single-shot seq (§6): the on-ramp for
 // sources that cannot be split — channels, IO, lazy pipelines. One puller
@@ -22,14 +25,39 @@ import "iter"
 //   - Reduce/Fold need a COMMUTATIVE merge (not merely associative), since the
 //     per-chunk partials combine in nondeterministic order.
 //
-// Short-circuiting terminals (Any/All/None) stop the puller once they have the
-// answer, so they terminate even over unbounded sources. Non-short-circuiting
-// reductions (Count/Sum/CountBy/…) consume the whole source, so an unbounded
-// source must be bounded upstream (e.g. seq.Take) before the parallel hop.
+// Cancellation is cooperative and bounded by the pull model: the puller can stop
+// the source only at a yield boundary. A source that BLOCKS INSIDE ITS OWN BODY
+// between yields — a bare `for x := range ch` on an idle channel — is not
+// interrupted until it yields again, so neither cancellation nor short-circuit
+// can tear it down. For a source that may block, use [FromSeqCtx] so its receive
+// selects on the engine's context. Over a plain FromSeq that can block, short-
+// circuit terminals (Any/All/None/Find) may not terminate promptly; reserve them
+// for always-yielding or splittable sources, or bound the stream first.
+//
+// Non-short-circuiting reductions (Count/Sum/CountBy/…) consume the whole source,
+// so an unbounded source must be bounded upstream (e.g. seq.Take) before the hop.
 func FromSeq[T any](s iter.Seq[T], opts ...Option) View[T] {
 	return View[T]{
 		pump: s,
 		size: -1,
 		cfg:  newConfig(opts),
+	}
+}
+
+// FromSeqCtx builds a chunk-pump View over a CONTEXT-AWARE single-shot source: gen
+// is handed the engine's internal context each time a terminal runs and must
+// return a seq whose blocking operations select on that context's Done channel
+// (e.g. `func(ctx) iter.Seq[int] { return seq.FromChannelCtx(ctx, ch).Std() }`).
+// This is the escape hatch for blocking sources (channels, IO): when the terminal
+// is cancelled OR a short-circuiting terminal has its answer, the engine cancels
+// that context, so the source's blocked receive unblocks and the operation tears
+// down promptly — the guarantee [FromSeq] cannot make for a source that blocks
+// between yields. All the other FromSeq semantics (unordered, single-pass,
+// commutative Reduce/Fold) apply unchanged.
+func FromSeqCtx[T any](gen func(ctx context.Context) iter.Seq[T], opts ...Option) View[T] {
+	return View[T]{
+		pumpCtx: gen,
+		size:    -1,
+		cfg:     newConfig(opts),
 	}
 }

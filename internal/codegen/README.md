@@ -20,40 +20,69 @@ without learning a separate DSL.
 From the target collection's directory:
 
 ```go
-//go:generate go run ../internal/codegen <collection>
+//go:generate go run ../internal/codegen <subcommand>
 ```
 
-Currently supported: `arraylist`, `interval`, `hashset`, `stack`, `deque`,
-`treeset`, `priorityqueue`, `bag`, `treemap`. Float-ordered collections
-(`arraylist`, `treeset`, `priorityqueue`, `bag`, `treemap`) also emit a
-`cmp_float.go` from the single shared `genCmpFloat` template, so the IEEE
-total-order comparator has exactly one source of truth.
-
-Run a regeneration with:
+Regenerate everything, and run the drift gate, with:
 
 ```sh
 go generate ./...
+scripts/check-codegen.sh   # delete-then-regenerate, fail on any diff/stray/orphan
 ```
 
-A drift check for CI is just:
+### Subcommands
 
-```sh
-go generate ./... && git diff --exit-code
-```
+Per-family generators (each emits per-primitive sources into its package):
+`arraylist`, `stack`, `deque`, `priorityqueue`, `interval`, `hashset`,
+`treeset`, `hashmap`, `sentinelhashmap`, `treemap`, `multimap`, `bag`,
+`tuple`. The families that need IEEE float comparison (`arraylist`,
+`priorityqueue`, `treeset`, `treemap`, `bag`, `tuple`) also emit a
+`cmp_float.go` from the single shared `genCmpFloat` template, so the total-order
+comparator has one source of truth.
 
-## How to add a new collection
+Two non-family generators, both wired from `collection/doc.go`:
 
-1. Add a new file `internal/codegen/<collection>.go` exporting a
-   `gen<Collection>()` function. Use `arraylist.go` (single-type) or
-   `treemap.go` (K×V) as a model; call `genCmpFloat("<collection>")` at the
-   end if the collection needs float ordering.
-2. Add a `case` for it in `main.go`'s switch.
-3. Drop a `doc.go` into the target package with a `//go:generate`
-   directive.
-4. Update `primitives.go` if you need new metadata fields.
+- `interfaces` — renders `collection/<prim>_interfaces.go` (the composable
+  interface vocabulary) from one template.
+- `matrix` — renders `collection/FAMILY_MATRIX.md` from the manifest.
 
-The primitive set lives in `primitives.go`. `MinStepExpr` is the only
-helper currently exposed on `Primitive`; add more as templates need them.
+## Architecture
+
+- **`main.go`** — dispatch is a `generators` map (subcommand → generator
+  function), not a switch.
+- **`primitives.go`** — `Primitives()` is the canonical 7-primitive set
+  (int8/16/32/64, char=uint16, float32/64) every generator iterates.
+  Per-family deviations are deliberately local to the generator that needs
+  them: `interval` skips char and stubs floats; `hashset` appends its own
+  `bool` entry (adding `bool` to the shared set would make the other families
+  drift). `MinStepExpr` is the sole helper on `Primitive` today.
+- **`fragments.go`** — `parse(name, body)` prepends a shared `const fragments`
+  library of `{{define}}` blocks, so a cross-cutting method body lives in one
+  place and is invoked with `{{template "name" .}}`. Fragments are
+  parameterized by a small opt-in contract (`.Recv`, `.Name`, `.GoType`, …); a
+  `{{define}}` that no body invokes emits nothing, so adding one is
+  output-neutral. Shape-suffixed names (`contains_slice`) keep a fragment to
+  families of the matching storage shape.
+- **`manifest.go`** — `Families` is the declarative table of the 13 families
+  (storage, order, type coverage, which Immutable/Synchronized/extra variants
+  exist). It renders `FAMILY_MATRIX.md` and is the single source of truth for
+  the family set. `manifest_test.go` keeps it honest: the family set must match
+  across the manifest, the `generators` registry, and the `//go:generate`
+  directives, and the Immutable/Synchronized booleans are checked against the
+  presence of `immutable_*.go` / `synchronized_*.go` files.
+
+## How to add a new collection family
+
+1. Add `internal/codegen/<family>.go` with a `gen<Family>()` function. Use
+   `arraylist.go` (single-type) or `treemap.go` (K×V) as a model; call
+   `genCmpFloat("<family>")` at the end if it needs float ordering. Build
+   templates with `parse(...)` and reuse fragments where a body is shared.
+2. Add it to the `generators` map in `main.go`.
+3. Add a row to `Families` in `manifest.go` (drives the matrix + the guard).
+4. Drop a `doc.go` into the target package with the `//go:generate` directive.
+5. Extend `primitives.go` if a template needs new per-primitive metadata.
+
+`manifest_test.go` fails until steps 2–4 agree, so none can be forgotten.
 
 ## Scope
 

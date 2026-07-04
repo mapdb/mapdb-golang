@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -46,7 +47,7 @@ func NewInt16Int8() *Int16Int8 {
 
 // NewInt16Int8WithCapacity creates a new empty Int16Int8 with the given initial capacity.
 func NewInt16Int8WithCapacity(capacity int) *Int16Int8 {
-	cap := nextPowerOfTwoInt16Int8(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &Int16Int8{
 		keys:   make([]int16, cap),
 		values: make([]int8, cap),
@@ -558,19 +559,4 @@ func (m *Int16Int8) resize() {
 			m.Put(oldKeys[i], oldValues[i])
 		}
 	}
-}
-
-func nextPowerOfTwoInt16Int8(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

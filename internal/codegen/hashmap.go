@@ -296,6 +296,7 @@ import (
 {{- end}}
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -324,7 +325,7 @@ func New{{.MapName}}() *{{.MapName}} {
 
 // New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
 func New{{.MapName}}WithCapacity(capacity int) *{{.MapName}} {
-	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &{{.MapName}}{
 		entries: make([]{{.EntryStem}}Entry, cap),
 		size:    0,
@@ -947,20 +948,6 @@ func (m *{{.MapName}}) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwo{{.MapName}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
-}
 `
 
 const immutableHashMapTmpl = genHeader + `package hashmap
@@ -1672,6 +1659,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/bits"
 )
 
 const (
@@ -1695,7 +1684,7 @@ func New{{.MapName}}[K comparable]() *{{.MapName}}[K] {
 
 // New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
 func New{{.MapName}}WithCapacity[K comparable](capacity int) *{{.MapName}}[K] {
-	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &{{.MapName}}[K]{
 		keys:     make([]K, cap),
 		values:   make([]{{.PrimType}}, cap),
@@ -1946,20 +1935,6 @@ func (m *{{.MapName}}[K]) rehashFrom{{.MapName}}(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwo{{.MapName}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
-}
 `
 
 const immutableObjectKeyHashMapTmpl = genHeader + `package hashmap
@@ -2056,6 +2031,8 @@ import (
 	"math"
 {{- end}}
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/bits"
 )
 
 const (
@@ -2079,7 +2056,7 @@ func New{{.MapName}}[V any]() *{{.MapName}}[V] {
 
 // New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
 func New{{.MapName}}WithCapacity[V any](capacity int) *{{.MapName}}[V] {
-	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &{{.MapName}}[V]{
 		keys:     make([]{{.PrimType}}, cap),
 		values:   make([]V, cap),
@@ -2340,20 +2317,6 @@ func (m *{{.MapName}}[V]) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwo{{.MapName}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
-}
 `
 
 const immutableObjectValueHashMapTmpl = genHeader + `package hashmap

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/bits"
 )
 
 const (
@@ -29,7 +31,7 @@ func NewObjectInt32[K comparable]() *ObjectInt32[K] {
 
 // NewObjectInt32WithCapacity creates a new empty ObjectInt32 with the given initial capacity.
 func NewObjectInt32WithCapacity[K comparable](capacity int) *ObjectInt32[K] {
-	cap := nextPowerOfTwoObjectInt32(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &ObjectInt32[K]{
 		keys:     make([]K, cap),
 		values:   make([]int32, cap),
@@ -278,19 +280,4 @@ func (m *ObjectInt32[K]) rehashFromObjectInt32(deleted int, mask int) {
 			break
 		}
 	}
-}
-
-func nextPowerOfTwoObjectInt32(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

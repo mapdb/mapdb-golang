@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -33,7 +34,7 @@ func NewChar() *Char {
 
 // NewCharWithCapacity creates a new empty Char with the given initial capacity.
 func NewCharWithCapacity(capacity int) *Char {
-	cap := nextPowerOfTwoChar(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &Char{
 		entries: make([]charEntry, cap),
 		size:    0,
@@ -468,19 +469,4 @@ func (s *Char) rehashFrom(deleted int, mask int) {
 			break
 		}
 	}
-}
-
-func nextPowerOfTwoChar(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

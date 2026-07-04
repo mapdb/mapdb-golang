@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -36,7 +37,7 @@ func NewInt16Float32() *Int16Float32 {
 
 // NewInt16Float32WithCapacity creates a new empty Int16Float32 with the given initial capacity.
 func NewInt16Float32WithCapacity(capacity int) *Int16Float32 {
-	cap := nextPowerOfTwoInt16Float32(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &Int16Float32{
 		entries: make([]int16Float32Entry, cap),
 		size:    0,
@@ -657,19 +658,4 @@ func (m *Int16Float32) rehashFrom(deleted int, mask int) {
 			break
 		}
 	}
-}
-
-func nextPowerOfTwoInt16Float32(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

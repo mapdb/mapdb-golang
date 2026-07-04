@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -53,7 +54,7 @@ func NewFloat64Int8() *Float64Int8 {
 
 // NewFloat64Int8WithCapacity creates a new empty Float64Int8 with the given initial capacity.
 func NewFloat64Int8WithCapacity(capacity int) *Float64Int8 {
-	cap := nextPowerOfTwoFloat64Int8(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &Float64Int8{
 		keys:   make([]float64, cap),
 		values: make([]int8, cap),
@@ -623,19 +624,4 @@ func (m *Float64Int8) resize() {
 			m.Put(oldKeys[i], oldValues[i])
 		}
 	}
-}
-
-func nextPowerOfTwoFloat64Int8(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -46,7 +47,7 @@ func NewInt64Char() *Int64Char {
 
 // NewInt64CharWithCapacity creates a new empty Int64Char with the given initial capacity.
 func NewInt64CharWithCapacity(capacity int) *Int64Char {
-	cap := nextPowerOfTwoInt64Char(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &Int64Char{
 		keys:   make([]int64, cap),
 		values: make([]uint16, cap),
@@ -558,19 +559,4 @@ func (m *Int64Char) resize() {
 			m.Put(oldKeys[i], oldValues[i])
 		}
 	}
-}
-
-func nextPowerOfTwoInt64Char(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -35,7 +36,7 @@ func NewInt8Int32() *Int8Int32 {
 
 // NewInt8Int32WithCapacity creates a new empty Int8Int32 with the given initial capacity.
 func NewInt8Int32WithCapacity(capacity int) *Int8Int32 {
-	cap := nextPowerOfTwoInt8Int32(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &Int8Int32{
 		entries: make([]int8Int32Entry, cap),
 		size:    0,
@@ -656,19 +657,4 @@ func (m *Int8Int32) rehashFrom(deleted int, mask int) {
 			break
 		}
 	}
-}
-
-func nextPowerOfTwoInt8Int32(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
 }

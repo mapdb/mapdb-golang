@@ -111,6 +111,7 @@ import (
 {{- end}}
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -137,7 +138,7 @@ func New{{.Name}}() *{{.Name}} {
 
 // New{{.Name}}WithCapacity creates a new empty {{.Name}} with the given initial capacity.
 func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
-	cap := nextPowerOfTwo{{.Name}}(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &{{.Name}}{
 		entries: make([]{{.SnakeName}}Entry, cap),
 		size:    0,
@@ -581,20 +582,6 @@ func (s *{{.Name}}) rehashFrom(deleted int, mask int) {
 	}
 }
 
-func nextPowerOfTwo{{.Name}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
-}
 `
 
 const immutableHashSetTmpl = genHeader + `package hashset

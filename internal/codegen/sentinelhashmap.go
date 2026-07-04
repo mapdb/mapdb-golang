@@ -156,6 +156,7 @@ import (
 {{- end}}
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/bits"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -205,7 +206,7 @@ func New{{.MapName}}() *{{.MapName}} {
 
 // New{{.MapName}}WithCapacity creates a new empty {{.MapName}} with the given initial capacity.
 func New{{.MapName}}WithCapacity(capacity int) *{{.MapName}} {
-	cap := nextPowerOfTwo{{.MapName}}(capacity)
+	cap := bits.NextPowerOfTwo(capacity)
 	return &{{.MapName}}{
 		keys:   make([]{{.KeyType}}, cap),
 		values: make([]{{.ValType}}, cap),
@@ -803,18 +804,4 @@ func (m *{{.MapName}}) resize() {
 	}
 }
 
-func nextPowerOfTwo{{.MapName}}(n int) int {
-	if n <= 0 {
-		return 16
-	}
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32 // no-op on 32-bit platforms (Go shifts are width-defined), required on 64-bit
-	n++
-	return n
-}
 `

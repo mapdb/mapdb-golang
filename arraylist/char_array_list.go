@@ -8,6 +8,8 @@ import (
 	"iter"
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Char is a resizable array-backed list of uint16 values.
@@ -127,6 +129,17 @@ func (l *Char) All() iter.Seq[uint16] {
 			}
 		}
 	}
+}
+
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views (k = min(n, Len), or 1 when empty) whose concatenation covers every
+// element exactly once, so a *Char satisfies par.Segmenter[uint16] and
+// feeds par.From directly. Segment order follows the backing array and is not
+// guaranteed to match All (the Segmenter contract is unordered). The views are
+// live over the backing array: mutating it while a view is consumed is undefined
+// behavior. O(1) memory per view.
+func (l *Char) Segments(n int) []iter.Seq[uint16] {
+	return segment.Split(l.items, n)
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.

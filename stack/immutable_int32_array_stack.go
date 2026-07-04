@@ -50,6 +50,14 @@ func (s *ImmutableInt32) All() iter.Seq[int32] {
 	return s.delegate.All()
 }
 
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views covering every element exactly once, satisfying par.Segmenter[int32].
+// It delegates to the immutable backing store; the views are stable because an
+// immutable value never changes.
+func (s *ImmutableInt32) Segments(n int) []iter.Seq[int32] {
+	return s.delegate.Segments(n)
+}
+
 // ForEach calls the given function for each element from top to bottom.
 func (s *ImmutableInt32) ForEach(f func(int32)) {
 	s.delegate.ForEach(f)

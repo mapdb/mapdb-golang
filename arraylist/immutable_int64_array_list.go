@@ -47,6 +47,14 @@ func (l *ImmutableInt64) All() iter.Seq[int64] {
 	return l.delegate.All()
 }
 
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views covering every element exactly once, satisfying par.Segmenter[int64].
+// It delegates to the immutable backing store; the views are stable because an
+// immutable value never changes.
+func (l *ImmutableInt64) Segments(n int) []iter.Seq[int64] {
+	return l.delegate.Segments(n)
+}
+
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
 func (l *ImmutableInt64) AllWithIndex() iter.Seq2[int, int64] {
 	return l.delegate.AllWithIndex()

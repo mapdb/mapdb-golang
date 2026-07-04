@@ -24,7 +24,12 @@ import "text/template"
 //
 // A fragment must only reference fields present on every struct that invokes it;
 // storage-shape-specific fragments (slice vs ring vs tree) are named with their
-// shape suffix so they are only invoked by families of that shape.
+// shape suffix so they are only invoked by families of that shape. The
+// segments_* fragments emit the Segmenter capability (par.From on-ramp) for
+// slice-backed families in their three variants — segments_slice over the live
+// backing array, segments_delegate forwarding to an immutable's store, and
+// segments_snapshot over a synchronized snapshot; each calls internal/segment,
+// so a template invoking one imports "…/internal/segment".
 const fragments = `
 {{- define "contains_slice" -}}
 func ({{.Recv}} *{{.Name}}) Contains(value {{.GoType}}) bool {
@@ -79,6 +84,39 @@ func ({{.Recv}} *{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 		}
 	}
 	return true
+}
+{{- end -}}
+
+{{- define "segments_slice" -}}
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views (k = min(n, Len), or 1 when empty) whose concatenation covers every
+// element exactly once, so a *{{.Name}} satisfies par.Segmenter[{{.GoType}}] and
+// feeds par.From directly. Segment order follows the backing array and is not
+// guaranteed to match All (the Segmenter contract is unordered). The views are
+// live over the backing array: mutating it while a view is consumed is undefined
+// behavior. O(1) memory per view.
+func ({{.Recv}} *{{.Name}}) Segments(n int) []iter.Seq[{{.GoType}}] {
+	return segment.Split({{.Recv}}.items, n)
+}
+{{- end -}}
+
+{{- define "segments_delegate" -}}
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views covering every element exactly once, satisfying par.Segmenter[{{.GoType}}].
+// It delegates to the immutable backing store; the views are stable because an
+// immutable value never changes.
+func ({{.Recv}} *Immutable{{.Name}}) Segments(n int) []iter.Seq[{{.GoType}}] {
+	return {{.Recv}}.delegate.Segments(n)
+}
+{{- end -}}
+
+{{- define "segments_snapshot" -}}
+// Segments cuts a point-in-time snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[{{.GoType}}].
+// The snapshot is taken once under lock; the views iterate it lock-free — the
+// same snapshot contract as All.
+func ({{.Recv}} *Synchronized{{.Name}}) Segments(n int) []iter.Seq[{{.GoType}}] {
+	return segment.Split({{.Recv}}.snapshot(), n)
 }
 {{- end -}}
 `

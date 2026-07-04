@@ -16,6 +16,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // iota returns 0..n-1 as a slice.
@@ -275,7 +277,7 @@ func TestWorkerGoexitReportedNotSilent(t *testing.T) {
 type sliceSegmenter struct{ xs []int }
 
 func (s sliceSegmenter) Segments(n int) []iter.Seq[int] {
-	return sliceSegments(s.xs, n)
+	return segment.Split(s.xs, n)
 }
 
 func TestFromSegmenter(t *testing.T) {

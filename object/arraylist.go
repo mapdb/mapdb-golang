@@ -11,6 +11,8 @@ import (
 	"iter"
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // ArrayList is a generic ordered list backed by a Go slice.
@@ -51,6 +53,15 @@ func (a *ArrayList[T]) All() iter.Seq[T] {
 			}
 		}
 	}
+}
+
+// Segments cuts the list into up to n balanced, contiguous, non-overlapping
+// views (k = min(n, Len), or 1 when empty) whose concatenation covers every
+// element exactly once, so an *ArrayList[T] satisfies par.Segmenter[T] and feeds
+// par.From directly. The views are live over the backing array: mutating the
+// list while a view is consumed is undefined behavior. O(1) memory per view.
+func (a *ArrayList[T]) Segments(n int) []iter.Seq[T] {
+	return segment.Split(a.items, n)
 }
 
 func (a *ArrayList[T]) ForEach(f func(T)) {

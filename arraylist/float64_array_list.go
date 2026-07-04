@@ -8,6 +8,8 @@ import (
 	"math"
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Float64 is a resizable array-backed list of float64 values.
@@ -127,6 +129,17 @@ func (l *Float64) All() iter.Seq[float64] {
 			}
 		}
 	}
+}
+
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views (k = min(n, Len), or 1 when empty) whose concatenation covers every
+// element exactly once, so a *Float64 satisfies par.Segmenter[float64] and
+// feeds par.From directly. Segment order follows the backing array and is not
+// guaranteed to match All (the Segmenter contract is unordered). The views are
+// live over the backing array: mutating it while a view is consumed is undefined
+// behavior. O(1) memory per view.
+func (l *Float64) Segments(n int) []iter.Seq[float64] {
+	return segment.Split(l.items, n)
 }
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.

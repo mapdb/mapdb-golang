@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Int8 is a LIFO (last-in, first-out) stack backed by a int8 slice.
@@ -105,6 +107,17 @@ func (s *Int8) All() iter.Seq[int8] {
 			}
 		}
 	}
+}
+
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views (k = min(n, Len), or 1 when empty) whose concatenation covers every
+// element exactly once, so a *Int8 satisfies par.Segmenter[int8] and
+// feeds par.From directly. Segment order follows the backing array and is not
+// guaranteed to match All (the Segmenter contract is unordered). The views are
+// live over the backing array: mutating it while a view is consumed is undefined
+// behavior. O(1) memory per view.
+func (s *Int8) Segments(n int) []iter.Seq[int8] {
+	return segment.Split(s.items, n)
 }
 
 // ForEach calls the given function for each element from top to bottom.

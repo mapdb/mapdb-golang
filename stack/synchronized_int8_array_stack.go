@@ -6,6 +6,8 @@ import (
 	"iter"
 	"sync"
 	"unsafe"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt8 is a thread-safe wrapper around Int8.
@@ -107,6 +109,14 @@ func (s *SynchronizedInt8) All() iter.Seq[int8] {
 			}
 		}
 	}
+}
+
+// Segments cuts a point-in-time snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int8].
+// The snapshot is taken once under lock; the views iterate it lock-free — the
+// same snapshot contract as All.
+func (s *SynchronizedInt8) Segments(n int) []iter.Seq[int8] {
+	return segment.Split(s.snapshot(), n)
 }
 
 // ── functional over snapshot ──────────────────────────────────────────

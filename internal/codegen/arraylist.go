@@ -104,6 +104,8 @@ import (
 {{- end}}
 	"slices"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // {{.Name}} is a resizable array-backed list of {{.GoType}} values.
@@ -217,6 +219,8 @@ func (l *{{.Name}}) All() iter.Seq[{{.GoType}}] {
 		}
 	}
 }
+
+{{template "segments_slice" .}}
 
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
 func (l *{{.Name}}) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
@@ -559,6 +563,8 @@ func (l *Immutable{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return l.delegate.All()
 }
 
+{{template "segments_delegate" .}}
+
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
 func (l *Immutable{{.Name}}) AllWithIndex() iter.Seq2[int, {{.GoType}}] {
 	return l.delegate.AllWithIndex()
@@ -641,6 +647,8 @@ import (
 	"iter"
 	"sync"
 	"unsafe"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Synchronized{{.Name}} is a thread-safe wrapper around {{.Name}}.
@@ -844,6 +852,8 @@ func (l *Synchronized{{.Name}}) All() iter.Seq[{{.GoType}}] {
 		}
 	}
 }
+
+{{template "segments_snapshot" .}}
 
 // AllWithIndex returns an iter.Seq2 over a snapshot. Iteration is lock-free.
 func (l *Synchronized{{.Name}}) AllWithIndex() iter.Seq2[int, {{.GoType}}] {

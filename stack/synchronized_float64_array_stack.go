@@ -6,6 +6,8 @@ import (
 	"iter"
 	"sync"
 	"unsafe"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedFloat64 is a thread-safe wrapper around Float64.
@@ -107,6 +109,14 @@ func (s *SynchronizedFloat64) All() iter.Seq[float64] {
 			}
 		}
 	}
+}
+
+// Segments cuts a point-in-time snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[float64].
+// The snapshot is taken once under lock; the views iterate it lock-free — the
+// same snapshot contract as All.
+func (s *SynchronizedFloat64) Segments(n int) []iter.Seq[float64] {
+	return segment.Split(s.snapshot(), n)
 }
 
 // ── functional over snapshot ──────────────────────────────────────────

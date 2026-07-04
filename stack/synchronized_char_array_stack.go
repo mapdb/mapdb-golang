@@ -6,6 +6,8 @@ import (
 	"iter"
 	"sync"
 	"unsafe"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedChar is a thread-safe wrapper around Char.
@@ -107,6 +109,14 @@ func (s *SynchronizedChar) All() iter.Seq[uint16] {
 			}
 		}
 	}
+}
+
+// Segments cuts a point-in-time snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[uint16].
+// The snapshot is taken once under lock; the views iterate it lock-free — the
+// same snapshot contract as All.
+func (s *SynchronizedChar) Segments(n int) []iter.Seq[uint16] {
+	return segment.Split(s.snapshot(), n)
 }
 
 // ── functional over snapshot ──────────────────────────────────────────

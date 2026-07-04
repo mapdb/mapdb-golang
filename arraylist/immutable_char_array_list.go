@@ -47,6 +47,14 @@ func (l *ImmutableChar) All() iter.Seq[uint16] {
 	return l.delegate.All()
 }
 
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views covering every element exactly once, satisfying par.Segmenter[uint16].
+// It delegates to the immutable backing store; the views are stable because an
+// immutable value never changes.
+func (l *ImmutableChar) Segments(n int) []iter.Seq[uint16] {
+	return l.delegate.Segments(n)
+}
+
 // AllWithIndex returns an iter.Seq2 that yields (index, value) pairs.
 func (l *ImmutableChar) AllWithIndex() iter.Seq2[int, uint16] {
 	return l.delegate.AllWithIndex()

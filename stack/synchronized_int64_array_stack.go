@@ -6,6 +6,8 @@ import (
 	"iter"
 	"sync"
 	"unsafe"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt64 is a thread-safe wrapper around Int64.
@@ -107,6 +109,14 @@ func (s *SynchronizedInt64) All() iter.Seq[int64] {
 			}
 		}
 	}
+}
+
+// Segments cuts a point-in-time snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int64].
+// The snapshot is taken once under lock; the views iterate it lock-free — the
+// same snapshot contract as All.
+func (s *SynchronizedInt64) Segments(n int) []iter.Seq[int64] {
+	return segment.Split(s.snapshot(), n)
 }
 
 // ── functional over snapshot ──────────────────────────────────────────

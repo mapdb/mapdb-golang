@@ -93,6 +93,8 @@ import (
 	"math"
 {{- end}}
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // {{.Name}} is a LIFO (last-in, first-out) stack backed by a {{.GoType}} slice.
@@ -186,6 +188,8 @@ func (s *{{.Name}}) All() iter.Seq[{{.GoType}}] {
 		}
 	}
 }
+
+{{template "segments_slice" .}}
 
 // ForEach calls the given function for each element from top to bottom.
 func (s *{{.Name}}) ForEach(f func({{.GoType}})) {
@@ -364,6 +368,8 @@ func (s *Immutable{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	return s.delegate.All()
 }
 
+{{template "segments_delegate" .}}
+
 // ForEach calls the given function for each element from top to bottom.
 func (s *Immutable{{.Name}}) ForEach(f func({{.GoType}})) {
 	s.delegate.ForEach(f)
@@ -456,6 +462,8 @@ import (
 	"iter"
 	"sync"
 	"unsafe"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Synchronized{{.Name}} is a thread-safe wrapper around {{.Name}}.
@@ -558,6 +566,8 @@ func (s *Synchronized{{.Name}}) All() iter.Seq[{{.GoType}}] {
 		}
 	}
 }
+
+{{template "segments_snapshot" .}}
 
 // ── functional over snapshot ──────────────────────────────────────────
 

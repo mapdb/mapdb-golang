@@ -12,8 +12,9 @@ import "text/template"
 // Fragments are the mechanism that turns a cross-cutting method from N per-family
 // hand-pastes into a one-place edit (see todo/fable-golang/14 §1a). They are
 // parameterized by a shared data contract that a per-family struct opts into by
-// adding the fields a fragment it invokes needs (today only alData/stData/pqData
-// carry .Recv, for contains_slice):
+// adding the fields a fragment it invokes needs (today alData/stData/pqData carry
+// .Recv, used by contains_slice and the predicate-query fragments; pqData invokes
+// only contains_slice):
 //
 //	.Recv    receiver variable (l, s, q, m, …)
 //	.Name    concrete type identifier stem (Int32, Float32, Char, …)

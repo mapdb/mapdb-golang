@@ -8,12 +8,18 @@ package par
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"runtime"
 	"runtime/debug"
 	"sync"
 )
+
+// errGoexit is reported for a worker that terminated via runtime.Goexit (e.g. a
+// callback calling t.FailNow / testify require) rather than returning. Without
+// this the worker's segment would silently contribute a zero result.
+var errGoexit = errors.New("par: worker exited abnormally (runtime.Goexit)")
 
 // Segmenter is the one capability the parallel design rests on: a source that
 // can cut itself into k ≤ n independently iterable, re-runnable, non-overlapping
@@ -169,7 +175,7 @@ func runSegments[T, R any](ctx context.Context, v View[T], w work[T, R]) ([]R, e
 	if len(segs) == 1 {
 		// Sequential fast path: no goroutine, but the same panic wrapping so
 		// callers see uniform *PanicError semantics regardless of worker count.
-		r, err, pv := runOne(ctx, segs[0], w)
+		r, pv, err := runOne(ctx, segs[0], w)
 		if pv != nil {
 			panic(pv)
 		}
@@ -195,10 +201,10 @@ func runSegments[T, R any](ctx context.Context, v View[T], w work[T, R]) ([]R, e
 		}
 		mu.Unlock()
 	}
-	failPanic := func(rec any) {
+	failPanic := func(rec any, stack []byte) {
 		mu.Lock()
 		if panicVal == nil {
-			panicVal = &PanicError{Value: rec, Stack: debug.Stack()}
+			panicVal = &PanicError{Value: rec, Stack: stack}
 			cancel()
 		}
 		mu.Unlock()
@@ -208,12 +214,18 @@ func runSegments[T, R any](ctx context.Context, v View[T], w work[T, R]) ([]R, e
 	for i, s := range segs {
 		go func(i int, s iter.Seq[T]) {
 			defer wg.Done()
+			normal := false // distinguishes a natural return from runtime.Goexit
 			defer func() {
 				if rec := recover(); rec != nil {
-					failPanic(rec)
+					failPanic(rec, debug.Stack())
+					return
+				}
+				if !normal {
+					fail(errGoexit)
 				}
 			}()
 			r, err := w(cctx, s)
+			normal = true // w returned; a Goexit inside w skips this line
 			if err != nil {
 				fail(err)
 				return
@@ -229,15 +241,18 @@ func runSegments[T, R any](ctx context.Context, v View[T], w work[T, R]) ([]R, e
 	if firstErr != nil {
 		return nil, firstErr
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+	// No post-hoc ctx.Err() check: cancellation is cooperative — a worker that
+	// observes it while iterating reports it via firstErr. An operation that runs
+	// to completion before cancellation lands returns its result (errgroup-style,
+	// the prior art doc.go cites), and both worker-count paths agree.
 	return results, nil
 }
 
 // runOne runs a single segment inline, converting a panic into a *PanicError so
-// the single-segment path matches the multi-segment path's contract.
-func runOne[T, R any](ctx context.Context, seg iter.Seq[T], w work[T, R]) (r R, err error, pv *PanicError) {
+// the single-segment path matches the multi-segment path's contract. (A
+// runtime.Goexit inside w unwinds the caller's own goroutine — loud, not the
+// silent data loss the multi-segment path guards against, so no flag is needed.)
+func runOne[T, R any](ctx context.Context, seg iter.Seq[T], w work[T, R]) (r R, pv *PanicError, err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			pv = &PanicError{Value: rec, Stack: debug.Stack()}

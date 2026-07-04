@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -247,6 +248,24 @@ func TestPanicErrorUnwrap(t *testing.T) {
 	}
 	if got := (&PanicError{Value: "not an error"}).Unwrap(); got != nil {
 		t.Fatalf("Unwrap of non-error = %v, want nil", got)
+	}
+}
+
+func TestWorkerGoexitReportedNotSilent(t *testing.T) {
+	// A callback that exits via runtime.Goexit (e.g. t.FailNow inside a parallel
+	// op) must surface as an error, not a silently-dropped segment result.
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	got, err := Map(context.Background(), v, func(x int) int {
+		if x == 5000 {
+			runtime.Goexit()
+		}
+		return x
+	})
+	if !errors.Is(err, errGoexit) {
+		t.Fatalf("err = %v, want errGoexit", err)
+	}
+	if got != nil {
+		t.Fatalf("result should be discarded on error, got len %d", len(got))
 	}
 }
 

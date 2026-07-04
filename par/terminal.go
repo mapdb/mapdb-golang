@@ -14,7 +14,7 @@ import (
 // ForEach applies f to every element, fanning out across segments. Unordered:
 // calls within a segment follow that segment's order, but calls across segments
 // interleave arbitrarily, so f must be safe for concurrent invocation. Returns
-// ctx.Err() if cancelled; re-panics (as *PanicError) if f panics.
+// ctx.Err() if cancelled before completion; re-panics (as *PanicError) if f panics.
 func (v View[T]) ForEach(ctx context.Context, f func(T)) error {
 	_, err := runSegments(ctx, v, func(cctx context.Context, seg iter.Seq[T]) (struct{}, error) {
 		for x := range seg {

@@ -20,8 +20,10 @@
 //   - context — ctx is per-operation (call-scoped), not per-view. Every terminal
 //     takes ctx first and returns error so cancellation is reportable (ctx.Err()).
 //     Infallible, uncancellable callers pass context.Background() and discard the
-//     error. Cancellation stops scheduling and pulling; an in-flight non-ctx
-//     callback runs to completion (it has no channel to hear cancellation on).
+//     error. Cancellation is cooperative: a worker reports ctx.Err() when it
+//     observes cancellation between elements; an in-flight non-ctx callback runs
+//     to completion (it has no channel to hear cancellation on), and an operation
+//     that finishes before cancellation lands returns its result (errgroup-style).
 //   - panic containment — the first worker panic wins: siblings are cancelled and
 //     the panic is re-raised on the caller's goroutine wrapped in [*PanicError]
 //     (original value + stack preserved). Panics are re-raised, not returned as

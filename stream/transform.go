@@ -79,6 +79,12 @@ func Distinct[V comparable](seq iter.Seq[V]) iter.Seq[V] {
 
 // Chunk breaks the sequence into sub-slices of at most n elements.
 func Chunk[V any](seq iter.Seq[V], n int) iter.Seq[[]V] {
+	if n <= 0 {
+		// Eager panic at the call site: a non-positive chunk size is a
+		// programmer error (n < 0 would panic in make with a negative capacity;
+		// n == 0 would accumulate every element into one unbounded chunk).
+		panic("stream.Chunk: n must be positive")
+	}
 	return func(yield func([]V) bool) {
 		chunk := make([]V, 0, n)
 		for v := range seq {

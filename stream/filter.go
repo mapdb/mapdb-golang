@@ -31,15 +31,18 @@ func Filter2[K, V any](seq iter.Seq2[K, V], predicate func(K, V) bool) iter.Seq2
 // Take returns a new iter.Seq that yields at most n elements.
 func Take[V any](seq iter.Seq[V], n int) iter.Seq[V] {
 	return func(yield func(V) bool) {
+		if n <= 0 {
+			return // take nothing — and DON'T pull from seq (stateful sources)
+		}
 		count := 0
 		for v := range seq {
-			if count >= n {
-				return
-			}
 			if !yield(v) {
 				return
 			}
 			count++
+			if count >= n {
+				return // stop after exactly n, without pulling the (n+1)th element
+			}
 		}
 	}
 }

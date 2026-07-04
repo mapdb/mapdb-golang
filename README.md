@@ -62,11 +62,32 @@ Generic collections using Go 1.24 type parameters:
 
 All generic types implement composable interfaces: `Collection[T]`, `MutableList[T]`, `MutableSet[T]`, `MutableBag[T]`, `MutableStack[T]`, `MutableMap[K,V]`, `MutableBiMap[K,V]`.
 
+## Algorithmic & probabilistic packages
+
+Beyond the general-purpose collections, the module ships specialized data
+structures ported against the shared cross-language spec (float-quarantined
+where an estimate can't agree bit-for-bit across languages):
+
+| Package | Type | Purpose |
+|---|---|---|
+| `roaring` | `RoaringU32` | Compressed sorted `uint32` bitmap (array/bitmap containers); canonical serialization is an equality oracle |
+| `bloom` | `Bloom` | Bloom filter with `Optimal(n, p)` sizing |
+| `hyperloglog` | `HyperLogLog` | Distinct-count cardinality sketch (integer register oracle + native `Estimate`) |
+| `countmin` | `CountMin`, Space-Saving | Count-Min sketch + heavy-hitters frequency estimation |
+| `fenwick` | `FenwickTree` | Binary indexed tree for prefix sums / range queries |
+| `boundedlru` | `BoundedLruInt32Int32Map` | Bounded LRU map with optional TTL and eviction callback |
+| `rangev` | `Int32RangeSet`, `Int32Int32RangeMap` | Auto-coalescing disjoint interval set / piecewise map (Guava-style) |
+| `immutablesorted` | sorted set/map | Immutable sorted views with range queries |
+| `multimap` | `Int32Int32List`, `…Set` | Primitive multimaps (list- or set-valued) |
+| `pump` | data-pump loaders | Bulk-load contracts (`FromSorted`, duplicate policies, presized builders) |
+| `hash` | `Hash64`, `Positions` | The deterministic hash pipeline underpinning the sketches |
+| `parallel` | parallel iteration | Segment-based parallel traversal helpers |
+
 ## Composing operations
 
 Go's type system doesn't allow generic methods on generic types, so
-operations that change the element type (`Collect`, `GroupBy`, `Partition`,
-`Zip`, `ZipWithIndex`, `Chunk`, `FlatCollect`) can't be methods on `ArrayList[T]` directly. They live in the `stream/` package as free functions.
+operations that change the element type (`Map`, `GroupBy`, `Partition`,
+`Enumerate`, `Chunk`, `FlatMap`) can't be methods on `ArrayList[T]` directly. They live in the `stream/` package as free functions.
 
 In practice this means:
 

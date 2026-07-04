@@ -8,6 +8,61 @@ suffix, so the module path is unchanged (`github.com/mapdb/mapdb-golang`). This
 release is a coordinated breaking idiom cleanup batched into one bump so
 downstream code breaks at most once.
 
+## [Unreleased] — correctness fixes + algo-package catch-up
+
+Correctness-first pass over the merged algorithmic packages and the code
+generators. Two **breaking** API changes are called out below; the rest are bug
+fixes and additive documentation.
+
+### Fixed — code-generator template bugs (regenerated across all variants)
+
+- **sentinelhashmap**: tombstones left by `Remove` were never counted toward the
+  load factor, so `Put`/`Remove` churn filled the table with tombstones until no
+  empty slot remained and every probe loop hung forever (~22 cycles on a default
+  table). Tombstones now count toward occupancy, and a resize triggered by
+  tombstone pressure rehashes at the same capacity (so pure churn no longer grows
+  the table without bound) while genuine data growth still doubles.
+- **hashmap** (object-keyed and object-valued shapes): `rehashFrom`'s
+  backward-shift condition was inverted and the wraparound guard missing, so
+  `Remove` silently lost keys and created ghost duplicates. Ported the correct
+  primitive×primitive backward-shift logic.
+- **treeset / treemap**: the `FromSorted` bulk builder created nodes without the
+  subtree-size augmentation, so `Rank`/`Select` returned wrong answers after a
+  bulk load. The size is now set bottom-up during the build.
+
+### Fixed — algorithmic packages
+
+- **object.HashMultimap.PutAll**: a zero-value `PutAll(k)` no longer creates a
+  phantom key (matches `TreeMultimap`).
+- **countmin.NewCountMinOptimal**: rejects derived widths/depths exceeding
+  `MaxUint32` (implementation-defined `float→uint32` for tiny epsilon).
+- **rangev.PutCoalescing**: coalescing is now transitive and
+  direction-independent — an abutting equal-valued chain collapses identically
+  regardless of the entries' storage order (previously biased rightward). See the
+  companion spec change (`mapdb-collection-spec`,
+  `feat/rangemap-coalescing-direction-independent`).
+- **boundedlru**: reentering the map from an eviction callback now panics instead
+  of silently corrupting the arena.
+
+### Changed — breaking
+
+- **hyperloglog**: `NewHyperLogLogWithPrecision` and `HyperLogLogFromBytes` now
+  return `*HyperLogLog` (was `HyperLogLog`). Value copies used to alias the
+  register array and the zero value panicked in `Add`. `Registers()` now returns
+  a **copy** of the register array (was the internal slice), so callers can no
+  longer corrupt the sketch through it.
+
+### Added
+
+- Documentation: README now lists the algorithmic & probabilistic packages
+  (`roaring`, `bloom`, `hyperloglog`, `countmin`, `fenwick`, `boundedlru`,
+  `rangev`, `immutablesorted`, `multimap`, `pump`, `hash`, `parallel`) and a
+  top-level `LICENSE` file (dual EPL-1.0 / EDL-1.0, EDL prominent).
+- Tests/CI: `go test -fuzz` targets for the two hand-written byte parsers
+  (`roaring.Deserialize`, `HyperLogLogFromBytes`); a `-race` CI lane and a
+  gofmt-clean check; the codegen drift gate extracted to
+  `scripts/check-codegen.sh` with a `Makefile` mirroring CI.
+
 ## [0.2.0] — Breaking idiom cleanup (v2)
 
 This release applies the deferred source-breaking Go-idiom changes that were

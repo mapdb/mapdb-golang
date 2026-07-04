@@ -26,11 +26,24 @@ func TestIntoStructuralSinkPreservesOrder(t *testing.T) {
 	}
 }
 
-func TestIntoReturnsSinkForChaining(t *testing.T) {
-	// The returned value is the same sink, usable directly.
-	got := Into(Of(3, 1, 2), &listSink{})
+func TestIntoReturnsSameSinkInstance(t *testing.T) {
+	// The returned value must be the very sink passed in (identity), not a copy —
+	// so a caller can keep using the variable it already held.
+	sink := &listSink{}
+	got := Into(Of(3, 1, 2), sink)
+	if got != sink {
+		t.Fatal("Into returned a different sink instance, want the same pointer")
+	}
 	if len(got.xs) != 3 {
 		t.Fatalf("returned sink len = %d, want 3", len(got.xs))
+	}
+}
+
+func TestIntoEmptySeqLeavesSinkUntouched(t *testing.T) {
+	sink := &listSink{xs: []int{99}} // pre-populated
+	got := Into(Range(0, 0), sink)   // empty seq
+	if got != sink || len(got.xs) != 1 || got.xs[0] != 99 {
+		t.Fatalf("empty Into altered the sink: %v", got.xs)
 	}
 }
 

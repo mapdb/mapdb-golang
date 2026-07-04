@@ -3,8 +3,11 @@
 package deque
 
 import (
+	"iter"
 	"math"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedFloat32 is a thread-safe wrapper around Float32.
@@ -110,6 +113,27 @@ func (d *SynchronizedFloat32) ToSlice() []float32 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a logical-order snapshot. The snapshot is taken
+// once under RLock; iteration is lock-free.
+func (d *SynchronizedFloat32) All() iter.Seq[float32] {
+	snapshot := d.ToSlice()
+	return func(yield func(float32) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a logical-order snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[float32].
+// The snapshot (ToSlice, already unwrapped to logical order) is taken once under
+// RLock; the views iterate it lock-free.
+func (d *SynchronizedFloat32) Segments(n int) []iter.Seq[float32] {
+	return segment.Split(d.ToSlice(), n)
 }
 
 func (d *SynchronizedFloat32) Equals(other *SynchronizedFloat32) bool {

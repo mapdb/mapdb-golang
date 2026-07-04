@@ -4,8 +4,11 @@ package deque
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Float32 is a double-ended queue of float32 values, backed by a
@@ -179,6 +182,36 @@ func (d *Float32) ForEach(f func(float32)) {
 	for i := 0; i < d.size; i++ {
 		f(d.items[(d.head+i)&mask])
 	}
+}
+
+// at returns the logical i-th element (0 = front), mapping through the ring.
+// The caller must ensure 0 <= i < d.size (so len(d.items) > 0 and the mask is
+// valid).
+func (d *Float32) at(i int) float32 {
+	return d.items[(d.head+i)&(len(d.items)-1)]
+}
+
+// All returns an iter.Seq over the elements in logical front-to-back order,
+// regardless of where head sits in the ring.
+func (d *Float32) All() iter.Seq[float32] {
+	return func(yield func(float32) bool) {
+		for i := 0; i < d.size; i++ {
+			if !yield(d.at(i)) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts the deque into up to n balanced, contiguous, non-overlapping
+// views over the LOGICAL front-to-back order (k = min(n, Len), or 1 when empty)
+// whose concatenation reproduces All in order, so a *Float32 satisfies
+// par.Segmenter[float32] and feeds par.From directly. Each view maps its
+// logical index range through the ring on the fly — the physical wrap is
+// invisible. The views are live over the deque: mutating it while a view is
+// consumed is undefined behavior.
+func (d *Float32) Segments(n int) []iter.Seq[float32] {
+	return segment.SplitIndex(d.size, n, d.at)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.

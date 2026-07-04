@@ -3,7 +3,10 @@
 package deque
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedChar is a thread-safe wrapper around Char.
@@ -109,6 +112,27 @@ func (d *SynchronizedChar) ToSlice() []uint16 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a logical-order snapshot. The snapshot is taken
+// once under RLock; iteration is lock-free.
+func (d *SynchronizedChar) All() iter.Seq[uint16] {
+	snapshot := d.ToSlice()
+	return func(yield func(uint16) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a logical-order snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[uint16].
+// The snapshot (ToSlice, already unwrapped to logical order) is taken once under
+// RLock; the views iterate it lock-free.
+func (d *SynchronizedChar) Segments(n int) []iter.Seq[uint16] {
+	return segment.Split(d.ToSlice(), n)
 }
 
 func (d *SynchronizedChar) Equals(other *SynchronizedChar) bool {

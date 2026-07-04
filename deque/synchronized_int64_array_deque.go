@@ -3,7 +3,10 @@
 package deque
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt64 is a thread-safe wrapper around Int64.
@@ -109,6 +112,27 @@ func (d *SynchronizedInt64) ToSlice() []int64 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a logical-order snapshot. The snapshot is taken
+// once under RLock; iteration is lock-free.
+func (d *SynchronizedInt64) All() iter.Seq[int64] {
+	snapshot := d.ToSlice()
+	return func(yield func(int64) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a logical-order snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int64].
+// The snapshot (ToSlice, already unwrapped to logical order) is taken once under
+// RLock; the views iterate it lock-free.
+func (d *SynchronizedInt64) Segments(n int) []iter.Seq[int64] {
+	return segment.Split(d.ToSlice(), n)
 }
 
 func (d *SynchronizedInt64) Equals(other *SynchronizedInt64) bool {

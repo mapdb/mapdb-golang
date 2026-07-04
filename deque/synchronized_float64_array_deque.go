@@ -3,8 +3,11 @@
 package deque
 
 import (
+	"iter"
 	"math"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedFloat64 is a thread-safe wrapper around Float64.
@@ -110,6 +113,27 @@ func (d *SynchronizedFloat64) ToSlice() []float64 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a logical-order snapshot. The snapshot is taken
+// once under RLock; iteration is lock-free.
+func (d *SynchronizedFloat64) All() iter.Seq[float64] {
+	snapshot := d.ToSlice()
+	return func(yield func(float64) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a logical-order snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[float64].
+// The snapshot (ToSlice, already unwrapped to logical order) is taken once under
+// RLock; the views iterate it lock-free.
+func (d *SynchronizedFloat64) Segments(n int) []iter.Seq[float64] {
+	return segment.Split(d.ToSlice(), n)
 }
 
 func (d *SynchronizedFloat64) Equals(other *SynchronizedFloat64) bool {

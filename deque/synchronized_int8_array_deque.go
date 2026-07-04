@@ -3,7 +3,10 @@
 package deque
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt8 is a thread-safe wrapper around Int8.
@@ -109,6 +112,27 @@ func (d *SynchronizedInt8) ToSlice() []int8 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a logical-order snapshot. The snapshot is taken
+// once under RLock; iteration is lock-free.
+func (d *SynchronizedInt8) All() iter.Seq[int8] {
+	snapshot := d.ToSlice()
+	return func(yield func(int8) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a logical-order snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int8].
+// The snapshot (ToSlice, already unwrapped to logical order) is taken once under
+// RLock; the views iterate it lock-free.
+func (d *SynchronizedInt8) Segments(n int) []iter.Seq[int8] {
+	return segment.Split(d.ToSlice(), n)
 }
 
 func (d *SynchronizedInt8) Equals(other *SynchronizedInt8) bool {

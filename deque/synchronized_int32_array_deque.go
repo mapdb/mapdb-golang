@@ -3,7 +3,10 @@
 package deque
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt32 is a thread-safe wrapper around Int32.
@@ -109,6 +112,27 @@ func (d *SynchronizedInt32) ToSlice() []int32 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a logical-order snapshot. The snapshot is taken
+// once under RLock; iteration is lock-free.
+func (d *SynchronizedInt32) All() iter.Seq[int32] {
+	snapshot := d.ToSlice()
+	return func(yield func(int32) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a logical-order snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int32].
+// The snapshot (ToSlice, already unwrapped to logical order) is taken once under
+// RLock; the views iterate it lock-free.
+func (d *SynchronizedInt32) Segments(n int) []iter.Seq[int32] {
+	return segment.Split(d.ToSlice(), n)
 }
 
 func (d *SynchronizedInt32) Equals(other *SynchronizedInt32) bool {

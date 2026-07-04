@@ -4,7 +4,10 @@ package deque
 
 import (
 	"fmt"
+	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Int64 is a double-ended queue of int64 values, backed by a
@@ -178,6 +181,36 @@ func (d *Int64) ForEach(f func(int64)) {
 	for i := 0; i < d.size; i++ {
 		f(d.items[(d.head+i)&mask])
 	}
+}
+
+// at returns the logical i-th element (0 = front), mapping through the ring.
+// The caller must ensure 0 <= i < d.size (so len(d.items) > 0 and the mask is
+// valid).
+func (d *Int64) at(i int) int64 {
+	return d.items[(d.head+i)&(len(d.items)-1)]
+}
+
+// All returns an iter.Seq over the elements in logical front-to-back order,
+// regardless of where head sits in the ring.
+func (d *Int64) All() iter.Seq[int64] {
+	return func(yield func(int64) bool) {
+		for i := 0; i < d.size; i++ {
+			if !yield(d.at(i)) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts the deque into up to n balanced, contiguous, non-overlapping
+// views over the LOGICAL front-to-back order (k = min(n, Len), or 1 when empty)
+// whose concatenation reproduces All in order, so a *Int64 satisfies
+// par.Segmenter[int64] and feeds par.From directly. Each view maps its
+// logical index range through the ring on the fly — the physical wrap is
+// invisible. The views are live over the deque: mutating it while a view is
+// consumed is undefined behavior.
+func (d *Int64) Segments(n int) []iter.Seq[int64] {
+	return segment.SplitIndex(d.size, n, d.at)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.

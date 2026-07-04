@@ -3,7 +3,10 @@
 package deque
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt16 is a thread-safe wrapper around Int16.
@@ -109,6 +112,27 @@ func (d *SynchronizedInt16) ToSlice() []int16 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a logical-order snapshot. The snapshot is taken
+// once under RLock; iteration is lock-free.
+func (d *SynchronizedInt16) All() iter.Seq[int16] {
+	snapshot := d.ToSlice()
+	return func(yield func(int16) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a logical-order snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int16].
+// The snapshot (ToSlice, already unwrapped to logical order) is taken once under
+// RLock; the views iterate it lock-free.
+func (d *SynchronizedInt16) Segments(n int) []iter.Seq[int16] {
+	return segment.Split(d.ToSlice(), n)
 }
 
 func (d *SynchronizedInt16) Equals(other *SynchronizedInt16) bool {

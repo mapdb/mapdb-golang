@@ -54,3 +54,28 @@ func TestInt32Int32_ChurnDoesNotHang(t *testing.T) {
 		}
 	}
 }
+
+// A moderate live set churned for many ops must keep the table capacity bounded
+// (proportional to the live set, not the op count). This exercises the
+// grow-when-live-reaches-half-capacity path that keeps tombstone-reclaiming
+// rehashes amortized O(1) instead of O(cap)-per-op when live sits near the load
+// factor.
+func TestInt32Int32_ModerateWindowChurnBoundedCapacity(t *testing.T) {
+	m := NewInt32Int32()
+	const window = 100
+	const ops = 500_000
+	for i := int32(0); i < ops; i++ {
+		m.Put(i, i)
+		if i >= window {
+			m.Remove(i - window)
+		}
+	}
+	if got := m.Len(); got != window {
+		t.Fatalf("Len() = %d, want %d", got, window)
+	}
+	// window=100 needs a table of a few hundred slots; it must never scale with
+	// ops (500k). A generous bound still catches op-proportional growth.
+	if got := len(m.keys); got > 1024 {
+		t.Fatalf("table grew to %d slots for a %d-entry live set under churn", got, window)
+	}
+}

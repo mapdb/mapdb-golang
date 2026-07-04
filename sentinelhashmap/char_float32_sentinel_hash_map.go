@@ -517,8 +517,17 @@ func (m *CharFloat32) resize() {
 	newCap := len(oldKeys)
 	if newCap == 0 {
 		newCap = charFloat32DefaultCapacity
-	} else if (live+1)*4 >= newCap*3 {
-		newCap *= 2 // live entries alone exceed the load factor -> grow
+	} else if (live+1)*4 >= newCap*3 || live*2 >= newCap {
+		// Grow when live entries alone reach the load factor, OR when they
+		// already occupy at least half the table. The second clause gives the
+		// same-size (tombstone-reclaiming) rehash real headroom: without it, a
+		// map whose live count sits just below the load factor would rehash at
+		// the same capacity on every churn pair (a tombstone re-trips the load
+		// factor immediately), turning churn into O(cap)-per-op. A same-size
+		// rehash now happens only when live < cap/2, leaving >= half the slots
+		// free afterward. Insert-only workloads (tombstones == 0) are unaffected:
+		// they still grow exactly at the load factor.
+		newCap *= 2
 	}
 
 	// Save sentinel state

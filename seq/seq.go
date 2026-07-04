@@ -163,9 +163,11 @@ func (s Seq[T]) Cycle() Seq[T] {
 }
 
 // Chunk groups s into consecutive slices of up to n elements (the final chunk
-// may be shorter). It returns iter.Seq[[]T] rather than Seq[[]T] because a
-// self-referential Seq[[]T] does not instantiate; chunking is normally terminal.
-// Lazy in the source, O(n) per chunk. Panics if n <= 0. ⟨EC: chunk⟩
+// may be shorter). It returns iter.Seq[[]T], not Seq[[]T]: a method on Seq[T]
+// returning Seq[[]T] fails to compile ("instantiation cycle", T instantiated as
+// []T), and chunking is normally terminal anyway. Wrap with seq.From if you need
+// to keep chaining. Lazy in the source, O(n) per chunk. Panics if n <= 0.
+// ⟨EC: chunk⟩
 func (s Seq[T]) Chunk(n int) iter.Seq[[]T] {
 	if n <= 0 {
 		panic("seq: Chunk size must be positive")

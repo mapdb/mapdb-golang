@@ -24,14 +24,15 @@
 // Every operation documents three things:
 //
 //   - lazy or eager — lazy ops do no work until the returned Seq is ranged; eager
-//     ops (Sorted, Reversed, Distinct, Partition, ToSlice) consume their input
-//     once when called.
+//     ops (Partition, and terminals like ToSlice/Sum) consume their input once
+//     when called.
 //   - re-runnable or single-shot — a Seq derived from a collection or an
 //     in-memory source may be ranged repeatedly; a Seq over a one-shot source
 //     (a channel, a Pull) is single-shot. Eager ops yield re-runnable results.
 //   - allocation class — O(1) for streaming stages (Filter, Map, Take, …),
-//     O(distinct) for Distinct, O(k) for bounded windows, O(n) for the
-//     materializing ops (Sorted, Reversed, Partition, ToSlice).
+//     O(distinct) for Distinct (which is still lazy and short-circuiting — it
+//     just retains a set of the values seen), O(n) for the materializing ops
+//     (Partition, ToSlice).
 //
 // Infinite sources (Iterate, Generate, Repeat) are first-class: compose them with
 // Take / TakeWhile / First, which short-circuit. Because the streaming stages are
@@ -43,7 +44,7 @@
 // Terms reused module-wide: encounter-ordered (lists, deques), sorted (tree
 // views), heap-ordered (priorityqueue — not sorted), unordered (hash structures,
 // order unspecified and may vary per run). A Seq preserves the ordering class of
-// its source; ops that impose an order (Sorted) or destroy one document it.
+// its source; any op that imposes or destroys an order documents it.
 //
 // This package supersedes stream/ (which remains as thin aliases for one release).
 package seq

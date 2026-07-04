@@ -51,22 +51,38 @@ func Range[T Numeric](lo, hi T) Seq[T] {
 // RangeStep returns lo, lo+step, lo+2*step, … up to but not including hi. With a
 // positive step it ascends while v < hi; with a negative step it descends while
 // v > hi. Lazy, O(1) memory. Panics if step == 0.
+//
+// Advancing is overflow-safe: if v+step would wrap past the type's bounds (or,
+// for floats, make no progress because step is too small to change v), the
+// sequence stops rather than looping forever. So RangeStep[int8](126, 127, 2)
+// yields just 126.
 func RangeStep[T Numeric](lo, hi, step T) Seq[T] {
 	if step == 0 {
 		panic("seq: RangeStep step must be non-zero")
 	}
 	return func(yield func(T) bool) {
+		v := lo
 		if step > 0 {
-			for v := lo; v < hi; v += step {
+			for v < hi {
 				if !yield(v) {
 					return
 				}
+				next := v + step
+				if next <= v { // overflow wrap-around, or no float progress
+					return
+				}
+				v = next
 			}
 		} else {
-			for v := lo; v > hi; v += step {
+			for v > hi {
 				if !yield(v) {
 					return
 				}
+				next := v + step
+				if next >= v { // underflow wrap-around, or no float progress
+					return
+				}
+				v = next
 			}
 		}
 	}

@@ -129,6 +129,22 @@ func TestSources(t *testing.T) {
 	}
 }
 
+// TestRangeStepNoOverflowWrap guards the codex-found HIGH bug: a step that
+// overshoots the integer type's bound must terminate, not wrap and loop.
+func TestRangeStepNoOverflowWrap(t *testing.T) {
+	if got := RangeStep[int8](126, 127, 2).ToSlice(); !slices.Equal(got, []int8{126}) {
+		t.Errorf("RangeStep[int8](126,127,2) = %v, want [126]", got)
+	}
+	// descending near the minimum must also stop rather than wrap up
+	if got := RangeStep[int8](-125, -128, -5).ToSlice(); !slices.Equal(got, []int8{-125}) {
+		t.Errorf("RangeStep[int8](-125,-128,-5) = %v, want [-125]", got)
+	}
+	// a normal near-boundary walk still works
+	if got := RangeStep[int8](120, 127, 3).ToSlice(); !slices.Equal(got, []int8{120, 123, 126}) {
+		t.Errorf("RangeStep[int8](120,127,3) = %v, want [120 123 126]", got)
+	}
+}
+
 func TestRangeStepZeroPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {

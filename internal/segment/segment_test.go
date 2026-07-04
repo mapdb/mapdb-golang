@@ -84,6 +84,38 @@ func TestSplitViewsAreReRunnable(t *testing.T) {
 	}
 }
 
+// TestSplitIndexMatchesSplit proves the index-addressed form produces the same
+// segmentation as the slice form (Split is defined in terms of SplitIndex, so
+// this pins that they cannot drift), and that at is called only with in-range
+// indices (an at panicking out of range would be triggered otherwise).
+func TestSplitIndexMatchesSplit(t *testing.T) {
+	for _, total := range []int{0, 1, 7, 8, 100} {
+		xs := make([]int, total)
+		for i := range xs {
+			xs[i] = i * 10
+		}
+		for _, n := range []int{1, 2, 7, total + 1} {
+			at := func(i int) int {
+				if i < 0 || i >= total {
+					t.Fatalf("SplitIndex called at with out-of-range index %d (total=%d)", i, total)
+				}
+				return xs[i]
+			}
+			viaIndex := SplitIndex(total, n, at)
+			viaSlice := Split(xs, n)
+			if len(viaIndex) != len(viaSlice) {
+				t.Fatalf("total=%d n=%d: SplitIndex %d segs, Split %d segs", total, n, len(viaIndex), len(viaSlice))
+			}
+			for i := range viaIndex {
+				if !slices.Equal(collect(viaIndex[i]), collect(viaSlice[i])) {
+					t.Fatalf("total=%d n=%d seg=%d: SplitIndex %v != Split %v",
+						total, n, i, collect(viaIndex[i]), collect(viaSlice[i]))
+				}
+			}
+		}
+	}
+}
+
 // TestSplitEarlyBreakStops confirms a consumer that stops early does not panic
 // and the range simply ends (yield returning false is honored).
 func TestSplitEarlyBreakStops(t *testing.T) {

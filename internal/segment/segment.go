@@ -25,7 +25,19 @@ import "iter"
 // (O(1) memory per view). The views are live over xs: mutating xs while a view
 // is being consumed is undefined behavior — the same rule as any Segmenter.
 func Split[T any](xs []T, n int) []iter.Seq[T] {
-	total := len(xs)
+	return SplitIndex(len(xs), n, func(i int) T { return xs[i] })
+}
+
+// SplitIndex is the index-addressed form of Split for sources that expose their
+// elements by position rather than as a slice — a computed interval, a heap
+// array, any type with a Len and an O(1) at(i). It cuts the index space [0,total)
+// into the same balanced, contiguous, non-overlapping ranges Split produces, and
+// each view yields at(j) for j across its range. at is called only with indices
+// in [0,total), so an at that panics out of range is safe here.
+//
+// Split(xs, n) is exactly SplitIndex(len(xs), n, index-into-xs); routing both
+// through one core keeps every family's segmentation identical by construction.
+func SplitIndex[T any](total, n int, at func(int) T) []iter.Seq[T] {
 	if n > total {
 		n = total
 	}
@@ -44,7 +56,7 @@ func Split[T any](xs []T, n int) []iter.Seq[T] {
 		l, h := lo, hi // snapshot the range for this view's closure
 		segs[i] = func(yield func(T) bool) {
 			for j := l; j < h; j++ {
-				if !yield(xs[j]) {
+				if !yield(at(j)) {
 					return
 				}
 			}

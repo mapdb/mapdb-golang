@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Int64 is a virtual collection representing a range of int64 values
@@ -126,6 +128,15 @@ func (iv *Int64) All() iter.Seq[int64] {
 			}
 		}
 	}
+}
+
+// Segments cuts the interval's index space into up to n balanced, contiguous,
+// non-overlapping views (k = min(n, Len), or 1 when empty) whose concatenation
+// reproduces All in order, so a *Int64 satisfies par.Segmenter[int64]
+// and feeds par.From directly. Each view computes its elements on the fly via Get
+// (no materialization), matching the interval's virtual nature.
+func (iv *Int64) Segments(n int) []iter.Seq[int64] {
+	return segment.SplitIndex(iv.Len(), n, iv.Get)
 }
 
 // ForEach calls the given function for each element in order.

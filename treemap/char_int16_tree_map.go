@@ -7,6 +7,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/mapdb/mapdb-golang/internal/segment"
 	"github.com/mapdb/mapdb-golang/pump"
 )
 
@@ -214,6 +215,55 @@ func (m *CharInt16) All() iter.Seq2[uint16, int16] {
 		}
 		inorder(m.root)
 	}
+}
+
+// Segments2 cuts the map into up to n balanced, contiguous, non-overlapping views
+// over the SORTED key order (k = min(n, Len), or 1 when empty) whose concatenation
+// reproduces All in ascending key order — so a *CharInt16 satisfies
+// par.Segmenter2[uint16, int16] and feeds par.From2 with ORDERED
+// (key, value) segments, each covering a contiguous rank range.
+//
+// Like treeset.Segments, boundaries come from the per-node subtree-size
+// augmentation: each view walks only its rank range in-order, pruning whole
+// subtrees outside it, so the split is O(Len + n·height) total, not O(Len·log Len).
+// The views are live and their rank ranges are fixed from Len at this call:
+// mutating the map any time after Segments2 returns and before the returned views
+// are exhausted or discarded is undefined behavior (a resize shifts every rank).
+func (m *CharInt16) Segments2(n int) []iter.Seq2[uint16, int16] {
+	ranges := segment.SplitRanges(m.size, n)
+	segs := make([]iter.Seq2[uint16, int16], len(ranges))
+	for i := range ranges {
+		lo, hi := ranges[i][0], ranges[i][1] // per-iteration copies for this view's closure
+		segs[i] = func(yield func(uint16, int16) bool) {
+			// In-order walk yielding pairs whose 0-based key rank is in [lo, hi).
+			// base is the rank of the first element in node's subtree.
+			var walk func(node *charInt16TreeNode, base int) bool
+			walk = func(node *charInt16TreeNode, base int) bool {
+				if node == nil {
+					return true
+				}
+				rank := base + charInt16TreeNodeSize(node.left)
+				if lo < rank { // left subtree holds ranks [base, rank)
+					if !walk(node.left, base) {
+						return false
+					}
+				}
+				if rank >= lo && rank < hi {
+					if !yield(node.key, node.value) {
+						return false
+					}
+				}
+				if hi > rank+1 { // right subtree holds ranks [rank+1, base+size)
+					if !walk(node.right, rank+1) {
+						return false
+					}
+				}
+				return true
+			}
+			walk(m.root, 0)
+		}
+	}
+	return segs
 }
 
 // Keys returns an iter.Seq that yields all keys in ascending order.

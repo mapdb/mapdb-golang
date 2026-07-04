@@ -95,8 +95,11 @@ const priorityQueueTmpl = genHeader + `package priorityqueue
 
 import (
 	"fmt"
+	"iter"
 {{if .IsFloat}}	"math"
 {{end}}	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // {{.Name}} is a min-heap priority queue of {{.GoType}} values.
@@ -170,6 +173,21 @@ func (q *{{.Name}}) ToSlice() []{{.GoType}} {
 	copy(out, q.items)
 	return out
 }
+
+// All returns an iter.Seq over the elements in internal heap-array order — the
+// same order as ToSlice and String, NOT priority order (use DrainSorted for an
+// ascending, queue-consuming walk). O(n), non-destructive.
+func (q *{{.Name}}) All() iter.Seq[{{.GoType}}] {
+	return func(yield func({{.GoType}}) bool) {
+		for _, v := range q.items {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+{{template "segments_slice" .}}
 
 // DrainSorted pops all elements in ascending order, consuming the queue.
 func (q *{{.Name}}) DrainSorted() []{{.GoType}} {
@@ -245,7 +263,10 @@ func (q *{{.Name}}) siftDown(start int) {
 const synchronizedPriorityQueueTmpl = genHeader + `package priorityqueue
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Synchronized{{.Name}} is a thread-safe wrapper around {{.Name}}.
@@ -299,6 +320,26 @@ func (q *Synchronized{{.Name}}) ToSlice() []{{.GoType}} {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a point-in-time snapshot in heap-array order (see
+// {{.Name}}.All). The snapshot is taken once under RLock; iteration is lock-free.
+func (q *Synchronized{{.Name}}) All() iter.Seq[{{.GoType}}] {
+	snapshot := q.ToSlice()
+	return func(yield func({{.GoType}}) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a heap-array snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[{{.GoType}}].
+// The snapshot (ToSlice) is taken once under RLock; the views iterate it lock-free.
+func (q *Synchronized{{.Name}}) Segments(n int) []iter.Seq[{{.GoType}}] {
+	return segment.Split(q.ToSlice(), n)
 }
 
 func (q *Synchronized{{.Name}}) DrainSorted() []{{.GoType}} {

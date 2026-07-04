@@ -3,7 +3,10 @@
 package priorityqueue
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt32 is a thread-safe wrapper around Int32.
@@ -57,6 +60,26 @@ func (q *SynchronizedInt32) ToSlice() []int32 {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a point-in-time snapshot in heap-array order (see
+// Int32.All). The snapshot is taken once under RLock; iteration is lock-free.
+func (q *SynchronizedInt32) All() iter.Seq[int32] {
+	snapshot := q.ToSlice()
+	return func(yield func(int32) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a heap-array snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int32].
+// The snapshot (ToSlice) is taken once under RLock; the views iterate it lock-free.
+func (q *SynchronizedInt32) Segments(n int) []iter.Seq[int32] {
+	return segment.Split(q.ToSlice(), n)
 }
 
 func (q *SynchronizedInt32) DrainSorted() []int32 {

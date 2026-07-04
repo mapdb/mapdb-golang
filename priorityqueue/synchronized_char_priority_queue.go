@@ -3,7 +3,10 @@
 package priorityqueue
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedChar is a thread-safe wrapper around Char.
@@ -57,6 +60,26 @@ func (q *SynchronizedChar) ToSlice() []uint16 {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a point-in-time snapshot in heap-array order (see
+// Char.All). The snapshot is taken once under RLock; iteration is lock-free.
+func (q *SynchronizedChar) All() iter.Seq[uint16] {
+	snapshot := q.ToSlice()
+	return func(yield func(uint16) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a heap-array snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[uint16].
+// The snapshot (ToSlice) is taken once under RLock; the views iterate it lock-free.
+func (q *SynchronizedChar) Segments(n int) []iter.Seq[uint16] {
+	return segment.Split(q.ToSlice(), n)
 }
 
 func (q *SynchronizedChar) DrainSorted() []uint16 {

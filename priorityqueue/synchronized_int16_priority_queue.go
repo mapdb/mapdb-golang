@@ -3,7 +3,10 @@
 package priorityqueue
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt16 is a thread-safe wrapper around Int16.
@@ -57,6 +60,26 @@ func (q *SynchronizedInt16) ToSlice() []int16 {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a point-in-time snapshot in heap-array order (see
+// Int16.All). The snapshot is taken once under RLock; iteration is lock-free.
+func (q *SynchronizedInt16) All() iter.Seq[int16] {
+	snapshot := q.ToSlice()
+	return func(yield func(int16) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a heap-array snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int16].
+// The snapshot (ToSlice) is taken once under RLock; the views iterate it lock-free.
+func (q *SynchronizedInt16) Segments(n int) []iter.Seq[int16] {
+	return segment.Split(q.ToSlice(), n)
 }
 
 func (q *SynchronizedInt16) DrainSorted() []int16 {

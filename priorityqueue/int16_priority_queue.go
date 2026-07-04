@@ -4,7 +4,10 @@ package priorityqueue
 
 import (
 	"fmt"
+	"iter"
 	"strings"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // Int16 is a min-heap priority queue of int16 values.
@@ -83,6 +86,30 @@ func (q *Int16) ToSlice() []int16 {
 	out := make([]int16, len(q.items))
 	copy(out, q.items)
 	return out
+}
+
+// All returns an iter.Seq over the elements in internal heap-array order — the
+// same order as ToSlice and String, NOT priority order (use DrainSorted for an
+// ascending, queue-consuming walk). O(n), non-destructive.
+func (q *Int16) All() iter.Seq[int16] {
+	return func(yield func(int16) bool) {
+		for _, v := range q.items {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts the elements into up to n balanced, contiguous, non-overlapping
+// views (k = min(n, Len), or 1 when empty) whose concatenation covers every
+// element exactly once, so a *Int16 satisfies par.Segmenter[int16] and
+// feeds par.From directly. Segment order follows the backing array and is not
+// guaranteed to match All (the Segmenter contract is unordered). The views are
+// live over the backing array: mutating it while a view is consumed is undefined
+// behavior. O(1) memory per view.
+func (q *Int16) Segments(n int) []iter.Seq[int16] {
+	return segment.Split(q.items, n)
 }
 
 // DrainSorted pops all elements in ascending order, consuming the queue.

@@ -3,7 +3,10 @@
 package priorityqueue
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt64 is a thread-safe wrapper around Int64.
@@ -57,6 +60,26 @@ func (q *SynchronizedInt64) ToSlice() []int64 {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a point-in-time snapshot in heap-array order (see
+// Int64.All). The snapshot is taken once under RLock; iteration is lock-free.
+func (q *SynchronizedInt64) All() iter.Seq[int64] {
+	snapshot := q.ToSlice()
+	return func(yield func(int64) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a heap-array snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int64].
+// The snapshot (ToSlice) is taken once under RLock; the views iterate it lock-free.
+func (q *SynchronizedInt64) Segments(n int) []iter.Seq[int64] {
+	return segment.Split(q.ToSlice(), n)
 }
 
 func (q *SynchronizedInt64) DrainSorted() []int64 {

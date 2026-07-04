@@ -3,7 +3,10 @@
 package priorityqueue
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedInt8 is a thread-safe wrapper around Int8.
@@ -57,6 +60,26 @@ func (q *SynchronizedInt8) ToSlice() []int8 {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a point-in-time snapshot in heap-array order (see
+// Int8.All). The snapshot is taken once under RLock; iteration is lock-free.
+func (q *SynchronizedInt8) All() iter.Seq[int8] {
+	snapshot := q.ToSlice()
+	return func(yield func(int8) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a heap-array snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[int8].
+// The snapshot (ToSlice) is taken once under RLock; the views iterate it lock-free.
+func (q *SynchronizedInt8) Segments(n int) []iter.Seq[int8] {
+	return segment.Split(q.ToSlice(), n)
 }
 
 func (q *SynchronizedInt8) DrainSorted() []int8 {

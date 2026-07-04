@@ -3,7 +3,10 @@
 package priorityqueue
 
 import (
+	"iter"
 	"sync"
+
+	"github.com/mapdb/mapdb-golang/internal/segment"
 )
 
 // SynchronizedFloat32 is a thread-safe wrapper around Float32.
@@ -57,6 +60,26 @@ func (q *SynchronizedFloat32) ToSlice() []float32 {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 	return q.delegate.ToSlice()
+}
+
+// All returns an iter.Seq over a point-in-time snapshot in heap-array order (see
+// Float32.All). The snapshot is taken once under RLock; iteration is lock-free.
+func (q *SynchronizedFloat32) All() iter.Seq[float32] {
+	snapshot := q.ToSlice()
+	return func(yield func(float32) bool) {
+		for _, v := range snapshot {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Segments cuts a heap-array snapshot into up to n balanced, contiguous,
+// non-overlapping views covering it exactly once, satisfying par.Segmenter[float32].
+// The snapshot (ToSlice) is taken once under RLock; the views iterate it lock-free.
+func (q *SynchronizedFloat32) Segments(n int) []iter.Seq[float32] {
+	return segment.Split(q.ToSlice(), n)
 }
 
 func (q *SynchronizedFloat32) DrainSorted() []float32 {

@@ -29,22 +29,23 @@ type Family struct {
 	Extra        string // family-specific extra variants, or "" for none
 }
 
-// Families is the manifest: every code-generated collection family, in the
-// order main() dispatches them. Every field is a fact verifiable against the
-// committed generated sources — the generated matrix is the cross-check.
+// Families is the manifest: every code-generated collection family. Every field
+// is a fact verifiable against the committed sources — the generated matrix is
+// the cross-check. (A few adjuncts noted in Extra, e.g. the treeset/treemap
+// navigable-range views, are hand-written rather than generated.)
 var Families = []Family{
 	{"ArrayList", "arraylist", "`[]T` slice", "insertion", "7 primitives", true, true, ""},
 	{"ArrayStack", "stack", "`[]T` slice", "LIFO", "7 primitives", true, true, ""},
 	{"ArrayDeque", "deque", "ring buffer over `[]T`", "double-ended (insertion)", "7 primitives", false, true, ""},
 	{"PriorityQueue", "priorityqueue", "binary min-heap over `[]T`", "min-first (heap)", "7 primitives", false, true, ""},
-	{"Interval", "interval", "computed (start/step/count)", "ascending sequence", "4 signed ints (int8/16/32/64)", false, false, "lazy; float32/64 emit \"not applicable\" stubs, no char"},
+	{"Interval", "interval", "computed (from/to/step)", "sequence in step direction (asc/desc)", "4 signed ints (int8/16/32/64)", false, false, "lazy; float32/64 emit \"not applicable\" stubs, no char"},
 	{"HashSet", "hashset", "open-addressing hash", "unordered", "8 (7 primitives + bool)", true, true, ""},
-	{"TreeSet", "treeset", "red-black tree", "sorted (comparator)", "7 primitives", false, false, "navigable range views"},
+	{"TreeSet", "treeset", "red-black tree", "sorted (natural order)", "7 primitives", false, false, "navigable range views (hand-written, int32)"},
 	{"HashMap", "hashmap", "open-addressing hash", "unordered", "49 primitive pairs (7×7)", true, true, "bimap, object-key, object-value"},
 	{"SentinelHashMap", "sentinelhashmap", "open-addressing hash (sentinel key)", "unordered", "49 pairs (7×7)", false, false, ""},
-	{"TreeMap", "treemap", "red-black tree", "sorted (comparator)", "49 pairs (7×7)", false, false, "navigable range views"},
+	{"TreeMap", "treemap", "red-black tree", "sorted (natural order)", "49 pairs (7×7)", false, false, "navigable range views (hand-written, int32)"},
 	{"Multimap", "multimap", "hash map of per-key collections", "unordered keys", "49 pairs (7×7)", false, false, "list- & set-valued"},
-	{"Bag", "bag", "hash (`map`) or red-black tree", "unordered (hash) / sorted (tree)", "7 primitives", true, true, "tree-backed variant (base only)"},
+	{"Bag", "bag", "hash (`map`) or sorted slice (binary search)", "unordered (hash) / sorted (tree)", "7 primitives", true, true, "tree-backed variant (base only)"},
 	{"Pair", "tuple", "value struct (2-tuple)", "n/a (fixed arity)", "49 pairs (7×7)", false, false, "object-key, object-value"},
 }
 

@@ -14,12 +14,12 @@ algorithmic/probabilistic packages are documented in the top-level `README.md`.
 | ArrayStack | `stack` | `[]T` slice | LIFO | 7 primitives | ✓ | ✓ | — |
 | ArrayDeque | `deque` | ring buffer over `[]T` | double-ended (insertion) | 7 primitives | — | ✓ | — |
 | PriorityQueue | `priorityqueue` | binary min-heap over `[]T` | min-first (heap) | 7 primitives | — | ✓ | — |
-| Interval | `interval` | computed (start/step/count) | ascending sequence | 4 signed ints (int8/16/32/64) | — | — | lazy; float32/64 emit "not applicable" stubs, no char |
+| Interval | `interval` | computed (from/to/step) | sequence in step direction (asc/desc) | 4 signed ints (int8/16/32/64) | — | — | lazy; float32/64 emit "not applicable" stubs, no char |
 | HashSet | `hashset` | open-addressing hash | unordered | 8 (7 primitives + bool) | ✓ | ✓ | — |
-| TreeSet | `treeset` | red-black tree | sorted (comparator) | 7 primitives | — | — | navigable range views |
+| TreeSet | `treeset` | red-black tree | sorted (natural order) | 7 primitives | — | — | navigable range views (hand-written, int32) |
 | HashMap | `hashmap` | open-addressing hash | unordered | 49 primitive pairs (7×7) | ✓ | ✓ | bimap, object-key, object-value |
 | SentinelHashMap | `sentinelhashmap` | open-addressing hash (sentinel key) | unordered | 49 pairs (7×7) | — | — | — |
-| TreeMap | `treemap` | red-black tree | sorted (comparator) | 49 pairs (7×7) | — | — | navigable range views |
+| TreeMap | `treemap` | red-black tree | sorted (natural order) | 49 pairs (7×7) | — | — | navigable range views (hand-written, int32) |
 | Multimap | `multimap` | hash map of per-key collections | unordered keys | 49 pairs (7×7) | — | — | list- & set-valued |
-| Bag | `bag` | hash (`map`) or red-black tree | unordered (hash) / sorted (tree) | 7 primitives | ✓ | ✓ | tree-backed variant (base only) |
+| Bag | `bag` | hash (`map`) or sorted slice (binary search) | unordered (hash) / sorted (tree) | 7 primitives | ✓ | ✓ | tree-backed variant (base only) |
 | Pair | `tuple` | value struct (2-tuple) | n/a (fixed arity) | 49 pairs (7×7) | — | — | object-key, object-value |

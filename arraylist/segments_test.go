@@ -8,12 +8,20 @@ package arraylist_test
 
 import (
 	"context"
+	"iter"
 	"slices"
 	"testing"
 
 	"github.com/mapdb/mapdb-golang/arraylist"
 	"github.com/mapdb/mapdb-golang/par"
 )
+
+// int32Iterable is a Segmenter that also exposes All — every arraylist variant
+// qualifies, letting the ordered-concat law be checked uniformly.
+type int32Iterable interface {
+	par.Segmenter[int32]
+	All() iter.Seq[int32]
+}
 
 // The generated Segments makes each array-list variant a par.Segmenter[int32] —
 // the load-bearing on-ramp to the parallel layer (these fail to compile if the
@@ -61,6 +69,37 @@ func TestSegmentsCoverAllInt32(t *testing.T) {
 				}
 				if !slices.Equal(got, want) {
 					t.Fatalf("%s size=%d n=%d: multiset = %v, want %v", name, size, n, got, want)
+				}
+			}
+		}
+	}
+}
+
+// TestSegmentsConcatInOrderInt32 is the stronger law for an ORDERED family:
+// because a list's segments follow its ordered backing array, concat(Segments(n))
+// equals All() as a SEQUENCE, not merely as a multiset. This catches an
+// ordering-only regression (e.g. segments returned in reverse) that the sorted
+// multiset check in TestSegmentsCoverAllInt32 would miss.
+func TestSegmentsConcatInOrderInt32(t *testing.T) {
+	for _, size := range []int{1, 7, 8, 100} {
+		vals := make([]int32, size)
+		for i := range vals {
+			vals[i] = int32(i)
+		}
+		variants := map[string]int32Iterable{
+			"base":         arraylist.Int32Of(vals...),
+			"immutable":    arraylist.NewImmutableInt32(vals...),
+			"synchronized": arraylist.NewSynchronizedInt32From(arraylist.Int32Of(vals...)),
+		}
+		for name, v := range variants {
+			want := slices.Collect(v.All())
+			for _, n := range []int{1, 2, 7, size + 1} {
+				var got []int32
+				for _, s := range v.Segments(n) {
+					got = append(got, slices.Collect(s)...)
+				}
+				if !slices.Equal(got, want) {
+					t.Fatalf("%s size=%d n=%d: in-order concat = %v, want %v", name, size, n, got, want)
 				}
 			}
 		}

@@ -58,19 +58,40 @@ func TestManifestMatchesGenerators(t *testing.T) {
 		declared[f.Package] = true
 	}
 
+	// registered = the main() dispatch registry, minus the "matrix" renderer
+	// subcommand (which is not a family).
+	registered := map[string]bool{}
+	for name := range generators {
+		if name != "matrix" {
+			registered[name] = true
+		}
+	}
+
 	for pkg := range wired {
 		if !declared[pkg] {
 			t.Errorf("family %q has a codegen directive but no manifest row (add it to Families)", pkg)
+		}
+		if !registered[pkg] {
+			t.Errorf("family %q has a codegen directive but no generators[] entry", pkg)
 		}
 	}
 	for pkg := range declared {
 		if !wired[pkg] {
 			t.Errorf("manifest lists %q but no package has its codegen go:generate directive", pkg)
 		}
+		if !registered[pkg] {
+			t.Errorf("manifest lists %q but it has no generators[] entry", pkg)
+		}
+	}
+	for pkg := range registered {
+		if !declared[pkg] {
+			t.Errorf("generators[] has %q but the manifest does not (add it to Families)", pkg)
+		}
 	}
 
 	if t.Failed() {
-		t.Logf("wired=%v declared=%v", sortedKeys(wired), sortedKeys(declared))
+		t.Logf("wired=%v declared=%v registered=%v",
+			sortedKeys(wired), sortedKeys(declared), sortedKeys(registered))
 	}
 }
 

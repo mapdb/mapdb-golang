@@ -24,45 +24,39 @@ import (
 	"os"
 )
 
+// generators maps each codegen subcommand to its generator function. The family
+// keys (every key except "matrix", the manifest's own renderer) are kept in
+// lockstep with the manifest (Families) and the per-package go:generate
+// directives by TestManifestMatchesGenerators — adding a family means updating
+// all three, and the test fails otherwise.
+var generators = map[string]func() error{
+	"arraylist":       genArrayList,
+	"interval":        genInterval,
+	"hashset":         genHashSet,
+	"stack":           genStack,
+	"deque":           genDeque,
+	"treeset":         genTreeSet,
+	"treemap":         genTreeMap,
+	"hashmap":         genHashMap,
+	"sentinelhashmap": genSentinelHashMap,
+	"multimap":        genMultimap,
+	"priorityqueue":   genPriorityQueue,
+	"bag":             genBag,
+	"tuple":           genTuple,
+	"matrix":          genFamilyMatrix,
+}
+
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: codegen <collection>")
 		os.Exit(2)
 	}
-	var err error
-	switch os.Args[1] {
-	case "arraylist":
-		err = genArrayList()
-	case "interval":
-		err = genInterval()
-	case "hashset":
-		err = genHashSet()
-	case "stack":
-		err = genStack()
-	case "deque":
-		err = genDeque()
-	case "treeset":
-		err = genTreeSet()
-	case "treemap":
-		err = genTreeMap()
-	case "hashmap":
-		err = genHashMap()
-	case "sentinelhashmap":
-		err = genSentinelHashMap()
-	case "multimap":
-		err = genMultimap()
-	case "priorityqueue":
-		err = genPriorityQueue()
-	case "bag":
-		err = genBag()
-	case "tuple":
-		err = genTuple()
-	case "matrix":
-		err = genFamilyMatrix()
-	default:
-		err = fmt.Errorf("unknown collection %q", os.Args[1])
+	gen, ok := generators[os.Args[1]]
+	if !ok {
+		fmt.Fprintln(os.Stderr, "codegen:", fmt.Errorf("unknown collection %q", os.Args[1]))
+		os.Exit(1)
 	}
-	if err != nil {
+	if err := gen(); err != nil {
 		fmt.Fprintln(os.Stderr, "codegen:", err)
 		os.Exit(1)
 	}

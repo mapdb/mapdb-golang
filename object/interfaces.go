@@ -238,11 +238,12 @@ type MutableBiMap[K, V comparable] interface {
 // Multimap is NOT a MapIterable: its Get returns []V (a key's values), not a
 // single (V, bool), so the two do not share a contract.
 type Multimap[K any, V any] interface {
-	// Get returns a copy of the values stored under key (nil if the key is
-	// absent); the returned slice is safe to retain and mutate. GetCopy is an
-	// explicit alias for call sites that want the copy semantics spelled out.
+	// Get returns the values stored under key, or nil if the key is absent. The
+	// current implementations return a fresh copy that is safe to retain and
+	// mutate; a single accessor (not also GetCopy) keeps the contract minimal and
+	// leaves room for a future view-returning multimap — treat the result as
+	// read-only for forward compatibility.
 	Get(key K) []V
-	GetCopy(key K) []V
 	// ContainsKey reports whether key has at least one value.
 	ContainsKey(key K) bool
 	// Len is the total number of key-value pairs; SizeDistinct is the number of

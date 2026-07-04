@@ -94,6 +94,28 @@ type MutableSet[T any] interface {
 	Remove(value T) bool
 }
 
+// SortedSet is a Set whose iteration is ordered (by a Comparator) and which
+// supports order-based navigation and order-statistic queries. Satisfied by the
+// comparator-backed TreeSet — the relaxation of Set to T-any (11 §4) is what lets
+// it model an interface at all. Read-only: navigation, not mutation.
+type SortedSet[T any] interface {
+	Set[T]
+	// Min/Max return the least/greatest element, or false if empty.
+	Min() (T, bool)
+	Max() (T, bool)
+	// Floor/Ceiling return the greatest ≤ / least ≥ value; Lower/Higher are their
+	// strict (<, >) counterparts. The bool is false when no such element exists.
+	Floor(value T) (T, bool)
+	Ceiling(value T) (T, bool)
+	Lower(value T) (T, bool)
+	Higher(value T) (T, bool)
+	// Rank returns the number of elements strictly less than value (its 0-based
+	// insertion position); Select returns the i-th smallest (0-based), false if out
+	// of range. Together they are the order-statistic pair (spec: rank-select.md).
+	Rank(value T) int
+	Select(i int) (T, bool)
+}
+
 // Bag is the read-only interface for multisets (elements with occurrence counts).
 type Bag[T any] interface {
 	Collection[T]
@@ -151,6 +173,40 @@ type MutableMap[K any, V any] interface {
 	Put(key K, value V) (V, bool)
 	Remove(key K) (V, bool)
 	Clear()
+}
+
+// SortedMap is a MapIterable whose keys are ordered (by a Comparator), exposing
+// the endpoints and the three range views (mirroring Java's SortedMap:
+// firstKey/lastKey + headMap/tailMap/subMap). Range views are lazy iter.Seq2.
+type SortedMap[K any, V any] interface {
+	MapIterable[K, V]
+	// Min/Max return the entry with the least/greatest key, false if empty.
+	Min() (K, V, bool)
+	Max() (K, V, bool)
+	// HeadMap yields entries with key < toKey; TailMap yields key ≥ fromKey; SubMap
+	// yields fromKey ≤ key < toKey — all in ascending key order, all half-open.
+	HeadMap(toKey K) iter.Seq2[K, V]
+	TailMap(fromKey K) iter.Seq2[K, V]
+	SubMap(fromKey, toKey K) iter.Seq2[K, V]
+}
+
+// NavigableMap extends SortedMap with point navigation, order statistics, and
+// descending views (mirroring Java's NavigableMap). Satisfied by TreeMap.
+type NavigableMap[K any, V any] interface {
+	SortedMap[K, V]
+	// Floor/Ceiling return the entry with the greatest key ≤ / least key ≥ key;
+	// Lower/Higher are the strict counterparts. The bool is false if none exists.
+	Floor(key K) (K, V, bool)
+	Ceiling(key K) (K, V, bool)
+	Lower(key K) (K, V, bool)
+	Higher(key K) (K, V, bool)
+	// Rank returns the number of keys strictly less than key; SelectEntry returns
+	// the i-th smallest entry (0-based), false if out of range.
+	Rank(key K) int
+	SelectEntry(i int) (K, V, bool)
+	// DescendingMap / DescendingKeys iterate in descending key order.
+	DescendingMap() iter.Seq2[K, V]
+	DescendingKeys() iter.Seq[K]
 }
 
 // BiMap is a bidirectional map where both keys and values are unique.

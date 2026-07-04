@@ -798,4 +798,8 @@ func (m *TreeMap[K, V]) fixAfterDelete(n *tmNode[K, V]) {
 var (
 	_ MutableMap[int, string]   = (*TreeMap[int, string])(nil)
 	_ MutableMap[[]int, string] = (*TreeMap[[]int, string])(nil)
+	// TreeMap is also the module's NavigableMap (which embeds SortedMap and
+	// MapIterable), so this one assert covers the whole ordered-map chain.
+	_ NavigableMap[int, string]   = (*TreeMap[int, string])(nil)
+	_ NavigableMap[[]int, string] = (*TreeMap[[]int, string])(nil)
 )

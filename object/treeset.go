@@ -216,4 +216,7 @@ func (s *TreeSet[T]) String() string {
 var (
 	_ MutableSet[int]   = (*TreeSet[int])(nil)
 	_ MutableSet[[]int] = (*TreeSet[[]int])(nil)
+	// TreeSet is also the module's SortedSet (ordered navigation + order stats).
+	_ SortedSet[int]   = (*TreeSet[int])(nil)
+	_ SortedSet[[]int] = (*TreeSet[[]int])(nil)
 )

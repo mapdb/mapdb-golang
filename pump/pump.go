@@ -99,9 +99,10 @@ func RedBlackRedLevel(n int) int {
 	return level
 }
 
-// nextPow2Int rounds n up to the next power of two. n must be > 0. Mirrors the
-// per-type nextPowerOfTwo helpers in the generated hash families (width-defined
-// shifts, so the >>32 step is a no-op on 32-bit and required on 64-bit).
+// nextPow2Int rounds n up to the next power of two. n must be > 0 (n <= 1
+// returns 1 — a different floor from internal/bits.NextPowerOfTwo, which floors
+// at the 16-slot default hash capacity). Width-defined shifts, so the >>32 step
+// is a no-op on 32-bit and required on 64-bit.
 func nextPow2Int(n int) int {
 	if n <= 1 {
 		return 1

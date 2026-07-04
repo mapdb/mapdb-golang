@@ -35,6 +35,51 @@ func ({{.Recv}} *{{.Name}}) Contains(value {{.GoType}}) bool {
 	return false
 }
 {{- end -}}
+
+{{- define "count_slice" -}}
+func ({{.Recv}} *{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
+	count := 0
+	for _, v := range {{.Recv}}.items {
+		if predicate(v) {
+			count++
+		}
+	}
+	return count
+}
+{{- end -}}
+
+{{- define "any_satisfy_slice" -}}
+func ({{.Recv}} *{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
+	for _, v := range {{.Recv}}.items {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}
+{{- end -}}
+
+{{- define "all_satisfy_slice" -}}
+func ({{.Recv}} *{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
+	for _, v := range {{.Recv}}.items {
+		if !predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+{{- end -}}
+
+{{- define "none_satisfy_slice" -}}
+func ({{.Recv}} *{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
+	for _, v := range {{.Recv}}.items {
+		if predicate(v) {
+			return false
+		}
+	}
+	return true
+}
+{{- end -}}
 `
 
 // parse builds a template named name whose body is body, with the shared

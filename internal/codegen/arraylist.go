@@ -275,45 +275,16 @@ func (l *{{.Name}}) Detect(predicate func({{.GoType}}) bool) ({{.GoType}}, bool)
 }
 
 // AnySatisfy returns true if any element satisfies the predicate.
-func (l *{{.Name}}) AnySatisfy(predicate func({{.GoType}}) bool) bool {
-	for _, v := range l.items {
-		if predicate(v) {
-			return true
-		}
-	}
-	return false
-}
+{{template "any_satisfy_slice" .}}
 
 // AllSatisfy returns true if all elements satisfy the predicate.
-func (l *{{.Name}}) AllSatisfy(predicate func({{.GoType}}) bool) bool {
-	for _, v := range l.items {
-		if !predicate(v) {
-			return false
-		}
-	}
-	return true
-}
+{{template "all_satisfy_slice" .}}
 
 // NoneSatisfy returns true if no element satisfies the predicate.
-func (l *{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
-	for _, v := range l.items {
-		if predicate(v) {
-			return false
-		}
-	}
-	return true
-}
+{{template "none_satisfy_slice" .}}
 
 // Count returns the number of elements that satisfy the predicate.
-func (l *{{.Name}}) Count(predicate func({{.GoType}}) bool) int {
-	count := 0
-	for _, v := range l.items {
-		if predicate(v) {
-			count++
-		}
-	}
-	return count
-}
+{{template "count_slice" .}}
 
 // InjectInto performs a left fold over the list.
 func (l *{{.Name}}) InjectInto(initial {{.GoType}}, f func({{.GoType}}, {{.GoType}}) {{.GoType}}) {{.GoType}} {

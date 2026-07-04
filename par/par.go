@@ -385,6 +385,16 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 	go func() {
 		defer pwg.Done()
 		defer close(chunks)
+		// Contain a panic from the SOURCE seq itself. The segment engine catches
+		// source panics inside its guarded worker (runSegments); the pump puller
+		// runs the source outside any worker, so without this a source panic would
+		// crash the process instead of surfacing as *PanicError. Recover runs before
+		// close(chunks)/pwg.Done so the panic is latched and cctx cancelled first.
+		defer func() {
+			if rec := recover(); rec != nil {
+				failPanic(rec, debug.Stack())
+			}
+		}()
 		buf := make([]T, 0, chunkSize)
 		send := func() bool { // returns false if the op is winding down
 			select {

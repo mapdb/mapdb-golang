@@ -84,13 +84,30 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 		}
 	}
 
+	// finalize runs once, after every producer has exited, to close the result
+	// stream and the join barrier. It LATCHES external cancellation here — at
+	// engine completion — rather than in join(): sampling ctx.Err() when join() is
+	// eventually called would falsely report Canceled if the caller cancels the
+	// parent ctx after a fully-successful stream but before calling join. (Our own
+	// teardown cancels cctx, not ctx, so a clean run/abandon latches nil.)
+	finalize := func() {
+		mu.Lock()
+		if firstErr == nil {
+			if err := ctx.Err(); err != nil {
+				firstErr = err
+			}
+		}
+		mu.Unlock()
+		close(results)
+		close(allDone)
+	}
+
 	start := func() {
 		engaged.Store(true)
-		if err := cctx.Err(); err != nil {
-			// Pre-cancelled: no work; record it and close so the seq yields nothing.
-			fail(err)
-			close(results)
-			close(allDone)
+		if cctx.Err() != nil {
+			// Pre-cancelled: no work; finalize latches ctx.Err() and closes so the
+			// seq yields nothing and join reports the cancellation.
+			finalize()
 			return
 		}
 
@@ -141,6 +158,16 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 			go func() {
 				defer pwg.Done()
 				defer close(chunks)
+				// Contain a panic from the SOURCE seq itself (not just f): the segment
+				// engine catches source panics inside its guarded worker, so the pump
+				// puller must too, or a source panic crashes the process instead of
+				// surfacing at join. Recover runs before close(chunks)/pwg.Done so the
+				// panic is latched and cctx cancelled before workers drain out.
+				defer func() {
+					if rec := recover(); rec != nil {
+						failPanic(rec, debug.Stack())
+					}
+				}()
 				buf := make([]T, 0, chunkSize)
 				send := func() bool {
 					select {
@@ -193,8 +220,7 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 			go func() {
 				wg.Wait()  // all workers done → no more sends
 				pwg.Wait() // and the puller has exited (leak-free)
-				close(results)
-				close(allDone)
+				finalize()
 			}()
 			return
 		}
@@ -211,8 +237,7 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 		}
 		go func() {
 			wg.Wait()
-			close(results)
-			close(allDone)
+			finalize()
 		}()
 	}
 
@@ -245,15 +270,10 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 		if panicVal != nil {
 			panic(panicVal)
 		}
-		if firstErr != nil {
-			return firstErr
-		}
-		// External cancellation stops producers by ceasing to send, not via an
-		// error, so surface it here (cctx is our own teardown; ctx is the caller's).
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		return nil
+		// firstErr already reflects any worker error AND (latched by finalize at
+		// engine completion) external cancellation — so a parent cancel that lands
+		// after the stream finished is not misreported.
+		return firstErr
 	}
 
 	return seq, join

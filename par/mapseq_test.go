@@ -196,6 +196,78 @@ func TestMapSeqMidRunCancel(t *testing.T) {
 	assertGoroutinesSettle(t, base)
 }
 
+// TestMapSeqJoinIgnoresParentCancelAfterCompletion is the regression for the
+// codex-found bug: join() must not report Canceled when the parent ctx is
+// cancelled AFTER a fully-successful stream. Cancellation is latched at engine
+// completion, not sampled when join() happens to be called.
+func TestMapSeqJoinIgnoresParentCancelAfterCompletion(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	v := FromSlice(iotaSlice(1000), Workers(4), MinPerWorker(1))
+	seq, join := MapSeq(ctx, v, func(x int) int { return x })
+	got := drain(seq)
+	if len(got) != 1000 {
+		t.Fatalf("len(got) = %d, want 1000", len(got))
+	}
+	cancel() // parent cancelled only after the stream fully completed
+	if err := join(); err != nil {
+		t.Fatalf("join after completed stream then parent cancel = %v, want nil", err)
+	}
+}
+
+// panickingSeq yields lo..hi-1 then panics — a SOURCE (not f) panic.
+func panickingSeq(hi int) func(func(int) bool) {
+	return func(yield func(int) bool) {
+		for i := 0; i < hi; i++ {
+			if !yield(i) {
+				return
+			}
+		}
+		panic("source boom")
+	}
+}
+
+// TestMapSeqSourcePanicContainedAtJoin: a panic in the chunk-pump SOURCE seq must
+// be contained by the puller and re-raised at join, not crash the process.
+func TestMapSeqSourcePanicContainedAtJoin(t *testing.T) {
+	v := FromSeq(panickingSeq(500), Workers(4), MinPerWorker(64))
+	seq, join := MapSeq(context.Background(), v, func(x int) int { return x })
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("iteration panicked (%v); source panic should surface at join", r)
+			}
+		}()
+		drain(seq)
+	}()
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("join did not re-raise the source panic")
+		}
+		if pe, ok := r.(*PanicError); !ok || pe.Value != "source boom" {
+			t.Fatalf("re-raised %v, want *PanicError{source boom}", r)
+		}
+	}()
+	join()
+}
+
+// TestChunkPumpSourcePanicContained checks the same containment on the
+// MATERIALIZING chunk-pump engine (runChunks): a source panic surfaces as a
+// re-raised *PanicError from the terminal, not a process crash.
+func TestChunkPumpSourcePanicContained(t *testing.T) {
+	v := FromSeq(panickingSeq(500), Workers(4), MinPerWorker(64))
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Count did not re-raise the source panic")
+		}
+		if pe, ok := r.(*PanicError); !ok || pe.Value != "source boom" {
+			t.Fatalf("re-raised %v, want *PanicError{source boom}", r)
+		}
+	}()
+	_, _ = v.Count(context.Background(), func(int) bool { return true })
+}
+
 // assertGoroutinesSettle waits (briefly, with retries) for the live goroutine
 // count to return near a baseline, tolerating scheduler slack.
 func assertGoroutinesSettle(t *testing.T, base int) {

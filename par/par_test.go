@@ -297,6 +297,121 @@ func TestFromSegmenter(t *testing.T) {
 	}
 }
 
+func TestAnyAllNone(t *testing.T) {
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	ctx := context.Background()
+
+	if got, err := v.Any(ctx, func(x int) bool { return x == 9999 }); err != nil || !got {
+		t.Fatalf("Any(present) = (%v, %v), want (true, nil)", got, err)
+	}
+	if got, err := v.Any(ctx, func(x int) bool { return x < 0 }); err != nil || got {
+		t.Fatalf("Any(absent) = (%v, %v), want (false, nil)", got, err)
+	}
+	if got, err := v.All(ctx, func(x int) bool { return x >= 0 }); err != nil || !got {
+		t.Fatalf("All(true) = (%v, %v), want (true, nil)", got, err)
+	}
+	if got, err := v.All(ctx, func(x int) bool { return x < 9999 }); err != nil || got {
+		t.Fatalf("All(one fails) = (%v, %v), want (false, nil)", got, err)
+	}
+	if got, err := v.None(ctx, func(x int) bool { return x < 0 }); err != nil || !got {
+		t.Fatalf("None(true) = (%v, %v), want (true, nil)", got, err)
+	}
+	if got, err := v.None(ctx, func(x int) bool { return x == 0 }); err != nil || got {
+		t.Fatalf("None(has zero) = (%v, %v), want (false, nil)", got, err)
+	}
+}
+
+func TestAnyAllNoneEmpty(t *testing.T) {
+	v := FromSlice([]int{}, Workers(8), MinPerWorker(1))
+	ctx := context.Background()
+	if got, _ := v.Any(ctx, func(int) bool { return true }); got {
+		t.Fatal("Any(empty) = true, want false")
+	}
+	if got, _ := v.All(ctx, func(int) bool { return false }); !got {
+		t.Fatal("All(empty) = false, want true (vacuous)")
+	}
+	if got, _ := v.None(ctx, func(int) bool { return true }); !got {
+		t.Fatal("None(empty) = false, want true (vacuous)")
+	}
+}
+
+func TestAnyShortCircuits(t *testing.T) {
+	// Match on the very first element of segment 0; with a shared found flag the
+	// other segments must stop early, so far fewer than n predicate calls happen.
+	const n = 1_000_000
+	v := FromSlice(iotaSlice(n), Workers(8), MinPerWorker(1))
+	var calls int64
+	got, err := v.Any(context.Background(), func(x int) bool {
+		atomic.AddInt64(&calls, 1)
+		return x == 0
+	})
+	if err != nil || !got {
+		t.Fatalf("Any = (%v, %v), want (true, nil)", got, err)
+	}
+	if c := atomic.LoadInt64(&calls); c >= n {
+		t.Fatalf("Any did not short-circuit: %d predicate calls of %d", c, n)
+	}
+}
+
+func TestFind(t *testing.T) {
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	ctx := context.Background()
+	// first-by-segment-order: lowest matching value overall.
+	if got, ok, err := v.Find(ctx, func(x int) bool { return x >= 100 && x%7 == 0 }); err != nil || !ok || got != 105 {
+		t.Fatalf("Find = (%d, %v, %v), want (105, true, nil)", got, ok, err)
+	}
+	if got, ok, err := v.Find(ctx, func(x int) bool { return x < 0 }); err != nil || ok || got != 0 {
+		t.Fatalf("Find(absent) = (%d, %v, %v), want (0, false, nil)", got, ok, err)
+	}
+}
+
+func TestSum(t *testing.T) {
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	got, err := Sum(context.Background(), v)
+	if err != nil {
+		t.Fatalf("Sum: %v", err)
+	}
+	if want := 10_000 * 9_999 / 2; got != want {
+		t.Fatalf("Sum = %d, want %d", got, want)
+	}
+}
+
+func TestMinMaxFunc(t *testing.T) {
+	// Shuffle-free but non-trivial: values 0..n-1 laid out so min/max aren't at ends.
+	xs := iotaSlice(10_000)
+	xs[0], xs[9999] = 9999, 0 // move max to front, min to back
+	v := FromSlice(xs, Workers(8), MinPerWorker(1))
+	ctx := context.Background()
+	less := func(a, b int) bool { return a < b }
+
+	if got, ok, err := MinFunc(ctx, v, less); err != nil || !ok || got != 0 {
+		t.Fatalf("MinFunc = (%d, %v, %v), want (0, true, nil)", got, ok, err)
+	}
+	if got, ok, err := MaxFunc(ctx, v, less); err != nil || !ok || got != 9999 {
+		t.Fatalf("MaxFunc = (%d, %v, %v), want (9999, true, nil)", got, ok, err)
+	}
+
+	empty := FromSlice([]int{}, Workers(8), MinPerWorker(1))
+	if _, ok, err := MinFunc(ctx, empty, less); err != nil || ok {
+		t.Fatalf("MinFunc(empty) ok = %v, want false", ok)
+	}
+}
+
+func TestSearchReduceCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	v := FromSlice(iotaSlice(10_000), Workers(8), MinPerWorker(1))
+	if _, err := v.Any(ctx, func(int) bool { return true }); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Any(cancelled) err = %v, want context.Canceled", err)
+	}
+	if _, _, err := v.Find(ctx, func(int) bool { return true }); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Find(cancelled) err = %v, want context.Canceled", err)
+	}
+	if _, err := Sum(ctx, v); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Sum(cancelled) err = %v, want context.Canceled", err)
+	}
+}
+
 func TestConcurrentAccumulationRaceFree(t *testing.T) {
 	// A mutex-guarded sink under -race proves the engine adds no data race of
 	// its own; the user is responsible for the callback's own safety.

@@ -95,7 +95,7 @@ func genPriorityQueue() error {
 	// Stamp the conformance laws (todo 14 §4). All() and ToSlice() both yield the
 	// internal heap-array order (NOT priority order), so they agree
 	// element-for-element — law 1 is order-sensitive on that shared order.
-	return genConformanceForPrimitives("priorityqueue", true)
+	return genConformanceForPrimitives("priorityqueue", true, false)
 }
 
 const priorityQueueTmpl = genHeader + `package priorityqueue

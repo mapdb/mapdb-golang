@@ -23,9 +23,10 @@ type confType struct {
 
 // confData drives the conformance-test template for one family.
 type confData struct {
-	Package string     // package directory / clause stem, e.g. "arraylist"
-	Import  string     // full import path of the family package
-	Types   []confType // instances to stamp, in canonical order
+	Package     string     // package directory / clause stem, e.g. "arraylist"
+	Import      string     // full import path of the family package
+	Types       []confType // instances to stamp, in canonical order
+	HasSegments bool       // family exposes Segments(n) ⇒ also stamp the partition law
 }
 
 // genConformanceTest stamps conformance_generated_test.go into the current
@@ -34,17 +35,19 @@ type confData struct {
 // conformance laws of todo 14 §4: one stamped test per family × instance, with
 // the law logic itself living once in internal/conformance.
 //
-// Each row's fixture instance must expose All() iter.Seq[T] and ToSlice() []T.
-func genConformanceTest(pkg string, types []confType) error {
+// Each row's fixture instance must expose All() iter.Seq[T] and ToSlice() []T;
+// when hasSegments is set it must also expose Segments(n) []iter.Seq[T].
+func genConformanceTest(pkg string, types []confType, hasSegments bool) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	tmpl := parse("conformance-"+pkg, conformanceTestTmpl)
 	data := confData{
-		Package: pkg,
-		Import:  "github.com/mapdb/mapdb-golang/" + pkg,
-		Types:   types,
+		Package:     pkg,
+		Import:      "github.com/mapdb/mapdb-golang/" + pkg,
+		Types:       types,
+		HasSegments: hasSegments,
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -99,7 +102,7 @@ func ofRow(pkg, typeName, goType string, ordered bool) confType {
 // built via <pkg>.<TypeName>Of, over the given (name, goType) rows sharing a
 // single order class. Element types whose GoType is in skip (e.g. bool, whose
 // two-value domain makes the numeric fixture degenerate) are dropped.
-func genConformanceForOfTypes(pkg string, ordered bool, names, goTypes []string, skip map[string]bool) error {
+func genConformanceForOfTypes(pkg string, ordered bool, names, goTypes []string, skip map[string]bool, hasSegments bool) error {
 	rows := make([]confType, 0, len(names))
 	for i := range names {
 		if skip[goTypes[i]] {
@@ -107,13 +110,13 @@ func genConformanceForOfTypes(pkg string, ordered bool, names, goTypes []string,
 		}
 		rows = append(rows, ofRow(pkg, names[i], goTypes[i], ordered))
 	}
-	return genConformanceTest(pkg, rows)
+	return genConformanceTest(pkg, rows, hasSegments)
 }
 
 // genConformanceForPrimitives stamps law-1 tests for a family whose element
 // types are exactly Primitives() (7 numeric/char types, no bool) and which
 // exposes the variadic <TypeName>Of constructor. ordered selects the law-1 mode.
-func genConformanceForPrimitives(pkg string, ordered bool) error {
+func genConformanceForPrimitives(pkg string, ordered, hasSegments bool) error {
 	ps := Primitives()
 	names := make([]string, len(ps))
 	goTypes := make([]string, len(ps))
@@ -121,7 +124,7 @@ func genConformanceForPrimitives(pkg string, ordered bool) error {
 		names[i] = p.Name
 		goTypes[i] = p.GoType
 	}
-	return genConformanceForOfTypes(pkg, ordered, names, goTypes, nil)
+	return genConformanceForOfTypes(pkg, ordered, names, goTypes, nil, hasSegments)
 }
 
 // mapConfType is one row in a key/value family's stamped conformance test: a
@@ -254,5 +257,15 @@ func TestConformanceAllMatchesToSlice{{.TypeName}}(t *testing.T) {
 	c := {{.CtorExpr}}
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), {{.Ordered}})
 }
+{{- if $.HasSegments}}
+
+// TestConformanceSegments{{.TypeName}} pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments{{.TypeName}}(t *testing.T) {
+	c := {{.CtorExpr}}
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
+}
+{{- end}}
 {{- end}}
 `

@@ -73,7 +73,7 @@ func genInterval() error {
 			Ordered:  true,
 		})
 	}
-	return genConformanceTest("interval", rows)
+	return genConformanceTest("interval", rows, false)
 }
 
 const intervalStubTmpl = genHeader + `package interval

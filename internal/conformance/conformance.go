@@ -99,6 +99,44 @@ func checkKeysAscending[K cmp.Ordered, V any](all iter.Seq2[K, V]) (bool, string
 	return true, ""
 }
 
+// SegmentsCoverAll asserts the Segments partition law (todo 14 §4) for a
+// structural family. For each split count n in {1, 2, 7, len+1} the segments
+// returned by Segments(n) must (a) concatenate to the same multiset as All() —
+// a complete, non-overlapping partition, since an overlap would double-count an
+// element and a gap would drop one — and (b) each be re-runnable, yielding the
+// same multiset on a second iteration. The re-run check is load-bearing: the par
+// segment engine iterates a family's segments more than once, so a single-shot
+// segment is a real bug, not a stylistic one. Element type is comparable and
+// NaN-free (the stamped fixtures never hold NaN), so the multiset comparison is
+// exact.
+func SegmentsCoverAll[T comparable](t *testing.T, all iter.Seq[T], segments func(n int) []iter.Seq[T]) {
+	t.Helper()
+	if ok, msg := checkSegmentsCoverAll(all, segments); !ok {
+		t.Error(msg)
+	}
+}
+
+// checkSegmentsCoverAll is the pure Segments-partition predicate: coverage (as a
+// multiset) plus per-segment re-runnability, across the four split counts.
+func checkSegmentsCoverAll[T comparable](all iter.Seq[T], segments func(n int) []iter.Seq[T]) (bool, string) {
+	want := slices.Collect(all)
+	for _, n := range []int{1, 2, 7, len(want) + 1} {
+		var concat []T
+		for i, seg := range segments(n) {
+			first := slices.Collect(seg)
+			second := slices.Collect(seg) // re-run the same segment
+			if !sameMultiset(first, second) {
+				return false, fmt.Sprintf("segments law (n=%d): segment %d not re-runnable: %v then %v", n, i, first, second)
+			}
+			concat = append(concat, first...)
+		}
+		if !sameMultiset(concat, want) {
+			return false, fmt.Sprintf("segments law (n=%d): concat(Segments)=%v does not match All()=%v as a multiset", n, concat, want)
+		}
+	}
+	return true, ""
+}
+
 // sameMultiset reports whether a and b contain the same elements with the same
 // multiplicities, regardless of order.
 func sameMultiset[T comparable](a, b []T) bool {

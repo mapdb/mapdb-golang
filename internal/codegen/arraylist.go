@@ -94,7 +94,7 @@ func genArrayList() error {
 
 	// Stamp the conformance laws (todo 14 §4). ArrayList iterates in insertion
 	// order, so law 1 is order-sensitive.
-	return genConformanceForPrimitives("arraylist", true)
+	return genConformanceForPrimitives("arraylist", true, true)
 }
 
 const arrayListTmpl = genHeader + `package arraylist

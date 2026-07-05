@@ -7,6 +7,7 @@
 package conformance
 
 import (
+	"iter"
 	"slices"
 	"testing"
 )
@@ -154,4 +155,76 @@ func TestAllMatchesToSliceThroughT(t *testing.T) {
 	vals := []int{5, 3, 5, 1}
 	AllMatchesToSlice(t, seqOf(vals), slices.Clone(vals), true)
 	AllMatchesToSlice(t, seqOf(vals), []int{1, 3, 5, 5}, false)
+}
+
+// segmentsOf is the well-behaved reference partition: it splits xs into n
+// contiguous, stateless (re-runnable) chunks — the shape a correct Segments(n)
+// must produce. n is clamped into [1, len(xs)] the way real implementations do.
+func segmentsOf[T any](xs []T) func(n int) []iter.Seq[T] {
+	return func(n int) []iter.Seq[T] {
+		if n < 1 {
+			n = 1
+		}
+		if n > len(xs) {
+			n = len(xs)
+		}
+		if n == 0 {
+			return nil
+		}
+		size := (len(xs) + n - 1) / n
+		var segs []iter.Seq[T]
+		for i := 0; i < len(xs); i += size {
+			end := min(i+size, len(xs))
+			segs = append(segs, seqOf(xs[i:end]))
+		}
+		return segs
+	}
+}
+
+// TestCheckSegmentsCoverAll pins the pure Segments-partition predicate: it PASSES
+// on a correct partition (and on the empty collection) and FAILS on each way a
+// partition can be wrong — a dropped element (gap), a double-counted element
+// (overlap), and a single-shot segment (not re-runnable). A law that never
+// rejects a broken family is worthless, so the negative paths are the point.
+func TestCheckSegmentsCoverAll(t *testing.T) {
+	xs := []int{3, 1, 4, 1, 5, 9, 2} // dup 1 ⇒ multiset-sensitive coverage
+
+	if ok, msg := checkSegmentsCoverAll(seqOf(xs), segmentsOf(xs)); !ok {
+		t.Errorf("correct partition should pass, got %q", msg)
+	}
+	if ok, msg := checkSegmentsCoverAll(seqOf([]int(nil)), segmentsOf([]int(nil))); !ok {
+		t.Errorf("empty collection should pass vacuously, got %q", msg)
+	}
+
+	// gap: a partition missing the last element under-covers.
+	gap := func(int) []iter.Seq[int] { return []iter.Seq[int]{seqOf(xs[:len(xs)-1])} }
+	if ok, _ := checkSegmentsCoverAll(seqOf(xs), gap); ok {
+		t.Error("partition dropping an element should fail coverage")
+	}
+
+	// overlap: an element yielded by two segments over-counts.
+	overlap := func(int) []iter.Seq[int] { return []iter.Seq[int]{seqOf(xs), seqOf(xs[:1])} }
+	if ok, _ := checkSegmentsCoverAll(seqOf(xs), overlap); ok {
+		t.Error("partition double-counting an element should fail coverage")
+	}
+
+	// non-re-runnable: a single-shot segment yields nothing on its second pass.
+	singleShot := func(int) []iter.Seq[int] {
+		used := false
+		seg := func(yield func(int) bool) {
+			if used {
+				return
+			}
+			used = true
+			for _, x := range xs {
+				if !yield(x) {
+					return
+				}
+			}
+		}
+		return []iter.Seq[int]{seg}
+	}
+	if ok, _ := checkSegmentsCoverAll(seqOf(xs), singleShot); ok {
+		t.Error("single-shot (non-re-runnable) segment should fail")
+	}
 }

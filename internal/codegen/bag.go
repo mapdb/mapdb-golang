@@ -128,7 +128,7 @@ func genBag() error {
 		rows = append(rows, ofRow("bag", "Hash"+p.Name, p.GoType, false))
 		rows = append(rows, ofRow("bag", "Tree"+p.Name, p.GoType, true))
 	}
-	return genConformanceTest("bag", rows)
+	return genConformanceTest("bag", rows, false)
 }
 
 const hashBagTmpl = genHeader + `package bag

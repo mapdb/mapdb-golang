@@ -372,6 +372,42 @@ func (s *RoaringU32) All() iter.Seq[uint32] {
 	}
 }
 
+// Segments splits the set into up to n re-runnable sub-sequences whose
+// concatenation is exactly All() (unsigned-ascending, non-overlapping). The
+// split is on CHUNK boundaries — each chunk (a distinct high-16-bit group) is
+// wholly inside one segment — so segments cost O(1) to form and carry no shared
+// state; par.From(set) fans work out over them. n is clamped to [1, #chunks];
+// an empty set yields no segments. Chunks are partitioned into contiguous,
+// near-equal groups (by chunk count, not cardinality, so a segment holding a
+// dense BITMAP chunk may carry more values than one holding sparse ARRAY chunks).
+func (s *RoaringU32) Segments(n int) []iter.Seq[uint32] {
+	if len(s.chunks) == 0 {
+		return nil
+	}
+	if n < 1 {
+		n = 1
+	}
+	if n > len(s.chunks) {
+		n = len(s.chunks)
+	}
+	per := (len(s.chunks) + n - 1) / n // ceil, so at most n groups
+	segs := make([]iter.Seq[uint32], 0, n)
+	for start := 0; start < len(s.chunks); start += per {
+		lo, hi := start, min(start+per, len(s.chunks))
+		segs = append(segs, func(yield func(uint32) bool) {
+			for i := lo; i < hi; i++ {
+				high := s.chunks[i].high
+				for _, low := range s.chunks[i].c.lows() {
+					if !yield(join(high, low)) {
+						return
+					}
+				}
+			}
+		})
+	}
+	return segs
+}
+
 // ContainerTypes returns per-chunk container-type tags in chunk order, each
 // "array" or "bitmap".
 func (s *RoaringU32) ContainerTypes() []string {

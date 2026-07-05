@@ -9,6 +9,8 @@ package roaring
 import (
 	"slices"
 	"testing"
+
+	"github.com/mapdb/mapdb-golang/internal/conformance"
 )
 
 // TestAllYieldsAscendingAcrossChunks pins the All() law-1 method: it yields every
@@ -59,5 +61,45 @@ func TestAllEarlyBreak(t *testing.T) {
 	}
 	if !slices.Equal(seen, []uint32{10, 20}) {
 		t.Fatalf("early-break All() = %v, want [10 20]", seen)
+	}
+}
+
+// TestSegmentsConformance stamps the Segments partition law: for n∈{1,2,7,len+1}
+// the chunk-boundary split covers All() exactly and each segment is re-runnable.
+// The fixture spans several chunks so the split is non-trivial.
+func TestSegmentsConformance(t *testing.T) {
+	s := NewRoaringU32()
+	// Values across 5 distinct chunks (high bits 0,1,2,7,0xFFFF), some chunks
+	// holding multiple values, so #chunks (5) exceeds several split counts.
+	for _, v := range []uint32{
+		1, 3, 5, 65535, // chunk 0
+		1 << 16, 1<<16 + 9, // chunk 1
+		2 << 16,                       // chunk 2
+		7 << 16, 7<<16 + 1, 7<<16 + 2, // chunk 7
+		0xFFFFFFFF, // chunk 0xFFFF
+	} {
+		s.Add(v)
+	}
+	conformance.SegmentsCoverAll(t, s.All(), s.Segments)
+}
+
+// TestSegmentsEmptyAndClamp checks the boundary behaviors: no segments for an
+// empty set, and n clamped to the chunk count (n larger than #chunks does not
+// produce empty trailing segments that break coverage).
+func TestSegmentsEmptyAndClamp(t *testing.T) {
+	if segs := NewRoaringU32().Segments(4); segs != nil {
+		t.Fatalf("empty set Segments = %v, want nil", segs)
+	}
+	s := NewRoaringU32()
+	s.Add(1 << 16)
+	s.Add(2 << 16) // 2 chunks
+	// n far larger than #chunks: still covers everything.
+	var got []uint32
+	for _, seg := range s.Segments(100) {
+		got = append(got, slices.Collect(seg)...)
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, []uint32{1 << 16, 2 << 16}) {
+		t.Fatalf("Segments(100) concat = %v, want the 2 values", got)
 	}
 }

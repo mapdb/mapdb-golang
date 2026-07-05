@@ -287,7 +287,7 @@ func genHashMap() error {
 	// hash map is unordered, so only the size-accounting law applies (Len ≡ |All|,
 	// no ascending). The object-key/value and bimap variants have distinct type
 	// stems and are not covered by the primitive-pair stamp.
-	return genMapConformanceForPairs("hashmap", false)
+	return genMapConformanceForPairs("hashmap", false, false)
 }
 
 const hashMapTmpl = genHeader + `package hashmap

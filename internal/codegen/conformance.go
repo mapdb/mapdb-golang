@@ -139,25 +139,27 @@ type mapConfType struct {
 
 // mapConfData drives the map conformance-test template for one family.
 type mapConfData struct {
-	Package string
-	Import  string
-	Types   []mapConfType
+	Package     string
+	Import      string
+	Types       []mapConfType
+	HasSegments bool // family exposes Segments2(n) ⇒ also stamp the pair partition law
 }
 
 // genMapConformanceTest stamps conformance_generated_test.go for a key/value
 // family exposing New<MapName>(), Put(K,V), Len() and All() iter.Seq2[K,V]. It
 // stamps the size-accounting law (Len ≡ |All|) for every map and, for ordered
 // maps, the KeysAscending law.
-func genMapConformanceTest(pkg string, types []mapConfType) error {
+func genMapConformanceTest(pkg string, types []mapConfType, hasSegments bool) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	tmpl := parse("conformance-map-"+pkg, mapConformanceTestTmpl)
 	data := mapConfData{
-		Package: pkg,
-		Import:  "github.com/mapdb/mapdb-golang/" + pkg,
-		Types:   types,
+		Package:     pkg,
+		Import:      "github.com/mapdb/mapdb-golang/" + pkg,
+		Types:       types,
+		HasSegments: hasSegments,
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -187,8 +189,9 @@ func mapFixturePuts(keyType, valType string) []string {
 
 // genMapConformanceForPairs stamps map conformance for every (key, value) pair
 // over Primitives() × Primitives() — the 49 monomorphized map variants. ordered
-// marks a sorted map family (adds the KeysAscending law).
-func genMapConformanceForPairs(pkg string, ordered bool) error {
+// marks a sorted map family (adds the KeysAscending law); hasSegments marks a
+// family exposing Segments2(n) (adds the pair partition law).
+func genMapConformanceForPairs(pkg string, ordered, hasSegments bool) error {
 	ps := Primitives()
 	rows := make([]mapConfType, 0, len(ps)*len(ps))
 	for _, k := range ps {
@@ -200,7 +203,7 @@ func genMapConformanceForPairs(pkg string, ordered bool) error {
 			})
 		}
 	}
-	return genMapConformanceTest(pkg, rows)
+	return genMapConformanceTest(pkg, rows, hasSegments)
 }
 
 const mapConformanceTestTmpl = genHeader + `package {{.Package}}_test
@@ -235,6 +238,16 @@ func TestConformanceLen2{{.MapName}}(t *testing.T) {
 func TestConformanceKeysAscending{{.MapName}}(t *testing.T) {
 	m := buildConformance{{.MapName}}()
 	conformance.KeysAscending(t, m.All())
+}
+{{- end}}
+{{- if $.HasSegments}}
+
+// TestConformanceSegments2{{.MapName}} pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2{{.MapName}}(t *testing.T) {
+	m := buildConformance{{.MapName}}()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 {{- end}}
 {{- end}}

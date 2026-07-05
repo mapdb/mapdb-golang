@@ -228,3 +228,77 @@ func TestCheckSegmentsCoverAll(t *testing.T) {
 		t.Error("single-shot (non-re-runnable) segment should fail")
 	}
 }
+
+// segments2Of is the well-behaved reference pair-partition: contiguous,
+// re-runnable chunks of parallel key/value slices.
+func segments2Of[K, V any](keys []K, vals []V) func(n int) []iter.Seq2[K, V] {
+	return func(n int) []iter.Seq2[K, V] {
+		if n < 1 {
+			n = 1
+		}
+		if n > len(keys) {
+			n = len(keys)
+		}
+		if n == 0 {
+			return nil
+		}
+		size := (len(keys) + n - 1) / n
+		var segs []iter.Seq2[K, V]
+		for i := 0; i < len(keys); i += size {
+			end := min(i+size, len(keys))
+			segs = append(segs, seq2Of(keys[i:end], vals[i:end]))
+		}
+		return segs
+	}
+}
+
+// TestCheckSegments2CoverAll pins the pure Segments2-partition predicate: PASS on
+// a correct partition (and the empty map) and FAIL on a dropped pair (gap), a key
+// present in two segments (overlap), and a single-shot segment (not re-runnable).
+func TestCheckSegments2CoverAll(t *testing.T) {
+	keys := []int{3, 1, 4, 5, 9, 2, 6} // distinct keys (a map has no dup keys)
+	vals := []int{0, 1, 2, 3, 4, 5, 6}
+
+	if ok, msg := checkSegments2CoverAll(seq2Of(keys, vals), segments2Of(keys, vals)); !ok {
+		t.Errorf("correct partition should pass, got %q", msg)
+	}
+	if ok, msg := checkSegments2CoverAll(seq2Of([]int(nil), []int(nil)), segments2Of([]int(nil), []int(nil))); !ok {
+		t.Errorf("empty map should pass vacuously, got %q", msg)
+	}
+
+	// gap: dropping a pair under-covers.
+	gap := func(int) []iter.Seq2[int, int] {
+		return []iter.Seq2[int, int]{seq2Of(keys[:len(keys)-1], vals[:len(vals)-1])}
+	}
+	if ok, _ := checkSegments2CoverAll(seq2Of(keys, vals), gap); ok {
+		t.Error("dropping a pair should fail coverage")
+	}
+
+	// overlap: a key emitted by two segments trips the no-key-in-two-segments guard.
+	overlap := func(int) []iter.Seq2[int, int] {
+		return []iter.Seq2[int, int]{seq2Of(keys, vals), seq2Of(keys[:1], vals[:1])}
+	}
+	if ok, _ := checkSegments2CoverAll(seq2Of(keys, vals), overlap); ok {
+		t.Error("a key in two segments should fail")
+	}
+
+	// non-re-runnable: single-shot segment is empty on its second pass.
+	singleShot := func(int) []iter.Seq2[int, int] {
+		used := false
+		seg := func(yield func(int, int) bool) {
+			if used {
+				return
+			}
+			used = true
+			for i := range keys {
+				if !yield(keys[i], vals[i]) {
+					return
+				}
+			}
+		}
+		return []iter.Seq2[int, int]{seg}
+	}
+	if ok, _ := checkSegments2CoverAll(seq2Of(keys, vals), singleShot); ok {
+		t.Error("single-shot (non-re-runnable) segment should fail")
+	}
+}

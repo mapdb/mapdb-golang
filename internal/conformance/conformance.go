@@ -21,6 +21,7 @@ import (
 	"cmp"
 	"fmt"
 	"iter"
+	"maps"
 	"slices"
 	"testing"
 )
@@ -135,6 +136,57 @@ func checkSegmentsCoverAll[T comparable](all iter.Seq[T], segments func(n int) [
 		}
 	}
 	return true, ""
+}
+
+// Segments2CoverAll asserts the Segments2 partition law (todo 14 §4) for a
+// key/value family. For each split count n in {1, 2, 7, len+1} the segments from
+// Segments2(n) must (a) reproduce exactly the key→value map that All() yields —
+// complete coverage with no key split across two segments — and (b) each be
+// re-runnable. Map keys are unique, so the law is checked as map equality (which
+// also detects a duplicated key: it would be merged from two segments, tripping
+// the overlap guard). Keys and values are comparable and NaN-free.
+func Segments2CoverAll[K comparable, V comparable](t *testing.T, all iter.Seq2[K, V], segments func(n int) []iter.Seq2[K, V]) {
+	t.Helper()
+	if ok, msg := checkSegments2CoverAll(all, segments); !ok {
+		t.Error(msg)
+	}
+}
+
+// checkSegments2CoverAll is the pure Segments2-partition predicate: map-equality
+// coverage, an explicit no-key-in-two-segments guard, and per-segment
+// re-runnability, across the four split counts.
+func checkSegments2CoverAll[K comparable, V comparable](all iter.Seq2[K, V], segments func(n int) []iter.Seq2[K, V]) (bool, string) {
+	want := collectMap(all)
+	for _, n := range []int{1, 2, 7, len(want) + 1} {
+		got := make(map[K]V, len(want))
+		for i, seg := range segments(n) {
+			first := collectMap(seg)
+			second := collectMap(seg) // re-run the same segment
+			if !maps.Equal(first, second) {
+				return false, fmt.Sprintf("segments2 law (n=%d): segment %d not re-runnable: %v then %v", n, i, first, second)
+			}
+			for k, v := range first {
+				if _, dup := got[k]; dup {
+					return false, fmt.Sprintf("segments2 law (n=%d): key %v appears in more than one segment", n, k)
+				}
+				got[k] = v
+			}
+		}
+		if !maps.Equal(got, want) {
+			return false, fmt.Sprintf("segments2 law (n=%d): concat(Segments2)=%v does not reproduce All()=%v", n, got, want)
+		}
+	}
+	return true, ""
+}
+
+// collectMap drains an iter.Seq2 into a map (map keys are unique in the families
+// this checks, so no pair is lost to key collision).
+func collectMap[K comparable, V any](s iter.Seq2[K, V]) map[K]V {
+	m := map[K]V{}
+	for k, v := range s {
+		m[k] = v
+	}
+	return m
 }
 
 // sameMultiset reports whether a and b contain the same elements with the same

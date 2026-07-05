@@ -149,7 +149,7 @@ func genSentinelHashMap() error {
 	// Phase-0 bug class needs Put+Remove churn and stays covered by the targeted
 	// differential churn regression (a remove-fixture conformance stamp is a
 	// follow-up).
-	return genMapConformanceForPairs("sentinelhashmap", false)
+	return genMapConformanceForPairs("sentinelhashmap", false, false)
 }
 
 const sentinelHashMapTmpl = genHeader + `package sentinelhashmap

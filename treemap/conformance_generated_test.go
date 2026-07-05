@@ -35,6 +35,14 @@ func TestConformanceKeysAscendingInt8Int8(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int8Int8 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int8Int8(t *testing.T) {
+	m := buildConformanceInt8Int8()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt8Int16() *treemap.Int8Int16 {
 	m := treemap.NewInt8Int16()
 	m.Put(int8(3), int16(0))
@@ -59,6 +67,14 @@ func TestConformanceLen2Int8Int16(t *testing.T) {
 func TestConformanceKeysAscendingInt8Int16(t *testing.T) {
 	m := buildConformanceInt8Int16()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int8Int16 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int8Int16(t *testing.T) {
+	m := buildConformanceInt8Int16()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt8Int32() *treemap.Int8Int32 {
@@ -87,6 +103,14 @@ func TestConformanceKeysAscendingInt8Int32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int8Int32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int8Int32(t *testing.T) {
+	m := buildConformanceInt8Int32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt8Int64() *treemap.Int8Int64 {
 	m := treemap.NewInt8Int64()
 	m.Put(int8(3), int64(0))
@@ -111,6 +135,14 @@ func TestConformanceLen2Int8Int64(t *testing.T) {
 func TestConformanceKeysAscendingInt8Int64(t *testing.T) {
 	m := buildConformanceInt8Int64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int8Int64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int8Int64(t *testing.T) {
+	m := buildConformanceInt8Int64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt8Char() *treemap.Int8Char {
@@ -139,6 +171,14 @@ func TestConformanceKeysAscendingInt8Char(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int8Char pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int8Char(t *testing.T) {
+	m := buildConformanceInt8Char()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt8Float32() *treemap.Int8Float32 {
 	m := treemap.NewInt8Float32()
 	m.Put(int8(3), float32(0))
@@ -163,6 +203,14 @@ func TestConformanceLen2Int8Float32(t *testing.T) {
 func TestConformanceKeysAscendingInt8Float32(t *testing.T) {
 	m := buildConformanceInt8Float32()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int8Float32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int8Float32(t *testing.T) {
+	m := buildConformanceInt8Float32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt8Float64() *treemap.Int8Float64 {
@@ -191,6 +239,14 @@ func TestConformanceKeysAscendingInt8Float64(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int8Float64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int8Float64(t *testing.T) {
+	m := buildConformanceInt8Float64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt16Int8() *treemap.Int16Int8 {
 	m := treemap.NewInt16Int8()
 	m.Put(int16(3), int8(0))
@@ -215,6 +271,14 @@ func TestConformanceLen2Int16Int8(t *testing.T) {
 func TestConformanceKeysAscendingInt16Int8(t *testing.T) {
 	m := buildConformanceInt16Int8()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int16Int8 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int16Int8(t *testing.T) {
+	m := buildConformanceInt16Int8()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt16Int16() *treemap.Int16Int16 {
@@ -243,6 +307,14 @@ func TestConformanceKeysAscendingInt16Int16(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int16Int16 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int16Int16(t *testing.T) {
+	m := buildConformanceInt16Int16()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt16Int32() *treemap.Int16Int32 {
 	m := treemap.NewInt16Int32()
 	m.Put(int16(3), int32(0))
@@ -267,6 +339,14 @@ func TestConformanceLen2Int16Int32(t *testing.T) {
 func TestConformanceKeysAscendingInt16Int32(t *testing.T) {
 	m := buildConformanceInt16Int32()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int16Int32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int16Int32(t *testing.T) {
+	m := buildConformanceInt16Int32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt16Int64() *treemap.Int16Int64 {
@@ -295,6 +375,14 @@ func TestConformanceKeysAscendingInt16Int64(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int16Int64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int16Int64(t *testing.T) {
+	m := buildConformanceInt16Int64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt16Char() *treemap.Int16Char {
 	m := treemap.NewInt16Char()
 	m.Put(int16(3), uint16(0))
@@ -319,6 +407,14 @@ func TestConformanceLen2Int16Char(t *testing.T) {
 func TestConformanceKeysAscendingInt16Char(t *testing.T) {
 	m := buildConformanceInt16Char()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int16Char pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int16Char(t *testing.T) {
+	m := buildConformanceInt16Char()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt16Float32() *treemap.Int16Float32 {
@@ -347,6 +443,14 @@ func TestConformanceKeysAscendingInt16Float32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int16Float32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int16Float32(t *testing.T) {
+	m := buildConformanceInt16Float32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt16Float64() *treemap.Int16Float64 {
 	m := treemap.NewInt16Float64()
 	m.Put(int16(3), float64(0))
@@ -371,6 +475,14 @@ func TestConformanceLen2Int16Float64(t *testing.T) {
 func TestConformanceKeysAscendingInt16Float64(t *testing.T) {
 	m := buildConformanceInt16Float64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int16Float64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int16Float64(t *testing.T) {
+	m := buildConformanceInt16Float64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt32Int8() *treemap.Int32Int8 {
@@ -399,6 +511,14 @@ func TestConformanceKeysAscendingInt32Int8(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int32Int8 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int32Int8(t *testing.T) {
+	m := buildConformanceInt32Int8()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt32Int16() *treemap.Int32Int16 {
 	m := treemap.NewInt32Int16()
 	m.Put(int32(3), int16(0))
@@ -423,6 +543,14 @@ func TestConformanceLen2Int32Int16(t *testing.T) {
 func TestConformanceKeysAscendingInt32Int16(t *testing.T) {
 	m := buildConformanceInt32Int16()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int32Int16 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int32Int16(t *testing.T) {
+	m := buildConformanceInt32Int16()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt32Int32() *treemap.Int32Int32 {
@@ -451,6 +579,14 @@ func TestConformanceKeysAscendingInt32Int32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int32Int32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int32Int32(t *testing.T) {
+	m := buildConformanceInt32Int32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt32Int64() *treemap.Int32Int64 {
 	m := treemap.NewInt32Int64()
 	m.Put(int32(3), int64(0))
@@ -475,6 +611,14 @@ func TestConformanceLen2Int32Int64(t *testing.T) {
 func TestConformanceKeysAscendingInt32Int64(t *testing.T) {
 	m := buildConformanceInt32Int64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int32Int64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int32Int64(t *testing.T) {
+	m := buildConformanceInt32Int64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt32Char() *treemap.Int32Char {
@@ -503,6 +647,14 @@ func TestConformanceKeysAscendingInt32Char(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int32Char pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int32Char(t *testing.T) {
+	m := buildConformanceInt32Char()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt32Float32() *treemap.Int32Float32 {
 	m := treemap.NewInt32Float32()
 	m.Put(int32(3), float32(0))
@@ -527,6 +679,14 @@ func TestConformanceLen2Int32Float32(t *testing.T) {
 func TestConformanceKeysAscendingInt32Float32(t *testing.T) {
 	m := buildConformanceInt32Float32()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int32Float32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int32Float32(t *testing.T) {
+	m := buildConformanceInt32Float32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt32Float64() *treemap.Int32Float64 {
@@ -555,6 +715,14 @@ func TestConformanceKeysAscendingInt32Float64(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int32Float64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int32Float64(t *testing.T) {
+	m := buildConformanceInt32Float64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt64Int8() *treemap.Int64Int8 {
 	m := treemap.NewInt64Int8()
 	m.Put(int64(3), int8(0))
@@ -579,6 +747,14 @@ func TestConformanceLen2Int64Int8(t *testing.T) {
 func TestConformanceKeysAscendingInt64Int8(t *testing.T) {
 	m := buildConformanceInt64Int8()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int64Int8 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int64Int8(t *testing.T) {
+	m := buildConformanceInt64Int8()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt64Int16() *treemap.Int64Int16 {
@@ -607,6 +783,14 @@ func TestConformanceKeysAscendingInt64Int16(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int64Int16 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int64Int16(t *testing.T) {
+	m := buildConformanceInt64Int16()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt64Int32() *treemap.Int64Int32 {
 	m := treemap.NewInt64Int32()
 	m.Put(int64(3), int32(0))
@@ -631,6 +815,14 @@ func TestConformanceLen2Int64Int32(t *testing.T) {
 func TestConformanceKeysAscendingInt64Int32(t *testing.T) {
 	m := buildConformanceInt64Int32()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int64Int32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int64Int32(t *testing.T) {
+	m := buildConformanceInt64Int32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt64Int64() *treemap.Int64Int64 {
@@ -659,6 +851,14 @@ func TestConformanceKeysAscendingInt64Int64(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int64Int64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int64Int64(t *testing.T) {
+	m := buildConformanceInt64Int64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt64Char() *treemap.Int64Char {
 	m := treemap.NewInt64Char()
 	m.Put(int64(3), uint16(0))
@@ -683,6 +883,14 @@ func TestConformanceLen2Int64Char(t *testing.T) {
 func TestConformanceKeysAscendingInt64Char(t *testing.T) {
 	m := buildConformanceInt64Char()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int64Char pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int64Char(t *testing.T) {
+	m := buildConformanceInt64Char()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceInt64Float32() *treemap.Int64Float32 {
@@ -711,6 +919,14 @@ func TestConformanceKeysAscendingInt64Float32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Int64Float32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int64Float32(t *testing.T) {
+	m := buildConformanceInt64Float32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceInt64Float64() *treemap.Int64Float64 {
 	m := treemap.NewInt64Float64()
 	m.Put(int64(3), float64(0))
@@ -735,6 +951,14 @@ func TestConformanceLen2Int64Float64(t *testing.T) {
 func TestConformanceKeysAscendingInt64Float64(t *testing.T) {
 	m := buildConformanceInt64Float64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Int64Float64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Int64Float64(t *testing.T) {
+	m := buildConformanceInt64Float64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceCharInt8() *treemap.CharInt8 {
@@ -763,6 +987,14 @@ func TestConformanceKeysAscendingCharInt8(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2CharInt8 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2CharInt8(t *testing.T) {
+	m := buildConformanceCharInt8()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceCharInt16() *treemap.CharInt16 {
 	m := treemap.NewCharInt16()
 	m.Put(uint16(3), int16(0))
@@ -787,6 +1019,14 @@ func TestConformanceLen2CharInt16(t *testing.T) {
 func TestConformanceKeysAscendingCharInt16(t *testing.T) {
 	m := buildConformanceCharInt16()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2CharInt16 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2CharInt16(t *testing.T) {
+	m := buildConformanceCharInt16()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceCharInt32() *treemap.CharInt32 {
@@ -815,6 +1055,14 @@ func TestConformanceKeysAscendingCharInt32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2CharInt32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2CharInt32(t *testing.T) {
+	m := buildConformanceCharInt32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceCharInt64() *treemap.CharInt64 {
 	m := treemap.NewCharInt64()
 	m.Put(uint16(3), int64(0))
@@ -839,6 +1087,14 @@ func TestConformanceLen2CharInt64(t *testing.T) {
 func TestConformanceKeysAscendingCharInt64(t *testing.T) {
 	m := buildConformanceCharInt64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2CharInt64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2CharInt64(t *testing.T) {
+	m := buildConformanceCharInt64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceCharChar() *treemap.CharChar {
@@ -867,6 +1123,14 @@ func TestConformanceKeysAscendingCharChar(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2CharChar pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2CharChar(t *testing.T) {
+	m := buildConformanceCharChar()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceCharFloat32() *treemap.CharFloat32 {
 	m := treemap.NewCharFloat32()
 	m.Put(uint16(3), float32(0))
@@ -891,6 +1155,14 @@ func TestConformanceLen2CharFloat32(t *testing.T) {
 func TestConformanceKeysAscendingCharFloat32(t *testing.T) {
 	m := buildConformanceCharFloat32()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2CharFloat32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2CharFloat32(t *testing.T) {
+	m := buildConformanceCharFloat32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceCharFloat64() *treemap.CharFloat64 {
@@ -919,6 +1191,14 @@ func TestConformanceKeysAscendingCharFloat64(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2CharFloat64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2CharFloat64(t *testing.T) {
+	m := buildConformanceCharFloat64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat32Int8() *treemap.Float32Int8 {
 	m := treemap.NewFloat32Int8()
 	m.Put(float32(3), int8(0))
@@ -943,6 +1223,14 @@ func TestConformanceLen2Float32Int8(t *testing.T) {
 func TestConformanceKeysAscendingFloat32Int8(t *testing.T) {
 	m := buildConformanceFloat32Int8()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Float32Int8 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float32Int8(t *testing.T) {
+	m := buildConformanceFloat32Int8()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceFloat32Int16() *treemap.Float32Int16 {
@@ -971,6 +1259,14 @@ func TestConformanceKeysAscendingFloat32Int16(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Float32Int16 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float32Int16(t *testing.T) {
+	m := buildConformanceFloat32Int16()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat32Int32() *treemap.Float32Int32 {
 	m := treemap.NewFloat32Int32()
 	m.Put(float32(3), int32(0))
@@ -995,6 +1291,14 @@ func TestConformanceLen2Float32Int32(t *testing.T) {
 func TestConformanceKeysAscendingFloat32Int32(t *testing.T) {
 	m := buildConformanceFloat32Int32()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Float32Int32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float32Int32(t *testing.T) {
+	m := buildConformanceFloat32Int32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceFloat32Int64() *treemap.Float32Int64 {
@@ -1023,6 +1327,14 @@ func TestConformanceKeysAscendingFloat32Int64(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Float32Int64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float32Int64(t *testing.T) {
+	m := buildConformanceFloat32Int64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat32Char() *treemap.Float32Char {
 	m := treemap.NewFloat32Char()
 	m.Put(float32(3), uint16(0))
@@ -1047,6 +1359,14 @@ func TestConformanceLen2Float32Char(t *testing.T) {
 func TestConformanceKeysAscendingFloat32Char(t *testing.T) {
 	m := buildConformanceFloat32Char()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Float32Char pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float32Char(t *testing.T) {
+	m := buildConformanceFloat32Char()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceFloat32Float32() *treemap.Float32Float32 {
@@ -1075,6 +1395,14 @@ func TestConformanceKeysAscendingFloat32Float32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Float32Float32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float32Float32(t *testing.T) {
+	m := buildConformanceFloat32Float32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat32Float64() *treemap.Float32Float64 {
 	m := treemap.NewFloat32Float64()
 	m.Put(float32(3), float64(0))
@@ -1099,6 +1427,14 @@ func TestConformanceLen2Float32Float64(t *testing.T) {
 func TestConformanceKeysAscendingFloat32Float64(t *testing.T) {
 	m := buildConformanceFloat32Float64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Float32Float64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float32Float64(t *testing.T) {
+	m := buildConformanceFloat32Float64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceFloat64Int8() *treemap.Float64Int8 {
@@ -1127,6 +1463,14 @@ func TestConformanceKeysAscendingFloat64Int8(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Float64Int8 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float64Int8(t *testing.T) {
+	m := buildConformanceFloat64Int8()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat64Int16() *treemap.Float64Int16 {
 	m := treemap.NewFloat64Int16()
 	m.Put(float64(3), int16(0))
@@ -1151,6 +1495,14 @@ func TestConformanceLen2Float64Int16(t *testing.T) {
 func TestConformanceKeysAscendingFloat64Int16(t *testing.T) {
 	m := buildConformanceFloat64Int16()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Float64Int16 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float64Int16(t *testing.T) {
+	m := buildConformanceFloat64Int16()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceFloat64Int32() *treemap.Float64Int32 {
@@ -1179,6 +1531,14 @@ func TestConformanceKeysAscendingFloat64Int32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Float64Int32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float64Int32(t *testing.T) {
+	m := buildConformanceFloat64Int32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat64Int64() *treemap.Float64Int64 {
 	m := treemap.NewFloat64Int64()
 	m.Put(float64(3), int64(0))
@@ -1203,6 +1563,14 @@ func TestConformanceLen2Float64Int64(t *testing.T) {
 func TestConformanceKeysAscendingFloat64Int64(t *testing.T) {
 	m := buildConformanceFloat64Int64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Float64Int64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float64Int64(t *testing.T) {
+	m := buildConformanceFloat64Int64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }
 
 func buildConformanceFloat64Char() *treemap.Float64Char {
@@ -1231,6 +1599,14 @@ func TestConformanceKeysAscendingFloat64Char(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Float64Char pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float64Char(t *testing.T) {
+	m := buildConformanceFloat64Char()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat64Float32() *treemap.Float64Float32 {
 	m := treemap.NewFloat64Float32()
 	m.Put(float64(3), float32(0))
@@ -1257,6 +1633,14 @@ func TestConformanceKeysAscendingFloat64Float32(t *testing.T) {
 	conformance.KeysAscending(t, m.All())
 }
 
+// TestConformanceSegments2Float64Float32 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float64Float32(t *testing.T) {
+	m := buildConformanceFloat64Float32()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
+}
+
 func buildConformanceFloat64Float64() *treemap.Float64Float64 {
 	m := treemap.NewFloat64Float64()
 	m.Put(float64(3), float64(0))
@@ -1281,4 +1665,12 @@ func TestConformanceLen2Float64Float64(t *testing.T) {
 func TestConformanceKeysAscendingFloat64Float64(t *testing.T) {
 	m := buildConformanceFloat64Float64()
 	conformance.KeysAscending(t, m.All())
+}
+
+// TestConformanceSegments2Float64Float64 pins the pair partition law (todo 14 §4):
+// concat(Segments2(n)) reproduces the All() key→value map with no key split
+// across segments, and each segment is re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegments2Float64Float64(t *testing.T) {
+	m := buildConformanceFloat64Float64()
+	conformance.Segments2CoverAll(t, m.All(), m.Segments2)
 }

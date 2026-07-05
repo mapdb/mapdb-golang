@@ -150,6 +150,12 @@ func (m *CharFloat32BiMap) ForEach(f func(uint16, float32)) {
 	m.forward.ForEach(f)
 }
 
+// All returns an iter.Seq2 that yields every key-value pair (law 1). Iteration
+// order is unspecified — it follows the underlying forward map's hash order.
+func (m *CharFloat32BiMap) All() iter.Seq2[uint16, float32] {
+	return m.forward.All()
+}
+
 // Keys returns an iter.Seq that yields all keys.
 func (m *CharFloat32BiMap) Keys() iter.Seq[uint16] {
 	return m.forward.Keys()

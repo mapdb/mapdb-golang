@@ -150,6 +150,12 @@ func (m *Int8Float64BiMap) ForEach(f func(int8, float64)) {
 	m.forward.ForEach(f)
 }
 
+// All returns an iter.Seq2 that yields every key-value pair (law 1). Iteration
+// order is unspecified — it follows the underlying forward map's hash order.
+func (m *Int8Float64BiMap) All() iter.Seq2[int8, float64] {
+	return m.forward.All()
+}
+
 // Keys returns an iter.Seq that yields all keys.
 func (m *Int8Float64BiMap) Keys() iter.Seq[int8] {
 	return m.forward.Keys()

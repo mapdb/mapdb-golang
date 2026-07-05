@@ -283,11 +283,15 @@ func genHashMap() error {
 		}
 	}
 
-	// Stamp the conformance laws (todo 14 §4) for the 49 primitive-pair maps. A
-	// hash map is unordered, so only the size-accounting law applies (Len ≡ |All|,
-	// no ascending). The object-key/value and bimap variants have distinct type
-	// stems and are not covered by the primitive-pair stamp.
-	return genMapConformanceForPairs("hashmap", false, false)
+	// Stamp the size-accounting law (todo 14 §4) for the 49 primitive-pair maps
+	// AND the 49 <K><V>BiMap variants (which now expose All(), so law 1 applies).
+	// Both are unordered hash maps, so only Len ≡ |All| applies (no ascending).
+	// The BiMap fixture is the shared distinct-key/distinct-value fixture — a
+	// valid bijection, so no Put evicts and Len stays 7. The Object<Prim> /
+	// <Prim>Object variants are GENERIC (New…[K comparable]()) and need a type
+	// argument, so they are stamped by hand elsewhere, not here.
+	rows := append(primitivePairRows(false, ""), primitivePairRows(false, "BiMap")...)
+	return genMapConformanceTest("hashmap", rows, false)
 }
 
 const hashMapTmpl = genHeader + `package hashmap
@@ -1611,6 +1615,12 @@ func (m *{{.MapName}}BiMap) Clear() {
 // ForEach calls the given function for each key-value pair.
 func (m *{{.MapName}}BiMap) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 	m.forward.ForEach(f)
+}
+
+// All returns an iter.Seq2 that yields every key-value pair (law 1). Iteration
+// order is unspecified — it follows the underlying forward map's hash order.
+func (m *{{.MapName}}BiMap) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+	return m.forward.All()
 }
 
 // Keys returns an iter.Seq that yields all keys.

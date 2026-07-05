@@ -939,3 +939,934 @@ func TestConformanceLen2Float64Float64(t *testing.T) {
 	m := buildConformanceFloat64Float64()
 	conformance.Len2MatchesAll(t, m.Len(), m.All())
 }
+
+func buildConformanceInt8Int8BiMap() *hashmap.Int8Int8BiMap {
+	m := hashmap.NewInt8Int8BiMap()
+	m.Put(int8(3), int8(0))
+	m.Put(int8(1), int8(1))
+	m.Put(int8(4), int8(2))
+	m.Put(int8(5), int8(3))
+	m.Put(int8(9), int8(4))
+	m.Put(int8(2), int8(5))
+	m.Put(int8(6), int8(6))
+	return m
+}
+
+// TestConformanceLen2Int8Int8BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int8Int8BiMap(t *testing.T) {
+	m := buildConformanceInt8Int8BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt8Int16BiMap() *hashmap.Int8Int16BiMap {
+	m := hashmap.NewInt8Int16BiMap()
+	m.Put(int8(3), int16(0))
+	m.Put(int8(1), int16(1))
+	m.Put(int8(4), int16(2))
+	m.Put(int8(5), int16(3))
+	m.Put(int8(9), int16(4))
+	m.Put(int8(2), int16(5))
+	m.Put(int8(6), int16(6))
+	return m
+}
+
+// TestConformanceLen2Int8Int16BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int8Int16BiMap(t *testing.T) {
+	m := buildConformanceInt8Int16BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt8Int32BiMap() *hashmap.Int8Int32BiMap {
+	m := hashmap.NewInt8Int32BiMap()
+	m.Put(int8(3), int32(0))
+	m.Put(int8(1), int32(1))
+	m.Put(int8(4), int32(2))
+	m.Put(int8(5), int32(3))
+	m.Put(int8(9), int32(4))
+	m.Put(int8(2), int32(5))
+	m.Put(int8(6), int32(6))
+	return m
+}
+
+// TestConformanceLen2Int8Int32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int8Int32BiMap(t *testing.T) {
+	m := buildConformanceInt8Int32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt8Int64BiMap() *hashmap.Int8Int64BiMap {
+	m := hashmap.NewInt8Int64BiMap()
+	m.Put(int8(3), int64(0))
+	m.Put(int8(1), int64(1))
+	m.Put(int8(4), int64(2))
+	m.Put(int8(5), int64(3))
+	m.Put(int8(9), int64(4))
+	m.Put(int8(2), int64(5))
+	m.Put(int8(6), int64(6))
+	return m
+}
+
+// TestConformanceLen2Int8Int64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int8Int64BiMap(t *testing.T) {
+	m := buildConformanceInt8Int64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt8CharBiMap() *hashmap.Int8CharBiMap {
+	m := hashmap.NewInt8CharBiMap()
+	m.Put(int8(3), uint16(0))
+	m.Put(int8(1), uint16(1))
+	m.Put(int8(4), uint16(2))
+	m.Put(int8(5), uint16(3))
+	m.Put(int8(9), uint16(4))
+	m.Put(int8(2), uint16(5))
+	m.Put(int8(6), uint16(6))
+	return m
+}
+
+// TestConformanceLen2Int8CharBiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int8CharBiMap(t *testing.T) {
+	m := buildConformanceInt8CharBiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt8Float32BiMap() *hashmap.Int8Float32BiMap {
+	m := hashmap.NewInt8Float32BiMap()
+	m.Put(int8(3), float32(0))
+	m.Put(int8(1), float32(1))
+	m.Put(int8(4), float32(2))
+	m.Put(int8(5), float32(3))
+	m.Put(int8(9), float32(4))
+	m.Put(int8(2), float32(5))
+	m.Put(int8(6), float32(6))
+	return m
+}
+
+// TestConformanceLen2Int8Float32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int8Float32BiMap(t *testing.T) {
+	m := buildConformanceInt8Float32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt8Float64BiMap() *hashmap.Int8Float64BiMap {
+	m := hashmap.NewInt8Float64BiMap()
+	m.Put(int8(3), float64(0))
+	m.Put(int8(1), float64(1))
+	m.Put(int8(4), float64(2))
+	m.Put(int8(5), float64(3))
+	m.Put(int8(9), float64(4))
+	m.Put(int8(2), float64(5))
+	m.Put(int8(6), float64(6))
+	return m
+}
+
+// TestConformanceLen2Int8Float64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int8Float64BiMap(t *testing.T) {
+	m := buildConformanceInt8Float64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt16Int8BiMap() *hashmap.Int16Int8BiMap {
+	m := hashmap.NewInt16Int8BiMap()
+	m.Put(int16(3), int8(0))
+	m.Put(int16(1), int8(1))
+	m.Put(int16(4), int8(2))
+	m.Put(int16(5), int8(3))
+	m.Put(int16(9), int8(4))
+	m.Put(int16(2), int8(5))
+	m.Put(int16(6), int8(6))
+	return m
+}
+
+// TestConformanceLen2Int16Int8BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int16Int8BiMap(t *testing.T) {
+	m := buildConformanceInt16Int8BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt16Int16BiMap() *hashmap.Int16Int16BiMap {
+	m := hashmap.NewInt16Int16BiMap()
+	m.Put(int16(3), int16(0))
+	m.Put(int16(1), int16(1))
+	m.Put(int16(4), int16(2))
+	m.Put(int16(5), int16(3))
+	m.Put(int16(9), int16(4))
+	m.Put(int16(2), int16(5))
+	m.Put(int16(6), int16(6))
+	return m
+}
+
+// TestConformanceLen2Int16Int16BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int16Int16BiMap(t *testing.T) {
+	m := buildConformanceInt16Int16BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt16Int32BiMap() *hashmap.Int16Int32BiMap {
+	m := hashmap.NewInt16Int32BiMap()
+	m.Put(int16(3), int32(0))
+	m.Put(int16(1), int32(1))
+	m.Put(int16(4), int32(2))
+	m.Put(int16(5), int32(3))
+	m.Put(int16(9), int32(4))
+	m.Put(int16(2), int32(5))
+	m.Put(int16(6), int32(6))
+	return m
+}
+
+// TestConformanceLen2Int16Int32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int16Int32BiMap(t *testing.T) {
+	m := buildConformanceInt16Int32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt16Int64BiMap() *hashmap.Int16Int64BiMap {
+	m := hashmap.NewInt16Int64BiMap()
+	m.Put(int16(3), int64(0))
+	m.Put(int16(1), int64(1))
+	m.Put(int16(4), int64(2))
+	m.Put(int16(5), int64(3))
+	m.Put(int16(9), int64(4))
+	m.Put(int16(2), int64(5))
+	m.Put(int16(6), int64(6))
+	return m
+}
+
+// TestConformanceLen2Int16Int64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int16Int64BiMap(t *testing.T) {
+	m := buildConformanceInt16Int64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt16CharBiMap() *hashmap.Int16CharBiMap {
+	m := hashmap.NewInt16CharBiMap()
+	m.Put(int16(3), uint16(0))
+	m.Put(int16(1), uint16(1))
+	m.Put(int16(4), uint16(2))
+	m.Put(int16(5), uint16(3))
+	m.Put(int16(9), uint16(4))
+	m.Put(int16(2), uint16(5))
+	m.Put(int16(6), uint16(6))
+	return m
+}
+
+// TestConformanceLen2Int16CharBiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int16CharBiMap(t *testing.T) {
+	m := buildConformanceInt16CharBiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt16Float32BiMap() *hashmap.Int16Float32BiMap {
+	m := hashmap.NewInt16Float32BiMap()
+	m.Put(int16(3), float32(0))
+	m.Put(int16(1), float32(1))
+	m.Put(int16(4), float32(2))
+	m.Put(int16(5), float32(3))
+	m.Put(int16(9), float32(4))
+	m.Put(int16(2), float32(5))
+	m.Put(int16(6), float32(6))
+	return m
+}
+
+// TestConformanceLen2Int16Float32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int16Float32BiMap(t *testing.T) {
+	m := buildConformanceInt16Float32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt16Float64BiMap() *hashmap.Int16Float64BiMap {
+	m := hashmap.NewInt16Float64BiMap()
+	m.Put(int16(3), float64(0))
+	m.Put(int16(1), float64(1))
+	m.Put(int16(4), float64(2))
+	m.Put(int16(5), float64(3))
+	m.Put(int16(9), float64(4))
+	m.Put(int16(2), float64(5))
+	m.Put(int16(6), float64(6))
+	return m
+}
+
+// TestConformanceLen2Int16Float64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int16Float64BiMap(t *testing.T) {
+	m := buildConformanceInt16Float64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt32Int8BiMap() *hashmap.Int32Int8BiMap {
+	m := hashmap.NewInt32Int8BiMap()
+	m.Put(int32(3), int8(0))
+	m.Put(int32(1), int8(1))
+	m.Put(int32(4), int8(2))
+	m.Put(int32(5), int8(3))
+	m.Put(int32(9), int8(4))
+	m.Put(int32(2), int8(5))
+	m.Put(int32(6), int8(6))
+	return m
+}
+
+// TestConformanceLen2Int32Int8BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int32Int8BiMap(t *testing.T) {
+	m := buildConformanceInt32Int8BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt32Int16BiMap() *hashmap.Int32Int16BiMap {
+	m := hashmap.NewInt32Int16BiMap()
+	m.Put(int32(3), int16(0))
+	m.Put(int32(1), int16(1))
+	m.Put(int32(4), int16(2))
+	m.Put(int32(5), int16(3))
+	m.Put(int32(9), int16(4))
+	m.Put(int32(2), int16(5))
+	m.Put(int32(6), int16(6))
+	return m
+}
+
+// TestConformanceLen2Int32Int16BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int32Int16BiMap(t *testing.T) {
+	m := buildConformanceInt32Int16BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt32Int32BiMap() *hashmap.Int32Int32BiMap {
+	m := hashmap.NewInt32Int32BiMap()
+	m.Put(int32(3), int32(0))
+	m.Put(int32(1), int32(1))
+	m.Put(int32(4), int32(2))
+	m.Put(int32(5), int32(3))
+	m.Put(int32(9), int32(4))
+	m.Put(int32(2), int32(5))
+	m.Put(int32(6), int32(6))
+	return m
+}
+
+// TestConformanceLen2Int32Int32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int32Int32BiMap(t *testing.T) {
+	m := buildConformanceInt32Int32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt32Int64BiMap() *hashmap.Int32Int64BiMap {
+	m := hashmap.NewInt32Int64BiMap()
+	m.Put(int32(3), int64(0))
+	m.Put(int32(1), int64(1))
+	m.Put(int32(4), int64(2))
+	m.Put(int32(5), int64(3))
+	m.Put(int32(9), int64(4))
+	m.Put(int32(2), int64(5))
+	m.Put(int32(6), int64(6))
+	return m
+}
+
+// TestConformanceLen2Int32Int64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int32Int64BiMap(t *testing.T) {
+	m := buildConformanceInt32Int64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt32CharBiMap() *hashmap.Int32CharBiMap {
+	m := hashmap.NewInt32CharBiMap()
+	m.Put(int32(3), uint16(0))
+	m.Put(int32(1), uint16(1))
+	m.Put(int32(4), uint16(2))
+	m.Put(int32(5), uint16(3))
+	m.Put(int32(9), uint16(4))
+	m.Put(int32(2), uint16(5))
+	m.Put(int32(6), uint16(6))
+	return m
+}
+
+// TestConformanceLen2Int32CharBiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int32CharBiMap(t *testing.T) {
+	m := buildConformanceInt32CharBiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt32Float32BiMap() *hashmap.Int32Float32BiMap {
+	m := hashmap.NewInt32Float32BiMap()
+	m.Put(int32(3), float32(0))
+	m.Put(int32(1), float32(1))
+	m.Put(int32(4), float32(2))
+	m.Put(int32(5), float32(3))
+	m.Put(int32(9), float32(4))
+	m.Put(int32(2), float32(5))
+	m.Put(int32(6), float32(6))
+	return m
+}
+
+// TestConformanceLen2Int32Float32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int32Float32BiMap(t *testing.T) {
+	m := buildConformanceInt32Float32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt32Float64BiMap() *hashmap.Int32Float64BiMap {
+	m := hashmap.NewInt32Float64BiMap()
+	m.Put(int32(3), float64(0))
+	m.Put(int32(1), float64(1))
+	m.Put(int32(4), float64(2))
+	m.Put(int32(5), float64(3))
+	m.Put(int32(9), float64(4))
+	m.Put(int32(2), float64(5))
+	m.Put(int32(6), float64(6))
+	return m
+}
+
+// TestConformanceLen2Int32Float64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int32Float64BiMap(t *testing.T) {
+	m := buildConformanceInt32Float64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt64Int8BiMap() *hashmap.Int64Int8BiMap {
+	m := hashmap.NewInt64Int8BiMap()
+	m.Put(int64(3), int8(0))
+	m.Put(int64(1), int8(1))
+	m.Put(int64(4), int8(2))
+	m.Put(int64(5), int8(3))
+	m.Put(int64(9), int8(4))
+	m.Put(int64(2), int8(5))
+	m.Put(int64(6), int8(6))
+	return m
+}
+
+// TestConformanceLen2Int64Int8BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int64Int8BiMap(t *testing.T) {
+	m := buildConformanceInt64Int8BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt64Int16BiMap() *hashmap.Int64Int16BiMap {
+	m := hashmap.NewInt64Int16BiMap()
+	m.Put(int64(3), int16(0))
+	m.Put(int64(1), int16(1))
+	m.Put(int64(4), int16(2))
+	m.Put(int64(5), int16(3))
+	m.Put(int64(9), int16(4))
+	m.Put(int64(2), int16(5))
+	m.Put(int64(6), int16(6))
+	return m
+}
+
+// TestConformanceLen2Int64Int16BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int64Int16BiMap(t *testing.T) {
+	m := buildConformanceInt64Int16BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt64Int32BiMap() *hashmap.Int64Int32BiMap {
+	m := hashmap.NewInt64Int32BiMap()
+	m.Put(int64(3), int32(0))
+	m.Put(int64(1), int32(1))
+	m.Put(int64(4), int32(2))
+	m.Put(int64(5), int32(3))
+	m.Put(int64(9), int32(4))
+	m.Put(int64(2), int32(5))
+	m.Put(int64(6), int32(6))
+	return m
+}
+
+// TestConformanceLen2Int64Int32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int64Int32BiMap(t *testing.T) {
+	m := buildConformanceInt64Int32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt64Int64BiMap() *hashmap.Int64Int64BiMap {
+	m := hashmap.NewInt64Int64BiMap()
+	m.Put(int64(3), int64(0))
+	m.Put(int64(1), int64(1))
+	m.Put(int64(4), int64(2))
+	m.Put(int64(5), int64(3))
+	m.Put(int64(9), int64(4))
+	m.Put(int64(2), int64(5))
+	m.Put(int64(6), int64(6))
+	return m
+}
+
+// TestConformanceLen2Int64Int64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int64Int64BiMap(t *testing.T) {
+	m := buildConformanceInt64Int64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt64CharBiMap() *hashmap.Int64CharBiMap {
+	m := hashmap.NewInt64CharBiMap()
+	m.Put(int64(3), uint16(0))
+	m.Put(int64(1), uint16(1))
+	m.Put(int64(4), uint16(2))
+	m.Put(int64(5), uint16(3))
+	m.Put(int64(9), uint16(4))
+	m.Put(int64(2), uint16(5))
+	m.Put(int64(6), uint16(6))
+	return m
+}
+
+// TestConformanceLen2Int64CharBiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int64CharBiMap(t *testing.T) {
+	m := buildConformanceInt64CharBiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt64Float32BiMap() *hashmap.Int64Float32BiMap {
+	m := hashmap.NewInt64Float32BiMap()
+	m.Put(int64(3), float32(0))
+	m.Put(int64(1), float32(1))
+	m.Put(int64(4), float32(2))
+	m.Put(int64(5), float32(3))
+	m.Put(int64(9), float32(4))
+	m.Put(int64(2), float32(5))
+	m.Put(int64(6), float32(6))
+	return m
+}
+
+// TestConformanceLen2Int64Float32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int64Float32BiMap(t *testing.T) {
+	m := buildConformanceInt64Float32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceInt64Float64BiMap() *hashmap.Int64Float64BiMap {
+	m := hashmap.NewInt64Float64BiMap()
+	m.Put(int64(3), float64(0))
+	m.Put(int64(1), float64(1))
+	m.Put(int64(4), float64(2))
+	m.Put(int64(5), float64(3))
+	m.Put(int64(9), float64(4))
+	m.Put(int64(2), float64(5))
+	m.Put(int64(6), float64(6))
+	return m
+}
+
+// TestConformanceLen2Int64Float64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Int64Float64BiMap(t *testing.T) {
+	m := buildConformanceInt64Float64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceCharInt8BiMap() *hashmap.CharInt8BiMap {
+	m := hashmap.NewCharInt8BiMap()
+	m.Put(uint16(3), int8(0))
+	m.Put(uint16(1), int8(1))
+	m.Put(uint16(4), int8(2))
+	m.Put(uint16(5), int8(3))
+	m.Put(uint16(9), int8(4))
+	m.Put(uint16(2), int8(5))
+	m.Put(uint16(6), int8(6))
+	return m
+}
+
+// TestConformanceLen2CharInt8BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2CharInt8BiMap(t *testing.T) {
+	m := buildConformanceCharInt8BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceCharInt16BiMap() *hashmap.CharInt16BiMap {
+	m := hashmap.NewCharInt16BiMap()
+	m.Put(uint16(3), int16(0))
+	m.Put(uint16(1), int16(1))
+	m.Put(uint16(4), int16(2))
+	m.Put(uint16(5), int16(3))
+	m.Put(uint16(9), int16(4))
+	m.Put(uint16(2), int16(5))
+	m.Put(uint16(6), int16(6))
+	return m
+}
+
+// TestConformanceLen2CharInt16BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2CharInt16BiMap(t *testing.T) {
+	m := buildConformanceCharInt16BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceCharInt32BiMap() *hashmap.CharInt32BiMap {
+	m := hashmap.NewCharInt32BiMap()
+	m.Put(uint16(3), int32(0))
+	m.Put(uint16(1), int32(1))
+	m.Put(uint16(4), int32(2))
+	m.Put(uint16(5), int32(3))
+	m.Put(uint16(9), int32(4))
+	m.Put(uint16(2), int32(5))
+	m.Put(uint16(6), int32(6))
+	return m
+}
+
+// TestConformanceLen2CharInt32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2CharInt32BiMap(t *testing.T) {
+	m := buildConformanceCharInt32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceCharInt64BiMap() *hashmap.CharInt64BiMap {
+	m := hashmap.NewCharInt64BiMap()
+	m.Put(uint16(3), int64(0))
+	m.Put(uint16(1), int64(1))
+	m.Put(uint16(4), int64(2))
+	m.Put(uint16(5), int64(3))
+	m.Put(uint16(9), int64(4))
+	m.Put(uint16(2), int64(5))
+	m.Put(uint16(6), int64(6))
+	return m
+}
+
+// TestConformanceLen2CharInt64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2CharInt64BiMap(t *testing.T) {
+	m := buildConformanceCharInt64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceCharCharBiMap() *hashmap.CharCharBiMap {
+	m := hashmap.NewCharCharBiMap()
+	m.Put(uint16(3), uint16(0))
+	m.Put(uint16(1), uint16(1))
+	m.Put(uint16(4), uint16(2))
+	m.Put(uint16(5), uint16(3))
+	m.Put(uint16(9), uint16(4))
+	m.Put(uint16(2), uint16(5))
+	m.Put(uint16(6), uint16(6))
+	return m
+}
+
+// TestConformanceLen2CharCharBiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2CharCharBiMap(t *testing.T) {
+	m := buildConformanceCharCharBiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceCharFloat32BiMap() *hashmap.CharFloat32BiMap {
+	m := hashmap.NewCharFloat32BiMap()
+	m.Put(uint16(3), float32(0))
+	m.Put(uint16(1), float32(1))
+	m.Put(uint16(4), float32(2))
+	m.Put(uint16(5), float32(3))
+	m.Put(uint16(9), float32(4))
+	m.Put(uint16(2), float32(5))
+	m.Put(uint16(6), float32(6))
+	return m
+}
+
+// TestConformanceLen2CharFloat32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2CharFloat32BiMap(t *testing.T) {
+	m := buildConformanceCharFloat32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceCharFloat64BiMap() *hashmap.CharFloat64BiMap {
+	m := hashmap.NewCharFloat64BiMap()
+	m.Put(uint16(3), float64(0))
+	m.Put(uint16(1), float64(1))
+	m.Put(uint16(4), float64(2))
+	m.Put(uint16(5), float64(3))
+	m.Put(uint16(9), float64(4))
+	m.Put(uint16(2), float64(5))
+	m.Put(uint16(6), float64(6))
+	return m
+}
+
+// TestConformanceLen2CharFloat64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2CharFloat64BiMap(t *testing.T) {
+	m := buildConformanceCharFloat64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat32Int8BiMap() *hashmap.Float32Int8BiMap {
+	m := hashmap.NewFloat32Int8BiMap()
+	m.Put(float32(3), int8(0))
+	m.Put(float32(1), int8(1))
+	m.Put(float32(4), int8(2))
+	m.Put(float32(5), int8(3))
+	m.Put(float32(9), int8(4))
+	m.Put(float32(2), int8(5))
+	m.Put(float32(6), int8(6))
+	return m
+}
+
+// TestConformanceLen2Float32Int8BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float32Int8BiMap(t *testing.T) {
+	m := buildConformanceFloat32Int8BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat32Int16BiMap() *hashmap.Float32Int16BiMap {
+	m := hashmap.NewFloat32Int16BiMap()
+	m.Put(float32(3), int16(0))
+	m.Put(float32(1), int16(1))
+	m.Put(float32(4), int16(2))
+	m.Put(float32(5), int16(3))
+	m.Put(float32(9), int16(4))
+	m.Put(float32(2), int16(5))
+	m.Put(float32(6), int16(6))
+	return m
+}
+
+// TestConformanceLen2Float32Int16BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float32Int16BiMap(t *testing.T) {
+	m := buildConformanceFloat32Int16BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat32Int32BiMap() *hashmap.Float32Int32BiMap {
+	m := hashmap.NewFloat32Int32BiMap()
+	m.Put(float32(3), int32(0))
+	m.Put(float32(1), int32(1))
+	m.Put(float32(4), int32(2))
+	m.Put(float32(5), int32(3))
+	m.Put(float32(9), int32(4))
+	m.Put(float32(2), int32(5))
+	m.Put(float32(6), int32(6))
+	return m
+}
+
+// TestConformanceLen2Float32Int32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float32Int32BiMap(t *testing.T) {
+	m := buildConformanceFloat32Int32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat32Int64BiMap() *hashmap.Float32Int64BiMap {
+	m := hashmap.NewFloat32Int64BiMap()
+	m.Put(float32(3), int64(0))
+	m.Put(float32(1), int64(1))
+	m.Put(float32(4), int64(2))
+	m.Put(float32(5), int64(3))
+	m.Put(float32(9), int64(4))
+	m.Put(float32(2), int64(5))
+	m.Put(float32(6), int64(6))
+	return m
+}
+
+// TestConformanceLen2Float32Int64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float32Int64BiMap(t *testing.T) {
+	m := buildConformanceFloat32Int64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat32CharBiMap() *hashmap.Float32CharBiMap {
+	m := hashmap.NewFloat32CharBiMap()
+	m.Put(float32(3), uint16(0))
+	m.Put(float32(1), uint16(1))
+	m.Put(float32(4), uint16(2))
+	m.Put(float32(5), uint16(3))
+	m.Put(float32(9), uint16(4))
+	m.Put(float32(2), uint16(5))
+	m.Put(float32(6), uint16(6))
+	return m
+}
+
+// TestConformanceLen2Float32CharBiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float32CharBiMap(t *testing.T) {
+	m := buildConformanceFloat32CharBiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat32Float32BiMap() *hashmap.Float32Float32BiMap {
+	m := hashmap.NewFloat32Float32BiMap()
+	m.Put(float32(3), float32(0))
+	m.Put(float32(1), float32(1))
+	m.Put(float32(4), float32(2))
+	m.Put(float32(5), float32(3))
+	m.Put(float32(9), float32(4))
+	m.Put(float32(2), float32(5))
+	m.Put(float32(6), float32(6))
+	return m
+}
+
+// TestConformanceLen2Float32Float32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float32Float32BiMap(t *testing.T) {
+	m := buildConformanceFloat32Float32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat32Float64BiMap() *hashmap.Float32Float64BiMap {
+	m := hashmap.NewFloat32Float64BiMap()
+	m.Put(float32(3), float64(0))
+	m.Put(float32(1), float64(1))
+	m.Put(float32(4), float64(2))
+	m.Put(float32(5), float64(3))
+	m.Put(float32(9), float64(4))
+	m.Put(float32(2), float64(5))
+	m.Put(float32(6), float64(6))
+	return m
+}
+
+// TestConformanceLen2Float32Float64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float32Float64BiMap(t *testing.T) {
+	m := buildConformanceFloat32Float64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat64Int8BiMap() *hashmap.Float64Int8BiMap {
+	m := hashmap.NewFloat64Int8BiMap()
+	m.Put(float64(3), int8(0))
+	m.Put(float64(1), int8(1))
+	m.Put(float64(4), int8(2))
+	m.Put(float64(5), int8(3))
+	m.Put(float64(9), int8(4))
+	m.Put(float64(2), int8(5))
+	m.Put(float64(6), int8(6))
+	return m
+}
+
+// TestConformanceLen2Float64Int8BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float64Int8BiMap(t *testing.T) {
+	m := buildConformanceFloat64Int8BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat64Int16BiMap() *hashmap.Float64Int16BiMap {
+	m := hashmap.NewFloat64Int16BiMap()
+	m.Put(float64(3), int16(0))
+	m.Put(float64(1), int16(1))
+	m.Put(float64(4), int16(2))
+	m.Put(float64(5), int16(3))
+	m.Put(float64(9), int16(4))
+	m.Put(float64(2), int16(5))
+	m.Put(float64(6), int16(6))
+	return m
+}
+
+// TestConformanceLen2Float64Int16BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float64Int16BiMap(t *testing.T) {
+	m := buildConformanceFloat64Int16BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat64Int32BiMap() *hashmap.Float64Int32BiMap {
+	m := hashmap.NewFloat64Int32BiMap()
+	m.Put(float64(3), int32(0))
+	m.Put(float64(1), int32(1))
+	m.Put(float64(4), int32(2))
+	m.Put(float64(5), int32(3))
+	m.Put(float64(9), int32(4))
+	m.Put(float64(2), int32(5))
+	m.Put(float64(6), int32(6))
+	return m
+}
+
+// TestConformanceLen2Float64Int32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float64Int32BiMap(t *testing.T) {
+	m := buildConformanceFloat64Int32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat64Int64BiMap() *hashmap.Float64Int64BiMap {
+	m := hashmap.NewFloat64Int64BiMap()
+	m.Put(float64(3), int64(0))
+	m.Put(float64(1), int64(1))
+	m.Put(float64(4), int64(2))
+	m.Put(float64(5), int64(3))
+	m.Put(float64(9), int64(4))
+	m.Put(float64(2), int64(5))
+	m.Put(float64(6), int64(6))
+	return m
+}
+
+// TestConformanceLen2Float64Int64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float64Int64BiMap(t *testing.T) {
+	m := buildConformanceFloat64Int64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat64CharBiMap() *hashmap.Float64CharBiMap {
+	m := hashmap.NewFloat64CharBiMap()
+	m.Put(float64(3), uint16(0))
+	m.Put(float64(1), uint16(1))
+	m.Put(float64(4), uint16(2))
+	m.Put(float64(5), uint16(3))
+	m.Put(float64(9), uint16(4))
+	m.Put(float64(2), uint16(5))
+	m.Put(float64(6), uint16(6))
+	return m
+}
+
+// TestConformanceLen2Float64CharBiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float64CharBiMap(t *testing.T) {
+	m := buildConformanceFloat64CharBiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat64Float32BiMap() *hashmap.Float64Float32BiMap {
+	m := hashmap.NewFloat64Float32BiMap()
+	m.Put(float64(3), float32(0))
+	m.Put(float64(1), float32(1))
+	m.Put(float64(4), float32(2))
+	m.Put(float64(5), float32(3))
+	m.Put(float64(9), float32(4))
+	m.Put(float64(2), float32(5))
+	m.Put(float64(6), float32(6))
+	return m
+}
+
+// TestConformanceLen2Float64Float32BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float64Float32BiMap(t *testing.T) {
+	m := buildConformanceFloat64Float32BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+
+func buildConformanceFloat64Float64BiMap() *hashmap.Float64Float64BiMap {
+	m := hashmap.NewFloat64Float64BiMap()
+	m.Put(float64(3), float64(0))
+	m.Put(float64(1), float64(1))
+	m.Put(float64(4), float64(2))
+	m.Put(float64(5), float64(3))
+	m.Put(float64(9), float64(4))
+	m.Put(float64(2), float64(5))
+	m.Put(float64(6), float64(6))
+	return m
+}
+
+// TestConformanceLen2Float64Float64BiMap pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2Float64Float64BiMap(t *testing.T) {
+	m := buildConformanceFloat64Float64BiMap()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}

@@ -187,23 +187,31 @@ func mapFixturePuts(keyType, valType string) []string {
 	return puts
 }
 
-// genMapConformanceForPairs stamps map conformance for every (key, value) pair
-// over Primitives() × Primitives() — the 49 monomorphized map variants. ordered
-// marks a sorted map family (adds the KeysAscending law); hasSegments marks a
-// family exposing Segments2(n) (adds the pair partition law).
-func genMapConformanceForPairs(pkg string, ordered, hasSegments bool) error {
+// primitivePairRows builds the 49 prim×prim map conformance rows whose type stem
+// is <Key><Val> and whose constructor is New<Key><Val>(). suffix is appended to
+// the stem (empty for the plain maps, "BiMap" for the bidirectional variants,
+// which share the same distinct-key/distinct-value fixture — a valid bijection).
+func primitivePairRows(ordered bool, suffix string) []mapConfType {
 	ps := Primitives()
 	rows := make([]mapConfType, 0, len(ps)*len(ps))
 	for _, k := range ps {
 		for _, v := range ps {
 			rows = append(rows, mapConfType{
-				MapName: k.Name + v.Name,
+				MapName: k.Name + v.Name + suffix,
 				Puts:    mapFixturePuts(k.GoType, v.GoType),
 				Ordered: ordered,
 			})
 		}
 	}
-	return genMapConformanceTest(pkg, rows, hasSegments)
+	return rows
+}
+
+// genMapConformanceForPairs stamps map conformance for every (key, value) pair
+// over Primitives() × Primitives() — the 49 monomorphized map variants. ordered
+// marks a sorted map family (adds the KeysAscending law); hasSegments marks a
+// family exposing Segments2(n) (adds the pair partition law).
+func genMapConformanceForPairs(pkg string, ordered, hasSegments bool) error {
+	return genMapConformanceTest(pkg, primitivePairRows(ordered, ""), hasSegments)
 }
 
 const mapConformanceTestTmpl = genHeader + `package {{.Package}}_test

@@ -84,6 +84,68 @@ func TestSameMultiset(t *testing.T) {
 	}
 }
 
+// seq2Of turns parallel key/value slices into an iter.Seq2 for the map laws.
+func seq2Of[K, V any](ks []K, vs []V) func(yield func(K, V) bool) {
+	return func(yield func(K, V) bool) {
+		for i := range ks {
+			if !yield(ks[i], vs[i]) {
+				return
+			}
+		}
+	}
+}
+
+// TestCheckLen2MatchesAll pins the size-accounting predicate: it passes only when
+// the claimed length equals the number of pairs All() yields.
+func TestCheckLen2MatchesAll(t *testing.T) {
+	ks, vs := []int{3, 1, 4}, []int{30, 10, 40}
+	cases := []struct {
+		length int
+		wantOK bool
+	}{
+		{3, true},  // correct count
+		{2, false}, // undercount (a stale/low size counter)
+		{4, false}, // overcount (e.g. tombstones counted toward Len)
+		{0, false}, // zero against a non-empty All()
+	}
+	for _, c := range cases {
+		ok, msg := checkLen2MatchesAll(c.length, seq2Of(ks, vs))
+		if ok != c.wantOK {
+			t.Errorf("checkLen2MatchesAll(length=%d) ok=%v (%q), want %v", c.length, ok, msg, c.wantOK)
+		}
+		if !ok && msg == "" {
+			t.Errorf("length=%d: failing check must carry a message", c.length)
+		}
+	}
+	// Empty map: Len 0 matches an empty All().
+	if ok, _ := checkLen2MatchesAll(0, seq2Of([]int{}, []int{})); !ok {
+		t.Errorf("empty map: Len()=0 should match empty All()")
+	}
+}
+
+// TestCheckKeysAscending pins the ordering predicate: strictly ascending keys
+// pass; any equal or descending adjacent pair fails.
+func TestCheckKeysAscending(t *testing.T) {
+	cases := []struct {
+		keys   []int
+		wantOK bool
+	}{
+		{[]int{1, 2, 3, 9}, true},
+		{nil, true},                // empty is vacuously ascending
+		{[]int{5}, true},           // singleton
+		{[]int{1, 3, 2}, false},    // descending pair
+		{[]int{1, 2, 2, 3}, false}, // duplicate (not STRICTLY ascending)
+		{[]int{3, 2, 1}, false},
+	}
+	for _, c := range cases {
+		vs := make([]int, len(c.keys))
+		ok, msg := checkKeysAscending(seq2Of(c.keys, vs))
+		if ok != c.wantOK {
+			t.Errorf("checkKeysAscending(%v) ok=%v (%q), want %v", c.keys, ok, msg, c.wantOK)
+		}
+	}
+}
+
 // TestAllMatchesToSliceThroughT drives the exported *testing.T wrapper on a
 // passing case to confirm it does not spuriously fail (the failing path is a
 // t.Error, which cannot be asserted here without a testing.TB mock — the pure

@@ -124,6 +124,119 @@ func genConformanceForPrimitives(pkg string, ordered bool) error {
 	return genConformanceForOfTypes(pkg, ordered, names, goTypes, nil)
 }
 
+// mapConfType is one row in a key/value family's stamped conformance test: a
+// concrete monomorphized map to build and check. MapName is the <pkg>.<MapName>
+// stem (also the test-func suffix); Puts are the fixture's constructor arguments
+// (already typed); Ordered adds the KeysAscending law for sorted maps.
+type mapConfType struct {
+	MapName string   // Int32Int32 — the <pkg>.<MapName> stem
+	Puts    []string // fixture put args, e.g. "int32(3), int32(0)"
+	Ordered bool     // sorted map ⇒ also stamp the KeysAscending law
+}
+
+// mapConfData drives the map conformance-test template for one family.
+type mapConfData struct {
+	Package string
+	Import  string
+	Types   []mapConfType
+}
+
+// genMapConformanceTest stamps conformance_generated_test.go for a key/value
+// family exposing New<MapName>(), Put(K,V), Len() and All() iter.Seq2[K,V]. It
+// stamps the size-accounting law (Len ≡ |All|) for every map and, for ordered
+// maps, the KeysAscending law.
+func genMapConformanceTest(pkg string, types []mapConfType) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	tmpl := parse("conformance-map-"+pkg, mapConformanceTestTmpl)
+	data := mapConfData{
+		Package: pkg,
+		Import:  "github.com/mapdb/mapdb-golang/" + pkg,
+		Types:   types,
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("execute map conformance %s: %w", pkg, err)
+	}
+	formatted, err := format.Source(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("format map conformance %s: %w\n---\n%s", pkg, err, buf.String())
+	}
+	out := filepath.Join(cwd, "conformance_generated_test.go")
+	return os.WriteFile(out, formatted, 0o644)
+}
+
+// mapFixturePuts renders the shared map fixture as typed Put arguments: seven
+// DISTINCT keys (so none overwrite → Len is 7 and the ascending check is
+// non-trivial) with positional values. Keys stay < 100 so they are valid and
+// distinct for every numeric/char key type.
+func mapFixturePuts(keyType, valType string) []string {
+	keys := []string{"3", "1", "4", "5", "9", "2", "6"}
+	vals := []string{"0", "1", "2", "3", "4", "5", "6"}
+	puts := make([]string, len(keys))
+	for i := range keys {
+		puts[i] = keyType + "(" + keys[i] + "), " + valType + "(" + vals[i] + ")"
+	}
+	return puts
+}
+
+// genMapConformanceForPairs stamps map conformance for every (key, value) pair
+// over Primitives() × Primitives() — the 49 monomorphized map variants. ordered
+// marks a sorted map family (adds the KeysAscending law).
+func genMapConformanceForPairs(pkg string, ordered bool) error {
+	ps := Primitives()
+	rows := make([]mapConfType, 0, len(ps)*len(ps))
+	for _, k := range ps {
+		for _, v := range ps {
+			rows = append(rows, mapConfType{
+				MapName: k.Name + v.Name,
+				Puts:    mapFixturePuts(k.GoType, v.GoType),
+				Ordered: ordered,
+			})
+		}
+	}
+	return genMapConformanceTest(pkg, rows)
+}
+
+const mapConformanceTestTmpl = genHeader + `package {{.Package}}_test
+
+import (
+	"testing"
+
+	"{{.Import}}"
+	"github.com/mapdb/mapdb-golang/internal/conformance"
+)
+{{$pkg := .Package}}
+{{- range .Types}}
+
+func buildConformance{{.MapName}}() *{{$pkg}}.{{.MapName}} {
+	m := {{$pkg}}.New{{.MapName}}()
+{{- range .Puts}}
+	m.Put({{.}})
+{{- end}}
+	return m
+}
+
+// TestConformanceLen2{{.MapName}} pins the size-accounting law (todo 14 §4):
+// Len() equals the number of pairs All() yields.
+func TestConformanceLen2{{.MapName}}(t *testing.T) {
+	m := buildConformance{{.MapName}}()
+	conformance.Len2MatchesAll(t, m.Len(), m.All())
+}
+{{- if .Ordered}}
+
+// TestConformanceKeysAscending{{.MapName}} pins the sorted-map ordering law
+// (todo 14 §4): All() yields keys in strictly ascending order.
+func TestConformanceKeysAscending{{.MapName}}(t *testing.T) {
+	m := buildConformance{{.MapName}}()
+	conformance.KeysAscending(t, m.All())
+}
+{{- end}}
+{{- end}}
+`
+
 const conformanceTestTmpl = genHeader + `package {{.Package}}_test
 
 import (

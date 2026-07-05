@@ -107,7 +107,14 @@ func genTreeMap() error {
 		}
 	}
 
-	return genCmpFloat("treemap")
+	if err := genCmpFloat("treemap"); err != nil {
+		return err
+	}
+
+	// Stamp the conformance laws (todo 14 §4). A treemap is sorted, so every
+	// variant gets both the size-accounting law (Len ≡ |All|) and the
+	// KeysAscending ordering law.
+	return genMapConformanceForPairs("treemap", true)
 }
 
 // lowerFirst lowercases the first rune of s (Int32 -> int32, Char -> char).

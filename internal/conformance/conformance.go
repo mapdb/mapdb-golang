@@ -18,6 +18,7 @@
 package conformance
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
 	"slices"
@@ -50,6 +51,52 @@ func checkAllMatchesToSlice[T comparable](all iter.Seq[T], toSlice []T, ordered 
 		return true, ""
 	}
 	return false, fmt.Sprintf("law 1 (All ≡ ToSlice, unordered): All()=%v and ToSlice()=%v differ as multisets", got, toSlice)
+}
+
+// Len2MatchesAll asserts the size-accounting law for a key/value collection:
+// Len() equals the number of pairs actually yielded by All(). A stale or
+// miscounted size counter (e.g. tombstones counted toward Len) fails here.
+func Len2MatchesAll[K, V any](t *testing.T, length int, all iter.Seq2[K, V]) {
+	t.Helper()
+	if ok, msg := checkLen2MatchesAll(length, all); !ok {
+		t.Error(msg)
+	}
+}
+
+// checkLen2MatchesAll is the pure size-accounting check: Len() vs |All()|.
+func checkLen2MatchesAll[K, V any](length int, all iter.Seq2[K, V]) (bool, string) {
+	n := 0
+	for range all {
+		n++
+	}
+	if n == length {
+		return true, ""
+	}
+	return false, fmt.Sprintf("size law: Len()=%d but All() yielded %d pairs", length, n)
+}
+
+// KeysAscending asserts the sorted-map ordering law: All() yields keys in
+// strictly ascending order. Applies to the ordered map families (treemap). Keys
+// are compared with < so K must be cmp.Ordered and NaN-free (the fixtures are).
+func KeysAscending[K cmp.Ordered, V any](t *testing.T, all iter.Seq2[K, V]) {
+	t.Helper()
+	if ok, msg := checkKeysAscending(all); !ok {
+		t.Error(msg)
+	}
+}
+
+// checkKeysAscending is the pure ordering check: every key strictly greater than
+// its predecessor.
+func checkKeysAscending[K cmp.Ordered, V any](all iter.Seq2[K, V]) (bool, string) {
+	first := true
+	var prev K
+	for k := range all {
+		if !first && !(prev < k) {
+			return false, fmt.Sprintf("ordering law: All() keys not strictly ascending: %v then %v", prev, k)
+		}
+		prev, first = k, false
+	}
+	return true, ""
 }
 
 // sameMultiset reports whether a and b contain the same elements with the same

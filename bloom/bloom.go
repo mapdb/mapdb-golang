@@ -32,6 +32,7 @@
 package bloom
 
 import (
+	"iter"
 	"math"
 	"math/bits"
 
@@ -123,6 +124,16 @@ func (b *Bloom) Add(v int32) {
 	enc := encodeInt32(v)
 	for _, p := range hash.Positions(enc, b.mBits, b.k) {
 		b.setBit(p)
+	}
+}
+
+// AddSeq adds every value the sequence yields — the absorber analogue of the
+// collection AddSeq protocol, so a Bloom filter can be filled directly from any
+// iter.Seq[int32] source without an intermediate slice, e.g.
+// b.AddSeq(set.All()) or b.AddSeq(seq.Range(0, n)).
+func (b *Bloom) AddSeq(seq iter.Seq[int32]) {
+	for v := range seq {
+		b.Add(v)
 	}
 }
 

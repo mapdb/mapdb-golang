@@ -32,6 +32,7 @@ package hyperloglog
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"math/bits"
 
@@ -112,6 +113,15 @@ func (h *HyperLogLog) Add(item int32) {
 	idx, rho := split(x, h.p)
 	if rho > h.registers[idx] {
 		h.registers[idx] = rho
+	}
+}
+
+// AddSeq adds every item the sequence yields — the absorber analogue of the
+// collection AddSeq protocol, so a sketch can be fed directly from any
+// iter.Seq[int32] source without an intermediate slice, e.g. h.AddSeq(set.All()).
+func (h *HyperLogLog) AddSeq(seq iter.Seq[int32]) {
+	for item := range seq {
+		h.Add(item)
 	}
 }
 

@@ -17,6 +17,7 @@
 package countmin
 
 import (
+	"iter"
 	"math"
 
 	"github.com/mapdb/mapdb-golang/hash"
@@ -143,6 +144,16 @@ func (c *CountMin) Add(item int32, count uint64) {
 // AddOne is a convenience for Add(item, 1); identical bits.
 func (c *CountMin) AddOne(item int32) {
 	c.Add(item, 1)
+}
+
+// AddSeq adds one occurrence of every item the sequence yields (each via
+// AddOne) — the absorber analogue of the collection AddSeq protocol, so a sketch
+// can be fed directly from any iter.Seq[int32] source, e.g. c.AddSeq(set.All()).
+// For weighted bulk loads call Add(item, count) in a loop instead.
+func (c *CountMin) AddSeq(seq iter.Seq[int32]) {
+	for item := range seq {
+		c.AddOne(item)
+	}
 }
 
 // Estimate returns the frequency estimate for item: the MIN over the d rows of

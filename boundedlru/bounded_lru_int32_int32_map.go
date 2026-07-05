@@ -26,7 +26,10 @@
 // defined as PutAt(k, v, 0).
 package boundedlru
 
-import "sort"
+import (
+	"iter"
+	"sort"
+)
 
 // EvictionCause is why an entry left the map (the eviction-callback cause).
 // Only CauseSize and CauseExpired exist in v1 — put-update, Remove, and Clear
@@ -466,6 +469,22 @@ func (m *BoundedLruInt32Int32Map) Entries() []Entry {
 		out = append(out, Entry{Key: n.key, Value: n.value})
 	}
 	return out
+}
+
+// All returns an iter.Seq2 that yields every (key, value) pair in LRU order
+// (least-recently-used first), law 1. Like Keys/Values/Entries it is a read-only
+// SNAPSHOT: the pairs are captured when iteration begins, so it never refreshes
+// recency, never evicts, and is unaffected by a touch (Get) or eviction that
+// happens during the range — safe even though a live Get would reorder the
+// recency list. Bridges into the seq/par layers via seq.From2(m.All()).
+func (m *BoundedLruInt32Int32Map) All() iter.Seq2[int32, int32] {
+	return func(yield func(int32, int32) bool) {
+		for _, e := range m.Entries() { // snapshot at range start
+			if !yield(e.Key, e.Value) {
+				return
+			}
+		}
+	}
 }
 
 // saturatingAdd returns a+b clamped to math.MaxUint64 on overflow.

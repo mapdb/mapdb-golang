@@ -29,7 +29,10 @@
 //     panics), THEN returns 0 for an empty lo > hi range.
 package fenwick
 
-import "fmt"
+import (
+	"fmt"
+	"iter"
+)
 
 // FenwickTree is a Fenwick tree (Binary Indexed Tree) over int32 element values
 // with a wrapping int64 accumulator. Fixed size; no resize.
@@ -131,6 +134,24 @@ func (f *FenwickTree) Get(i int) int64 {
 		return f.prefixSumInternal(0)
 	}
 	return f.prefixSumInternal(i) - f.prefixSumInternal(i-1)
+}
+
+// Values returns an iter.Seq that yields each element value f.Get(0..n-1) in
+// index order (law 1). It walks prefix sums incrementally, so the whole sweep is
+// O(n log n) — the same as calling Get per index, but rangeable and bridgeable
+// into the seq/par layers (seq.From(tree.Values())). Iteration is lazy and honors
+// an early break.
+func (f *FenwickTree) Values() iter.Seq[int64] {
+	return func(yield func(int64) bool) {
+		prev := int64(0) // PrefixSum(-1) := 0
+		for i := 0; i < f.n; i++ {
+			cur := f.prefixSumInternal(i)
+			if !yield(cur - prev) {
+				return
+			}
+			prev = cur
+		}
+	}
 }
 
 // PrefixSum returns the inclusive prefix sum Σ values[0..=i], as wrapping int64.

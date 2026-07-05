@@ -144,8 +144,11 @@ func genSentinelHashMap() error {
 
 	// Stamp the conformance laws (todo 14 §4) for the 49 primitive-pair maps. A
 	// sentinel hash map is unordered, so only the size-accounting law applies
-	// (Len ≡ |All|) — directly guarding the tombstone-vs-Len accounting that was
-	// a Phase-0 bug class.
+	// (Len ≡ |All|). The shared fixture is insert-only, so this stamp catches
+	// gross Len/All size mismatches; the tombstone-vs-Len accounting that was a
+	// Phase-0 bug class needs Put+Remove churn and stays covered by the targeted
+	// differential churn regression (a remove-fixture conformance stamp is a
+	// follow-up).
 	return genMapConformanceForPairs("sentinelhashmap", false)
 }
 

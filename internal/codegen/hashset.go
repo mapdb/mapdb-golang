@@ -98,7 +98,16 @@ func genHashSet() error {
 		}
 	}
 
-	return nil
+	// Stamp the conformance laws (todo 14 §4). A hash set has no iteration
+	// order, so law 1 is checked as a multiset. Bool is excluded: its two-value
+	// domain makes the shared numeric fixture degenerate.
+	names := make([]string, 0, len(hashSetTypes()))
+	goTypes := make([]string, 0, len(hashSetTypes()))
+	for _, d := range hashSetTypes() {
+		names = append(names, d.Name)
+		goTypes = append(goTypes, d.GoType)
+	}
+	return genConformanceTest("hashset", false, confTypes(names, goTypes, map[string]bool{"bool": true}))
 }
 
 const hashSetTmpl = genHeader + `package hashset

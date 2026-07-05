@@ -283,7 +283,11 @@ func genHashMap() error {
 		}
 	}
 
-	return nil
+	// Stamp the conformance laws (todo 14 §4) for the 49 primitive-pair maps. A
+	// hash map is unordered, so only the size-accounting law applies (Len ≡ |All|,
+	// no ascending). The object-key/value and bimap variants have distinct type
+	// stems and are not covered by the primitive-pair stamp.
+	return genMapConformanceForPairs("hashmap", false)
 }
 
 const hashMapTmpl = genHeader + `package hashmap

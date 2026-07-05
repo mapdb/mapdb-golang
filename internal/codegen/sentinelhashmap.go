@@ -142,7 +142,11 @@ func genSentinelHashMap() error {
 		}
 	}
 
-	return nil
+	// Stamp the conformance laws (todo 14 §4) for the 49 primitive-pair maps. A
+	// sentinel hash map is unordered, so only the size-accounting law applies
+	// (Len ≡ |All|) — directly guarding the tombstone-vs-Len accounting that was
+	// a Phase-0 bug class.
+	return genMapConformanceForPairs("sentinelhashmap", false)
 }
 
 const sentinelHashMapTmpl = genHeader + `package sentinelhashmap

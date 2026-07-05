@@ -22,6 +22,7 @@ package roaring
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"math/bits"
 	"sort"
 )
@@ -357,6 +358,17 @@ func (s *RoaringU32) Iterate(fn func(uint32) bool) {
 				return
 			}
 		}
+	}
+}
+
+// All returns an iter.Seq that yields every value in unsigned-ascending order
+// (law 1). It is the range-friendly form of Iterate — whose fn is already a
+// yield function — so `for v := range set.All()` works and the value flows into
+// the seq/par layers and cross-family bridges (e.g. hashset.NewUint32FromSeq or
+// seq.From(set.All())) without a bespoke conversion.
+func (s *RoaringU32) All() iter.Seq[uint32] {
+	return func(yield func(uint32) bool) {
+		s.Iterate(yield)
 	}
 }
 

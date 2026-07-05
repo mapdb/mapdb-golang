@@ -39,3 +39,50 @@ func TestConformanceSegmentsArrayListString(t *testing.T) {
 	l := object.NewArrayListFrom("c", "a", "d", "a", "e", "i", "b")
 	conformance.SegmentsCoverAll(t, l.All(), l.Segments)
 }
+
+// law 1 across the remaining single-value object families (no Segments on these).
+// Order class verified from source: ArrayStack iterates top-to-bottom (All and
+// ToSlice agree) → ordered; LinkedHashSet by insertion → ordered; TreeSet sorted
+// → ordered; HashSet/HashBag iterate a Go map → multiset. The shared fixture's
+// duplicate 1 is kept by the stack/bag (multiplicity) and collapsed by the sets.
+var objectLaw1Fixture = []int{3, 1, 4, 1, 5, 9, 2}
+
+func TestConformanceAllMatchesToSliceArrayStack(t *testing.T) {
+	s := object.NewArrayStack[int]()
+	for _, v := range objectLaw1Fixture {
+		s.Push(v)
+	}
+	conformance.AllMatchesToSlice(t, s.All(), s.ToSlice(), true)
+}
+
+func TestConformanceAllMatchesToSliceLinkedHashSet(t *testing.T) {
+	s := object.NewLinkedHashSet[int]()
+	for _, v := range objectLaw1Fixture {
+		s.Add(v)
+	}
+	conformance.AllMatchesToSlice(t, s.All(), s.ToSlice(), true)
+}
+
+func TestConformanceAllMatchesToSliceTreeSet(t *testing.T) {
+	s := object.NewTreeSet(object.NaturalComparator[int]())
+	for _, v := range objectLaw1Fixture {
+		s.Add(v)
+	}
+	conformance.AllMatchesToSlice(t, s.All(), s.ToSlice(), true)
+}
+
+func TestConformanceAllMatchesToSliceHashSet(t *testing.T) {
+	s := object.NewHashSet[int]()
+	for _, v := range objectLaw1Fixture {
+		s.Add(v)
+	}
+	conformance.AllMatchesToSlice(t, s.All(), s.ToSlice(), false)
+}
+
+func TestConformanceAllMatchesToSliceHashBag(t *testing.T) {
+	b := object.NewHashBag[int]()
+	for _, v := range objectLaw1Fixture {
+		b.Add(v)
+	}
+	conformance.AllMatchesToSlice(t, b.All(), b.ToSlice(), false)
+}

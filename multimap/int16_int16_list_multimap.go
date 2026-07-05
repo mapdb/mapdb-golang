@@ -4,6 +4,7 @@ package multimap
 
 import (
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -192,6 +193,22 @@ func (m *Int16Int16List) ForEach(f func(int16, int16)) {
 	for key, vals := range m.data {
 		for _, val := range vals {
 			f(key, val)
+		}
+	}
+}
+
+// All returns an iter.Seq2 that yields every key-value pair (law 1). Iteration
+// order is unspecified — keys follow Go map order; a key's values keep their
+// per-key insertion order. Unlike ForEach it is rangeable and honors an early
+// break, and it bridges into the seq/par layers via seq.From2(m.All()).
+func (m *Int16Int16List) All() iter.Seq2[int16, int16] {
+	return func(yield func(int16, int16) bool) {
+		for key, vals := range m.data {
+			for _, val := range vals {
+				if !yield(key, val) {
+					return
+				}
+			}
 		}
 	}
 }

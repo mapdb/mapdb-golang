@@ -153,7 +153,9 @@ func genMultimap() error {
 		}
 	}
 
-	return nil
+	// Stamp the size-accounting law (todo 14 §4) for the 49 List + 49 Set
+	// multimaps, now that they expose All() iter.Seq2.
+	return genMultimapConformance()
 }
 
 const multimapKeyCmpTmpl = genHeader + `package multimap
@@ -202,6 +204,7 @@ import (
 	"math"
 {{- end}}
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -446,6 +449,25 @@ func (m *{{.MapName}}List) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 	}
 }
 
+// All returns an iter.Seq2 that yields every key-value pair (law 1). Iteration
+// order is unspecified — keys follow Go map order; a key's values keep their
+// per-key insertion order. Unlike ForEach it is rangeable and honors an early
+// break, and it bridges into the seq/par layers via seq.From2(m.All()).
+func (m *{{.MapName}}List) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
+		for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
+{{- if .KeyIsFloat}}
+			key := m.keys[kb]
+{{- end}}
+			for _, val := range vals {
+				if !yield(key, val) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // ForEachKeyValues calls the given function for each key with a copy of its values.
 func (m *{{.MapName}}List) ForEachKeyValues(f func({{.KeyType}}, []{{.ValType}})) {
 	for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
@@ -595,6 +617,7 @@ import (
 	"math"
 {{- end}}
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -811,6 +834,25 @@ func (m *{{.MapName}}Set) ForEach(f func({{.KeyType}}, {{.ValType}})) {
 {{- end}}
 		for _, val := range vals {
 			f(key, val)
+		}
+	}
+}
+
+// All returns an iter.Seq2 that yields every key-value pair (law 1). Iteration
+// order is unspecified — keys follow Go map order; a key's values keep their
+// set-insertion order. Unlike ForEach it is rangeable and honors an early break,
+// and it bridges into the seq/par layers via seq.From2(m.All()).
+func (m *{{.MapName}}Set) All() iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
+		for {{if .KeyIsFloat}}kb{{else}}key{{end}}, vals := range m.data {
+{{- if .KeyIsFloat}}
+			key := m.keys[kb]
+{{- end}}
+			for _, val := range vals {
+				if !yield(key, val) {
+					return
+				}
+			}
 		}
 	}
 }

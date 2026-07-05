@@ -214,6 +214,38 @@ func genMapConformanceForPairs(pkg string, ordered, hasSegments bool) error {
 	return genMapConformanceTest(pkg, primitivePairRows(ordered, ""), hasSegments)
 }
 
+// multimapFixturePuts renders the multimap size-accounting fixture: six pairs
+// over three DISTINCT keys (1×2, 3×3) so Len (6) exceeds the distinct-key count
+// (3) and the law genuinely counts every value. All six (key,value) pairs are
+// distinct, so the Set variant keeps all six (none collapses). Keys 1..3 and
+// values 10..60 are valid and distinct for every numeric/char primitive.
+func multimapFixturePuts(keyType, valType string) []string {
+	keys := []string{"1", "1", "2", "3", "3", "3"}
+	vals := []string{"10", "20", "30", "40", "50", "60"}
+	puts := make([]string, len(keys))
+	for i := range keys {
+		puts[i] = keyType + "(" + keys[i] + "), " + valType + "(" + vals[i] + ")"
+	}
+	return puts
+}
+
+// genMultimapConformance stamps the size-accounting law (Len ≡ |All|) for the 49
+// prim×prim List multimaps AND the 49 Set multimaps. Multimaps are unordered
+// (map-backed keys) and their keys repeat, so only the size-accounting law
+// applies — but on a repeated-key fixture it meaningfully counts every value.
+func genMultimapConformance() error {
+	ps := Primitives()
+	rows := make([]mapConfType, 0, len(ps)*len(ps)*2)
+	for _, k := range ps {
+		for _, v := range ps {
+			puts := multimapFixturePuts(k.GoType, v.GoType)
+			rows = append(rows, mapConfType{MapName: k.Name + v.Name + "List", Puts: puts, Ordered: false})
+			rows = append(rows, mapConfType{MapName: k.Name + v.Name + "Set", Puts: puts, Ordered: false})
+		}
+	}
+	return genMapConformanceTest("multimap", rows, false)
+}
+
 const mapConformanceTestTmpl = genHeader + `package {{.Package}}_test
 
 import (

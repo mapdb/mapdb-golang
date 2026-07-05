@@ -4,6 +4,7 @@ package multimap
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"strings"
 
@@ -186,6 +187,23 @@ func (m *Float32Int16Set) ForEach(f func(float32, int16)) {
 		key := m.keys[kb]
 		for _, val := range vals {
 			f(key, val)
+		}
+	}
+}
+
+// All returns an iter.Seq2 that yields every key-value pair (law 1). Iteration
+// order is unspecified — keys follow Go map order; a key's values keep their
+// set-insertion order. Unlike ForEach it is rangeable and honors an early break,
+// and it bridges into the seq/par layers via seq.From2(m.All()).
+func (m *Float32Int16Set) All() iter.Seq2[float32, int16] {
+	return func(yield func(float32, int16) bool) {
+		for kb, vals := range m.data {
+			key := m.keys[kb]
+			for _, val := range vals {
+				if !yield(key, val) {
+					return
+				}
+			}
 		}
 	}
 }

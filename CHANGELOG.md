@@ -56,12 +56,25 @@ fixes and additive documentation.
 
 - Documentation: README now lists the algorithmic & probabilistic packages
   (`roaring`, `bloom`, `hyperloglog`, `countmin`, `fenwick`, `boundedlru`,
-  `rangev`, `immutablesorted`, `multimap`, `pump`, `hash`, `parallel`) and a
-  top-level `LICENSE` file (dual EPL-1.0 / EDL-1.0, EDL prominent).
+  `rangev`, `immutablesorted`, `multimap`, `pump`, `hash`) plus the `seq` lazy
+  layer and `par` parallel layer, and a top-level `LICENSE` file (dual EPL-1.0 /
+  EDL-1.0, EDL prominent). The "Composing operations" section now documents the
+  current `seq` pipeline (`seq.From`/`seq.Map`/`seq.Sum`, fluent `seq.Seq[T]`)
+  instead of the superseded `stream/` package, and points CPU-bound work at
+  `par`.
 - Tests/CI: `go test -fuzz` targets for the two hand-written byte parsers
   (`roaring.Deserialize`, `HyperLogLogFromBytes`); a `-race` CI lane and a
   gofmt-clean check; the codegen drift gate extracted to
   `scripts/check-codegen.sh` with a `Makefile` mirroring CI.
+- Conformance laws (generated): a new `internal/conformance` package expresses
+  the collection laws once as generic predicates, and `internal/codegen` stamps
+  a `conformance_generated_test.go` per family. Covered so far: law 1
+  (`All()` ≡ `ToSlice()`, order-class-aware) across the 8 single-value families;
+  the map size-accounting law (`Len()` ≡ `|All()|`) across hashmap /
+  sentinelhashmap / treemap, plus treemap key-ascending; and the Segments /
+  Segments2 partition law (concat of `Segments(n)` ≡ `All()` as a multiset/map,
+  each segment re-runnable) across arraylist, stack, deque, priorityqueue,
+  treeset, interval, and treemap.
 
 ## [0.2.0] — Breaking idiom cleanup (v2)
 

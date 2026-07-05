@@ -84,15 +84,18 @@ where an estimate can't agree bit-for-bit across languages):
 | `multimap` | `Int32Int32List`, `…Set` | Primitive multimaps (list- or set-valued) |
 | `pump` | data-pump loaders | Bulk-load contracts (`FromSorted`, duplicate policies, presized builders) |
 | `hash` | `Hash64`, `Positions` | The deterministic hash pipeline underpinning the sketches |
-| `parallel` | parallel iteration | Segment-based parallel traversal helpers |
+| `seq` | `Seq[T]`, free functions | Lazy chainable sequences over `iter.Seq` — see [Composing operations](#composing-operations--the-seq-lazy-layer) |
+| `par` | `par.From`, terminals | Bounded-worker parallel fan-out over splittable sources (successor to `parallel/`) |
 
-## Composing operations
+## Composing operations — the `seq` lazy layer
 
-Go's type system doesn't allow generic methods on generic types, so
-operations that change the element type (`Map`, `GroupBy`, `Partition`,
-`Enumerate`, `Chunk`, `FlatMap`) can't be methods on `ArrayList[T]` directly. They live in the `stream/` package as free functions.
-
-In practice this means:
+Every collection exposes `All() iter.Seq[T]` (maps: `All() iter.Seq2[K,V]`). The
+`seq` package turns that into a chainable lazy pipeline. `seq.Seq[T]` is a defined
+function type over `iter.Seq[T]`, so it ranges directly (`for v := range s`) and
+carries a fluent method set (`Filter`, `Take`, `Distinct`, `ToSlice`, …). Because
+Go's type system doesn't allow generic methods on generic types, operations that
+change the element type (`Map`, `GroupBy`, `Partition`, `FlatMap`, `Fold`, `Sum`,
+…) are free functions in the same package.
 
 ```go
 // Eclipse Collections Java (fluent):
@@ -100,11 +103,20 @@ In practice this means:
 
 // mapdb-golang:
 catOwners := people.Select(func(p *Person) bool { return p.hasCats() })
-ages      := stream.Map(catOwners.All(), func(p *Person) int { return p.Age })
-total     := stream.Sum(ages)
+ages      := seq.Map(seq.From(catOwners.All()), func(p *Person) int { return p.Age })
+total     := seq.Sum(ages)
 ```
 
-The `.All()` call produces an `iter.Seq[T]` that `stream.*` consumes; the pipeline is lazy until you materialise it (`stream.ToSlice`, `stream.Sum`, `stream.Reduce`, etc.). `stream.Partition` materialises eagerly and returns two re-runnable seqs — safe over single-shot sources.
+`seq.From` wraps an `iter.Seq[T]` as a `seq.Seq[T]`; the pipeline stays lazy until
+a terminal materialises it (`.ToSlice()`, `seq.Sum`, `seq.Fold`, …). `seq.Partition`
+materialises eagerly and returns two re-runnable seqs — safe over single-shot
+sources. (`seq` supersedes the older `stream/` package.)
+
+For CPU-bound work, the `par` package runs the same shape in parallel:
+bounded-worker fan-out over a splittable source (`par.From` / `par.FromSlice`,
+built on the `Segments(n)` partition every structural family provides), with
+context cancellation and panic containment. It supersedes the slice-only
+`parallel/` package.
 
 ## Quick Start
 

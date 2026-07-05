@@ -8,7 +8,8 @@
 // generic, reusable assertions. Each law is expressed ONCE here and stamped
 // across every code-generated family (from internal/codegen) instead of being
 // hand-duplicated per family × primitive. The stamped tests import this package
-// and call the exported Check* assertions with a concrete collection's methods.
+// and call the exported law assertions (AllMatchesToSlice, …) with a concrete
+// collection's methods.
 //
 // The laws are pure predicates first (check*, returning ok + a diff message) so
 // they are unit-testable without a *testing.T; the exported wrappers add

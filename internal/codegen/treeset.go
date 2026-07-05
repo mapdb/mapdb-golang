@@ -80,7 +80,7 @@ func genTreeSet() error {
 
 	// Stamp the conformance laws (todo 14 §4). All() and ToSlice() both yield
 	// ascending sorted order, so law 1 is order-sensitive.
-	return genConformanceForPrimitives("treeset", true, false)
+	return genConformanceForPrimitives("treeset", true, true)
 }
 
 const treeSetTmpl = genHeader + `package treeset

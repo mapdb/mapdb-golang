@@ -17,12 +17,28 @@ func TestConformanceAllMatchesToSliceInt8(t *testing.T) {
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
 }
 
+// TestConformanceSegmentsInt8 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt8(t *testing.T) {
+	c := interval.NewInt8(1, 8, 1)
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
+}
+
 // TestConformanceAllMatchesToSliceInt16 pins law 1 (todo 14 §4):
 // iterating All() yields the same elements as ToSlice(), in the
 // family's documented iteration order.
 func TestConformanceAllMatchesToSliceInt16(t *testing.T) {
 	c := interval.NewInt16(1, 8, 1)
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+}
+
+// TestConformanceSegmentsInt16 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt16(t *testing.T) {
+	c := interval.NewInt16(1, 8, 1)
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
 // TestConformanceAllMatchesToSliceInt32 pins law 1 (todo 14 §4):
@@ -33,10 +49,26 @@ func TestConformanceAllMatchesToSliceInt32(t *testing.T) {
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
 }
 
+// TestConformanceSegmentsInt32 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt32(t *testing.T) {
+	c := interval.NewInt32(1, 8, 1)
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
+}
+
 // TestConformanceAllMatchesToSliceInt64 pins law 1 (todo 14 §4):
 // iterating All() yields the same elements as ToSlice(), in the
 // family's documented iteration order.
 func TestConformanceAllMatchesToSliceInt64(t *testing.T) {
 	c := interval.NewInt64(1, 8, 1)
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+}
+
+// TestConformanceSegmentsInt64 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt64(t *testing.T) {
+	c := interval.NewInt64(1, 8, 1)
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }

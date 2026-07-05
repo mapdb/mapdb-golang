@@ -100,7 +100,7 @@ func genDeque() error {
 
 	// Stamp the conformance laws (todo 14 §4). All() and ToSlice() both yield the
 	// logical front-to-back order, so law 1 is order-sensitive.
-	return genConformanceForPrimitives("deque", true, false)
+	return genConformanceForPrimitives("deque", true, true)
 }
 
 const arrayDequeTmpl = genHeader + `package deque

@@ -17,12 +17,28 @@ func TestConformanceAllMatchesToSliceInt8(t *testing.T) {
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
 }
 
+// TestConformanceSegmentsInt8 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt8(t *testing.T) {
+	c := deque.Int8Of(int8(3), int8(1), int8(4), int8(1), int8(5), int8(9), int8(2))
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
+}
+
 // TestConformanceAllMatchesToSliceInt16 pins law 1 (todo 14 §4):
 // iterating All() yields the same elements as ToSlice(), in the
 // family's documented iteration order.
 func TestConformanceAllMatchesToSliceInt16(t *testing.T) {
 	c := deque.Int16Of(int16(3), int16(1), int16(4), int16(1), int16(5), int16(9), int16(2))
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+}
+
+// TestConformanceSegmentsInt16 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt16(t *testing.T) {
+	c := deque.Int16Of(int16(3), int16(1), int16(4), int16(1), int16(5), int16(9), int16(2))
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
 // TestConformanceAllMatchesToSliceInt32 pins law 1 (todo 14 §4):
@@ -33,12 +49,28 @@ func TestConformanceAllMatchesToSliceInt32(t *testing.T) {
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
 }
 
+// TestConformanceSegmentsInt32 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt32(t *testing.T) {
+	c := deque.Int32Of(int32(3), int32(1), int32(4), int32(1), int32(5), int32(9), int32(2))
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
+}
+
 // TestConformanceAllMatchesToSliceInt64 pins law 1 (todo 14 §4):
 // iterating All() yields the same elements as ToSlice(), in the
 // family's documented iteration order.
 func TestConformanceAllMatchesToSliceInt64(t *testing.T) {
 	c := deque.Int64Of(int64(3), int64(1), int64(4), int64(1), int64(5), int64(9), int64(2))
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+}
+
+// TestConformanceSegmentsInt64 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsInt64(t *testing.T) {
+	c := deque.Int64Of(int64(3), int64(1), int64(4), int64(1), int64(5), int64(9), int64(2))
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
 // TestConformanceAllMatchesToSliceChar pins law 1 (todo 14 §4):
@@ -49,6 +81,14 @@ func TestConformanceAllMatchesToSliceChar(t *testing.T) {
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
 }
 
+// TestConformanceSegmentsChar pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsChar(t *testing.T) {
+	c := deque.CharOf(uint16(3), uint16(1), uint16(4), uint16(1), uint16(5), uint16(9), uint16(2))
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
+}
+
 // TestConformanceAllMatchesToSliceFloat32 pins law 1 (todo 14 §4):
 // iterating All() yields the same elements as ToSlice(), in the
 // family's documented iteration order.
@@ -57,10 +97,26 @@ func TestConformanceAllMatchesToSliceFloat32(t *testing.T) {
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
 }
 
+// TestConformanceSegmentsFloat32 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsFloat32(t *testing.T) {
+	c := deque.Float32Of(float32(3), float32(1), float32(4), float32(1), float32(5), float32(9), float32(2))
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
+}
+
 // TestConformanceAllMatchesToSliceFloat64 pins law 1 (todo 14 §4):
 // iterating All() yields the same elements as ToSlice(), in the
 // family's documented iteration order.
 func TestConformanceAllMatchesToSliceFloat64(t *testing.T) {
 	c := deque.Float64Of(float64(3), float64(1), float64(4), float64(1), float64(5), float64(9), float64(2))
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+}
+
+// TestConformanceSegmentsFloat64 pins the Segments partition law (todo
+// 14 §4): concat(Segments(n)) ≡ All() as a multiset and each segment is
+// re-runnable, for n ∈ {1, 2, 7, len+1}.
+func TestConformanceSegmentsFloat64(t *testing.T) {
+	c := deque.Float64Of(float64(3), float64(1), float64(4), float64(1), float64(5), float64(9), float64(2))
+	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }

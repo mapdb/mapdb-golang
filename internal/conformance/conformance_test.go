@@ -274,12 +274,23 @@ func TestCheckSegments2CoverAll(t *testing.T) {
 		t.Error("dropping a pair should fail coverage")
 	}
 
-	// overlap: a key emitted by two segments trips the no-key-in-two-segments guard.
+	// overlap: a key emitted by two segments trips the no-duplicate-key guard.
 	overlap := func(int) []iter.Seq2[int, int] {
 		return []iter.Seq2[int, int]{seq2Of(keys, vals), seq2Of(keys[:1], vals[:1])}
 	}
 	if ok, _ := checkSegments2CoverAll(seq2Of(keys, vals), overlap); ok {
 		t.Error("a key in two segments should fail")
+	}
+
+	// within-segment duplicate: the SAME key emitted twice inside one segment,
+	// with the SAME value, must still fail — a map merge alone would hide it.
+	dupKeys := append(append([]int{}, keys...), keys[0]) // 3,1,4,5,9,2,6,3
+	dupVals := append(append([]int{}, vals...), vals[0])
+	withinDup := func(int) []iter.Seq2[int, int] {
+		return []iter.Seq2[int, int]{seq2Of(dupKeys, dupVals)}
+	}
+	if ok, _ := checkSegments2CoverAll(seq2Of(keys, vals), withinDup); ok {
+		t.Error("a key duplicated within one segment should fail")
 	}
 
 	// non-re-runnable: single-shot segment is empty on its second pass.

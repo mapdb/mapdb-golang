@@ -153,21 +153,22 @@ func Segments2CoverAll[K comparable, V comparable](t *testing.T, all iter.Seq2[K
 }
 
 // checkSegments2CoverAll is the pure Segments2-partition predicate: map-equality
-// coverage, an explicit no-key-in-two-segments guard, and per-segment
-// re-runnability, across the four split counts.
+// coverage, an explicit no-duplicate-key guard, and per-segment re-runnability,
+// across the four split counts. The coverage merge iterates each segment's raw
+// pairs (not a collapsed map) so a key emitted twice — whether within one
+// segment or across two — trips the guard: a map merge alone would hide a
+// same-value duplicate.
 func checkSegments2CoverAll[K comparable, V comparable](all iter.Seq2[K, V], segments func(n int) []iter.Seq2[K, V]) (bool, string) {
 	want := collectMap(all)
 	for _, n := range []int{1, 2, 7, len(want) + 1} {
 		got := make(map[K]V, len(want))
 		for i, seg := range segments(n) {
-			first := collectMap(seg)
-			second := collectMap(seg) // re-run the same segment
-			if !maps.Equal(first, second) {
-				return false, fmt.Sprintf("segments2 law (n=%d): segment %d not re-runnable: %v then %v", n, i, first, second)
+			if !maps.Equal(collectMap(seg), collectMap(seg)) { // re-run the same segment
+				return false, fmt.Sprintf("segments2 law (n=%d): segment %d not re-runnable", n, i)
 			}
-			for k, v := range first {
+			for k, v := range seg {
 				if _, dup := got[k]; dup {
-					return false, fmt.Sprintf("segments2 law (n=%d): key %v appears in more than one segment", n, k)
+					return false, fmt.Sprintf("segments2 law (n=%d): key %v appears more than once (within a segment or across segments)", n, k)
 				}
 				got[k] = v
 			}

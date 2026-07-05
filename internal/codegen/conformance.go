@@ -59,6 +59,21 @@ func genConformanceTest(pkg string, ordered bool, types []confType) error {
 	return os.WriteFile(out, formatted, 0o644)
 }
 
+// genConformanceForPrimitives stamps law-1 conformance tests for a family whose
+// element types are exactly Primitives() (the 7 numeric/char types, no bool) and
+// which exposes the variadic <TypeName>Of constructor plus All()/ToSlice().
+// ordered selects the law-1 comparison mode (element-for-element vs multiset).
+func genConformanceForPrimitives(pkg string, ordered bool) error {
+	ps := Primitives()
+	names := make([]string, len(ps))
+	goTypes := make([]string, len(ps))
+	for i, p := range ps {
+		names[i] = p.Name
+		goTypes[i] = p.GoType
+	}
+	return genConformanceTest(pkg, ordered, confTypes(names, goTypes, nil))
+}
+
 // confTypes projects a primitive slice onto the conformance rows, dropping any
 // element type (e.g. bool) whose two-value domain makes the law-1 fixture
 // degenerate — skip is matched on GoType.

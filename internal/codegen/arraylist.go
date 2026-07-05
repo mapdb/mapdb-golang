@@ -94,13 +94,7 @@ func genArrayList() error {
 
 	// Stamp the conformance laws (todo 14 §4). ArrayList iterates in insertion
 	// order, so law 1 is order-sensitive.
-	names := make([]string, 0, len(Primitives()))
-	goTypes := make([]string, 0, len(Primitives()))
-	for _, p := range Primitives() {
-		names = append(names, p.Name)
-		goTypes = append(goTypes, p.GoType)
-	}
-	return genConformanceTest("arraylist", true, confTypes(names, goTypes, nil))
+	return genConformanceForPrimitives("arraylist", true)
 }
 
 const arrayListTmpl = genHeader + `package arraylist

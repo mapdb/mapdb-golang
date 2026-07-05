@@ -81,7 +81,9 @@ func genStack() error {
 		}
 	}
 
-	return nil
+	// Stamp the conformance laws (todo 14 §4). All() and ToSlice() both traverse
+	// the stack top-to-bottom, so law 1 is order-sensitive.
+	return genConformanceForPrimitives("stack", true)
 }
 
 const arrayStackTmpl = genHeader + `package stack

@@ -88,7 +88,14 @@ func genPriorityQueue() error {
 		}
 	}
 
-	return genCmpFloat("priorityqueue")
+	if err := genCmpFloat("priorityqueue"); err != nil {
+		return err
+	}
+
+	// Stamp the conformance laws (todo 14 §4). All() and ToSlice() both yield the
+	// internal heap-array order (NOT priority order), so they agree
+	// element-for-element — law 1 is order-sensitive on that shared order.
+	return genConformanceForPrimitives("priorityqueue", true)
 }
 
 const priorityQueueTmpl = genHeader + `package priorityqueue

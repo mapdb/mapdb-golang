@@ -74,7 +74,13 @@ func genTreeSet() error {
 		}
 	}
 
-	return genCmpFloat("treeset")
+	if err := genCmpFloat("treeset"); err != nil {
+		return err
+	}
+
+	// Stamp the conformance laws (todo 14 §4). All() and ToSlice() both yield
+	// ascending sorted order, so law 1 is order-sensitive.
+	return genConformanceForPrimitives("treeset", true)
 }
 
 const treeSetTmpl = genHeader + `package treeset

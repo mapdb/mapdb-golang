@@ -8,34 +8,34 @@ import (
 	"path/filepath"
 )
 
-// confType is one primitive row in a family's stamped conformance test: the
-// concrete monomorphized type stem (Int32 ⇒ <pkg>.Int32, built via <pkg>.Int32Of)
-// and the element literal type used for the fixture.
+// confType is one row in a family's stamped conformance test: a concrete
+// monomorphized instance to build and check. TypeName is the test-function
+// suffix (must be unique within the family's file); CtorExpr is the full Go
+// expression that builds a fixture instance; Ordered selects law 1's comparison
+// mode for this instance (element-for-element vs multiset). Carrying the order
+// per row lets a single family mix ordered and unordered instances — e.g. bag,
+// whose hash-backed variant is unordered and tree-backed variant is sorted.
 type confType struct {
-	TypeName string // Int32, Float64, Char — the <pkg>.<TypeName> stem
-	GoType   string // int32, float64, uint16 — the element literal type
+	TypeName string // Int32, HashInt32, TreeInt32 — the test-func suffix
+	CtorExpr string // full expression building the fixture, e.g. arraylist.Int32Of(int32(3), …)
+	Ordered  bool   // law-1 mode: All() order == ToSlice() order
 }
 
 // confData drives the conformance-test template for one family.
 type confData struct {
 	Package string     // package directory / clause stem, e.g. "arraylist"
 	Import  string     // full import path of the family package
-	Ordered bool       // law-1 order sensitivity (true ⇒ All() order == ToSlice() order)
-	Types   []confType // primitives to stamp, in canonical order
+	Types   []confType // instances to stamp, in canonical order
 }
 
 // genConformanceTest stamps conformance_generated_test.go into the current
 // working directory (the family package, when run from its go:generate
-// directive). It is the first internal/codegen output that is a _test.go file:
-// the manifest-driven conformance laws of todo 14 §4, one stamped test per
-// family × primitive, with the law logic itself living once in
-// internal/conformance. ordered selects the family's law-1 comparison mode
-// (element-for-element vs multiset).
+// directive). It is the internal/codegen output for the manifest-driven
+// conformance laws of todo 14 §4: one stamped test per family × instance, with
+// the law logic itself living once in internal/conformance.
 //
-// Applicable to single-value families exposing the variadic <TypeName>Of
-// constructor plus All() iter.Seq[T] and ToSlice() []T. Bool and other
-// non-Of-constructed variants are excluded by the caller.
-func genConformanceTest(pkg string, ordered bool, types []confType) error {
+// Each row's fixture instance must expose All() iter.Seq[T] and ToSlice() []T.
+func genConformanceTest(pkg string, types []confType) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -44,7 +44,6 @@ func genConformanceTest(pkg string, ordered bool, types []confType) error {
 	data := confData{
 		Package: pkg,
 		Import:  "github.com/mapdb/mapdb-golang/" + pkg,
-		Ordered: ordered,
 		Types:   types,
 	}
 	var buf bytes.Buffer
@@ -59,10 +58,61 @@ func genConformanceTest(pkg string, ordered bool, types []confType) error {
 	return os.WriteFile(out, formatted, 0o644)
 }
 
-// genConformanceForPrimitives stamps law-1 conformance tests for a family whose
-// element types are exactly Primitives() (the 7 numeric/char types, no bool) and
-// which exposes the variadic <TypeName>Of constructor plus All()/ToSlice().
-// ordered selects the law-1 comparison mode (element-for-element vs multiset).
+// fixtureArgs renders the shared law-1 fixture as typed literals for goType. The
+// values carry a duplicate (1 appears twice) and stay within int8 range (all <
+// 100), so the SAME list is valid for every numeric and char element type. A set
+// collapses the duplicate; a list/bag keeps it — law 1 compares All() against
+// ToSlice() of the same instance, so it holds either way, and the distinct
+// values still catch a reordered or dropped element in an ordered family.
+func fixtureArgs(goType string) string {
+	vals := []string{"3", "1", "4", "1", "5", "9", "2"}
+	for i, v := range vals {
+		vals[i] = goType + "(" + v + ")"
+	}
+	return join(vals, ", ")
+}
+
+// join concatenates parts with sep (avoids importing strings for one call).
+func join(parts []string, sep string) string {
+	var b bytes.Buffer
+	for i, p := range parts {
+		if i > 0 {
+			b.WriteString(sep)
+		}
+		b.WriteString(p)
+	}
+	return b.String()
+}
+
+// ofCtorExpr builds the constructor expression for a family exposing the
+// variadic <TypeName>Of constructor loaded with the shared fixture.
+func ofCtorExpr(pkg, typeName, goType string) string {
+	return pkg + "." + typeName + "Of(" + fixtureArgs(goType) + ")"
+}
+
+// ofRow builds a conformance row for a <pkg>.<TypeName>Of-constructed instance.
+func ofRow(pkg, typeName, goType string, ordered bool) confType {
+	return confType{TypeName: typeName, CtorExpr: ofCtorExpr(pkg, typeName, goType), Ordered: ordered}
+}
+
+// genConformanceForOfTypes stamps law-1 tests for a family whose instances are
+// built via <pkg>.<TypeName>Of, over the given (name, goType) rows sharing a
+// single order class. Element types whose GoType is in skip (e.g. bool, whose
+// two-value domain makes the numeric fixture degenerate) are dropped.
+func genConformanceForOfTypes(pkg string, ordered bool, names, goTypes []string, skip map[string]bool) error {
+	rows := make([]confType, 0, len(names))
+	for i := range names {
+		if skip[goTypes[i]] {
+			continue
+		}
+		rows = append(rows, ofRow(pkg, names[i], goTypes[i], ordered))
+	}
+	return genConformanceTest(pkg, rows)
+}
+
+// genConformanceForPrimitives stamps law-1 tests for a family whose element
+// types are exactly Primitives() (7 numeric/char types, no bool) and which
+// exposes the variadic <TypeName>Of constructor. ordered selects the law-1 mode.
 func genConformanceForPrimitives(pkg string, ordered bool) error {
 	ps := Primitives()
 	names := make([]string, len(ps))
@@ -71,29 +121,9 @@ func genConformanceForPrimitives(pkg string, ordered bool) error {
 		names[i] = p.Name
 		goTypes[i] = p.GoType
 	}
-	return genConformanceTest(pkg, ordered, confTypes(names, goTypes, nil))
+	return genConformanceForOfTypes(pkg, ordered, names, goTypes, nil)
 }
 
-// confTypes projects a primitive slice onto the conformance rows, dropping any
-// element type (e.g. bool) whose two-value domain makes the law-1 fixture
-// degenerate — skip is matched on GoType.
-func confTypes(names, goTypes []string, skip map[string]bool) []confType {
-	out := make([]confType, 0, len(names))
-	for i := range names {
-		if skip[goTypes[i]] {
-			continue
-		}
-		out = append(out, confType{TypeName: names[i], GoType: goTypes[i]})
-	}
-	return out
-}
-
-// The fixture deliberately carries duplicates (1 appears twice) and stays within
-// int8 range (all values < 100) so the SAME literal list is valid for every
-// numeric and char element type. Sets collapse the duplicate; lists/bags keep
-// it — law 1 compares All() against ToSlice() of the same instance, so it holds
-// either way. Values are distinct enough that a reordered or dropped element in
-// an ordered family fails the element-for-element comparison.
 const conformanceTestTmpl = genHeader + `package {{.Package}}_test
 
 import (
@@ -102,15 +132,14 @@ import (
 	"{{.Import}}"
 	"github.com/mapdb/mapdb-golang/internal/conformance"
 )
-{{$pkg := .Package}}{{$ordered := .Ordered}}
 {{- range .Types}}
 
 // TestConformanceAllMatchesToSlice{{.TypeName}} pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(){{if $ordered}}, in the
+// iterating All() yields the same elements as ToSlice(){{if .Ordered}}, in the
 // family's documented iteration order{{else}} as a multiset (unordered family){{end}}.
 func TestConformanceAllMatchesToSlice{{.TypeName}}(t *testing.T) {
-	c := {{$pkg}}.{{.TypeName}}Of({{.GoType}}(3), {{.GoType}}(1), {{.GoType}}(4), {{.GoType}}(1), {{.GoType}}(5), {{.GoType}}(9), {{.GoType}}(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), {{$ordered}})
+	c := {{.CtorExpr}}
+	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), {{.Ordered}})
 }
 {{- end}}
 `

@@ -57,7 +57,23 @@ func genInterval() error {
 			return fmt.Errorf("write %s: %w", out, err)
 		}
 	}
-	return nil
+
+	// Stamp the conformance laws (todo 14 §4). Only the signed-int intervals have
+	// a real All()/ToSlice() (char is skipped, floats are "not applicable"
+	// stubs). An interval is computed from/to/step, not Of-constructed, and
+	// enumerates ascending in step direction → law 1 is order-sensitive.
+	rows := make([]confType, 0, 4)
+	for _, p := range Primitives() {
+		if !p.IsSigned {
+			continue
+		}
+		rows = append(rows, confType{
+			TypeName: p.Name,
+			CtorExpr: "interval.New" + p.Name + "(1, 8, 1)",
+			Ordered:  true,
+		})
+	}
+	return genConformanceTest("interval", rows)
 }
 
 const intervalStubTmpl = genHeader + `package interval

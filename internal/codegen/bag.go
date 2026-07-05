@@ -114,7 +114,21 @@ func genBag() error {
 		}
 	}
 
-	return genCmpFloat("bag")
+	if err := genCmpFloat("bag"); err != nil {
+		return err
+	}
+
+	// Stamp the conformance laws (todo 14 §4). Each primitive yields two bag
+	// types: the hash-backed variant iterates its count map (unordered → law 1
+	// as a multiset), the tree-backed variant is sorted (order-sensitive). The
+	// fixture's duplicate exercises multiplicity — both All() and ToSlice() yield
+	// each occurrence.
+	rows := make([]confType, 0, 2*len(Primitives()))
+	for _, p := range Primitives() {
+		rows = append(rows, ofRow("bag", "Hash"+p.Name, p.GoType, false))
+		rows = append(rows, ofRow("bag", "Tree"+p.Name, p.GoType, true))
+	}
+	return genConformanceTest("bag", rows)
 }
 
 const hashBagTmpl = genHeader + `package bag

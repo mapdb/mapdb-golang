@@ -107,7 +107,7 @@ func genHashSet() error {
 		names = append(names, d.Name)
 		goTypes = append(goTypes, d.GoType)
 	}
-	return genConformanceTest("hashset", false, confTypes(names, goTypes, map[string]bool{"bool": true}))
+	return genConformanceForOfTypes("hashset", false, names, goTypes, map[string]bool{"bool": true})
 }
 
 const hashSetTmpl = genHeader + `package hashset

@@ -79,8 +79,10 @@ func genTreeSet() error {
 	}
 
 	// Stamp the conformance laws (todo 14 §4). All() and ToSlice() both yield
-	// ascending sorted order, so law 1 is order-sensitive.
-	return genConformanceForPrimitives("treeset", true, true)
+	// ascending sorted order, so law 1 is order-sensitive. ToSlice() is built by
+	// ranging All(), so the two agree by construction — law 1 is stamped against
+	// the independent sorted-set oracle instead of against ToSlice().
+	return genConformanceForPrimitivesOracle("treeset", true, true, sortedSetFixtureExpr)
 }
 
 const treeSetTmpl = genHeader + `package treeset

@@ -9,12 +9,16 @@ import (
 	"github.com/mapdb/mapdb-golang/treeset"
 )
 
-// TestConformanceAllMatchesToSliceInt8 pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(), in the
-// family's documented iteration order.
+// TestConformanceAllMatchesToSliceInt8 pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
 func TestConformanceAllMatchesToSliceInt8(t *testing.T) {
 	c := treeset.Int8Of(int8(3), int8(1), int8(4), int8(1), int8(5), int8(9), int8(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+	conformance.AllMatchesLiteral(t, c.All(), []int8{int8(1), int8(2), int8(3), int8(4), int8(5), int8(9)})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), []int8{int8(1), int8(2), int8(3), int8(4), int8(5), int8(9)})
 }
 
 // TestConformanceSegmentsInt8 pins the Segments partition law (todo
@@ -25,12 +29,16 @@ func TestConformanceSegmentsInt8(t *testing.T) {
 	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
-// TestConformanceAllMatchesToSliceInt16 pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(), in the
-// family's documented iteration order.
+// TestConformanceAllMatchesToSliceInt16 pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
 func TestConformanceAllMatchesToSliceInt16(t *testing.T) {
 	c := treeset.Int16Of(int16(3), int16(1), int16(4), int16(1), int16(5), int16(9), int16(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+	conformance.AllMatchesLiteral(t, c.All(), []int16{int16(1), int16(2), int16(3), int16(4), int16(5), int16(9)})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), []int16{int16(1), int16(2), int16(3), int16(4), int16(5), int16(9)})
 }
 
 // TestConformanceSegmentsInt16 pins the Segments partition law (todo
@@ -41,12 +49,16 @@ func TestConformanceSegmentsInt16(t *testing.T) {
 	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
-// TestConformanceAllMatchesToSliceInt32 pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(), in the
-// family's documented iteration order.
+// TestConformanceAllMatchesToSliceInt32 pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
 func TestConformanceAllMatchesToSliceInt32(t *testing.T) {
 	c := treeset.Int32Of(int32(3), int32(1), int32(4), int32(1), int32(5), int32(9), int32(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+	conformance.AllMatchesLiteral(t, c.All(), []int32{int32(1), int32(2), int32(3), int32(4), int32(5), int32(9)})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), []int32{int32(1), int32(2), int32(3), int32(4), int32(5), int32(9)})
 }
 
 // TestConformanceSegmentsInt32 pins the Segments partition law (todo
@@ -57,12 +69,16 @@ func TestConformanceSegmentsInt32(t *testing.T) {
 	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
-// TestConformanceAllMatchesToSliceInt64 pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(), in the
-// family's documented iteration order.
+// TestConformanceAllMatchesToSliceInt64 pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
 func TestConformanceAllMatchesToSliceInt64(t *testing.T) {
 	c := treeset.Int64Of(int64(3), int64(1), int64(4), int64(1), int64(5), int64(9), int64(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+	conformance.AllMatchesLiteral(t, c.All(), []int64{int64(1), int64(2), int64(3), int64(4), int64(5), int64(9)})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), []int64{int64(1), int64(2), int64(3), int64(4), int64(5), int64(9)})
 }
 
 // TestConformanceSegmentsInt64 pins the Segments partition law (todo
@@ -73,12 +89,16 @@ func TestConformanceSegmentsInt64(t *testing.T) {
 	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
-// TestConformanceAllMatchesToSliceChar pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(), in the
-// family's documented iteration order.
+// TestConformanceAllMatchesToSliceChar pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
 func TestConformanceAllMatchesToSliceChar(t *testing.T) {
 	c := treeset.CharOf(uint16(3), uint16(1), uint16(4), uint16(1), uint16(5), uint16(9), uint16(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+	conformance.AllMatchesLiteral(t, c.All(), []uint16{uint16(1), uint16(2), uint16(3), uint16(4), uint16(5), uint16(9)})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), []uint16{uint16(1), uint16(2), uint16(3), uint16(4), uint16(5), uint16(9)})
 }
 
 // TestConformanceSegmentsChar pins the Segments partition law (todo
@@ -89,12 +109,16 @@ func TestConformanceSegmentsChar(t *testing.T) {
 	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
-// TestConformanceAllMatchesToSliceFloat32 pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(), in the
-// family's documented iteration order.
+// TestConformanceAllMatchesToSliceFloat32 pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
 func TestConformanceAllMatchesToSliceFloat32(t *testing.T) {
 	c := treeset.Float32Of(float32(3), float32(1), float32(4), float32(1), float32(5), float32(9), float32(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+	conformance.AllMatchesLiteral(t, c.All(), []float32{float32(1), float32(2), float32(3), float32(4), float32(5), float32(9)})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), []float32{float32(1), float32(2), float32(3), float32(4), float32(5), float32(9)})
 }
 
 // TestConformanceSegmentsFloat32 pins the Segments partition law (todo
@@ -105,12 +129,16 @@ func TestConformanceSegmentsFloat32(t *testing.T) {
 	conformance.SegmentsCoverAll(t, c.All(), c.Segments)
 }
 
-// TestConformanceAllMatchesToSliceFloat64 pins law 1 (todo 14 §4):
-// iterating All() yields the same elements as ToSlice(), in the
-// family's documented iteration order.
+// TestConformanceAllMatchesToSliceFloat64 pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
 func TestConformanceAllMatchesToSliceFloat64(t *testing.T) {
 	c := treeset.Float64Of(float64(3), float64(1), float64(4), float64(1), float64(5), float64(9), float64(2))
-	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), true)
+	conformance.AllMatchesLiteral(t, c.All(), []float64{float64(1), float64(2), float64(3), float64(4), float64(5), float64(9)})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), []float64{float64(1), float64(2), float64(3), float64(4), float64(5), float64(9)})
 }
 
 // TestConformanceSegmentsFloat64 pins the Segments partition law (todo

@@ -163,9 +163,19 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 				// puller must too, or a source panic crashes the process instead of
 				// surfacing at join. Recover runs before close(chunks)/pwg.Done so the
 				// panic is latched and cctx cancelled before workers drain out.
+				//
+				// The normal sentinel matches the chunk worker below: a source that
+				// exits via runtime.Goexit unwinds this goroutine with recover() nil
+				// and close(chunks) still running, so join would report success over a
+				// truncated stream.
+				normal := false
 				defer func() {
 					if rec := recover(); rec != nil {
 						failPanic(rec, debug.Stack())
+						return
+					}
+					if !normal {
+						fail(errGoexit)
 					}
 				}()
 				buf := make([]T, 0, chunkSize)
@@ -180,11 +190,13 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 				}
 				for x := range source {
 					if cancelled(cctx) {
+						normal = true // cancellation is a natural stop, not a Goexit
 						return
 					}
 					buf = append(buf, x)
 					if len(buf) == chunkSize {
 						if !send() {
+							normal = true
 							return
 						}
 					}
@@ -192,6 +204,7 @@ func MapSeq[T, R any](ctx context.Context, v View[T], f func(T) R) (iter.Seq[R],
 				if len(buf) > 0 {
 					send()
 				}
+				normal = true // source drained; a Goexit inside it skips this line
 			}()
 
 			wg.Add(workers)

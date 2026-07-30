@@ -19,6 +19,12 @@ type confType struct {
 	TypeName string // Int32, HashInt32, TreeInt32 — the test-func suffix
 	CtorExpr string // full expression building the fixture, e.g. arraylist.Int32Of(int32(3), …)
 	Ordered  bool   // law-1 mode: All() order == ToSlice() order
+	// WantExpr is an independent oracle: a Go slice literal spelling out the
+	// fixture's expected All() output. Set it for families that implement
+	// ToSlice() by ranging All() — there the All ≡ ToSlice law is tautological,
+	// so the literal is stamped instead. Empty means the ToSlice cross-check is
+	// meaningful and is stamped as usual.
+	WantExpr string
 }
 
 // confData drives the conformance-test template for one family.
@@ -117,14 +123,36 @@ func genConformanceForOfTypes(pkg string, ordered bool, names, goTypes []string,
 // types are exactly Primitives() (7 numeric/char types, no bool) and which
 // exposes the variadic <TypeName>Of constructor. ordered selects the law-1 mode.
 func genConformanceForPrimitives(pkg string, ordered, hasSegments bool) error {
+	return genConformanceForPrimitivesOracle(pkg, ordered, hasSegments, nil)
+}
+
+// genConformanceForPrimitivesOracle is genConformanceForPrimitives with an
+// independent expected-output oracle. Pass a non-nil wantFn for a family that
+// implements ToSlice() by ranging All(): the All ≡ ToSlice law is tautological
+// there, so wantFn(goType) supplies the slice literal the fixture must produce.
+func genConformanceForPrimitivesOracle(pkg string, ordered, hasSegments bool, wantFn func(goType string) string) error {
 	ps := Primitives()
-	names := make([]string, len(ps))
-	goTypes := make([]string, len(ps))
-	for i, p := range ps {
-		names[i] = p.Name
-		goTypes[i] = p.GoType
+	rows := make([]confType, 0, len(ps))
+	for _, p := range ps {
+		row := ofRow(pkg, p.Name, p.GoType, ordered)
+		if wantFn != nil {
+			row.WantExpr = wantFn(p.GoType)
+		}
+		rows = append(rows, row)
 	}
-	return genConformanceForOfTypes(pkg, ordered, names, goTypes, nil, hasSegments)
+	return genConformanceTest(pkg, rows, hasSegments)
+}
+
+// sortedSetFixtureExpr renders the shared law-1 fixture as the slice a SORTED,
+// duplicate-collapsing family must yield: {3,1,4,1,5,9,2} → {1,2,3,4,5,9}. It is
+// written out independently of any collection code, which is the whole point —
+// it cannot be corrupted by the same bug as the implementation.
+func sortedSetFixtureExpr(goType string) string {
+	vals := []string{"1", "2", "3", "4", "5", "9"}
+	for i, v := range vals {
+		vals[i] = goType + "(" + v + ")"
+	}
+	return "[]" + goType + "{" + join(vals, ", ") + "}"
 }
 
 // mapConfType is one row in a key/value family's stamped conformance test: a
@@ -303,6 +331,19 @@ import (
 )
 {{- range .Types}}
 
+{{- if .WantExpr}}
+// TestConformanceAllMatchesToSlice{{.TypeName}} pins law 1 (todo 14 §4) against
+// an INDEPENDENT oracle. This family builds ToSlice() by ranging All(), so the
+// All ≡ ToSlice form would hold no matter how All() broke; the expected
+// elements are spelled out instead.
+func TestConformanceAllMatchesToSlice{{.TypeName}}(t *testing.T) {
+	c := {{.CtorExpr}}
+	conformance.AllMatchesLiteral(t, c.All(), {{.WantExpr}})
+	// ToSlice() is held to the same oracle, so if it ever becomes an
+	// independent implementation it cannot drift from All() unnoticed.
+	conformance.SliceMatchesLiteral(t, c.ToSlice(), {{.WantExpr}})
+}
+{{- else}}
 // TestConformanceAllMatchesToSlice{{.TypeName}} pins law 1 (todo 14 §4):
 // iterating All() yields the same elements as ToSlice(){{if .Ordered}}, in the
 // family's documented iteration order{{else}} as a multiset (unordered family){{end}}.
@@ -310,6 +351,7 @@ func TestConformanceAllMatchesToSlice{{.TypeName}}(t *testing.T) {
 	c := {{.CtorExpr}}
 	conformance.AllMatchesToSlice(t, c.All(), c.ToSlice(), {{.Ordered}})
 }
+{{- end}}
 {{- if $.HasSegments}}
 
 // TestConformanceSegments{{.TypeName}} pins the Segments partition law (todo

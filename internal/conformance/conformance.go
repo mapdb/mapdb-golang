@@ -26,11 +26,41 @@ import (
 	"testing"
 )
 
+// AllMatchesLiteral asserts law 1 against an INDEPENDENT oracle: the expected
+// elements written out by hand, rather than a second accessor of the collection.
+//
+// AllMatchesToSlice is the right law only where All() and ToSlice() are separate
+// implementations. A family that implements ToSlice() by ranging All() (treeset,
+// interval) satisfies it tautologically — a dropped, duplicated, or misordered
+// element corrupts both sides identically and the assertion still passes. Those
+// families stamp this law instead, so the fixture's expected output is pinned to
+// a value the implementation cannot move.
+func AllMatchesLiteral[T comparable](t *testing.T, all iter.Seq[T], want []T) {
+	t.Helper()
+	got := slices.Collect(all)
+	if !slices.Equal(got, want) {
+		t.Errorf("law 1 (All ≡ literal oracle): All()=%v, want %v", got, want)
+	}
+}
+
+// SliceMatchesLiteral is AllMatchesLiteral for an already-materialized accessor
+// (ToSlice()), so both sides of a tautological family are pinned to the oracle
+// rather than to each other.
+func SliceMatchesLiteral[T comparable](t *testing.T, got, want []T) {
+	t.Helper()
+	if !slices.Equal(got, want) {
+		t.Errorf("law 1 (ToSlice ≡ literal oracle): ToSlice()=%v, want %v", got, want)
+	}
+}
+
 // AllMatchesToSlice asserts law 1: iterating All() yields exactly the elements
 // of ToSlice(). When ordered is true the two must agree element-for-element (the
 // family documents a stable iteration order — insertion, sorted, LIFO, …);
 // otherwise they need only match as multisets (same elements with the same
 // multiplicities, in any order — the unordered hash families).
+//
+// Only meaningful when ToSlice() is an independent implementation; see
+// AllMatchesLiteral for the families where it is not.
 func AllMatchesToSlice[T comparable](t *testing.T, all iter.Seq[T], toSlice []T, ordered bool) {
 	t.Helper()
 	if ok, msg := checkAllMatchesToSlice(all, toSlice, ordered); !ok {

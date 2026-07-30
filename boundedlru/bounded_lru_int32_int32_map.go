@@ -473,13 +473,16 @@ func (m *BoundedLruInt32Int32Map) Entries() []Entry {
 
 // All returns an iter.Seq2 that yields every (key, value) pair in LRU order
 // (least-recently-used first), law 1. Like Keys/Values/Entries it is a read-only
-// SNAPSHOT: the pairs are captured when iteration begins, so it never refreshes
-// recency, never evicts, and is unaffected by a touch (Get) or eviction that
-// happens during the range — safe even though a live Get would reorder the
-// recency list. Bridges into the seq/par layers via seq.From2(m.All()).
+// SNAPSHOT, and — per the shared contract in spec/features/bounded-lru.md
+// ("Pinned iteration facts") — the snapshot is taken by THIS call, not at first
+// range. So it never refreshes recency, never evicts, and is unaffected by a
+// touch (Get) or eviction between the call and the range, matching the ports
+// whose materializing Keys/Values/Entries capture at call time. Bridges into the
+// seq/par layers via seq.From2(m.All()).
 func (m *BoundedLruInt32Int32Map) All() iter.Seq2[int32, int32] {
+	snapshot := m.Entries() // captured here, per the spec, not at first range
 	return func(yield func(int32, int32) bool) {
-		for _, e := range m.Entries() { // snapshot at range start
+		for _, e := range snapshot {
 			if !yield(e.Key, e.Value) {
 				return
 			}

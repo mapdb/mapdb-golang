@@ -392,9 +392,19 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 		// runs the source outside any worker, so without this a source panic would
 		// crash the process instead of surfacing as *PanicError. Recover runs before
 		// close(chunks)/pwg.Done so the panic is latched and cctx cancelled first.
+		//
+		// The normal sentinel is the same one the segment and chunk workers use: a
+		// source that exits via runtime.Goexit unwinds this goroutine silently —
+		// recover() returns nil and close(chunks) still runs — so without it the
+		// terminal would report a clean EOF over a truncated stream.
+		normal := false
 		defer func() {
 			if rec := recover(); rec != nil {
 				failPanic(rec, debug.Stack())
+				return
+			}
+			if !normal {
+				fail(errGoexit)
 			}
 		}()
 		buf := make([]T, 0, chunkSize)
@@ -409,11 +419,13 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 		}
 		for x := range source {
 			if cancelled(cctx) || (earlyDone != nil && earlyDone()) {
+				normal = true // winding down is a natural stop, not a Goexit
 				return
 			}
 			buf = append(buf, x)
 			if len(buf) == chunkSize {
 				if !send() {
+					normal = true
 					return
 				}
 			}
@@ -421,6 +433,7 @@ func runChunks[T, R any](ctx context.Context, v View[T], w work[T, R], earlyDone
 		if len(buf) > 0 {
 			send() // final partial chunk; result ignored (we close regardless)
 		}
+		normal = true // source drained; a Goexit inside it skips this line
 	}()
 
 	// Workers: consume chunks, run w on each, accumulate results in completion order.

@@ -38,15 +38,12 @@ func FromSlice[T any](s []T) Seq[T] {
 
 // Range returns the half-open sequence lo, lo+1, …, hi-1. Empty if lo >= hi.
 // Lazy, O(1) memory.
-func Range[T Numeric](lo, hi T) Seq[T] {
-	return func(yield func(T) bool) {
-		for v := lo; v < hi; v += 1 {
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}
+//
+// Numeric admits floats, so advancing is guarded exactly as in RangeStep: at
+// magnitudes where +1 is below the float's ulp the step makes no progress, and
+// the sequence stops rather than yielding the same value forever. So
+// Range[float64](1<<53, 1<<53+2) yields one value instead of hanging.
+func Range[T Numeric](lo, hi T) Seq[T] { return RangeStep(lo, hi, 1) }
 
 // RangeStep returns lo, lo+step, lo+2*step, … up to but not including hi. With a
 // positive step it ascends while v < hi; with a negative step it descends while

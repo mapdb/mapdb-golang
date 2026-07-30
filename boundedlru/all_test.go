@@ -81,3 +81,35 @@ func TestAllEmpty(t *testing.T) {
 		t.Fatalf("All() over empty map saw %d, want 0", seen)
 	}
 }
+
+// TestAllSnapshotTakenAtCall pins the snapshot POINT, not just its contents:
+// spec/features/bounded-lru.md ("Pinned iteration facts") requires the snapshot
+// to be taken by the call that returns the iterator, not at first next. A Get
+// between All() and the range reorders the live recency list; the already-taken
+// snapshot must not see it. Written as a create-then-touch-before-range test
+// because that is the only sequence that distinguishes the two capture points.
+func TestAllSnapshotTakenAtCall(t *testing.T) {
+	m := NewBoundedLruInt32Int32Map(10)
+	m.Put(1, 10)
+	m.Put(2, 20)
+	m.Put(3, 30) // LRU order: 1, 2, 3
+
+	it := m.All() // snapshot must be frozen here
+
+	m.Get(1) // touch 1 → live LRU order becomes 2, 3, 1
+
+	var got []int32
+	for k := range it {
+		got = append(got, k)
+	}
+
+	want := []int32{1, 2, 3} // the order as of the All() call
+	if len(got) != len(want) {
+		t.Fatalf("All() yielded %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("All() yielded %v, want %v (snapshot taken at first range, not at call)", got, want)
+		}
+	}
+}

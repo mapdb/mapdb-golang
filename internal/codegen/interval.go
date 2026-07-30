@@ -62,15 +62,24 @@ func genInterval() error {
 	// a real All()/ToSlice() (char is skipped, floats are "not applicable"
 	// stubs). An interval is computed from/to/step, not Of-constructed, and
 	// enumerates ascending in step direction → law 1 is order-sensitive.
+	//
+	// ToSlice() is built by ranging All(), so an All ≡ ToSlice check would pass
+	// however All() broke. New*(1, 8, 1) is inclusive of both ends, so the law is
+	// stamped against the literal 1..8 the interval must enumerate.
 	rows := make([]confType, 0, 4)
 	for _, p := range Primitives() {
 		if !p.IsSigned {
 			continue
 		}
+		want := make([]string, 0, 8)
+		for v := 1; v <= 8; v++ {
+			want = append(want, fmt.Sprintf("%s(%d)", p.GoType, v))
+		}
 		rows = append(rows, confType{
 			TypeName: p.Name,
 			CtorExpr: "interval.New" + p.Name + "(1, 8, 1)",
 			Ordered:  true,
+			WantExpr: "[]" + p.GoType + "{" + join(want, ", ") + "}",
 		})
 	}
 	return genConformanceTest("interval", rows, true)

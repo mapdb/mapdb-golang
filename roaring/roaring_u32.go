@@ -375,8 +375,11 @@ func (s *RoaringU32) All() iter.Seq[uint32] {
 // Segments splits the set into up to n re-runnable sub-sequences whose
 // concatenation is exactly All() (unsigned-ascending, non-overlapping). The
 // split is on CHUNK boundaries — each chunk (a distinct high-16-bit group) is
-// wholly inside one segment — so segments cost O(1) to form and carry no shared
-// state; par.From(set) fans work out over them. n is clamped to [1, #chunks];
+// wholly inside one segment — so segments cost O(1) to form and share no
+// per-segment state; par.From(set) fans work out over them. Like every other
+// Segmenter here the segments are LIVE views over the set's chunks, not copies:
+// mutating the set while a segment is being consumed is undefined behavior.
+// n is clamped to [1, #chunks];
 // an empty set yields no segments. Chunks are partitioned into contiguous,
 // near-equal groups (by chunk count, not cardinality, so a segment holding a
 // dense BITMAP chunk may carry more values than one holding sparse ARRAY chunks).

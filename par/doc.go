@@ -58,9 +58,9 @@
 // chunk-pump [FromSeq]; terminals ForEach/Count/Filter/Reduce/Any/All/None/Find,
 // the free functions [Map]/[MapSeq]/[Fold]/[MapErr]/[Sum]/[MinFunc]/[MaxFunc]/
 // [TopK]/[CountBy]/[AggregateBy], plus the fallible ForEachErr/FilterErr twins;
-// panic containment and cancellation throughout, and the §8 crossover benchmarks
-// that justify MinPerWorker. Not yet built: FromMap over a Segmenter2, and GroupBy
-// into a collection family and the generated Par() collection on-ramp (both
-// blocked on the collection-import direction). Nothing here imports the collection
-// families, so it stays additive.
+// panic containment and cancellation throughout, the pair on-ramp [From2] over
+// any [Segmenter2], and the §8 crossover benchmarks that justify MinPerWorker.
+// Not yet built: GroupBy into a collection family and the generated Par()
+// collection on-ramp (both blocked on the collection-import direction). Nothing
+// here imports the collection families, so it stays additive.
 package par

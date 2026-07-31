@@ -2856,7 +2856,6 @@ func evalRangeAssertion(key string, r, other rangev.Int32Range, hasOther bool) s
 //	RangeSet: {"op":"add","range":{...}} / {"op":"remove_range","range":{...}}
 //	          / {"op":"clear"}
 //	RangeMap: {"op":"put","range":{...},"value":N}
-//	          / {"op":"put_coalescing","range":{...},"value":N}
 //	          / {"op":"remove_range","range":{...}} / {"op":"clear"}
 //
 // An optional top-level `query` (same builder shape) supplies the range for
@@ -3066,8 +3065,6 @@ func runRangeMap(s scenario) {
 		switch op["op"] {
 		case "put":
 			m.Put(buildRangeObj(op["range"].(map[string]any)), asInt32(op["value"]))
-		case "put_coalescing":
-			m.PutCoalescing(buildRangeObj(op["range"].(map[string]any)), asInt32(op["value"]))
 		case "remove_range":
 			m.Remove(buildRangeObj(op["range"].(map[string]any)))
 		case "clear":

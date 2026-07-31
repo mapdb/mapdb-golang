@@ -9,11 +9,19 @@ package rangev
 // Int32Int32RangeMap is a mutable piecewise mapping from disjoint non-empty
 // Int32Ranges to int32 values.
 //
-// Unlike Int32RangeSet, a RangeMap does NOT coalesce across different values.
-// Put is last-writer-wins: it clips/splits every overlapping prior entry and
-// inserts the new (range, value), but leaves adjacent equal-valued entries
-// distinct. PutCoalescing is the variant that merges connected neighbours
-// holding an equal value.
+// Like Int32RangeSet, a RangeMap is always maximally merged — but per value:
+// Put is last-writer-wins (it clips/splits every overlapping prior entry) and
+// then coalesces the inserted entry with connected neighbours holding an equal
+// value. A different value is a barrier and is never absorbed or crossed. The
+// normal form therefore carries a global invariant: no two connected entries
+// hold an equal value.
+//
+// Divergence from Guava: TreeRangeMap.put does not coalesce; coalescing lives
+// in a separate putCoalescing. We fold it into Put and do not expose
+// PutCoalescing. Guava's split is a compatibility retrofit (RangeMap is
+// @since 14.0, putCoalescing @since 22.0, by which point put's behaviour was
+// observable through asMapOfRanges() and could not be changed); we have no such
+// constraint. See spec/features/range-set-map.md §Coalescing.
 //
 // Every clip / split / merge / ordering decision reduces to the side-aware cut
 // comparisons of Int32Range; there is no ±1 endpoint arithmetic (the
@@ -42,37 +50,48 @@ func NewInt32Int32RangeMap() *Int32Int32RangeMap {
 // Put assigns value to every point of range, last-writer-wins over any prior
 // overlap. Existing entries are clipped to the parts outside range (a
 // straddling entry splits into two, both keeping the old value); the new
-// (range, value) is then inserted. A cut-empty range is a no-op. Put does NOT
-// coalesce — an adjacent equal value stays a distinct entry.
+// (range, value) is then coalesced with any connected neighbour holding an
+// equal value and inserted. A different value is a barrier. A cut-empty range
+// is a no-op, decided before any clipping.
 func (m *Int32Int32RangeMap) Put(r Int32Range, value int32) {
 	if r.IsEmpty() {
 		return
 	}
 	m.clipOut(r)
-	m.insertEntry(r, value)
-}
 
-// PutCoalescing is like Put, then merges the inserted entry with any connected
-// (overlapping or abutting) neighbour whose value equals value, producing one
-// entry spanning the union. Neighbours with a different value are left
-// untouched (clipped by the Put step as usual).
-func (m *Int32Int32RangeMap) PutCoalescing(r Int32Range, value int32) {
-	if r.IsEmpty() {
-		return
-	}
-	m.clipOut(r)
-	// Span over every connected entry with an EQUAL value, dropping them.
+	// Coalesce outward from the insertion position. Because the normal form is
+	// maintained by every Put, AT MOST ONE entry per side is absorbable: if the
+	// neighbour is absorbed, the entry beyond it was already either disconnected
+	// from it or differently-valued, and stays so against the grown range. Each
+	// loop therefore runs at most once. They are loops rather than ifs so a
+	// normal form violated by a bug elsewhere degrades into a correct (if
+	// slower) result instead of a malformed map.
+	pos := m.insertionPoint(r)
 	merged := r
-	out := make([]Int32Int32Entry, 0, len(m.entries)+1)
-	for _, e := range m.entries {
-		if e.Value == value && e.Range.IsConnected(merged) {
-			merged = e.Range.Span(merged)
-		} else {
-			out = append(out, e)
+
+	lo := pos
+	for lo > 0 {
+		e := m.entries[lo-1]
+		if e.Value != value || !e.Range.IsConnected(merged) {
+			break
 		}
+		merged = e.Range.Span(merged)
+		lo--
 	}
-	m.entries = out
-	m.insertEntry(merged, value)
+
+	hi := pos
+	for hi < len(m.entries) {
+		e := m.entries[hi]
+		if e.Value != value || !e.Range.IsConnected(merged) {
+			break
+		}
+		merged = e.Range.Span(merged)
+		hi++
+	}
+
+	// Replace entries[lo:hi] with the single merged entry.
+	rest := append([]Int32Int32Entry{{Range: merged, Value: value}}, m.entries[hi:]...)
+	m.entries = append(m.entries[:lo], rest...)
 }
 
 // Get returns the value mapped at value and true, or (zero, false) if
@@ -181,18 +200,15 @@ func (m *Int32Int32RangeMap) clipOut(r Int32Range) {
 	m.entries = out
 }
 
-// insertEntry inserts (r, value) at its ascending-by-lower-cut position.
-// Callers must have already cleared the overlap (via clipOut); r is disjoint
-// from every remaining entry.
-func (m *Int32Int32RangeMap) insertEntry(r Int32Range, value int32) {
-	pos := len(m.entries)
+// insertionPoint returns the ascending-by-lower-cut index at which r belongs:
+// the first index whose lower cut is above r's. Callers must have already
+// cleared the overlap (via clipOut), so r is disjoint from every remaining entry
+// and every entry below the returned index lies strictly to its left.
+func (m *Int32Int32RangeMap) insertionPoint(r Int32Range) int {
 	for i := range m.entries {
 		if m.entries[i].Range.lower.cmp(r.lower) > 0 {
-			pos = i
-			break
+			return i
 		}
 	}
-	m.entries = append(m.entries, Int32Int32Entry{})
-	copy(m.entries[pos+1:], m.entries[pos:])
-	m.entries[pos] = Int32Int32Entry{Range: r, Value: value}
+	return len(m.entries)
 }

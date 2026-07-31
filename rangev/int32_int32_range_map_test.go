@@ -81,37 +81,99 @@ func TestRangeMapPutSplitStraddle(t *testing.T) {
 	}
 }
 
-func TestRangeMapPutDoesNotCoalesce(t *testing.T) {
+func TestRangeMapPutCoalescesEqualValueAbut(t *testing.T) {
 	m := NewInt32Int32RangeMap()
 	m.Put(ClosedOpen(1, 5), 100)
 	m.Put(ClosedOpen(5, 9), 100)
-	// TWO entries even though value equal and they abut.
-	assertEntries(t, m, entry(ClosedOpen(1, 5), 100), entry(ClosedOpen(5, 9), 100))
+	// ONE entry: equal value and abutting, so plain Put merges them.
+	// Guava's TreeRangeMap leaves two here; this is the divergence.
+	assertEntries(t, m, entry(ClosedOpen(1, 9), 100))
 	if v, _ := getOr(m, 5); v != 100 {
 		t.Error("get(5) want 100")
 	}
 }
 
-func TestRangeMapPutCoalescingEqualValueAbut(t *testing.T) {
+func TestRangeMapPutDifferentValueNoMerge(t *testing.T) {
 	m := NewInt32Int32RangeMap()
 	m.Put(ClosedOpen(1, 5), 100)
-	m.PutCoalescing(ClosedOpen(5, 9), 100)
-	assertEntries(t, m, entry(ClosedOpen(1, 9), 100))
-}
-
-func TestRangeMapPutCoalescingDifferentValueNoMerge(t *testing.T) {
-	m := NewInt32Int32RangeMap()
-	m.Put(ClosedOpen(1, 5), 100)
-	m.PutCoalescing(ClosedOpen(5, 9), 200)
+	m.Put(ClosedOpen(5, 9), 200)
 	assertEntries(t, m, entry(ClosedOpen(1, 5), 100), entry(ClosedOpen(5, 9), 200))
 }
 
-func TestRangeMapPutCoalescingBothSides(t *testing.T) {
+func TestRangeMapPutCoalescesBothSides(t *testing.T) {
 	m := NewInt32Int32RangeMap()
 	m.Put(ClosedOpen(1, 5), 100)
 	m.Put(ClosedOpen(9, 12), 100)
-	m.PutCoalescing(ClosedOpen(5, 9), 100)
+	m.Put(ClosedOpen(5, 9), 100)
 	assertEntries(t, m, entry(ClosedOpen(1, 12), 100))
+}
+
+// The chain that the old Put/PutCoalescing split allowed to accumulate is built
+// here in ASCENDING order; it never forms, because each Put merges as it lands.
+func TestRangeMapPutCoalescesChainAscendingOrder(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(1, 2), 7)
+	m.Put(ClosedOpen(2, 3), 7)
+	assertEntries(t, m, entry(ClosedOpen(1, 3), 7))
+	m.Put(ClosedOpen(3, 4), 7)
+	assertEntries(t, m, entry(ClosedOpen(1, 4), 7))
+}
+
+// Mirror of the above: the same three Puts, inserted so the existing entries lie
+// to the RIGHT of the last one. Identical result - this is the pair that pins
+// order-independence.
+func TestRangeMapPutCoalescesOrderIndependent(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(2, 3), 7)
+	m.Put(ClosedOpen(3, 4), 7)
+	m.Put(ClosedOpen(1, 2), 7)
+	assertEntries(t, m, entry(ClosedOpen(1, 4), 7))
+}
+
+func TestRangeMapPutDifferentValueIsAHardBarrier(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(1, 2), 7)
+	m.Put(ClosedOpen(2, 3), 8)
+	m.Put(ClosedOpen(3, 4), 7)
+	// The 8 entry is neither absorbed nor crossed, so the far [1,2) -> 7 is
+	// unreachable even though both hold 7.
+	assertEntries(t, m,
+		entry(ClosedOpen(1, 2), 7),
+		entry(ClosedOpen(2, 3), 8),
+		entry(ClosedOpen(3, 4), 7))
+}
+
+func TestRangeMapPutSplitFragmentsDoNotRejoinAcrossTheInsert(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(1, 9), 100)
+	m.Put(ClosedOpen(3, 5), 200)
+	// The two 100 fragments are separated by the 200 entry, so they are not
+	// connected and must not be re-merged by the coalescing step.
+	assertEntries(t, m,
+		entry(ClosedOpen(1, 3), 100),
+		entry(ClosedOpen(3, 5), 200),
+		entry(ClosedOpen(5, 9), 100))
+}
+
+// The global invariant that the old Put/PutCoalescing split could not state:
+// after every operation, no two connected entries hold an equal value.
+func TestRangeMapNormalFormHasNoConnectedEqualValuedPair(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(1, 2), 7)
+	m.Put(ClosedOpen(2, 3), 7)
+	m.Put(ClosedOpen(3, 4), 8)
+	m.Put(ClosedOpen(4, 5), 8)
+	m.Put(ClosedOpen(5, 6), 7)
+	v := m.AsMapOfRanges()
+	for i := 0; i+1 < len(v); i++ {
+		if v[i].Range.IsConnected(v[i+1].Range) && v[i].Value == v[i+1].Value {
+			t.Errorf("connected entries %v and %v hold an equal value", v[i], v[i+1])
+		}
+	}
+	assertEntries(t, m,
+		entry(ClosedOpen(1, 3), 7),
+		entry(ClosedOpen(3, 5), 8),
+		entry(ClosedOpen(5, 6), 7))
 }
 
 func TestRangeMapRemoveSplits(t *testing.T) {
@@ -189,7 +251,7 @@ func TestRangeMapNormalFormDisjointAfterSequence(t *testing.T) {
 	m.Put(ClosedOpen(1, 10), 1)
 	m.Put(ClosedOpen(3, 5), 2)
 	m.Put(ClosedOpen(7, 20), 3)
-	m.PutCoalescing(ClosedOpen(20, 25), 3)
+	m.Put(ClosedOpen(20, 25), 3)
 	v := m.AsMapOfRanges()
 	for i := 0; i+1 < len(v); i++ {
 		if v[i].Range.lower.cmp(v[i+1].Range.lower) >= 0 {

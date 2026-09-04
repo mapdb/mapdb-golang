@@ -1933,6 +1933,10 @@ func runHashBag(s scenario) {
 		switch op["op"] {
 		case "add":
 			b.Add(asInt32(op["value"]))
+		case "add_occurrences":
+			// {"op":"add_occurrences","value":v,"count":n}: the production
+			// bulk add (count 0 is a no-op, never creates the item).
+			b.AddOccurrences(asInt32(op["value"]), asInt(op["count"]))
 		case "remove":
 			b.Remove(asInt32(op["value"]))
 		case "clear":

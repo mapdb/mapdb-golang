@@ -55,8 +55,9 @@ type Int32Convertible interface {
 // caller that only needs iteration can accept Int32Iterable while code
 // that needs everything can accept Int32Collection.
 //
-// Satisfied by: Int32ArrayList, Int32HashSet, Int32HashBag,
-// Int32ArrayStack, Int32TreeSet, and their immutable variants.
+// Satisfied by: arraylist.Int32, hashset.Int32, bag.HashInt32,
+// bag.TreeInt32, stack.Int32, treeset.Int32, and their immutable
+// variants.
 type Int32Collection interface {
 	Int32Sized
 	Int32Iterable
@@ -66,7 +67,7 @@ type Int32Collection interface {
 }
 
 // Int32MutableCollection extends Int32Collection with mutation operations.
-// Satisfied by: Int32ArrayList, Int32HashSet, Int32HashBag, Int32ArrayStack.
+// Satisfied by: arraylist.Int32, hashset.Int32, bag.HashInt32, stack.Int32.
 type Int32MutableCollection interface {
 	Int32Collection
 
@@ -85,7 +86,7 @@ type Int32MutableCollection interface {
 // Add() int returning new occurrence count; stacks use Push instead).
 
 // Int32List is the read-only interface for ordered lists with positional
-// access. Satisfied by: Int32ArrayList, ImmutableInt32ArrayList.
+// access. Satisfied by: arraylist.Int32, arraylist.ImmutableInt32.
 type Int32List interface {
 	Int32Collection
 
@@ -97,7 +98,7 @@ type Int32List interface {
 }
 
 // Int32MutableList extends Int32List + Int32MutableCollection.
-// Satisfied by: Int32ArrayList.
+// Satisfied by: arraylist.Int32.
 type Int32MutableList interface {
 	Int32List
 	Int32MutableCollection
@@ -111,13 +112,13 @@ type Int32MutableList interface {
 }
 
 // Int32Set marker interface for set-like collections (uniqueness implied).
-// Satisfied by: Int32HashSet, Int32TreeSet, ImmutableInt32HashSet.
+// Satisfied by: hashset.Int32, treeset.Int32, hashset.ImmutableInt32.
 type Int32Set interface {
 	Int32Collection
 }
 
 // Int32MutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: Int32HashSet, Int32TreeSet.
+// Satisfied by: hashset.Int32, treeset.Int32.
 type Int32MutableSet interface {
 	Int32Set
 	Int32MutableCollection
@@ -127,7 +128,7 @@ type Int32MutableSet interface {
 }
 
 // Int32Bag read-only multiset interface with occurrence counts.
-// Satisfied by: Int32HashBag, Int32TreeBag, ImmutableInt32HashBag.
+// Satisfied by: bag.HashInt32, bag.TreeInt32, bag.ImmutableHashInt32.
 type Int32Bag interface {
 	Int32Collection
 
@@ -139,7 +140,7 @@ type Int32Bag interface {
 }
 
 // Int32MutableBag adds insertion.
-// Satisfied by: Int32HashBag, Int32TreeBag.
+// Satisfied by: bag.HashInt32, bag.TreeInt32.
 type Int32MutableBag interface {
 	Int32Bag
 	Int32MutableCollection
@@ -148,8 +149,9 @@ type Int32MutableBag interface {
 	Add(value int32)
 }
 
-// Int32Stack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: Int32ArrayStack, ImmutableInt32ArrayStack.
+// Int32Stack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.Int32, stack.ImmutableInt32.
 type Int32Stack interface {
 	Int32Collection
 
@@ -158,7 +160,7 @@ type Int32Stack interface {
 }
 
 // Int32MutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: Int32ArrayStack.
+// Satisfied by: stack.Int32.
 type Int32MutableStack interface {
 	Int32Stack
 	Int32MutableCollection

@@ -55,8 +55,9 @@ type CharConvertible interface {
 // caller that only needs iteration can accept CharIterable while code
 // that needs everything can accept CharCollection.
 //
-// Satisfied by: CharArrayList, CharHashSet, CharHashBag,
-// CharArrayStack, CharTreeSet, and their immutable variants.
+// Satisfied by: arraylist.Char, hashset.Char, bag.HashChar,
+// bag.TreeChar, stack.Char, treeset.Char, and their immutable
+// variants.
 type CharCollection interface {
 	CharSized
 	CharIterable
@@ -66,7 +67,7 @@ type CharCollection interface {
 }
 
 // CharMutableCollection extends CharCollection with mutation operations.
-// Satisfied by: CharArrayList, CharHashSet, CharHashBag, CharArrayStack.
+// Satisfied by: arraylist.Char, hashset.Char, bag.HashChar, stack.Char.
 type CharMutableCollection interface {
 	CharCollection
 
@@ -85,7 +86,7 @@ type CharMutableCollection interface {
 // Add() int returning new occurrence count; stacks use Push instead).
 
 // CharList is the read-only interface for ordered lists with positional
-// access. Satisfied by: CharArrayList, ImmutableCharArrayList.
+// access. Satisfied by: arraylist.Char, arraylist.ImmutableChar.
 type CharList interface {
 	CharCollection
 
@@ -97,7 +98,7 @@ type CharList interface {
 }
 
 // CharMutableList extends CharList + CharMutableCollection.
-// Satisfied by: CharArrayList.
+// Satisfied by: arraylist.Char.
 type CharMutableList interface {
 	CharList
 	CharMutableCollection
@@ -111,13 +112,13 @@ type CharMutableList interface {
 }
 
 // CharSet marker interface for set-like collections (uniqueness implied).
-// Satisfied by: CharHashSet, CharTreeSet, ImmutableCharHashSet.
+// Satisfied by: hashset.Char, treeset.Char, hashset.ImmutableChar.
 type CharSet interface {
 	CharCollection
 }
 
 // CharMutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: CharHashSet, CharTreeSet.
+// Satisfied by: hashset.Char, treeset.Char.
 type CharMutableSet interface {
 	CharSet
 	CharMutableCollection
@@ -127,7 +128,7 @@ type CharMutableSet interface {
 }
 
 // CharBag read-only multiset interface with occurrence counts.
-// Satisfied by: CharHashBag, CharTreeBag, ImmutableCharHashBag.
+// Satisfied by: bag.HashChar, bag.TreeChar, bag.ImmutableHashChar.
 type CharBag interface {
 	CharCollection
 
@@ -139,7 +140,7 @@ type CharBag interface {
 }
 
 // CharMutableBag adds insertion.
-// Satisfied by: CharHashBag, CharTreeBag.
+// Satisfied by: bag.HashChar, bag.TreeChar.
 type CharMutableBag interface {
 	CharBag
 	CharMutableCollection
@@ -148,8 +149,9 @@ type CharMutableBag interface {
 	Add(value uint16)
 }
 
-// CharStack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: CharArrayStack, ImmutableCharArrayStack.
+// CharStack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.Char, stack.ImmutableChar.
 type CharStack interface {
 	CharCollection
 
@@ -158,7 +160,7 @@ type CharStack interface {
 }
 
 // CharMutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: CharArrayStack.
+// Satisfied by: stack.Char.
 type CharMutableStack interface {
 	CharStack
 	CharMutableCollection

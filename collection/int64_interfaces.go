@@ -55,8 +55,9 @@ type Int64Convertible interface {
 // caller that only needs iteration can accept Int64Iterable while code
 // that needs everything can accept Int64Collection.
 //
-// Satisfied by: Int64ArrayList, Int64HashSet, Int64HashBag,
-// Int64ArrayStack, Int64TreeSet, and their immutable variants.
+// Satisfied by: arraylist.Int64, hashset.Int64, bag.HashInt64,
+// bag.TreeInt64, stack.Int64, treeset.Int64, and their immutable
+// variants.
 type Int64Collection interface {
 	Int64Sized
 	Int64Iterable
@@ -66,7 +67,7 @@ type Int64Collection interface {
 }
 
 // Int64MutableCollection extends Int64Collection with mutation operations.
-// Satisfied by: Int64ArrayList, Int64HashSet, Int64HashBag, Int64ArrayStack.
+// Satisfied by: arraylist.Int64, hashset.Int64, bag.HashInt64, stack.Int64.
 type Int64MutableCollection interface {
 	Int64Collection
 
@@ -85,7 +86,7 @@ type Int64MutableCollection interface {
 // Add() int returning new occurrence count; stacks use Push instead).
 
 // Int64List is the read-only interface for ordered lists with positional
-// access. Satisfied by: Int64ArrayList, ImmutableInt64ArrayList.
+// access. Satisfied by: arraylist.Int64, arraylist.ImmutableInt64.
 type Int64List interface {
 	Int64Collection
 
@@ -97,7 +98,7 @@ type Int64List interface {
 }
 
 // Int64MutableList extends Int64List + Int64MutableCollection.
-// Satisfied by: Int64ArrayList.
+// Satisfied by: arraylist.Int64.
 type Int64MutableList interface {
 	Int64List
 	Int64MutableCollection
@@ -111,13 +112,13 @@ type Int64MutableList interface {
 }
 
 // Int64Set marker interface for set-like collections (uniqueness implied).
-// Satisfied by: Int64HashSet, Int64TreeSet, ImmutableInt64HashSet.
+// Satisfied by: hashset.Int64, treeset.Int64, hashset.ImmutableInt64.
 type Int64Set interface {
 	Int64Collection
 }
 
 // Int64MutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: Int64HashSet, Int64TreeSet.
+// Satisfied by: hashset.Int64, treeset.Int64.
 type Int64MutableSet interface {
 	Int64Set
 	Int64MutableCollection
@@ -127,7 +128,7 @@ type Int64MutableSet interface {
 }
 
 // Int64Bag read-only multiset interface with occurrence counts.
-// Satisfied by: Int64HashBag, Int64TreeBag, ImmutableInt64HashBag.
+// Satisfied by: bag.HashInt64, bag.TreeInt64, bag.ImmutableHashInt64.
 type Int64Bag interface {
 	Int64Collection
 
@@ -139,7 +140,7 @@ type Int64Bag interface {
 }
 
 // Int64MutableBag adds insertion.
-// Satisfied by: Int64HashBag, Int64TreeBag.
+// Satisfied by: bag.HashInt64, bag.TreeInt64.
 type Int64MutableBag interface {
 	Int64Bag
 	Int64MutableCollection
@@ -148,8 +149,9 @@ type Int64MutableBag interface {
 	Add(value int64)
 }
 
-// Int64Stack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: Int64ArrayStack, ImmutableInt64ArrayStack.
+// Int64Stack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.Int64, stack.ImmutableInt64.
 type Int64Stack interface {
 	Int64Collection
 
@@ -158,7 +160,7 @@ type Int64Stack interface {
 }
 
 // Int64MutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: Int64ArrayStack.
+// Satisfied by: stack.Int64.
 type Int64MutableStack interface {
 	Int64Stack
 	Int64MutableCollection

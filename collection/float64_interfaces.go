@@ -55,8 +55,9 @@ type Float64Convertible interface {
 // caller that only needs iteration can accept Float64Iterable while code
 // that needs everything can accept Float64Collection.
 //
-// Satisfied by: Float64ArrayList, Float64HashSet, Float64HashBag,
-// Float64ArrayStack, Float64TreeSet, and their immutable variants.
+// Satisfied by: arraylist.Float64, hashset.Float64, bag.HashFloat64,
+// bag.TreeFloat64, stack.Float64, treeset.Float64, and their immutable
+// variants.
 type Float64Collection interface {
 	Float64Sized
 	Float64Iterable
@@ -66,7 +67,7 @@ type Float64Collection interface {
 }
 
 // Float64MutableCollection extends Float64Collection with mutation operations.
-// Satisfied by: Float64ArrayList, Float64HashSet, Float64HashBag, Float64ArrayStack.
+// Satisfied by: arraylist.Float64, hashset.Float64, bag.HashFloat64, stack.Float64.
 type Float64MutableCollection interface {
 	Float64Collection
 
@@ -85,7 +86,7 @@ type Float64MutableCollection interface {
 // Add() int returning new occurrence count; stacks use Push instead).
 
 // Float64List is the read-only interface for ordered lists with positional
-// access. Satisfied by: Float64ArrayList, ImmutableFloat64ArrayList.
+// access. Satisfied by: arraylist.Float64, arraylist.ImmutableFloat64.
 type Float64List interface {
 	Float64Collection
 
@@ -97,7 +98,7 @@ type Float64List interface {
 }
 
 // Float64MutableList extends Float64List + Float64MutableCollection.
-// Satisfied by: Float64ArrayList.
+// Satisfied by: arraylist.Float64.
 type Float64MutableList interface {
 	Float64List
 	Float64MutableCollection
@@ -111,13 +112,13 @@ type Float64MutableList interface {
 }
 
 // Float64Set marker interface for set-like collections (uniqueness implied).
-// Satisfied by: Float64HashSet, Float64TreeSet, ImmutableFloat64HashSet.
+// Satisfied by: hashset.Float64, treeset.Float64, hashset.ImmutableFloat64.
 type Float64Set interface {
 	Float64Collection
 }
 
 // Float64MutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: Float64HashSet, Float64TreeSet.
+// Satisfied by: hashset.Float64, treeset.Float64.
 type Float64MutableSet interface {
 	Float64Set
 	Float64MutableCollection
@@ -127,7 +128,7 @@ type Float64MutableSet interface {
 }
 
 // Float64Bag read-only multiset interface with occurrence counts.
-// Satisfied by: Float64HashBag, Float64TreeBag, ImmutableFloat64HashBag.
+// Satisfied by: bag.HashFloat64, bag.TreeFloat64, bag.ImmutableHashFloat64.
 type Float64Bag interface {
 	Float64Collection
 
@@ -139,7 +140,7 @@ type Float64Bag interface {
 }
 
 // Float64MutableBag adds insertion.
-// Satisfied by: Float64HashBag, Float64TreeBag.
+// Satisfied by: bag.HashFloat64, bag.TreeFloat64.
 type Float64MutableBag interface {
 	Float64Bag
 	Float64MutableCollection
@@ -148,8 +149,9 @@ type Float64MutableBag interface {
 	Add(value float64)
 }
 
-// Float64Stack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: Float64ArrayStack, ImmutableFloat64ArrayStack.
+// Float64Stack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.Float64, stack.ImmutableFloat64.
 type Float64Stack interface {
 	Float64Collection
 
@@ -158,7 +160,7 @@ type Float64Stack interface {
 }
 
 // Float64MutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: Float64ArrayStack.
+// Satisfied by: stack.Float64.
 type Float64MutableStack interface {
 	Float64Stack
 	Float64MutableCollection

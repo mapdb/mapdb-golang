@@ -55,8 +55,9 @@ type Int8Convertible interface {
 // caller that only needs iteration can accept Int8Iterable while code
 // that needs everything can accept Int8Collection.
 //
-// Satisfied by: Int8ArrayList, Int8HashSet, Int8HashBag,
-// Int8ArrayStack, Int8TreeSet, and their immutable variants.
+// Satisfied by: arraylist.Int8, hashset.Int8, bag.HashInt8,
+// bag.TreeInt8, stack.Int8, treeset.Int8, and their immutable
+// variants.
 type Int8Collection interface {
 	Int8Sized
 	Int8Iterable
@@ -66,7 +67,7 @@ type Int8Collection interface {
 }
 
 // Int8MutableCollection extends Int8Collection with mutation operations.
-// Satisfied by: Int8ArrayList, Int8HashSet, Int8HashBag, Int8ArrayStack.
+// Satisfied by: arraylist.Int8, hashset.Int8, bag.HashInt8, stack.Int8.
 type Int8MutableCollection interface {
 	Int8Collection
 
@@ -85,7 +86,7 @@ type Int8MutableCollection interface {
 // Add() int returning new occurrence count; stacks use Push instead).
 
 // Int8List is the read-only interface for ordered lists with positional
-// access. Satisfied by: Int8ArrayList, ImmutableInt8ArrayList.
+// access. Satisfied by: arraylist.Int8, arraylist.ImmutableInt8.
 type Int8List interface {
 	Int8Collection
 
@@ -97,7 +98,7 @@ type Int8List interface {
 }
 
 // Int8MutableList extends Int8List + Int8MutableCollection.
-// Satisfied by: Int8ArrayList.
+// Satisfied by: arraylist.Int8.
 type Int8MutableList interface {
 	Int8List
 	Int8MutableCollection
@@ -111,13 +112,13 @@ type Int8MutableList interface {
 }
 
 // Int8Set marker interface for set-like collections (uniqueness implied).
-// Satisfied by: Int8HashSet, Int8TreeSet, ImmutableInt8HashSet.
+// Satisfied by: hashset.Int8, treeset.Int8, hashset.ImmutableInt8.
 type Int8Set interface {
 	Int8Collection
 }
 
 // Int8MutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: Int8HashSet, Int8TreeSet.
+// Satisfied by: hashset.Int8, treeset.Int8.
 type Int8MutableSet interface {
 	Int8Set
 	Int8MutableCollection
@@ -127,7 +128,7 @@ type Int8MutableSet interface {
 }
 
 // Int8Bag read-only multiset interface with occurrence counts.
-// Satisfied by: Int8HashBag, Int8TreeBag, ImmutableInt8HashBag.
+// Satisfied by: bag.HashInt8, bag.TreeInt8, bag.ImmutableHashInt8.
 type Int8Bag interface {
 	Int8Collection
 
@@ -139,7 +140,7 @@ type Int8Bag interface {
 }
 
 // Int8MutableBag adds insertion.
-// Satisfied by: Int8HashBag, Int8TreeBag.
+// Satisfied by: bag.HashInt8, bag.TreeInt8.
 type Int8MutableBag interface {
 	Int8Bag
 	Int8MutableCollection
@@ -148,8 +149,9 @@ type Int8MutableBag interface {
 	Add(value int8)
 }
 
-// Int8Stack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: Int8ArrayStack, ImmutableInt8ArrayStack.
+// Int8Stack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.Int8, stack.ImmutableInt8.
 type Int8Stack interface {
 	Int8Collection
 
@@ -158,7 +160,7 @@ type Int8Stack interface {
 }
 
 // Int8MutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: Int8ArrayStack.
+// Satisfied by: stack.Int8.
 type Int8MutableStack interface {
 	Int8Stack
 	Int8MutableCollection

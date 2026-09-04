@@ -7,6 +7,7 @@
 package rangev
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -277,4 +278,256 @@ func TestRangeMapClear(t *testing.T) {
 		t.Error("clear should empty")
 	}
 	assertEntries(t, m)
+}
+
+// Unbounded entries on both sides: each pair merges as it lands, then the
+// bridging Put collapses everything to a single all() entry. No endpoint
+// arithmetic is involved; the sentinels alone carry the connectivity.
+func TestRangeMapPutUnboundedChainsOnBothSidesCollapseToAll(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(LessThan(-5), 7)
+	m.Put(ClosedOpen(-5, 0), 7)
+	m.Put(ClosedOpen(5, 10), 7)
+	m.Put(AtLeast(10), 7)
+	assertEntries(t, m, entry(LessThan(0), 7), entry(AtLeast(5), 7))
+	m.Put(ClosedOpen(0, 5), 7)
+	assertEntries(t, m, entry(All(), 7))
+	for _, k := range []int32{math.MinInt32, 0, math.MaxInt32} {
+		if v, ok := getOr(m, k); !ok || v != 7 {
+			t.Errorf("get(%d) = %v %v, want 7 true", k, v, ok)
+		}
+	}
+}
+
+// The Put overlaps the tail of an equal-valued entry and the head of a
+// different-valued one: clipOut leaves [0,6) -> 7 and [11,12) -> 9, and the
+// equal fragment must rejoin the inserted range.
+func TestRangeMapPutRejoinsClippedFragmentAndChainBeyondIt(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(0, 10), 7)
+	m.Put(ClosedOpen(10, 12), 9)
+	m.Put(ClosedOpen(6, 11), 7)
+	assertEntries(t, m, entry(ClosedOpen(0, 11), 7), entry(ClosedOpen(11, 12), 9))
+	if v, _ := getOr(m, 0); v != 7 {
+		t.Error("get(0) want 7")
+	}
+	if v, _ := getOr(m, 10); v != 7 {
+		t.Error("get(10) want 7")
+	}
+	if v, _ := getOr(m, 11); v != 9 {
+		t.Error("get(11) want 9")
+	}
+}
+
+// A Put strictly inside an equal-valued entry splits it into two fragments,
+// both of which must rejoin: the map is unchanged. The second half pins that
+// the flanking different-valued entries are untouched too.
+func TestRangeMapPutRejoinsBothClipFragmentsOfStraddledEqualEntry(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(0, 20), 7)
+	m.Put(ClosedOpen(6, 14), 7)
+	assertEntries(t, m, entry(ClosedOpen(0, 20), 7))
+
+	m2 := NewInt32Int32RangeMap()
+	m2.Put(ClosedOpen(0, 2), 1)
+	m2.Put(ClosedOpen(2, 18), 7)
+	m2.Put(ClosedOpen(18, 20), 1)
+	m2.Put(ClosedOpen(6, 14), 7)
+	assertEntries(t, m2,
+		entry(ClosedOpen(0, 2), 1),
+		entry(ClosedOpen(2, 18), 7),
+		entry(ClosedOpen(18, 20), 1))
+}
+
+// A cut-empty Put is a no-op against a non-empty map — it must return before
+// clipOut, so nothing is clipped and nothing moves. Both cut-empty forms are
+// dropped on the abutment seam, and one lands inside an entry.
+func TestRangeMapPutCutEmptyAtAbutmentIsNoop(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(ClosedOpen(1, 5), 100)
+	m.Put(ClosedOpen(5, 9), 200)
+	m.Put(ClosedOpen(5, 5), 100)
+	assertEntries(t, m, entry(ClosedOpen(1, 5), 100), entry(ClosedOpen(5, 9), 200))
+	m.Put(OpenClosed(5, 5), 200)
+	assertEntries(t, m, entry(ClosedOpen(1, 5), 100), entry(ClosedOpen(5, 9), 200))
+	m.Put(ClosedOpen(3, 3), 999)
+	assertEntries(t, m, entry(ClosedOpen(1, 5), 100), entry(ClosedOpen(5, 9), 200))
+}
+
+// Open(1,2) is cut-non-empty but holds no int32, so no point lookup can see
+// it. It must still be stored, split the surrounding entry, and act as a
+// barrier between the two equal-valued halves; removing it leaves the halves
+// disconnected (the gap is still there) so they must NOT rejoin.
+func TestRangeMapNoIntegerRangeIsAStoredBarrier(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(All(), 1)
+	m.Put(Open(1, 2), 2)
+	assertEntries(t, m, entry(AtMost(1), 1), entry(Open(1, 2), 2), entry(AtLeast(2), 1))
+	m.Remove(Open(1, 2))
+	assertEntries(t, m, entry(AtMost(1), 1), entry(AtLeast(2), 1))
+}
+
+// Removing an unbounded range from all() must clip to the exact cut of the
+// removed range's finite end: LessThan(0) leaves Below(0) as the new lower
+// cut, AtMost(0) leaves Above(0). No +-1 endpoint arithmetic.
+func TestRangeMapRemoveUnboundedClipsToExactSentinelCut(t *testing.T) {
+	m := NewInt32Int32RangeMap()
+	m.Put(All(), 1)
+	m.Remove(LessThan(0))
+	assertEntries(t, m, entry(AtLeast(0), 1))
+
+	m2 := NewInt32Int32RangeMap()
+	m2.Put(All(), 1)
+	m2.Remove(AtMost(0))
+	assertEntries(t, m2, entry(GreaterThan(0), 1))
+}
+
+// ---- oracle test -----------------------------------------------------------
+
+// oracleDomainLo..oracleDomainHi is the dense point universe the oracle tracks;
+// random endpoints are drawn from the narrower oracleEndLo..oracleEndHi so the
+// unbounded forms reach points no bounded range can.
+const (
+	oracleDomainLo = -12
+	oracleDomainHi = 12
+	oracleEndLo    = -8
+	oracleEndHi    = 8
+)
+
+// oracleRand is a tiny xorshift64* so the sequence is deterministic without a
+// dependency on math/rand's generator stability.
+type oracleRand struct{ s uint64 }
+
+func (r *oracleRand) next() uint64 {
+	r.s ^= r.s >> 12
+	r.s ^= r.s << 25
+	r.s ^= r.s >> 27
+	return r.s * 2685821657736338717
+}
+
+func (r *oracleRand) intn(n int) int { return int(r.next() % uint64(n)) }
+
+// oracleRandRange draws one of the four bounded bound types or one of the five
+// unbounded forms. Cut-empty draws ([a,a) / (a,a]) are let through: Put/Remove
+// must treat them as no-ops, and the oracle (which contains no point for them)
+// agrees. Open(a,a) is inverted rather than cut-empty, so it is diverted.
+func oracleRandRange(r *oracleRand) Int32Range {
+	span := oracleEndHi - oracleEndLo + 1
+	a := int32(oracleEndLo + r.intn(span))
+	b := int32(oracleEndLo + r.intn(span))
+	if a > b {
+		a, b = b, a
+	}
+	switch r.intn(9) {
+	case 0:
+		return LessThan(b)
+	case 1:
+		return AtMost(b)
+	case 2:
+		return GreaterThan(a)
+	case 3:
+		return AtLeast(a)
+	case 4:
+		return All()
+	case 5:
+		return Closed(a, b)
+	case 6:
+		if a == b {
+			return Closed(a, a)
+		}
+		return Open(a, b)
+	case 7:
+		return OpenClosed(a, b)
+	default:
+		return ClosedOpen(a, b)
+	}
+}
+
+// oracleCell is one point of the dense oracle: the value held there, if any.
+type oracleCell struct {
+	value int32
+	ok    bool
+}
+
+// assertRangeMapMatchesOracle checks Get, GetEntry, normal form (ascending,
+// cut-non-empty, pairwise disjoint, no connected equal-valued pair) and that
+// the entries reconstruct the dense oracle exactly.
+func assertRangeMapMatchesOracle(t *testing.T, m *Int32Int32RangeMap, oracle []oracleCell, ctx string) {
+	t.Helper()
+	es := m.AsMapOfRanges()
+	for i := range es {
+		if es[i].Range.IsEmpty() {
+			t.Fatalf("%s: cut-empty entry %d in %v", ctx, i, es)
+		}
+		if i == 0 {
+			continue
+		}
+		if es[i-1].Range.lower.cmp(es[i].Range.lower) >= 0 {
+			t.Fatalf("%s: not ascending at %d in %v", ctx, i, es)
+		}
+		if inter, ok := es[i-1].Range.Intersection(es[i].Range); ok && !inter.IsEmpty() {
+			t.Fatalf("%s: overlap at %d in %v", ctx, i, es)
+		}
+		if es[i-1].Range.IsConnected(es[i].Range) && es[i-1].Value == es[i].Value {
+			t.Fatalf("%s: connected equal-valued pair at %d in %v", ctx, i, es)
+		}
+	}
+	rebuilt := make([]oracleCell, len(oracle))
+	for _, e := range es {
+		for p := oracleDomainLo; p <= oracleDomainHi; p++ {
+			if e.Range.Contains(int32(p)) {
+				rebuilt[p-oracleDomainLo] = oracleCell{e.Value, true}
+			}
+		}
+	}
+	for p := oracleDomainLo; p <= oracleDomainHi; p++ {
+		want := oracle[p-oracleDomainLo]
+		if v, ok := m.Get(int32(p)); v != want.value || ok != want.ok {
+			t.Fatalf("%s: get(%d) = (%d,%v), oracle (%d,%v); entries %v",
+				ctx, p, v, ok, want.value, want.ok, es)
+		}
+		r, v, ok := m.GetEntry(int32(p))
+		if ok != want.ok || (ok && (v != want.value || !r.Contains(int32(p)))) {
+			t.Fatalf("%s: getEntry(%d) = (%v,%d,%v), oracle (%d,%v); entries %v",
+				ctx, p, r, v, ok, want.value, want.ok, es)
+		}
+		if rebuilt[p-oracleDomainLo] != want {
+			t.Fatalf("%s: entries rebuild point %d as %v, oracle %v; entries %v",
+				ctx, p, rebuilt[p-oracleDomainLo], want, es)
+		}
+	}
+}
+
+// Seeded random Put/Remove sequence checked after EVERY op against a naive
+// dense oracle (one cell per point of -12..12). Values come from {1,2,3} so
+// equal-value coalescing happens constantly.
+func TestRangeMapRandomPutRemoveMatchesDenseOracle(t *testing.T) {
+	for _, seed := range []uint64{20260731, 4242, 0x9E3779B97F4A7C15} {
+		rnd := &oracleRand{s: seed}
+		m := NewInt32Int32RangeMap()
+		oracle := make([]oracleCell, oracleDomainHi-oracleDomainLo+1)
+		for op := 0; op < 400; op++ {
+			r := oracleRandRange(rnd)
+			var ctx string
+			if rnd.intn(10) < 7 {
+				v := int32(1 + rnd.intn(3))
+				m.Put(r, v)
+				for p := oracleDomainLo; p <= oracleDomainHi; p++ {
+					if r.Contains(int32(p)) {
+						oracle[p-oracleDomainLo] = oracleCell{v, true}
+					}
+				}
+				ctx = fmt.Sprintf("seed %d op %d put %v -> %d", seed, op, r, v)
+			} else {
+				m.Remove(r)
+				for p := oracleDomainLo; p <= oracleDomainHi; p++ {
+					if r.Contains(int32(p)) {
+						oracle[p-oracleDomainLo] = oracleCell{}
+					}
+				}
+				ctx = fmt.Sprintf("seed %d op %d remove %v", seed, op, r)
+			}
+			assertRangeMapMatchesOracle(t, m, oracle, ctx)
+		}
+	}
 }

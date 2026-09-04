@@ -285,3 +285,32 @@ func TestRangeSetNormalFormAfterSequence(t *testing.T) {
 		}
 	}
 }
+
+// A set has no values, so a single ascending pass is enough: every connected
+// run collapses no matter which piece lands last.
+func TestRangeSetAddCoalescesWholeRunFromEitherDirection(t *testing.T) {
+	asc := rs(ClosedOpen(1, 2), ClosedOpen(2, 3), ClosedOpen(3, 4))
+	assertRanges(t, asc, ClosedOpen(1, 4))
+
+	desc := rs(ClosedOpen(2, 3), ClosedOpen(3, 4), ClosedOpen(1, 2))
+	assertRanges(t, desc, ClosedOpen(1, 4))
+	if !reflect.DeepEqual(asc.AsRanges(), desc.AsRanges()) {
+		t.Fatalf("direction dependent: asc = %v, desc = %v", asc.AsRanges(), desc.AsRanges())
+	}
+
+	// Bridging piece lands between two existing ranges -> one range.
+	s := rs(ClosedOpen(1, 3), ClosedOpen(5, 7))
+	if n := len(s.AsRanges()); n != 2 {
+		t.Fatalf("pre-state should hold 2 ranges, got %v", s.AsRanges())
+	}
+	s.Add(ClosedOpen(3, 5))
+	assertRanges(t, s, ClosedOpen(1, 7))
+}
+
+func TestRangeSetAddRejoinsFragmentsLeftBehindByRemove(t *testing.T) {
+	s := rs(ClosedOpen(0, 10))
+	s.Remove(ClosedOpen(3, 7))
+	assertRanges(t, s, ClosedOpen(0, 3), ClosedOpen(7, 10))
+	s.Add(ClosedOpen(3, 7))
+	assertRanges(t, s, ClosedOpen(0, 10))
+}

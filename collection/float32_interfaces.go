@@ -57,8 +57,9 @@ type Float32Convertible interface {
 // caller that only needs iteration can accept Float32Iterable while code
 // that needs everything can accept Float32Collection.
 //
-// Satisfied by: Float32ArrayList, Float32HashSet, Float32HashBag,
-// Float32ArrayStack, Float32TreeSet, and their immutable variants.
+// Satisfied by: arraylist.Float32, hashset.Float32, bag.HashFloat32,
+// bag.TreeFloat32, stack.Float32, treeset.Float32, and their immutable
+// variants.
 type Float32Collection interface {
 	Float32Sized
 	Float32Iterable
@@ -68,7 +69,7 @@ type Float32Collection interface {
 }
 
 // Float32MutableCollection extends Float32Collection with mutation operations.
-// Satisfied by: Float32ArrayList, Float32HashSet, Float32HashBag, Float32ArrayStack.
+// Satisfied by: arraylist.Float32, hashset.Float32, bag.HashFloat32, stack.Float32.
 type Float32MutableCollection interface {
 	Float32Collection
 
@@ -89,7 +90,7 @@ type Float32MutableCollection interface {
 // loaders (seq.Into) ignore.
 
 // Float32List is the read-only interface for ordered lists with positional
-// access. Satisfied by: Float32ArrayList, ImmutableFloat32ArrayList.
+// access. Satisfied by: arraylist.Float32, arraylist.ImmutableFloat32.
 type Float32List interface {
 	Float32Collection
 
@@ -101,7 +102,7 @@ type Float32List interface {
 }
 
 // Float32MutableList extends Float32List + Float32MutableCollection.
-// Satisfied by: Float32ArrayList.
+// Satisfied by: arraylist.Float32.
 type Float32MutableList interface {
 	Float32List
 	Float32MutableCollection
@@ -116,13 +117,13 @@ type Float32MutableList interface {
 }
 
 // Float32Set marker interface for set-like collections (uniqueness implied).
-// Satisfied by: Float32HashSet, Float32TreeSet, ImmutableFloat32HashSet.
+// Satisfied by: hashset.Float32, treeset.Float32, hashset.ImmutableFloat32.
 type Float32Set interface {
 	Float32Collection
 }
 
 // Float32MutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: Float32HashSet, Float32TreeSet.
+// Satisfied by: hashset.Float32, treeset.Float32.
 type Float32MutableSet interface {
 	Float32Set
 	Float32MutableCollection
@@ -132,7 +133,7 @@ type Float32MutableSet interface {
 }
 
 // Float32Bag read-only multiset interface with occurrence counts.
-// Satisfied by: Float32HashBag, Float32TreeBag, ImmutableFloat32HashBag.
+// Satisfied by: bag.HashFloat32, bag.TreeFloat32, bag.ImmutableHashFloat32.
 type Float32Bag interface {
 	Float32Collection
 
@@ -144,7 +145,7 @@ type Float32Bag interface {
 }
 
 // Float32MutableBag adds insertion.
-// Satisfied by: Float32HashBag, Float32TreeBag.
+// Satisfied by: bag.HashFloat32, bag.TreeFloat32.
 type Float32MutableBag interface {
 	Float32Bag
 	Float32MutableCollection
@@ -154,8 +155,9 @@ type Float32MutableBag interface {
 	Add(value float32) bool
 }
 
-// Float32Stack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: Float32ArrayStack, ImmutableFloat32ArrayStack.
+// Float32Stack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.Float32, stack.ImmutableFloat32.
 type Float32Stack interface {
 	Float32Collection
 
@@ -164,7 +166,7 @@ type Float32Stack interface {
 }
 
 // Float32MutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: Float32ArrayStack.
+// Satisfied by: stack.Float32.
 type Float32MutableStack interface {
 	Float32Stack
 	Float32MutableCollection

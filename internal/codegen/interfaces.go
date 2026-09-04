@@ -103,8 +103,9 @@ type {{.Name}}Convertible interface {
 // caller that only needs iteration can accept {{.Name}}Iterable while code
 // that needs everything can accept {{.Name}}Collection.
 //
-// Satisfied by: {{.Name}}ArrayList, {{.Name}}HashSet, {{.Name}}HashBag,
-// {{.Name}}ArrayStack, {{.Name}}TreeSet, and their immutable variants.
+// Satisfied by: arraylist.{{.Name}}, hashset.{{.Name}}, bag.Hash{{.Name}},
+// bag.Tree{{.Name}}, stack.{{.Name}}, treeset.{{.Name}}, and their immutable
+// variants.
 type {{.Name}}Collection interface {
 	{{.Name}}Sized
 	{{.Name}}Iterable
@@ -114,7 +115,7 @@ type {{.Name}}Collection interface {
 }
 
 // {{.Name}}MutableCollection extends {{.Name}}Collection with mutation operations.
-// Satisfied by: {{.Name}}ArrayList, {{.Name}}HashSet, {{.Name}}HashBag, {{.Name}}ArrayStack.
+// Satisfied by: arraylist.{{.Name}}, hashset.{{.Name}}, bag.Hash{{.Name}}, stack.{{.Name}}.
 type {{.Name}}MutableCollection interface {
 	{{.Name}}Collection
 
@@ -135,7 +136,7 @@ type {{.Name}}MutableCollection interface {
 // loaders (seq.Into) ignore.
 
 // {{.Name}}List is the read-only interface for ordered lists with positional
-// access. Satisfied by: {{.Name}}ArrayList, Immutable{{.Name}}ArrayList.
+// access. Satisfied by: arraylist.{{.Name}}, arraylist.Immutable{{.Name}}.
 type {{.Name}}List interface {
 	{{.Name}}Collection
 
@@ -147,7 +148,7 @@ type {{.Name}}List interface {
 }
 
 // {{.Name}}MutableList extends {{.Name}}List + {{.Name}}MutableCollection.
-// Satisfied by: {{.Name}}ArrayList.
+// Satisfied by: arraylist.{{.Name}}.
 type {{.Name}}MutableList interface {
 	{{.Name}}List
 	{{.Name}}MutableCollection
@@ -162,13 +163,13 @@ type {{.Name}}MutableList interface {
 }
 
 // {{.Name}}Set marker interface for set-like collections (uniqueness implied).
-// Satisfied by: {{.Name}}HashSet, {{.Name}}TreeSet, Immutable{{.Name}}HashSet.
+// Satisfied by: hashset.{{.Name}}, treeset.{{.Name}}, hashset.Immutable{{.Name}}.
 type {{.Name}}Set interface {
 	{{.Name}}Collection
 }
 
 // {{.Name}}MutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: {{.Name}}HashSet, {{.Name}}TreeSet.
+// Satisfied by: hashset.{{.Name}}, treeset.{{.Name}}.
 type {{.Name}}MutableSet interface {
 	{{.Name}}Set
 	{{.Name}}MutableCollection
@@ -178,7 +179,7 @@ type {{.Name}}MutableSet interface {
 }
 
 // {{.Name}}Bag read-only multiset interface with occurrence counts.
-// Satisfied by: {{.Name}}HashBag, {{.Name}}TreeBag, Immutable{{.Name}}HashBag.
+// Satisfied by: bag.Hash{{.Name}}, bag.Tree{{.Name}}, bag.ImmutableHash{{.Name}}.
 type {{.Name}}Bag interface {
 	{{.Name}}Collection
 
@@ -190,7 +191,7 @@ type {{.Name}}Bag interface {
 }
 
 // {{.Name}}MutableBag adds insertion.
-// Satisfied by: {{.Name}}HashBag, {{.Name}}TreeBag.
+// Satisfied by: bag.Hash{{.Name}}, bag.Tree{{.Name}}.
 type {{.Name}}MutableBag interface {
 	{{.Name}}Bag
 	{{.Name}}MutableCollection
@@ -200,8 +201,9 @@ type {{.Name}}MutableBag interface {
 	Add(value {{.GoType}}) bool
 }
 
-// {{.Name}}Stack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: {{.Name}}ArrayStack, Immutable{{.Name}}ArrayStack.
+// {{.Name}}Stack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.{{.Name}}, stack.Immutable{{.Name}}.
 type {{.Name}}Stack interface {
 	{{.Name}}Collection
 
@@ -210,7 +212,7 @@ type {{.Name}}Stack interface {
 }
 
 // {{.Name}}MutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: {{.Name}}ArrayStack.
+// Satisfied by: stack.{{.Name}}.
 type {{.Name}}MutableStack interface {
 	{{.Name}}Stack
 	{{.Name}}MutableCollection

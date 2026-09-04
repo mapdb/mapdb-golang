@@ -175,35 +175,17 @@ func renderExpected(raw json.RawMessage, key string, mode floatMode) string {
 				// modeNone arrays are normally i32 (JSON numbers). The
 				// HashMap<i64,i32> `sorted_keys` array is decimal STRINGS
 				// (i64 keys exceed 2^53) — render those quoted to match the
-				// runner's computed quoted-string array. NavigableMap/Set poll
-				// logs (poll_first_keys / poll_first_values / ...) are
-				// (int|null)[] — a nil element renders as the bare "null".
-				switch ev := e.(type) {
-				case nil:
-					parts[i] = "null"
-				case string:
-					if key == "tree" {
-						parts[i] = ev
-					} else {
-						parts[i] = "\"" + ev + "\""
-					}
-				case []any:
-					// Nested array element: the Space-Saving monitored_set /
-					// top_k triples are [item, "count", "error"] arrays (item
-					// a bare int, count/error quoted u64 decimal strings). Render
-					// each inner element by the same i32-bare / string-quoted rule.
-					inner := make([]string, len(ev))
-					for j, ie := range ev {
-						switch iv := ie.(type) {
-						case string:
-							inner[j] = "\"" + iv + "\""
-						default:
-							inner[j] = strconv.FormatInt(int64(iv.(float64)), 10)
-						}
-					}
-					parts[i] = "[" + strings.Join(inner, ",") + "]"
-				default:
-					parts[i] = strconv.FormatInt(int64(ev.(float64)), 10)
+				// runner's computed quoted-string array. The Fenwick `tree`
+				// assertion is the one place a string renders bare.
+				// Everything else — nulls in NavigableMap/Set poll logs,
+				// mode-NONE bools (`contains_results`), and nested arrays
+				// (Space-Saving triples, BoundedLru snapshot_entries_log,
+				// which is triple-nested) — goes through the recursive
+				// renderer.
+				if sv, ok := e.(string); ok && key == "tree" {
+					parts[i] = sv
+				} else {
+					parts[i] = renderModeNoneElement(e)
 				}
 			}
 		}

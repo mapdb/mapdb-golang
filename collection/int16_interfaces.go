@@ -57,8 +57,9 @@ type Int16Convertible interface {
 // caller that only needs iteration can accept Int16Iterable while code
 // that needs everything can accept Int16Collection.
 //
-// Satisfied by: Int16ArrayList, Int16HashSet, Int16HashBag,
-// Int16ArrayStack, Int16TreeSet, and their immutable variants.
+// Satisfied by: arraylist.Int16, hashset.Int16, bag.HashInt16,
+// bag.TreeInt16, stack.Int16, treeset.Int16, and their immutable
+// variants.
 type Int16Collection interface {
 	Int16Sized
 	Int16Iterable
@@ -68,7 +69,7 @@ type Int16Collection interface {
 }
 
 // Int16MutableCollection extends Int16Collection with mutation operations.
-// Satisfied by: Int16ArrayList, Int16HashSet, Int16HashBag, Int16ArrayStack.
+// Satisfied by: arraylist.Int16, hashset.Int16, bag.HashInt16, stack.Int16.
 type Int16MutableCollection interface {
 	Int16Collection
 
@@ -89,7 +90,7 @@ type Int16MutableCollection interface {
 // loaders (seq.Into) ignore.
 
 // Int16List is the read-only interface for ordered lists with positional
-// access. Satisfied by: Int16ArrayList, ImmutableInt16ArrayList.
+// access. Satisfied by: arraylist.Int16, arraylist.ImmutableInt16.
 type Int16List interface {
 	Int16Collection
 
@@ -101,7 +102,7 @@ type Int16List interface {
 }
 
 // Int16MutableList extends Int16List + Int16MutableCollection.
-// Satisfied by: Int16ArrayList.
+// Satisfied by: arraylist.Int16.
 type Int16MutableList interface {
 	Int16List
 	Int16MutableCollection
@@ -116,13 +117,13 @@ type Int16MutableList interface {
 }
 
 // Int16Set marker interface for set-like collections (uniqueness implied).
-// Satisfied by: Int16HashSet, Int16TreeSet, ImmutableInt16HashSet.
+// Satisfied by: hashset.Int16, treeset.Int16, hashset.ImmutableInt16.
 type Int16Set interface {
 	Int16Collection
 }
 
 // Int16MutableSet adds insertion. Add returns true if the value was newly inserted.
-// Satisfied by: Int16HashSet, Int16TreeSet.
+// Satisfied by: hashset.Int16, treeset.Int16.
 type Int16MutableSet interface {
 	Int16Set
 	Int16MutableCollection
@@ -132,7 +133,7 @@ type Int16MutableSet interface {
 }
 
 // Int16Bag read-only multiset interface with occurrence counts.
-// Satisfied by: Int16HashBag, Int16TreeBag, ImmutableInt16HashBag.
+// Satisfied by: bag.HashInt16, bag.TreeInt16, bag.ImmutableHashInt16.
 type Int16Bag interface {
 	Int16Collection
 
@@ -144,7 +145,7 @@ type Int16Bag interface {
 }
 
 // Int16MutableBag adds insertion.
-// Satisfied by: Int16HashBag, Int16TreeBag.
+// Satisfied by: bag.HashInt16, bag.TreeInt16.
 type Int16MutableBag interface {
 	Int16Bag
 	Int16MutableCollection
@@ -154,8 +155,9 @@ type Int16MutableBag interface {
 	Add(value int16) bool
 }
 
-// Int16Stack read-only LIFO stack. Peek returns the top element or an error if empty.
-// Satisfied by: Int16ArrayStack, ImmutableInt16ArrayStack.
+// Int16Stack read-only LIFO stack. Peek returns the top element and false
+// if the stack is empty (no error is returned).
+// Satisfied by: stack.Int16, stack.ImmutableInt16.
 type Int16Stack interface {
 	Int16Collection
 
@@ -164,7 +166,7 @@ type Int16Stack interface {
 }
 
 // Int16MutableStack mutable LIFO stack with Push and Pop.
-// Satisfied by: Int16ArrayStack.
+// Satisfied by: stack.Int16.
 type Int16MutableStack interface {
 	Int16Stack
 	Int16MutableCollection

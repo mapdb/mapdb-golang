@@ -1017,6 +1017,11 @@ func (m *{{.MapName}}) build{{.NodeName}}(keys []{{.KeyType}}, values []{{.ValTy
 	}
 	node.left = m.build{{.NodeName}}(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.build{{.NodeName}}(keys, values, mid+1, hi, level+1, redLevel, node)
+	// The subtree-size augmentation must be established here too: Rank/Select
+	// read node.size, and a bulk-built tree never passes through the
+	// insert/rotation paths that maintain it. Children are already built, so a
+	// single bottom-up fix is exact.
+	{{.NodeName}}TreeNodeFixSize(node)
 	return node
 }
 

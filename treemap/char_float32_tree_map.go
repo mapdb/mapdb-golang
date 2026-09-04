@@ -890,6 +890,11 @@ func (m *CharFloat32) buildcharFloat32(keys []uint16, values []float32, lo, hi, 
 	}
 	node.left = m.buildcharFloat32(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildcharFloat32(keys, values, mid+1, hi, level+1, redLevel, node)
+	// The subtree-size augmentation must be established here too: Rank/Select
+	// read node.size, and a bulk-built tree never passes through the
+	// insert/rotation paths that maintain it. Children are already built, so a
+	// single bottom-up fix is exact.
+	charFloat32TreeNodeFixSize(node)
 	return node
 }
 

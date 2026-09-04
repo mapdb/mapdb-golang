@@ -496,3 +496,44 @@ func TestTieFreeDeterminismOverRandomSequence(t *testing.T) {
 		t.Fatal("replay not deterministic")
 	}
 }
+
+// TestPeekDoesNotRefreshRecency pins the contract that distinguishes Peek from
+// Get: a Peek hit must leave the LRU order exactly as it was, so the next
+// size-eviction still evicts the entry Get would have rescued.
+func TestPeekDoesNotRefreshRecency(t *testing.T) {
+	m := NewBoundedLruInt32Int32Map(2)
+	m.Put(1, 10)
+	m.Put(2, 20)
+
+	if v, ok := m.Peek(1); !ok || v != 10 {
+		t.Fatalf("Peek(1) = (%d, %v), want (10, true)", v, ok)
+	}
+	if _, ok := m.Peek(99); ok {
+		t.Errorf("Peek(99) reported a hit on an absent key")
+	}
+	// Peek must NOT have rescued key 1: it is still the least-recently-used, so
+	// inserting a third key evicts it. (With Get in place of Peek, key 2 would
+	// be evicted instead -- that is exactly the perturbation Peek avoids.)
+	m.Put(3, 30)
+	if m.ContainsKey(1) {
+		t.Errorf("Peek refreshed recency: key 1 survived the size eviction")
+	}
+	if !m.ContainsKey(2) || !m.ContainsKey(3) {
+		t.Errorf("unexpected eviction: keys = %v", m.Keys())
+	}
+
+	// Contrast: Get DOES refresh, so the same sequence rescues the peeked key.
+	n := NewBoundedLruInt32Int32Map(2)
+	n.Put(1, 10)
+	n.Put(2, 20)
+	if v, ok := n.Get(1); !ok || v != 10 {
+		t.Fatalf("Get(1) = (%d, %v), want (10, true)", v, ok)
+	}
+	n.Put(3, 30)
+	if !n.ContainsKey(1) {
+		t.Errorf("Get did not refresh recency: key 1 was evicted")
+	}
+	if n.ContainsKey(2) {
+		t.Errorf("expected key 2 to be evicted after Get(1) refreshed key 1")
+	}
+}

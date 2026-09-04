@@ -878,6 +878,11 @@ func (m *Float32Float64) buildfloat32Float64(keys []float32, values []float64, l
 	}
 	node.left = m.buildfloat32Float64(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildfloat32Float64(keys, values, mid+1, hi, level+1, redLevel, node)
+	// The subtree-size augmentation must be established here too: Rank/Select
+	// read node.size, and a bulk-built tree never passes through the
+	// insert/rotation paths that maintain it. Children are already built, so a
+	// single bottom-up fix is exact.
+	float32Float64TreeNodeFixSize(node)
 	return node
 }
 

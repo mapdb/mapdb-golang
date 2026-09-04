@@ -890,6 +890,11 @@ func (m *CharInt16) buildcharInt16(keys []uint16, values []int16, lo, hi, level,
 	}
 	node.left = m.buildcharInt16(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildcharInt16(keys, values, mid+1, hi, level+1, redLevel, node)
+	// The subtree-size augmentation must be established here too: Rank/Select
+	// read node.size, and a bulk-built tree never passes through the
+	// insert/rotation paths that maintain it. Children are already built, so a
+	// single bottom-up fix is exact.
+	charInt16TreeNodeFixSize(node)
 	return node
 }
 

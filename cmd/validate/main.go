@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1687,16 +1688,8 @@ func runArrayList(s scenario) {
 		case "add":
 			l.Add(asInt32(op["value"]))
 		case "add_at":
-			idx := asInt(op["index"])
-			v := asInt32(op["value"])
-			// Int32ArrayList has no insert-at; rebuild as a slice and reload.
-			cur := snapshotList(l)
-			next := make([]int32, 0, len(cur)+1)
-			next = append(next, cur[:idx]...)
-			next = append(next, v)
-			next = append(next, cur[idx:]...)
-			l.Clear()
-			l.AddAll(next...)
+			// Production insert-at-index (EC MutableIntList.addAtIndex parity).
+			l.AddAtIndex(asInt(op["index"]), asInt32(op["value"]))
 		case "remove":
 			l.Remove(asInt32(op["value"]))
 		case "clear":
@@ -1716,19 +1709,25 @@ func runArrayList(s scenario) {
 func addInt32Wrapping(acc, v int32) int32 { return acc + v }
 func mulInt32Wrapping(acc, v int32) int32 { return acc * v }
 
-func snapshotList(l *arraylist.Int32) []int32 {
-	out := make([]int32, 0, l.Len())
-	l.ForEach(func(v int32) { out = append(out, v) })
-	return out
+// listToSorted renders a production list result in ascending order. Ordering is
+// done by the production Sort() on a COPY so the source list is never mutated.
+func listToSorted(l *arraylist.Int32) []int32 {
+	sorted := arraylist.NewInt32()
+	sorted.AddAll(l.ToSlice()...)
+	sorted.Sort()
+	return sorted.ToSlice()
 }
 
 func evalListAssertion(key string, l *arraylist.Int32) string {
-	values := snapshotList(l)
+	// Every assertion below is obtained from the production method the
+	// assertion names (Len/Contains/Get/Select/Reject/Detect/Count/
+	// AnySatisfy/AllSatisfy/NoneSatisfy/InjectInto/Sum/Min/Max/Sort). The one
+	// documented exception is inject_into_product -- see its case.
 	switch key {
 	case "size":
-		return strconv.Itoa(len(values))
+		return strconv.Itoa(l.Len())
 	case "is_empty":
-		return strconv.FormatBool(len(values) == 0)
+		return strconv.FormatBool(l.Len() == 0)
 	case "sum":
 		// List Sum() widens into an int64 accumulator (IntList.sum(): long
 		// parity) and does NOT wrap at i32 -- see algorithms.md "Integer
@@ -1757,163 +1756,94 @@ func evalListAssertion(key string, l *arraylist.Int32) string {
 		// Sort a COPY so this assertion never mutates the production list --
 		// otherwise a later order-sensitive assertion on the same list would
 		// see the reordered elements. We still exercise the production Sort().
-		sorted := arraylist.NewInt32()
-		sorted.AddAll(values...)
-		sorted.Sort()
-		return formatArray(snapshotList(sorted))
+		return formatArray(listToSorted(l))
 	case "inject_into_sum":
 		// injectInto with a + reduction accumulates in the i32 seed type and
 		// wraps two's-complement at i32 -- via the production InjectInto.
 		return strconv.FormatInt(int64(l.InjectInto(0, addInt32Wrapping)), 10)
 	case "inject_into_product":
+		// DELIBERATE runner-local reduction: this assertion demands a WIDENING
+		// i64 product, and the production InjectInto is typed
+		// InjectInto(int32, func(int32, int32) int32) -- its accumulator is
+		// i32 and would wrap. There is no i64-accumulator reduction on
+		// arraylist.Int32 (Sum() is the only widening one, and it is fixed to
+		// addition), so the widening product has no production method to call.
 		var acc int64 = 1
-		for _, v := range values {
+		for _, v := range l.ToSlice() {
 			acc *= int64(v)
 		}
 		return strconv.FormatInt(acc, 10)
 	case "any_satisfy_even":
-		for _, v := range values {
-			if v%2 == 0 {
-				return "true"
-			}
-		}
-		return "false"
+		return strconv.FormatBool(l.AnySatisfy(isEvenInt32))
 	case "all_satisfy_even":
-		for _, v := range values {
-			if v%2 != 0 {
-				return "false"
-			}
-		}
-		return "true"
+		return strconv.FormatBool(l.AllSatisfy(isEvenInt32))
 	case "none_satisfy_odd":
-		for _, v := range values {
-			if v%2 != 0 {
-				return "false"
-			}
-		}
-		return "true"
+		return strconv.FormatBool(l.NoneSatisfy(isOddInt32))
 	case "count_even":
-		c := 0
-		for _, v := range values {
-			if v%2 == 0 {
-				c++
-			}
-		}
-		return strconv.Itoa(c)
+		return strconv.Itoa(l.Count(isEvenInt32))
 	case "count_odd":
-		c := 0
-		for _, v := range values {
-			if v%2 != 0 {
-				c++
-			}
-		}
-		return strconv.Itoa(c)
+		return strconv.Itoa(l.Count(isOddInt32))
 	}
 	if rest, ok := strings.CutPrefix(key, "get_at_"); ok {
 		idx, _ := strconv.Atoi(rest)
-		if idx < 0 || idx >= len(values) {
+		if idx < 0 || idx >= l.Len() {
 			return "null"
 		}
-		return strconv.FormatInt(int64(values[idx]), 10)
+		return strconv.FormatInt(int64(l.Get(idx)), 10)
 	}
 	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
 		v, _ := strconv.ParseInt(rest, 10, 32)
-		for _, x := range values {
-			if x == int32(v) {
-				return "true"
-			}
-		}
-		return "false"
+		return strconv.FormatBool(l.Contains(int32(v)))
 	}
 	if rest, ok := strings.CutPrefix(key, "select_gt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		var v []int32
-		for _, x := range values {
-			if x > int32(t) {
-				v = append(v, x)
-			}
-		}
-		sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
-		return formatArray(v)
+		return formatArray(listToSorted(l.Select(greaterThanInt32(int32(t)))))
 	}
 	if rest, ok := strings.CutPrefix(key, "reject_gt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		var v []int32
-		for _, x := range values {
-			if x <= int32(t) {
-				v = append(v, x)
-			}
-		}
-		sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
-		return formatArray(v)
+		return formatArray(listToSorted(l.Reject(greaterThanInt32(int32(t)))))
 	}
 	if rest, ok := strings.CutPrefix(key, "detect_gt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		for _, x := range values {
-			if x > int32(t) {
-				return strconv.FormatInt(int64(x), 10)
-			}
+		if x, ok := l.Detect(greaterThanInt32(int32(t))); ok {
+			return strconv.FormatInt(int64(x), 10)
 		}
 		return "null"
 	}
 	if rest, ok := strings.CutPrefix(key, "count_gt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		c := 0
-		for _, x := range values {
-			if x > int32(t) {
-				c++
-			}
-		}
-		return strconv.Itoa(c)
+		return strconv.Itoa(l.Count(greaterThanInt32(int32(t))))
 	}
 	if rest, ok := strings.CutPrefix(key, "count_lt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		c := 0
-		for _, x := range values {
-			if x < int32(t) {
-				c++
-			}
-		}
-		return strconv.Itoa(c)
+		return strconv.Itoa(l.Count(lessThanInt32(int32(t))))
 	}
 	if rest, ok := strings.CutPrefix(key, "any_satisfy_gt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		for _, x := range values {
-			if x > int32(t) {
-				return "true"
-			}
-		}
-		return "false"
+		return strconv.FormatBool(l.AnySatisfy(greaterThanInt32(int32(t))))
 	}
 	if rest, ok := strings.CutPrefix(key, "all_satisfy_gt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		for _, x := range values {
-			if x <= int32(t) {
-				return "false"
-			}
-		}
-		return "true"
+		return strconv.FormatBool(l.AllSatisfy(greaterThanInt32(int32(t))))
 	}
 	if rest, ok := strings.CutPrefix(key, "none_satisfy_gt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		for _, x := range values {
-			if x > int32(t) {
-				return "false"
-			}
-		}
-		return "true"
+		return strconv.FormatBool(l.NoneSatisfy(greaterThanInt32(int32(t))))
 	}
 	if rest, ok := strings.CutPrefix(key, "none_satisfy_lt_"); ok {
 		t, _ := strconv.ParseInt(rest, 10, 32)
-		for _, x := range values {
-			if x < int32(t) {
-				return "false"
-			}
-		}
-		return "true"
+		return strconv.FormatBool(l.NoneSatisfy(lessThanInt32(int32(t))))
 	}
 	return unknown(key)
 }
+
+// Predicates handed to the production Select/Reject/Detect/Count/*Satisfy
+// methods. They only decide membership; the traversal is the collection's.
+func isEvenInt32(v int32) bool { return v%2 == 0 }
+func isOddInt32(v int32) bool  { return v%2 != 0 }
+
+func greaterThanInt32(t int32) func(int32) bool { return func(v int32) bool { return v > t } }
+func lessThanInt32(t int32) func(int32) bool    { return func(v int32) bool { return v < t } }
 
 // ---- HashSet<i32> --------------------------------------------------------
 
@@ -1946,8 +1876,9 @@ func runHashSet(s scenario) {
 }
 
 func setToSorted(set *hashset.Int32) []int32 {
-	out := make([]int32, 0, set.Len())
-	set.ForEach(func(v int32) { out = append(out, v) })
+	// ToSlice() is the production materializer; a hash set has no order, so
+	// the harness sorts the RESULT for rendering only.
+	out := set.ToSlice()
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
@@ -1962,83 +1893,27 @@ func evalSetAssertion(key string, set, other *hashset.Int32) string {
 		return formatArray(setToSorted(set))
 	}
 	if other != nil {
+		// Every set-algebra assertion is computed by the production method of
+		// the same name (hashset.Int32.Union / Intersect / Difference /
+		// SymmetricDifference); the harness only reads Len() off the result or
+		// sorts it for rendering.
 		switch key {
 		case "union_sorted":
-			seen := map[int32]struct{}{}
-			set.ForEach(func(v int32) { seen[v] = struct{}{} })
-			other.ForEach(func(v int32) { seen[v] = struct{}{} })
-			v := make([]int32, 0, len(seen))
-			for k := range seen {
-				v = append(v, k)
-			}
-			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
-			return formatArray(v)
+			return formatArray(setToSorted(set.Union(other)))
 		case "intersect_sorted":
-			var v []int32
-			set.ForEach(func(x int32) {
-				if other.Contains(x) {
-					v = append(v, x)
-				}
-			})
-			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
-			return formatArray(v)
+			return formatArray(setToSorted(set.Intersect(other)))
 		case "difference_sorted":
-			var v []int32
-			set.ForEach(func(x int32) {
-				if !other.Contains(x) {
-					v = append(v, x)
-				}
-			})
-			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
-			return formatArray(v)
+			return formatArray(setToSorted(set.Difference(other)))
 		case "symmetric_difference_sorted":
-			var v []int32
-			set.ForEach(func(x int32) {
-				if !other.Contains(x) {
-					v = append(v, x)
-				}
-			})
-			other.ForEach(func(x int32) {
-				if !set.Contains(x) {
-					v = append(v, x)
-				}
-			})
-			sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
-			return formatArray(v)
+			return formatArray(setToSorted(set.SymmetricDifference(other)))
 		case "union_size":
-			seen := map[int32]struct{}{}
-			set.ForEach(func(v int32) { seen[v] = struct{}{} })
-			other.ForEach(func(v int32) { seen[v] = struct{}{} })
-			return strconv.Itoa(len(seen))
+			return strconv.Itoa(set.Union(other).Len())
 		case "intersect_size":
-			c := 0
-			set.ForEach(func(x int32) {
-				if other.Contains(x) {
-					c++
-				}
-			})
-			return strconv.Itoa(c)
+			return strconv.Itoa(set.Intersect(other).Len())
 		case "difference_size":
-			c := 0
-			set.ForEach(func(x int32) {
-				if !other.Contains(x) {
-					c++
-				}
-			})
-			return strconv.Itoa(c)
+			return strconv.Itoa(set.Difference(other).Len())
 		case "symmetric_difference_size":
-			seen := map[int32]struct{}{}
-			set.ForEach(func(x int32) {
-				if !other.Contains(x) {
-					seen[x] = struct{}{}
-				}
-			})
-			other.ForEach(func(x int32) {
-				if !set.Contains(x) {
-					seen[x] = struct{}{}
-				}
-			})
-			return strconv.Itoa(len(seen))
+			return strconv.Itoa(set.SymmetricDifference(other).Len())
 		case "other_size":
 			return strconv.Itoa(other.Len())
 		}
@@ -2080,21 +1955,15 @@ func evalBagAssertion(key string, b *bag.HashInt32) string {
 	case "is_empty":
 		return strconv.FormatBool(b.Len() == 0)
 	case "sorted_distinct":
-		seen := map[int32]struct{}{}
-		b.ForEach(func(v int32) { seen[v] = struct{}{} })
-		v := make([]int32, 0, len(seen))
-		for k := range seen {
-			v = append(v, k)
-		}
+		// AllDistinct() is the production distinct iterator; a hash bag has no
+		// order, so the harness sorts the RESULT for rendering only.
+		v := slices.Collect(b.AllDistinct())
 		sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
 		return formatArray(v)
 	case "to_sorted_array":
-		flat := make([]int32, 0, b.Len())
-		b.ForEachWithOccurrences(func(value int32, count int) {
-			for i := 0; i < count; i++ {
-				flat = append(flat, value)
-			}
-		})
+		// ToSlice() is the production materializer and already repeats each
+		// element per its occurrence count; sorted for rendering only.
+		flat := b.ToSlice()
 		sort.Slice(flat, func(i, j int) bool { return flat[i] < flat[j] })
 		return formatArray(flat)
 	}
@@ -2377,13 +2246,16 @@ func runTreeMap(s scenario) {
 				}
 				return formatArray(keys)
 			case "sorted_values":
-				var vals []int32
-				for _, v := range m.All() {
-					vals = append(vals, v)
-				}
-				// Int32Int32 iterates in key order; values follow keys, which is
-				// what "sorted_values" asks for in the cross-language contract.
-				return formatArray(vals)
+				// Straight from the production Values() iterator, in the tree's
+				// ascending-KEY order -- NOT re-sorted by value. The README's
+				// one-line table says "all values, sorted ascending", but for
+				// TreeMap the FIXTURES define the contract and they mean
+				// key-order: 17-bulk-load/treemap_i32_from_sorted expects
+				// [100,0,50,200,210] for keys [-10,0,5,20,21]. Sorting by value
+				// here turns that scenario red. Rust's TreeMap runner
+				// (mapdb-rust src/bin/validate.rs, `map.values()` with no sort)
+				// agrees. Do not "fix" this to a value sort.
+				return formatArray(slices.Collect(m.Values()))
 			case "descending_keys":
 				var keys []int32
 				for k := range m.DescendingKeys() {
@@ -2475,10 +2347,10 @@ func runF32HashMap(s scenario) {
 			case "is_empty":
 				return strconv.FormatBool(m.Len() == 0)
 			case "sorted_keys":
-				var keys []float32
-				for k := range m.Keys() {
-					keys = append(keys, k)
-				}
+				// KeysToSlice() is the production materializer; a hash map has
+				// no order, so the harness sorts the RESULT (IEEE total order)
+				// for rendering only.
+				keys := m.KeysToSlice()
 				sortFloat32Total(keys)
 				parts := make([]string, len(keys))
 				for i, x := range keys {
@@ -2526,8 +2398,10 @@ func runF32HashSet(s scenario) {
 			case "is_empty":
 				return strconv.FormatBool(set.Len() == 0)
 			case "sorted_values", "to_sorted_array":
-				vals := make([]float32, 0, set.Len())
-				set.ForEach(func(v float32) { vals = append(vals, v) })
+				// ToSlice() is the production materializer; a hash set has no
+				// order, so the harness sorts the RESULT (IEEE total order) for
+				// rendering only.
+				vals := set.ToSlice()
 				sortFloat32Total(vals)
 				parts := make([]string, len(vals))
 				for i, x := range vals {
@@ -2582,10 +2456,13 @@ func runF32TreeSet(s scenario) {
 				}
 				return "null"
 			case "sorted", "sorted_values", "to_sorted_array":
-				// In-order traversal straight from the production tree.
-				var parts []string
-				for v := range set.All() {
-					parts = append(parts, "\""+formatF32(v)+"\"")
+				// ToSlice() is the production materializer and already returns
+				// the tree's in-order (total-order) sequence -- no runner-side
+				// sort, the harness only formats.
+				elems := set.ToSlice()
+				parts := make([]string, len(elems))
+				for i, v := range elems {
+					parts[i] = "\"" + formatF32(v) + "\""
 				}
 				return "[" + strings.Join(parts, ",") + "]"
 			}
@@ -2612,15 +2489,13 @@ func runF32ArrayList(s scenario) {
 			fatalf("unknown f32-arraylist op: %v", op["op"])
 		}
 	}
-	values := make([]float32, 0, l.Len())
-	l.ForEach(func(v float32) { values = append(values, v) })
 	for _, key := range sortedAssertionKeys(s.Assertions) {
 		val := func() string {
 			switch key {
 			case "size":
-				return strconv.Itoa(len(values))
+				return strconv.Itoa(l.Len())
 			case "is_empty":
-				return strconv.FormatBool(len(values) == 0)
+				return strconv.FormatBool(l.Len() == 0)
 			case "sum":
 				// Production float sum (left-fold, IEEE arithmetic).
 				return formatF32(l.Sum())
@@ -2641,10 +2516,12 @@ func runF32ArrayList(s scenario) {
 				// Sort a COPY through the production total-order Sort() so the
 				// assertion proves conformance without mutating the live list.
 				sorted := arraylist.NewFloat32()
-				sorted.AddAll(values...)
+				sorted.AddAll(l.ToSlice()...)
 				sorted.Sort()
 				parts := make([]string, 0, sorted.Len())
-				sorted.ForEach(func(x float32) { parts = append(parts, formatF32(x)) })
+				for _, x := range sorted.ToSlice() {
+					parts = append(parts, formatF32(x))
+				}
 				return "[" + strings.Join(parts, ",") + "]"
 			}
 			return unknown(key)
@@ -3509,10 +3386,12 @@ func evalLruAssertion(key string, m *boundedlru.BoundedLruInt32Int32Map, log *lr
 		if err != nil {
 			return unknown(key)
 		}
-		for _, e := range m.Entries() {
-			if e.Key == int32(k) {
-				return strconv.FormatInt(int64(e.Value), 10)
-			}
+		// Peek is the production NON-TOUCH read: Get would refresh recency and
+		// corrupt the very LRU order that later assertions in this same
+		// scenario observe (README: assertion reads must not mutate the
+		// collection).
+		if v, ok := m.Peek(int32(k)); ok {
+			return strconv.FormatInt(int64(v), 10)
 		}
 		return "null"
 	}

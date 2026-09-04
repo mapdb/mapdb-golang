@@ -70,6 +70,12 @@ func (l *SynchronizedChar) AddAll(values ...uint16) {
 	l.delegate.AddAll(values...)
 }
 
+func (l *SynchronizedChar) AddAtIndex(index int, value uint16) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.AddAtIndex(index, value)
+}
+
 func (l *SynchronizedChar) Set(index int, value uint16) uint16 {
 	l.mu.Lock()
 	defer l.mu.Unlock()

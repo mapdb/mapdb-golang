@@ -83,8 +83,8 @@ type objPairData struct {
 
 // genTuple writes the 63 pair sources into the current working directory:
 // 49 prim×prim <One><Two>Pair, 7 Object<Two>Pair[T any], and 7
-// <One>ObjectPair[T any] (object/object is excluded). Invoked from tuple/ via
-// go:generate.
+// <One>ObjectPair[T any] (object/object is excluded). Invoked from the
+// tuple package's go:generate directive.
 func genTuple() error {
 	cwd, err := os.Getwd()
 	if err != nil {

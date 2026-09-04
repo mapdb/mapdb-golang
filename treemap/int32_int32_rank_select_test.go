@@ -3,6 +3,8 @@ package treemap
 import (
 	"sort"
 	"testing"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // assertSizeInvariant verifies the subtree-size invariant holds at every node
@@ -246,5 +248,52 @@ func TestInt32Int32_SizeInvariantRandomizedInsertRemove(t *testing.T) {
 	}
 	if _, ok := m.SelectKey(len(sorted)); ok {
 		t.Error("SelectKey(size) should be absent")
+	}
+}
+
+// TestInt32Int32_RankSelectAfterFromSorted is the regression guard for the
+// bulk-load path: NewInt32Int32FromSorted builds the tree bottom-up without
+// going through the insert/rotation code that maintains the subtree-size
+// augmentation, so the builder must establish node.size itself. Before the fix
+// Rank/Select silently returned wrong answers on a bulk-built map (see
+// cross-language scenario 17-bulk-load/treemap_i32_from_sorted).
+func TestInt32Int32_RankSelectAfterFromSorted(t *testing.T) {
+	keys := []int32{-10, 0, 5, 20, 21}
+	values := []int32{100, 0, 50, 200, 210}
+	m, err := NewInt32Int32FromSorted(keys, values, pump.ErrorOnDuplicate)
+	if err != nil {
+		t.Fatalf("NewInt32Int32FromSorted: %v", err)
+	}
+	assertSizeInvariant(t, m)
+
+	for i, k := range keys {
+		if got := m.Rank(k); got != i {
+			t.Errorf("Rank(%d) = %d, want %d", k, got, i)
+		}
+		gotK, ok := m.SelectKey(i)
+		if !ok || gotK != k {
+			t.Errorf("SelectKey(%d) = (%d, %v), want (%d, true)", i, gotK, ok, k)
+		}
+	}
+	if got := m.Rank(22); got != len(keys) {
+		t.Errorf("Rank(22) = %d, want %d", got, len(keys))
+	}
+
+	// Larger tree: every level of the bottom-up build must carry a size.
+	bigK := make([]int32, 257)
+	bigV := make([]int32, 257)
+	for i := range bigK {
+		bigK[i] = int32(i * 3)
+		bigV[i] = int32(i)
+	}
+	big, err := NewInt32Int32FromSorted(bigK, bigV, pump.ErrorOnDuplicate)
+	if err != nil {
+		t.Fatalf("NewInt32Int32FromSorted(big): %v", err)
+	}
+	assertSizeInvariant(t, big)
+	for i, k := range bigK {
+		if got := big.Rank(k); got != i {
+			t.Fatalf("big Rank(%d) = %d, want %d", k, got, i)
+		}
 	}
 }

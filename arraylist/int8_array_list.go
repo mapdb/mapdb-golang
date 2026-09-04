@@ -45,6 +45,21 @@ func (l *Int8) AddAll(values ...int8) {
 	l.items = append(l.items, values...)
 }
 
+// AddAtIndex inserts a value at the given index, shifting the element
+// currently at that position (and any subsequent elements) to the right.
+// index == Len() appends. It panics if the index is out of bounds
+// (index < 0 || index > Len()), matching the Eclipse Collections mutable
+// primitive-list addAtIndex contract.
+func (l *Int8) AddAtIndex(index int, value int8) {
+	if index < 0 || index > len(l.items) {
+		panic(fmt.Sprintf("arraylist.Int8: index out of range [%d] with length %d", index, len(l.items)))
+	}
+	var zero int8
+	l.items = append(l.items, zero)
+	copy(l.items[index+1:], l.items[index:])
+	l.items[index] = value
+}
+
 // Get returns the value at the given index. It panics if the index is out of
 // bounds, matching the semantics of a native Go slice.
 func (l *Int8) Get(index int) int8 {

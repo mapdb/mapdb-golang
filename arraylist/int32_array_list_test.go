@@ -126,3 +126,46 @@ func TestInt32_Resize(t *testing.T) {
 		t.Errorf("Get(999) = %d, want 999", v)
 	}
 }
+
+// TestInt32_AddAtIndex covers the insert-at-index contract (Eclipse
+// Collections MutableIntList.addAtIndex parity): front, middle, and the
+// index == Len() append boundary, plus out-of-range panics.
+func TestInt32_AddAtIndex(t *testing.T) {
+	l := Int32Of(10, 20, 30)
+
+	l.AddAtIndex(0, 5) // front
+	if got := l.ToSlice(); !equalInt32(got, []int32{5, 10, 20, 30}) {
+		t.Errorf("after AddAtIndex(0,5) = %v, want [5 10 20 30]", got)
+	}
+
+	l.AddAtIndex(2, 15) // middle
+	if got := l.ToSlice(); !equalInt32(got, []int32{5, 10, 15, 20, 30}) {
+		t.Errorf("after AddAtIndex(2,15) = %v, want [5 10 15 20 30]", got)
+	}
+
+	l.AddAtIndex(l.Len(), 40) // index == Len() appends
+	if got := l.ToSlice(); !equalInt32(got, []int32{5, 10, 15, 20, 30, 40}) {
+		t.Errorf("after AddAtIndex(Len(),40) = %v, want [5 10 15 20 30 40]", got)
+	}
+
+	empty := NewInt32()
+	empty.AddAtIndex(0, 7)
+	if got := empty.ToSlice(); !equalInt32(got, []int32{7}) {
+		t.Errorf("empty AddAtIndex(0,7) = %v, want [7]", got)
+	}
+
+	assertPanics(t, func() { l.AddAtIndex(-1, 0) })
+	assertPanics(t, func() { l.AddAtIndex(l.Len()+1, 0) })
+}
+
+func equalInt32(a, b []int32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

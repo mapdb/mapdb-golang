@@ -890,6 +890,11 @@ func (m *Int64Int8) buildint64Int8(keys []int64, values []int8, lo, hi, level, r
 	}
 	node.left = m.buildint64Int8(keys, values, lo, mid-1, level+1, redLevel, node)
 	node.right = m.buildint64Int8(keys, values, mid+1, hi, level+1, redLevel, node)
+	// The subtree-size augmentation must be established here too: Rank/Select
+	// read node.size, and a bulk-built tree never passes through the
+	// insert/rotation paths that maintain it. Children are already built, so a
+	// single bottom-up fix is exact.
+	int64Int8TreeNodeFixSize(node)
 	return node
 }
 

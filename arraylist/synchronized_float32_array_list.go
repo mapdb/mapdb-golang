@@ -70,6 +70,12 @@ func (l *SynchronizedFloat32) AddAll(values ...float32) {
 	l.delegate.AddAll(values...)
 }
 
+func (l *SynchronizedFloat32) AddAtIndex(index int, value float32) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.AddAtIndex(index, value)
+}
+
 func (l *SynchronizedFloat32) Set(index int, value float32) float32 {
 	l.mu.Lock()
 	defer l.mu.Unlock()

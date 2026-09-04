@@ -139,6 +139,21 @@ func (l *{{.Name}}) AddAll(values ...{{.GoType}}) {
 	l.items = append(l.items, values...)
 }
 
+// AddAtIndex inserts a value at the given index, shifting the element
+// currently at that position (and any subsequent elements) to the right.
+// index == Len() appends. It panics if the index is out of bounds
+// (index < 0 || index > Len()), matching the Eclipse Collections mutable
+// primitive-list addAtIndex contract.
+func (l *{{.Name}}) AddAtIndex(index int, value {{.GoType}}) {
+	if index < 0 || index > len(l.items) {
+		panic(fmt.Sprintf("arraylist.{{.Name}}: index out of range [%d] with length %d", index, len(l.items)))
+	}
+	var zero {{.GoType}}
+	l.items = append(l.items, zero)
+	copy(l.items[index+1:], l.items[index:])
+	l.items[index] = value
+}
+
 // Get returns the value at the given index. It panics if the index is out of
 // bounds, matching the semantics of a native Go slice.
 func (l *{{.Name}}) Get(index int) {{.GoType}} {
@@ -736,6 +751,12 @@ func (l *Synchronized{{.Name}}) AddAll(values ...{{.GoType}}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.delegate.AddAll(values...)
+}
+
+func (l *Synchronized{{.Name}}) AddAtIndex(index int, value {{.GoType}}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.delegate.AddAtIndex(index, value)
 }
 
 func (l *Synchronized{{.Name}}) Set(index int, value {{.GoType}}) {{.GoType}} {

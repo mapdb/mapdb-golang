@@ -126,6 +126,7 @@ func TestHashComparable_PlainStringConsistent(t *testing.T) {
 
 func TestHashComparable_DeterministicWithinProcess(t *testing.T) {
 	k := namedStr("repeatable")
+	//lint:ignore SA4000 the identical operands are the point: hashComparable must return the same value for the same key twice within one process
 	if hashComparable(k) != hashComparable(k) {
 		t.Errorf("hashComparable is not deterministic within a process for the same key")
 	}

@@ -326,6 +326,18 @@ func (m *BoundedLruInt32Int32Map) GetOrDefault(key int32, defaultValue int32) in
 	return defaultValue
 }
 
+// Peek returns the value for key without refreshing recency -- the read-only
+// twin of Get. It never touches the LRU order, never evicts, and never invokes
+// the eviction callback, so an observer (a debugger, a metrics probe, a
+// conformance harness) can read an entry without perturbing the very order it
+// is observing. ContainsKey is the boolean form of the same non-touch read.
+func (m *BoundedLruInt32Int32Map) Peek(key int32) (int32, bool) {
+	if idx, ok := m.index[key]; ok {
+		return m.arena[idx].value, true
+	}
+	return 0, false
+}
+
 // ContainsKey is a membership test. It does NOT refresh recency and never
 // evicts.
 func (m *BoundedLruInt32Int32Map) ContainsKey(key int32) bool {

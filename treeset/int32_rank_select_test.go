@@ -3,6 +3,8 @@ package treeset
 import (
 	"sort"
 	"testing"
+
+	"github.com/mapdb/mapdb-golang/pump"
 )
 
 // assertSetSizeInvariant verifies the subtree-size invariant at every node
@@ -194,5 +196,45 @@ func TestInt32_SizeInvariantRandomizedInsertRemove(t *testing.T) {
 	}
 	if _, ok := s.Select(len(sorted)); ok {
 		t.Error("Select(size) should be absent")
+	}
+}
+
+// TestInt32_RankSelectAfterFromSorted is the treeset twin of the treemap
+// bulk-load regression guard: the bottom-up builder must establish the
+// subtree-size augmentation, since it bypasses the insert/rotation paths that
+// normally maintain it.
+func TestInt32_RankSelectAfterFromSorted(t *testing.T) {
+	values := []int32{-10, 0, 5, 20, 21}
+	s, err := NewInt32FromSorted(values, pump.ErrorOnDuplicate)
+	if err != nil {
+		t.Fatalf("NewInt32FromSorted: %v", err)
+	}
+	assertSetSizeInvariant(t, s)
+	for i, v := range values {
+		if got := s.Rank(v); got != i {
+			t.Errorf("Rank(%d) = %d, want %d", v, got, i)
+		}
+		gotV, ok := s.Select(i)
+		if !ok || gotV != v {
+			t.Errorf("Select(%d) = (%d, %v), want (%d, true)", i, gotV, ok, v)
+		}
+	}
+	if got := s.Rank(22); got != len(values) {
+		t.Errorf("Rank(22) = %d, want %d", got, len(values))
+	}
+
+	big := make([]int32, 257)
+	for i := range big {
+		big[i] = int32(i * 3)
+	}
+	bs, err := NewInt32FromSorted(big, pump.ErrorOnDuplicate)
+	if err != nil {
+		t.Fatalf("NewInt32FromSorted(big): %v", err)
+	}
+	assertSetSizeInvariant(t, bs)
+	for i, v := range big {
+		if got := bs.Rank(v); got != i {
+			t.Fatalf("big Rank(%d) = %d, want %d", v, got, i)
+		}
 	}
 }

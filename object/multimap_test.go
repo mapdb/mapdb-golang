@@ -152,6 +152,7 @@ func TestHashMultimap_GetAndForEachAreDefensive(t *testing.T) {
 
 	got := m.Get("a")
 	got[0] = 99
+	//lint:ignore SA4006 the appended result is intentionally discarded -- the point is that a caller's append must not reach the multimap's internal storage (it may write past len into a shared backing array)
 	got = append(got, 100)
 	if !slices.Equal(m.Get("a"), []int{1, 2}) {
 		t.Errorf("Get returned internal storage: %v", m.Get("a"))
@@ -166,6 +167,7 @@ func TestHashMultimap_GetAndForEachAreDefensive(t *testing.T) {
 
 	copyGot := m.GetCopy("a")
 	copyGot[0] = 66
+	//lint:ignore SA4006 the appended result is intentionally discarded -- a caller's append to a GetCopy result must not reach internal storage
 	copyGot = append(copyGot, 67)
 	if !slices.Equal(m.Get("a"), []int{1, 2}) {
 		t.Errorf("GetCopy returned internal storage: %v", m.Get("a"))
@@ -180,6 +182,7 @@ func TestHashMultimap_GetAndForEachAreDefensive(t *testing.T) {
 	m.ForEachKeyMultiValues(func(_ string, vals []int) {
 		seen++
 		vals[0] = 77
+		//lint:ignore SA4006 the appended result is intentionally discarded -- an append inside the visitor must not reach internal storage
 		vals = append(vals, 78)
 	})
 	if seen != 2 {
@@ -300,6 +303,7 @@ func TestTreeMultimap_GetAndForEachAreDefensive(t *testing.T) {
 
 	got := m.Get("a")
 	got[0] = 99
+	//lint:ignore SA4006 the appended result is intentionally discarded -- the point is that a caller's append must not reach the multimap's internal storage (it may write past len into a shared backing array)
 	got = append(got, 100)
 	if !slices.Equal(m.Get("a"), []int{1, 2}) {
 		t.Errorf("Get returned internal storage: %v", m.Get("a"))
@@ -314,6 +318,7 @@ func TestTreeMultimap_GetAndForEachAreDefensive(t *testing.T) {
 
 	copyGot := m.GetCopy("a")
 	copyGot[0] = 66
+	//lint:ignore SA4006 the appended result is intentionally discarded -- a caller's append to a GetCopy result must not reach internal storage
 	copyGot = append(copyGot, 67)
 	if !slices.Equal(m.Get("a"), []int{1, 2}) {
 		t.Errorf("GetCopy returned internal storage: %v", m.Get("a"))
@@ -328,6 +333,7 @@ func TestTreeMultimap_GetAndForEachAreDefensive(t *testing.T) {
 	m.ForEachKeyMultiValues(func(_ string, vals []int) {
 		seen++
 		vals[0] = 77
+		//lint:ignore SA4006 the appended result is intentionally discarded -- an append inside the visitor must not reach internal storage
 		vals = append(vals, 78)
 	})
 	if seen != 2 {

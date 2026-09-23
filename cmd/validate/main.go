@@ -17,15 +17,20 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mapdb/mapdb-golang/arraylist"
 	"github.com/mapdb/mapdb-golang/bag"
@@ -38,6 +43,7 @@ import (
 	"github.com/mapdb/mapdb-golang/hashset"
 	"github.com/mapdb/mapdb-golang/hyperloglog"
 	"github.com/mapdb/mapdb-golang/immutablesorted"
+	"github.com/mapdb/mapdb-golang/interval"
 	"github.com/mapdb/mapdb-golang/multimap"
 	"github.com/mapdb/mapdb-golang/pump"
 	"github.com/mapdb/mapdb-golang/rangev"
@@ -244,6 +250,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Usage: validate <scenario.json>")
 		os.Exit(2)
 	}
+	// Panic-judge flags are checked before trace mode. A leading "--" would
+	// otherwise be claimed by argsHaveFlag.
+	if os.Args[1] == "--panic-judge-selftest" {
+		runPanicJudgeSelftest()
+		return
+	}
+	if os.Args[1] == "--panic-child" {
+		if len(os.Args) != 3 {
+			fmt.Fprintln(os.Stderr, "Usage: validate --panic-child <scenario.json>")
+			os.Exit(2)
+		}
+		runPanicChild(os.Args[2])
+		return
+	}
 	// Flags select trace mode. No flag: the positional path below is unchanged,
 	// including extra positional arguments (only os.Args[1] is read).
 	if argsHaveFlag(os.Args[1:]) {
@@ -251,7 +271,43 @@ func main() {
 		return
 	}
 	s := loadScenario(os.Args[1])
+	if raw, ok := s.Assertions["expect_panic"]; ok {
+		if !assertionBoolTrue(raw) {
+			fmt.Fprintln(os.Stderr, "malformed expect_panic: require boolean true")
+			os.Exit(1)
+		}
+		if !panicCollectionKnown(s.Collection) {
+			runPositional(s)
+			return
+		}
+		runExpectPanicParent(s, raw, os.Args[1])
+		return
+	}
+	runPositional(s)
+}
 
+func panicCollectionKnown(collection string) bool {
+	switch collection {
+	case "HashMap<i32, i32>", "HashMap<i64, i32>",
+		"ListMultimap<i64, i32>", "SetMultimap<i64, i32>",
+		"ArrayList<i32>", "HashSet<i32>", "HashBag<i32>",
+		"TreeSet<i32>", "TreeMap<i32, i32>",
+		"HashMap<f32, i32>", "HashSet<f32>", "TreeSet<f32>", "ArrayList<f32>",
+		"Range<i32>", "RangeSet<i32>", "RangeMap<i32, i32>",
+		"BoundedLruMap<i32, i32>",
+		"ImmutableSortedMap<i32, i32>", "ImmutableSortedSet<i32>",
+		"HashPipeline", "Bloom", "HyperLogLog", "CountMin", "SpaceSaving",
+		"FenwickTree", "RoaringU32", "Interval<i32>":
+		return true
+	default:
+		return false
+	}
+}
+
+// runPositional is the pre-existing scenario evaluator (banner, then the
+// collection switch). expect_panic is not a value assertion; see
+// sortedAssertionKeys.
+func runPositional(s scenario) {
 	fmt.Printf("=== scenario: %s ===\n", s.Name)
 
 	switch s.Collection {
@@ -318,6 +374,200 @@ func main() {
 
 	if anyFail {
 		os.Exit(1)
+	}
+}
+
+// ---- expect_panic (Interval<i32>) -----------------------------------------
+
+// sentinelLine matches a canonical assertion line (`key: value`). The space
+// after the colon is required. PASS/FAIL/SKIP/ERROR/SUMMARY are status lines,
+// not sentinels, and are excluded in stdoutHasSentinel.
+var sentinelLine = regexp.MustCompile(`^[A-Za-z0-9_+-]+:[ ]`)
+
+func isJudgeStatusLine(line string) bool {
+	for _, p := range []string{"PASS", "FAIL", "SKIP", "ERROR", "SUMMARY"} {
+		if line == p || strings.HasPrefix(line, p+" ") || strings.HasPrefix(line, p+":") {
+			return true
+		}
+	}
+	return false
+}
+
+// stdoutHasSentinel reports whether any line, after trimming a trailing CR,
+// is the scenario banner or a `key: value` assertion line.
+func stdoutHasSentinel(stdout string) bool {
+	for _, line := range strings.Split(stdout, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if strings.HasPrefix(line, "=== scenario:") {
+			return true
+		}
+		if isJudgeStatusLine(line) {
+			continue
+		}
+		if sentinelLine.MatchString(line) {
+			return true
+		}
+	}
+	return false
+}
+
+// panicPassed is the Q2 parent judge. A timeout is a failure even when the
+// killed child has a non-zero exit. ExitCode -1 (signal) is non-zero and
+// passes when stdout has no sentinel.
+func panicPassed(exitCode int, stdout string, timedOut bool) bool {
+	if timedOut {
+		return false
+	}
+	if exitCode == 0 {
+		return false
+	}
+	if stdoutHasSentinel(stdout) {
+		return false
+	}
+	return true
+}
+
+func assertionBoolTrue(raw json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	var v bool
+	if err := dec.Decode(&v); err != nil || !v {
+		return false
+	}
+	return !dec.More()
+}
+
+func runPanicJudgeSelftest() {
+	cases := []struct {
+		exit     int
+		stdout   string
+		timedOut bool
+		want     bool
+	}{
+		{0, "", false, false},
+		{0, "=== scenario: x ===\n", false, false},
+		{1, "size: 1\n", false, false},
+		{1, "", false, true},
+		{101, "boom\n", false, true},
+		{1, "", true, false},
+		{1, "FAIL name expect_panic\n", false, true},
+		{1, "expect_panic: true\n", false, false},
+		{1, "SUMMARY: 1\n", false, true},
+		{1, "boom:detail\n", false, true},
+		{1, "FAIL-count: 1\n", false, false},
+	}
+	for i, c := range cases {
+		got := panicPassed(c.exit, c.stdout, c.timedOut)
+		if got != c.want {
+			fmt.Fprintf(os.Stderr, "panic-judge-selftest case %d: exit=%d timedOut=%v stdout=%q want %v got %v\n",
+				i+1, c.exit, c.timedOut, c.stdout, c.want, got)
+			os.Exit(1)
+		}
+	}
+	os.Exit(0)
+}
+
+// runExpectPanicParent re-execs this binary. It prints nothing until the
+// child has been reaped. A non-true expect_panic value is malformed (exit 1,
+// no child).
+func runExpectPanicParent(s scenario, raw json.RawMessage, path string) {
+	if !assertionBoolTrue(raw) {
+		fmt.Fprintln(os.Stderr, "malformed expect_panic: require boolean true")
+		os.Exit(1)
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "expect_panic: %v\n", err)
+		os.Exit(1)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	cmd := exec.CommandContext(ctx, os.Args[0], "--panic-child", abs)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
+	cancel()
+	exitCode := 0
+	if err != nil {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			exitCode = ee.ExitCode()
+		} else if !timedOut {
+			// The child never started. Exit 0 keeps this from looking like a trap.
+			fmt.Fprintf(os.Stderr, "expect_panic: failed to run child: %v\n", err)
+			exitCode = 0
+		}
+	}
+	if panicPassed(exitCode, stdout.String(), timedOut) {
+		fmt.Printf("=== scenario: %s ===\n", s.Name)
+		fmt.Printf("expect_panic: true\n")
+		os.Exit(0)
+	}
+	fmt.Printf("=== scenario: %s ===\n", s.Name)
+	fmt.Printf("FAIL %s expect_panic: child did not trap cleanly\n", s.Name)
+	os.Exit(1)
+}
+
+// runPanicChild applies the scenario in this process. It must not spawn and
+// must not recover: an Interval trap has to kill this process.
+func runPanicChild(path string) {
+	s := loadScenario(path)
+	if s.Collection == "Interval<i32>" {
+		runInterval(s)
+		fmt.Printf("=== scenario: %s ===\n", s.Name)
+		os.Exit(0)
+	}
+	runPositional(s)
+}
+
+// runInterval applies Interval<i32> ops in order. Step 0 and reverse-at-min
+// must reach the production panics. A bad operand, an unknown op, or
+// reversed with no current interval prints the scenario banner and exits 1
+// so an empty-stdout failure cannot look like a clean trap.
+func runInterval(s scenario) {
+	var cur *interval.Int32
+	for _, op := range s.Operations {
+		kind, _ := op["op"].(string)
+		switch kind {
+		case "from_to_by":
+			from := intervalI32(s, op["from"])
+			to := intervalI32(s, op["to"])
+			step := intervalI32(s, op["step"])
+			cur = interval.NewInt32(from, to, step)
+		case "reversed":
+			if cur == nil {
+				fmt.Printf("=== scenario: %s ===\n", s.Name)
+				os.Exit(1)
+			}
+			cur = (*interval.Int32).Reversed(cur)
+		default:
+			fmt.Printf("=== scenario: %s ===\n", s.Name)
+			os.Exit(1)
+		}
+	}
+}
+
+// intervalI32 parses one operand with traceInt32. An out-of-range or
+// non-integer operand is reported with the scenario banner before exit:
+// traceInt32 itself exits with empty stdout, which the parent would treat
+// as a passing trap.
+func intervalI32(s scenario, v any) int32 {
+	if !intervalI32OK(v) {
+		fmt.Printf("=== scenario: %s ===\n", s.Name)
+		os.Exit(1)
+	}
+	return traceInt32(v)
+}
+
+func intervalI32OK(v any) bool {
+	switch n := v.(type) {
+	case json.Number:
+		i, err := n.Int64()
+		return err == nil && i >= math.MinInt32 && i <= math.MaxInt32
+	case float64:
+		return math.Trunc(n) == n && n >= math.MinInt32 && n <= math.MaxInt32
+	default:
+		return false
 	}
 }
 
@@ -621,11 +871,12 @@ func fatalf(format string, args ...any) {
 }
 
 // sortedAssertionKeys returns assertion keys in stable order, skipping
-// the "comment" field that scenario authors use for docs.
+// the "comment" field that scenario authors use for docs and "expect_panic",
+// which the parent judges as a process trap. The child must not print it.
 func sortedAssertionKeys(a map[string]json.RawMessage) []string {
 	keys := make([]string, 0, len(a))
 	for k := range a {
-		if k == "comment" {
+		if k == "comment" || k == "expect_panic" {
 			continue
 		}
 		keys = append(keys, k)

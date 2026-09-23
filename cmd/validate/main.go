@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -241,26 +242,15 @@ func elementToF32(e any) float32 {
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: validate <scenario.json>")
-		os.Exit(1)
+		os.Exit(2)
 	}
-	data, err := os.ReadFile(os.Args[1])
-	if err != nil {
-		fatalf("failed to read scenario file: %v", err)
+	// Flags select trace mode. No flag: the positional path below is unchanged,
+	// including extra positional arguments (only os.Args[1] is read).
+	if argsHaveFlag(os.Args[1:]) {
+		runTraceCLI(os.Args[1:])
+		return
 	}
-	// Decode with UseNumber() so JSON number tokens are preserved as
-	// json.Number (their exact decimal string) rather than float64. This is
-	// REQUIRED for i64 keys: a bare number like 9007199254740993 or
-	// 9223372036854775807 would otherwise be rounded through f64 and corrupted.
-	// All scalar parsers (asInt32/asInt/parseF32/parseI64Operand) handle the
-	// json.Number case. (renderExpected re-unmarshals the raw assertion bytes
-	// into its own `any` WITHOUT UseNumber, so the expected-value rendering
-	// path is unaffected and still sees float64.)
-	dec := json.NewDecoder(strings.NewReader(string(data)))
-	dec.UseNumber()
-	var s scenario
-	if err := dec.Decode(&s); err != nil {
-		fatalf("failed to parse JSON: %v", err)
-	}
+	s := loadScenario(os.Args[1])
 
 	fmt.Printf("=== scenario: %s ===\n", s.Name)
 
@@ -331,6 +321,298 @@ func main() {
 	}
 }
 
+// loadScenario is the positional and trace-mode decoder. UseNumber keeps i64
+// tokens exact. Unknown top-level keys are ignored (encoding/json default).
+func loadScenario(path string) scenario {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fatalf("failed to read scenario file: %v", err)
+	}
+	// Decode with UseNumber() so JSON number tokens are preserved as
+	// json.Number (their exact decimal string) rather than float64. This is
+	// REQUIRED for i64 keys: a bare number like 9007199254740993 or
+	// 9223372036854775807 would otherwise be rounded through f64 and corrupted.
+	// All scalar parsers (asInt32/asInt/parseF32/parseI64Operand) handle the
+	// json.Number case. (renderExpected re-unmarshals the raw assertion bytes
+	// into its own `any` WITHOUT UseNumber, so the expected-value rendering
+	// path is unaffected and still sees float64.)
+	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec.UseNumber()
+	var s scenario
+	if err := dec.Decode(&s); err != nil {
+		fatalf("failed to parse JSON: %v", err)
+	}
+	return s
+}
+
+// ---- trace mode -----------------------------------------------------------
+
+// observationDoc is the --emit-observations document. Field order is the
+// JSON key order. Observation values are the eval* strings, not JSON numbers.
+type observationDoc struct {
+	Name         string            `json:"name"`
+	Collection   string            `json:"collection"`
+	Observations map[string]string `json:"observations"`
+}
+
+func argsHaveFlag(args []string) bool {
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			return true
+		}
+	}
+	return false
+}
+
+func traceUsage() {
+	fmt.Fprintln(os.Stderr, "Usage: validate --trace <file> --emit-observations <out.json>")
+	os.Exit(2)
+}
+
+func runTraceCLI(args []string) {
+	var tracePath, obsPath string
+	var gotTrace, gotObs bool
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--trace":
+			if gotTrace || i+1 >= len(args) {
+				traceUsage()
+			}
+			i++
+			tracePath = args[i]
+			gotTrace = true
+		case "--emit-observations":
+			if gotObs || i+1 >= len(args) {
+				traceUsage()
+			}
+			i++
+			obsPath = args[i]
+			gotObs = true
+		default:
+			// Unknown flag, or a positional path mixed with flags.
+			traceUsage()
+		}
+	}
+	if !gotTrace || !gotObs {
+		traceUsage()
+	}
+	runTrace(tracePath, obsPath)
+}
+
+func runTrace(path, outPath string) {
+	s := loadScenario(path)
+	var obs map[string]string
+	switch s.Collection {
+	case "HashMap<i32, i32>":
+		obs = traceHashMap(s)
+	case "ArrayList<i32>":
+		obs = traceArrayList(s)
+	case "TreeMap<i32, i32>":
+		obs = traceTreeMap(s)
+	default:
+		// Same skip line as the positional runner. Do not create outPath.
+		fmt.Fprintf(os.Stderr, "skip: unsupported collection kind (forward-compat): %s\n", s.Collection)
+		return
+	}
+	writeObservations(outPath, s.Name, s.Collection, obs)
+}
+
+func rejectTraceConstruction(s scenario) {
+	if s.Construction != "" {
+		fatalf("trace mode rejects non-empty construction: %s", s.Construction)
+	}
+}
+
+func recordObs(obs map[string]string, key, val string) {
+	if strings.HasPrefix(val, "UNKNOWN_ASSERTION:") {
+		return
+	}
+	obs[key] = val
+}
+
+func i32KeySuffix(k int32) string {
+	return strconv.FormatInt(int64(k), 10)
+}
+
+// noteTraceKey records a key field for the absent-99 rule. probe keys are the
+// distinct put/remove keys; a get key only sets saw99.
+func noteTraceKey(keys []int32, seen map[int32]struct{}, k int32, saw99, probe bool) ([]int32, bool) {
+	if k == 99 {
+		saw99 = true
+	}
+	if !probe {
+		return keys, saw99
+	}
+	if _, ok := seen[k]; ok {
+		return keys, saw99
+	}
+	seen[k] = struct{}{}
+	return append(keys, k), saw99
+}
+
+// traceMapOps applies the M1 map allow-list. get does not change state.
+// Anything else (addToValue, get_or_default, poll_*, add, ...) is fatal.
+func traceMapOps(ops []map[string]any, kind string, put func(int32, int32), remove func(int32), clear func(), get func(int32)) (keys []int32, saw99 bool) {
+	seen := make(map[int32]struct{})
+	for _, op := range ops {
+		switch op["op"] {
+		case "put":
+			k := traceInt32(op["key"])
+			v := traceInt32(op["value"])
+			put(k, v)
+			keys, saw99 = noteTraceKey(keys, seen, k, saw99, true)
+		case "remove":
+			k := traceInt32(op["key"])
+			remove(k)
+			keys, saw99 = noteTraceKey(keys, seen, k, saw99, true)
+		case "clear":
+			clear()
+		case "get":
+			k := traceInt32(op["key"])
+			get(k)
+			_, saw99 = noteTraceKey(nil, nil, k, saw99, false)
+		default:
+			fatalf("unknown %s op: %v", kind, op["op"])
+		}
+	}
+	return keys, saw99
+}
+
+func traceHashMap(s scenario) map[string]string {
+	rejectTraceConstruction(s)
+	m := hashmap.NewInt32Int32()
+	keys, saw99 := traceMapOps(s.Operations, "hashmap",
+		func(k, v int32) { m.Put(k, v) },
+		func(k int32) { m.Remove(k) },
+		func() { m.Clear() },
+		func(k int32) { m.Get(k) },
+	)
+	obs := map[string]string{}
+	recordObs(obs, "size", evalMapAssertion("size", m))
+	recordObs(obs, "is_empty", evalMapAssertion("is_empty", m))
+	recordObs(obs, "sorted_keys", evalMapAssertion("sorted_keys", m))
+	recordObs(obs, "sorted_values", evalMapAssertion("sorted_values", m))
+	for _, k := range keys {
+		suf := i32KeySuffix(k)
+		recordObs(obs, "get_"+suf, evalMapAssertion("get_"+suf, m))
+		recordObs(obs, "contains_"+suf, evalMapAssertion("contains_"+suf, m))
+	}
+	if !saw99 {
+		recordObs(obs, "get_99", evalMapAssertion("get_99", m))
+		recordObs(obs, "contains_99", evalMapAssertion("contains_99", m))
+	}
+	return obs
+}
+
+func traceArrayList(s scenario) map[string]string {
+	rejectTraceConstruction(s)
+	l := arraylist.NewInt32()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			l.Add(traceInt32(op["value"]))
+		case "add_at":
+			idx := traceIndex(op["index"], l.Len())
+			l.AddAtIndex(idx, traceInt32(op["value"]))
+		case "remove":
+			l.Remove(traceInt32(op["value"]))
+		case "clear":
+			l.Clear()
+		default:
+			fatalf("unknown arraylist op: %v", op["op"])
+		}
+	}
+	obs := map[string]string{}
+	recordObs(obs, "size", evalListAssertion("size", l))
+	recordObs(obs, "is_empty", evalListAssertion("is_empty", l))
+	recordObs(obs, "to_sorted_array", evalListAssertion("to_sorted_array", l))
+	recordObs(obs, "sum", evalListAssertion("sum", l))
+	for i := 0; i < l.Len(); i++ {
+		key := "get_at_" + strconv.Itoa(i)
+		recordObs(obs, key, evalListAssertion(key, l))
+	}
+	return obs
+}
+
+func traceTreeMap(s scenario) map[string]string {
+	rejectTraceConstruction(s)
+	m := treemap.NewInt32Int32()
+	keys, saw99 := traceMapOps(s.Operations, "treemap",
+		func(k, v int32) { m.Put(k, v) },
+		func(k int32) { m.Remove(k) },
+		func() { m.Clear() },
+		func(k int32) { m.Get(k) },
+	)
+	obs := map[string]string{}
+	eval := func(key string) {
+		recordObs(obs, key, evalTreeMapAssertion(key, m, navLog{}, false, rangev.Int32Range{}))
+	}
+	eval("size")
+	eval("is_empty")
+	eval("sorted_keys")
+	eval("sorted_values")
+	if m.Len() > 0 {
+		eval("first_key")
+		eval("last_key")
+	}
+	for _, k := range keys {
+		suf := i32KeySuffix(k)
+		eval("get_" + suf)
+		eval("contains_" + suf)
+		eval("floor_" + suf)
+		eval("ceiling_" + suf)
+		eval("lower_" + suf)
+		eval("higher_" + suf)
+		eval("rank_" + suf)
+	}
+	// 99 is a get/contains probe only. Floor/ceiling/lower/higher/rank stay
+	// on keys that appeared as put or remove.
+	if !saw99 {
+		eval("get_99")
+		eval("contains_99")
+	}
+	n := m.Len()
+	if n > 0 && n <= 32 {
+		for i := 0; i < n; i++ {
+			eval("select_" + strconv.Itoa(i))
+		}
+	}
+	return obs
+}
+
+// writeObservations writes the document atomically (temp file in the same
+// directory, then rename). A failed write removes the temp and does not
+// leave outPath behind. encoding/json sorts observation keys.
+func writeObservations(outPath, name, collection string, obs map[string]string) {
+	dir := filepath.Dir(outPath)
+	f, err := os.CreateTemp(dir, ".validate-obs-*.tmp")
+	if err != nil {
+		fatalf("failed to create observation file: %v", err)
+	}
+	tmp := f.Name()
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	writeErr := enc.Encode(observationDoc{
+		Name:         name,
+		Collection:   collection,
+		Observations: obs,
+	})
+	if writeErr == nil {
+		writeErr = f.Close()
+	} else {
+		f.Close()
+	}
+	if writeErr != nil {
+		os.Remove(tmp)
+		fatalf("failed to write observations: %v", writeErr)
+	}
+	if err := os.Rename(tmp, outPath); err != nil {
+		os.Remove(tmp)
+		fatalf("failed to write observations: %v", err)
+	}
+}
+
 // ---- shared helpers -------------------------------------------------------
 
 func fatalf(format string, args ...any) {
@@ -358,6 +640,37 @@ func formatArray(v []int32) string {
 		parts[i] = strconv.FormatInt(int64(x), 10)
 	}
 	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// traceInt32 is the trace-mode operand parser. Out-of-range JSON integers
+// are malformed (exit 1). The positional path keeps asInt32 unchanged.
+func traceInt32(v any) int32 {
+	switch n := v.(type) {
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil || i < math.MinInt32 || i > math.MaxInt32 {
+			fatalf("invalid i32 operand %v", v)
+		}
+		return int32(i)
+	case float64:
+		if math.Trunc(n) != n || n < math.MinInt32 || n > math.MaxInt32 {
+			fatalf("invalid i32 operand %v", v)
+		}
+		return int32(n)
+	default:
+		fatalf("expected integer, got %T (%v)", v, v)
+	}
+	return 0
+}
+
+// traceIndex rejects an add_at index outside 0..length before the production
+// list panics. length is the list length before the insert.
+func traceIndex(v any, length int) int {
+	idx := int(traceInt32(v))
+	if idx < 0 || idx > length {
+		fatalf("invalid arraylist index %d", idx)
+	}
+	return idx
 }
 
 func asInt32(v any) int32 {
@@ -2231,100 +2544,102 @@ func runTreeMap(s scenario) {
 		query = buildRangeObj(s.Query)
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
-		val := func() string {
-			switch key {
-			case "size":
-				return strconv.Itoa(m.Len())
-			case "is_empty":
-				return strconv.FormatBool(m.Len() == 0)
-			case "min", "first_key":
-				k, _, ok := m.Min()
-				return optInt32Str(k, ok)
-			case "max", "last_key":
-				k, _, ok := m.Max()
-				return optInt32Str(k, ok)
-			case "sorted_keys":
-				var keys []int32
-				for k := range m.Keys() {
-					keys = append(keys, k)
-				}
-				return formatArray(keys)
-			case "sorted_values":
-				// Straight from the production Values() iterator, in the tree's
-				// ascending-KEY order -- NOT re-sorted by value. The README's
-				// one-line table says "all values, sorted ascending", but for
-				// TreeMap the FIXTURES define the contract and they mean
-				// key-order: 17-bulk-load/treemap_i32_from_sorted expects
-				// [100,0,50,200,210] for keys [-10,0,5,20,21]. Sorting by value
-				// here turns that scenario red. Rust's TreeMap runner
-				// (mapdb-rust src/bin/validate.rs, `map.values()` with no sort)
-				// agrees. Do not "fix" this to a value sort.
-				return formatArray(slices.Collect(m.Values()))
-			case "descending_keys":
-				var keys []int32
-				for k := range m.DescendingKeys() {
-					keys = append(keys, k)
-				}
-				return formatArray(keys)
-			case "range_keys":
-				if hasQuery {
-					return formatArray(m.RangeKeysIn(query))
-				}
-				return unknown(key)
-			case "range_keys_desc":
-				if hasQuery {
-					return formatArray(m.DescendingRangeKeys(query))
-				}
-				return unknown(key)
-			case "range_size":
-				if hasQuery {
-					return strconv.Itoa(len(m.RangeKeysIn(query)))
-				}
-				return unknown(key)
-			case "poll_first_keys":
-				return optArray(log.pollFirstKeys)
-			case "poll_last_keys":
-				return optArray(log.pollLastKeys)
-			case "poll_first_values":
-				return optArray(log.pollFirstValues)
-			case "poll_last_values":
-				return optArray(log.pollLastValues)
-			case "remove_range_counts":
-				return formatArray(log.removeRangeCount)
-			}
-			if kind, k, ok := navKeyPrefix(key); ok {
-				switch kind {
-				case "floor":
-					return optInt32Str(m.FloorKey(k))
-				case "ceiling":
-					return optInt32Str(m.CeilingKey(k))
-				case "lower":
-					return optInt32Str(m.LowerKey(k))
-				case "higher":
-					return optInt32Str(m.HigherKey(k))
-				}
-			}
-			if k, ok := rankKey(key); ok {
-				return strconv.Itoa(m.Rank(k))
-			}
-			if i, ok := selectIndex(key); ok {
-				return optInt32Str(m.SelectKey(i))
-			}
-			if rest, ok := strings.CutPrefix(key, "get_"); ok {
-				k, _ := strconv.ParseInt(rest, 10, 32)
-				if v, ok := m.Get(int32(k)); ok {
-					return strconv.FormatInt(int64(v), 10)
-				}
-				return "null"
-			}
-			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
-				k, _ := strconv.ParseInt(rest, 10, 32)
-				return strconv.FormatBool(m.ContainsKey(int32(k)))
-			}
-			return unknown(key)
-		}()
+		val := evalTreeMapAssertion(key, m, log, hasQuery, query)
 		emit(s.Name, key, val, s.Assertions[key], modeNone)
 	}
+}
+
+func evalTreeMapAssertion(key string, m *treemap.Int32Int32, log navLog, hasQuery bool, query rangev.Int32Range) string {
+	switch key {
+	case "size":
+		return strconv.Itoa(m.Len())
+	case "is_empty":
+		return strconv.FormatBool(m.Len() == 0)
+	case "min", "first_key":
+		k, _, ok := m.Min()
+		return optInt32Str(k, ok)
+	case "max", "last_key":
+		k, _, ok := m.Max()
+		return optInt32Str(k, ok)
+	case "sorted_keys":
+		var keys []int32
+		for k := range m.Keys() {
+			keys = append(keys, k)
+		}
+		return formatArray(keys)
+	case "sorted_values":
+		// Straight from the production Values() iterator, in the tree's
+		// ascending-KEY order -- NOT re-sorted by value. The README's
+		// one-line table says "all values, sorted ascending", but for
+		// TreeMap the FIXTURES define the contract and they mean
+		// key-order: 17-bulk-load/treemap_i32_from_sorted expects
+		// [100,0,50,200,210] for keys [-10,0,5,20,21]. Sorting by value
+		// here turns that scenario red. Rust's TreeMap runner
+		// (mapdb-rust src/bin/validate.rs, `map.values()` with no sort)
+		// agrees. Do not "fix" this to a value sort.
+		return formatArray(slices.Collect(m.Values()))
+	case "descending_keys":
+		var keys []int32
+		for k := range m.DescendingKeys() {
+			keys = append(keys, k)
+		}
+		return formatArray(keys)
+	case "range_keys":
+		if hasQuery {
+			return formatArray(m.RangeKeysIn(query))
+		}
+		return unknown(key)
+	case "range_keys_desc":
+		if hasQuery {
+			return formatArray(m.DescendingRangeKeys(query))
+		}
+		return unknown(key)
+	case "range_size":
+		if hasQuery {
+			return strconv.Itoa(len(m.RangeKeysIn(query)))
+		}
+		return unknown(key)
+	case "poll_first_keys":
+		return optArray(log.pollFirstKeys)
+	case "poll_last_keys":
+		return optArray(log.pollLastKeys)
+	case "poll_first_values":
+		return optArray(log.pollFirstValues)
+	case "poll_last_values":
+		return optArray(log.pollLastValues)
+	case "remove_range_counts":
+		return formatArray(log.removeRangeCount)
+	}
+	if kind, k, ok := navKeyPrefix(key); ok {
+		switch kind {
+		case "floor":
+			return optInt32Str(m.FloorKey(k))
+		case "ceiling":
+			return optInt32Str(m.CeilingKey(k))
+		case "lower":
+			return optInt32Str(m.LowerKey(k))
+		case "higher":
+			return optInt32Str(m.HigherKey(k))
+		}
+	}
+	if k, ok := rankKey(key); ok {
+		return strconv.Itoa(m.Rank(k))
+	}
+	if i, ok := selectIndex(key); ok {
+		return optInt32Str(m.SelectKey(i))
+	}
+	if rest, ok := strings.CutPrefix(key, "get_"); ok {
+		k, _ := strconv.ParseInt(rest, 10, 32)
+		if v, ok := m.Get(int32(k)); ok {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return "null"
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		k, _ := strconv.ParseInt(rest, 10, 32)
+		return strconv.FormatBool(m.ContainsKey(int32(k)))
+	}
+	return unknown(key)
 }
 
 // ---- HashMap<f32, i32> ---------------------------------------------------

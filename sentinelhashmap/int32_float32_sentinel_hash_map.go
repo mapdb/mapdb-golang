@@ -22,9 +22,10 @@ const (
 // It uses sentinel values (0=empty, 1=removed) to track slot state.
 // Keys 0 and 1 are stored separately in dedicated fields.
 type Int32Float32 struct {
-	keys   []int32
-	values []float32
-	size   int
+	keys       []int32
+	values     []float32
+	size       int
+	tombstones int
 
 	// Sentinel key storage — keys 0 and 1 are valid user keys but also
 	// serve as empty/removed markers in the table, so we store them separately.
@@ -147,7 +148,9 @@ func (m *Int32Float32) Put(key int32, value float32) (float32, bool) {
 
 func (m *Int32Float32) putRegular(key int32, value float32) (float32, bool) {
 	if m.needsResize() {
-		m.resize()
+		m.resize(len(m.keys) * 2)
+	} else if m.needsRehash() {
+		m.resize(len(m.keys))
 	}
 	cap := len(m.keys)
 	mask := cap - 1
@@ -156,11 +159,12 @@ func (m *Int32Float32) putRegular(key int32, value float32) (float32, bool) {
 	removed := int32Float32RemovedKey
 	firstRemoved := -1
 
-	for {
+	for probes := 0; probes < cap; probes++ {
 		k := m.keys[idx]
 		if k == empty {
 			if firstRemoved >= 0 {
 				idx = firstRemoved
+				m.tombstones--
 			}
 			m.keys[idx] = key
 			m.values[idx] = value
@@ -181,6 +185,17 @@ func (m *Int32Float32) putRegular(key int32, value float32) (float32, bool) {
 		}
 		idx = (idx + 1) & mask
 	}
+	// Defend against a full probe even if the occupancy invariant changes.
+	// Reuse a removed slot or grow and retry.
+	if firstRemoved >= 0 {
+		m.keys[firstRemoved] = key
+		m.values[firstRemoved] = value
+		m.tombstones--
+		m.size++
+		return 0.0, false
+	}
+	m.resize(cap * 2)
+	return m.putRegular(key, value)
 }
 
 // Get returns the value for the given key and true if found, or the zero value and false if not.
@@ -205,7 +220,7 @@ func (m *Int32Float32) Get(key int32) (float32, bool) {
 	idx := int(m.hashKey(key)) & mask
 	empty := int32Float32EmptyKey
 
-	for {
+	for probes := 0; probes < cap; probes++ {
 		k := m.keys[idx]
 		if k == empty {
 			return 0.0, false
@@ -215,6 +230,7 @@ func (m *Int32Float32) Get(key int32) (float32, bool) {
 		}
 		idx = (idx + 1) & mask
 	}
+	return 0.0, false
 }
 
 // GetOrDefault returns the value for the given key if present, or the default value otherwise.
@@ -259,7 +275,7 @@ func (m *Int32Float32) removeRegular(key int32) (float32, bool) {
 	idx := int(m.hashKey(key)) & mask
 	empty := int32Float32EmptyKey
 
-	for {
+	for probes := 0; probes < cap; probes++ {
 		k := m.keys[idx]
 		if k == empty {
 			return 0.0, false
@@ -269,10 +285,12 @@ func (m *Int32Float32) removeRegular(key int32) (float32, bool) {
 			m.keys[idx] = int32Float32RemovedKey
 			m.values[idx] = 0.0
 			m.size--
+			m.tombstones++
 			return old, true
 		}
 		idx = (idx + 1) & mask
 	}
+	return 0.0, false
 }
 
 // ContainsKey returns true if the map contains the given key.
@@ -315,6 +333,7 @@ func (m *Int32Float32) Clear() {
 	m.oneKeyPresent = false
 	m.oneKeyValue = 0.0
 	m.size = 0
+	m.tombstones = 0
 }
 
 // All returns an iter.Seq2 that yields all key-value pairs.
@@ -482,10 +501,22 @@ func (m *Int32Float32) needsResize() bool {
 	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-func (m *Int32Float32) resize() {
+func (m *Int32Float32) needsRehash() bool {
+	// Rebuild at 7/8 physical occupancy. The gap above the 3/4 live growth
+	// threshold leaves proportional room for tombstones under stable-size churn.
+	regularEntries := m.size
+	if m.zeroKeyPresent {
+		regularEntries--
+	}
+	if m.oneKeyPresent {
+		regularEntries--
+	}
+	return (regularEntries+m.tombstones+1)*8 >= len(m.keys)*7
+}
+
+func (m *Int32Float32) resize(newCap int) {
 	oldKeys := m.keys
 	oldValues := m.values
-	newCap := len(oldKeys) * 2
 	if newCap == 0 {
 		newCap = int32Float32DefaultCapacity
 	}
@@ -499,6 +530,7 @@ func (m *Int32Float32) resize() {
 	m.keys = make([]int32, newCap)
 	m.values = make([]float32, newCap)
 	m.size = 0
+	m.tombstones = 0
 	m.zeroKeyPresent = false
 	m.oneKeyPresent = false
 

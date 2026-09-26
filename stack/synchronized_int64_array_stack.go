@@ -175,15 +175,25 @@ func (s *SynchronizedInt64) InjectInto(initial int64, f func(int64, int64) int64
 // ── functional that return a new stack ───────────────────────────────
 
 func (s *SynchronizedInt64) Select(predicate func(int64) bool) *Int64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Select(predicate)
+	result := NewInt64()
+	snapshot := s.snapshot() // top to bottom; Select visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 func (s *SynchronizedInt64) Reject(predicate func(int64) bool) *Int64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Reject(predicate)
+	result := NewInt64()
+	snapshot := s.snapshot() // top to bottom; Reject visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if !predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 // ── fluent mutators ───────────────────────────────────────────────────

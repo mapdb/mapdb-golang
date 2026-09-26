@@ -659,15 +659,25 @@ func (s *Synchronized{{.Name}}) InjectInto(initial {{.GoType}}, f func({{.GoType
 // ── functional that return a new stack ───────────────────────────────
 
 func (s *Synchronized{{.Name}}) Select(predicate func({{.GoType}}) bool) *{{.Name}} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Select(predicate)
+	result := New{{.Name}}()
+	snapshot := s.snapshot() // top to bottom; Select visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 func (s *Synchronized{{.Name}}) Reject(predicate func({{.GoType}}) bool) *{{.Name}} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Reject(predicate)
+	result := New{{.Name}}()
+	snapshot := s.snapshot() // top to bottom; Reject visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if !predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 // ── fluent mutators ───────────────────────────────────────────────────

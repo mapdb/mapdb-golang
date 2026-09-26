@@ -175,15 +175,25 @@ func (s *SynchronizedFloat64) InjectInto(initial float64, f func(float64, float6
 // ── functional that return a new stack ───────────────────────────────
 
 func (s *SynchronizedFloat64) Select(predicate func(float64) bool) *Float64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Select(predicate)
+	result := NewFloat64()
+	snapshot := s.snapshot() // top to bottom; Select visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 func (s *SynchronizedFloat64) Reject(predicate func(float64) bool) *Float64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Reject(predicate)
+	result := NewFloat64()
+	snapshot := s.snapshot() // top to bottom; Reject visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if !predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 // ── fluent mutators ───────────────────────────────────────────────────

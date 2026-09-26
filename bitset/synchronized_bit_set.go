@@ -2,6 +2,7 @@ package bitset
 
 import (
 	"sync"
+	"unsafe"
 )
 
 // SynchronizedBitSet is a thread-safe wrapper around BitSet.
@@ -84,39 +85,43 @@ func (b *SynchronizedBitSet) Intersects(other *SynchronizedBitSet) bool {
 }
 
 func (b *SynchronizedBitSet) AndInPlace(other *SynchronizedBitSet) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	other.mu.RLock()
-	otherCopy := other.delegate
-	other.mu.RUnlock()
-	b.delegate.AndInPlace(otherCopy)
+	b.applyInPlace(other, (*BitSet).AndInPlace)
 }
 
 func (b *SynchronizedBitSet) OrInPlace(other *SynchronizedBitSet) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	other.mu.RLock()
-	otherCopy := other.delegate
-	other.mu.RUnlock()
-	b.delegate.OrInPlace(otherCopy)
+	b.applyInPlace(other, (*BitSet).OrInPlace)
 }
 
 func (b *SynchronizedBitSet) XorInPlace(other *SynchronizedBitSet) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	other.mu.RLock()
-	otherCopy := other.delegate
-	other.mu.RUnlock()
-	b.delegate.XorInPlace(otherCopy)
+	b.applyInPlace(other, (*BitSet).XorInPlace)
 }
 
 func (b *SynchronizedBitSet) AndNotInPlace(other *SynchronizedBitSet) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	other.mu.RLock()
-	otherCopy := other.delegate
-	other.mu.RUnlock()
-	b.delegate.AndNotInPlace(otherCopy)
+	b.applyInPlace(other, (*BitSet).AndNotInPlace)
+}
+
+// applyInPlace holds both wrappers' locks throughout the operation. Address
+// order prevents opposing operations from deadlocking; self operations need
+// only one write lock. Holding the source read lock also keeps its words stable.
+func (b *SynchronizedBitSet) applyInPlace(other *SynchronizedBitSet, apply func(*BitSet, *BitSet)) {
+	if b == other {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		apply(b.delegate, b.delegate)
+		return
+	}
+	if uintptr(unsafe.Pointer(b)) < uintptr(unsafe.Pointer(other)) {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		other.mu.RLock()
+		defer other.mu.RUnlock()
+	} else {
+		other.mu.RLock()
+		defer other.mu.RUnlock()
+		b.mu.Lock()
+		defer b.mu.Unlock()
+	}
+	apply(b.delegate, other.delegate)
 }
 
 func (b *SynchronizedBitSet) NextSetBit(from int) int {

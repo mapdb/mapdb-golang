@@ -175,15 +175,25 @@ func (s *SynchronizedInt16) InjectInto(initial int16, f func(int16, int16) int16
 // ── functional that return a new stack ───────────────────────────────
 
 func (s *SynchronizedInt16) Select(predicate func(int16) bool) *Int16 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Select(predicate)
+	result := NewInt16()
+	snapshot := s.snapshot() // top to bottom; Select visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 func (s *SynchronizedInt16) Reject(predicate func(int16) bool) *Int16 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.delegate.Reject(predicate)
+	result := NewInt16()
+	snapshot := s.snapshot() // top to bottom; Reject visits bottom to top
+	for i := len(snapshot) - 1; i >= 0; i-- {
+		if !predicate(snapshot[i]) {
+			result.Push(snapshot[i])
+		}
+	}
+	return result
 }
 
 // ── fluent mutators ───────────────────────────────────────────────────

@@ -238,17 +238,34 @@ func (m *Float32Int64) Values() iter.Seq[int64] {
 	}
 }
 
-// RangeKeys returns an iter.Seq2 that yields entries with keys in [fromKey, toKey).
+// RangeKeys returns an iter.Seq2 over the entries with keys in [fromKey, toKey).
+//
+// The matching entries are materialized when RangeKeys is called: the returned
+// iterator replays that snapshot and is unaffected by later mutation of the map
+// (navigable-map spec: range slices are snapshots, never live views).
 func (m *Float32Int64) RangeKeys(fromKey, toKey float32) iter.Seq2[float32, int64] {
+	return m.rangeSnapshot(fromKey, true, toKey, true)
+}
+
+// rangeSnapshot copies the entries whose key lies within the given bounds
+// (lower inclusive when hasFrom, upper exclusive when hasTo; an absent bound is
+// unbounded) into slices and returns an iterator over that copy.
+func (m *Float32Int64) rangeSnapshot(fromKey float32, hasFrom bool, toKey float32, hasTo bool) iter.Seq2[float32, int64] {
+	var keys []float32
+	var vals []int64
+	for k, v := range m.All() {
+		if hasFrom && cmpFloat32(k, fromKey) < 0 {
+			continue
+		}
+		if hasTo && cmpFloat32(k, toKey) >= 0 {
+			break
+		}
+		keys = append(keys, k)
+		vals = append(vals, v)
+	}
 	return func(yield func(float32, int64) bool) {
-		for k, v := range m.All() {
-			if cmpFloat32(k, fromKey) < 0 {
-				continue
-			}
-			if cmpFloat32(k, toKey) >= 0 {
-				return
-			}
-			if !yield(k, v) {
+		for i, k := range keys {
+			if !yield(k, vals[i]) {
 				return
 			}
 		}
@@ -294,37 +311,22 @@ func (m *Float32Int64) Lower(key float32) (float32, int64, bool) {
 }
 
 // HeadMap returns an iter.Seq2 over entries with keys strictly less than toKey.
-// Matches Java NavigableMap.headMap(toKey) (exclusive by default).
+// Matches Java NavigableMap.headMap(toKey) (exclusive by default). The entries
+// are snapshotted at call time; later mutation of the map does not affect them.
 func (m *Float32Int64) HeadMap(toKey float32) iter.Seq2[float32, int64] {
-	return func(yield func(float32, int64) bool) {
-		for k, v := range m.All() {
-			if cmpFloat32(k, toKey) >= 0 {
-				return
-			}
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return m.rangeSnapshot(toKey, false, toKey, true)
 }
 
 // TailMap returns an iter.Seq2 over entries with keys >= fromKey.
-// Matches Java NavigableMap.tailMap(fromKey) (inclusive by default).
+// Matches Java NavigableMap.tailMap(fromKey) (inclusive by default). The entries
+// are snapshotted at call time; later mutation of the map does not affect them.
 func (m *Float32Int64) TailMap(fromKey float32) iter.Seq2[float32, int64] {
-	return func(yield func(float32, int64) bool) {
-		for k, v := range m.All() {
-			if cmpFloat32(k, fromKey) < 0 {
-				continue
-			}
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return m.rangeSnapshot(fromKey, true, fromKey, false)
 }
 
 // SubMap returns an iter.Seq2 over entries with keys in [fromKey, toKey).
-// Alias for RangeKeys; exists for Java-NavigableMap API parity.
+// Alias for RangeKeys (a call-time snapshot); exists for Java-NavigableMap API
+// parity.
 func (m *Float32Int64) SubMap(fromKey, toKey float32) iter.Seq2[float32, int64] {
 	return m.RangeKeys(fromKey, toKey)
 }

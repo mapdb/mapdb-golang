@@ -359,16 +359,24 @@ func (s *{{.Name}}) All() iter.Seq[{{.GoType}}] {
 	}
 }
 
-// RangeValues returns an iter.Seq that yields elements in [from, to).
+// RangeValues returns an iter.Seq over the elements in [from, to).
+//
+// The matching elements are materialized when RangeValues is called: the
+// returned iterator replays that snapshot and is unaffected by later mutation
+// of the set (navigable-map spec: range slices are snapshots, never live views).
 func (s *{{.Name}}) RangeValues(from, to {{.GoType}}) iter.Seq[{{.GoType}}] {
+	var snap []{{.GoType}}
+	for v := range s.All() {
+		if {{if .IsFloat}}{{.CmpFn}}(v, from) < 0{{else}}v < from{{end}} {
+			continue
+		}
+		if {{if .IsFloat}}{{.CmpFn}}(v, to) >= 0{{else}}v >= to{{end}} {
+			break
+		}
+		snap = append(snap, v)
+	}
 	return func(yield func({{.GoType}}) bool) {
-		for v := range s.All() {
-			if {{if .IsFloat}}{{.CmpFn}}(v, from) < 0{{else}}v < from{{end}} {
-				continue
-			}
-			if {{if .IsFloat}}{{.CmpFn}}(v, to) >= 0{{else}}v >= to{{end}} {
-				return
-			}
+		for _, v := range snap {
 			if !yield(v) {
 				return
 			}

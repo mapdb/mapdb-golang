@@ -282,16 +282,24 @@ func (s *Float64) All() iter.Seq[float64] {
 	}
 }
 
-// RangeValues returns an iter.Seq that yields elements in [from, to).
+// RangeValues returns an iter.Seq over the elements in [from, to).
+//
+// The matching elements are materialized when RangeValues is called: the
+// returned iterator replays that snapshot and is unaffected by later mutation
+// of the set (navigable-map spec: range slices are snapshots, never live views).
 func (s *Float64) RangeValues(from, to float64) iter.Seq[float64] {
+	var snap []float64
+	for v := range s.All() {
+		if cmpFloat64(v, from) < 0 {
+			continue
+		}
+		if cmpFloat64(v, to) >= 0 {
+			break
+		}
+		snap = append(snap, v)
+	}
 	return func(yield func(float64) bool) {
-		for v := range s.All() {
-			if cmpFloat64(v, from) < 0 {
-				continue
-			}
-			if cmpFloat64(v, to) >= 0 {
-				return
-			}
+		for _, v := range snap {
 			if !yield(v) {
 				return
 			}

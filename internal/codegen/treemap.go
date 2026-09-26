@@ -362,17 +362,34 @@ func (m *{{.MapName}}) Values() iter.Seq[{{.ValType}}] {
 	}
 }
 
-// RangeKeys returns an iter.Seq2 that yields entries with keys in [fromKey, toKey).
+// RangeKeys returns an iter.Seq2 over the entries with keys in [fromKey, toKey).
+//
+// The matching entries are materialized when RangeKeys is called: the returned
+// iterator replays that snapshot and is unaffected by later mutation of the map
+// (navigable-map spec: range slices are snapshots, never live views).
 func (m *{{.MapName}}) RangeKeys(fromKey, toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+	return m.rangeSnapshot(fromKey, true, toKey, true)
+}
+
+// rangeSnapshot copies the entries whose key lies within the given bounds
+// (lower inclusive when hasFrom, upper exclusive when hasTo; an absent bound is
+// unbounded) into slices and returns an iterator over that copy.
+func (m *{{.MapName}}) rangeSnapshot(fromKey {{.KeyType}}, hasFrom bool, toKey {{.KeyType}}, hasTo bool) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
+	var keys []{{.KeyType}}
+	var vals []{{.ValType}}
+	for k, v := range m.All() {
+		if hasFrom && {{if .KeyIsFloat}}{{.CmpFn}}(k, fromKey) < 0{{else}}k < fromKey{{end}} {
+			continue
+		}
+		if hasTo && {{if .KeyIsFloat}}{{.CmpFn}}(k, toKey) >= 0{{else}}k >= toKey{{end}} {
+			break
+		}
+		keys = append(keys, k)
+		vals = append(vals, v)
+	}
 	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
-		for k, v := range m.All() {
-			if {{if .KeyIsFloat}}{{.CmpFn}}(k, fromKey) < 0{{else}}k < fromKey{{end}} {
-				continue
-			}
-			if {{if .KeyIsFloat}}{{.CmpFn}}(k, toKey) >= 0{{else}}k >= toKey{{end}} {
-				return
-			}
-			if !yield(k, v) {
+		for i, k := range keys {
+			if !yield(k, vals[i]) {
 				return
 			}
 		}
@@ -418,37 +435,22 @@ func (m *{{.MapName}}) Lower(key {{.KeyType}}) ({{.KeyType}}, {{.ValType}}, bool
 }
 
 // HeadMap returns an iter.Seq2 over entries with keys strictly less than toKey.
-// Matches Java NavigableMap.headMap(toKey) (exclusive by default).
+// Matches Java NavigableMap.headMap(toKey) (exclusive by default). The entries
+// are snapshotted at call time; later mutation of the map does not affect them.
 func (m *{{.MapName}}) HeadMap(toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
-	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
-		for k, v := range m.All() {
-			if {{if .KeyIsFloat}}{{.CmpFn}}(k, toKey) >= 0{{else}}k >= toKey{{end}} {
-				return
-			}
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return m.rangeSnapshot(toKey, false, toKey, true)
 }
 
 // TailMap returns an iter.Seq2 over entries with keys >= fromKey.
-// Matches Java NavigableMap.tailMap(fromKey) (inclusive by default).
+// Matches Java NavigableMap.tailMap(fromKey) (inclusive by default). The entries
+// are snapshotted at call time; later mutation of the map does not affect them.
 func (m *{{.MapName}}) TailMap(fromKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
-	return func(yield func({{.KeyType}}, {{.ValType}}) bool) {
-		for k, v := range m.All() {
-			if {{if .KeyIsFloat}}{{.CmpFn}}(k, fromKey) < 0{{else}}k < fromKey{{end}} {
-				continue
-			}
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return m.rangeSnapshot(fromKey, true, fromKey, false)
 }
 
 // SubMap returns an iter.Seq2 over entries with keys in [fromKey, toKey).
-// Alias for RangeKeys; exists for Java-NavigableMap API parity.
+// Alias for RangeKeys (a call-time snapshot); exists for Java-NavigableMap API
+// parity.
 func (m *{{.MapName}}) SubMap(fromKey, toKey {{.KeyType}}) iter.Seq2[{{.KeyType}}, {{.ValType}}] {
 	return m.RangeKeys(fromKey, toKey)
 }

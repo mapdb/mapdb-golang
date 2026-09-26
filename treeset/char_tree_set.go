@@ -282,16 +282,24 @@ func (s *Char) All() iter.Seq[uint16] {
 	}
 }
 
-// RangeValues returns an iter.Seq that yields elements in [from, to).
+// RangeValues returns an iter.Seq over the elements in [from, to).
+//
+// The matching elements are materialized when RangeValues is called: the
+// returned iterator replays that snapshot and is unaffected by later mutation
+// of the set (navigable-map spec: range slices are snapshots, never live views).
 func (s *Char) RangeValues(from, to uint16) iter.Seq[uint16] {
+	var snap []uint16
+	for v := range s.All() {
+		if v < from {
+			continue
+		}
+		if v >= to {
+			break
+		}
+		snap = append(snap, v)
+	}
 	return func(yield func(uint16) bool) {
-		for v := range s.All() {
-			if v < from {
-				continue
-			}
-			if v >= to {
-				return
-			}
+		for _, v := range snap {
 			if !yield(v) {
 				return
 			}

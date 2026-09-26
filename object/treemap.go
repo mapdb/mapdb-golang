@@ -367,45 +367,43 @@ func (m *TreeMap[K, V]) Lower(key K) (K, V, bool) {
 	return result.key, result.value, true
 }
 
-// HeadMap yields entries with keys strictly less than toKey.
+// HeadMap yields entries with keys strictly less than toKey. The entries are
+// snapshotted at call time; later mutation of the map does not affect them.
 func (m *TreeMap[K, V]) HeadMap(toKey K) iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		for k, v := range m.All() {
-			if m.cmp(k, toKey) >= 0 {
-				return
-			}
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return m.rangeSnapshot(toKey, false, toKey, true)
 }
 
-// TailMap yields entries with keys >= fromKey.
+// TailMap yields entries with keys >= fromKey. The entries are snapshotted at
+// call time; later mutation of the map does not affect them.
 func (m *TreeMap[K, V]) TailMap(fromKey K) iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		for k, v := range m.All() {
-			if m.cmp(k, fromKey) < 0 {
-				continue
-			}
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return m.rangeSnapshot(fromKey, true, fromKey, false)
 }
 
-// SubMap yields entries with keys in [fromKey, toKey).
+// SubMap yields entries with keys in [fromKey, toKey). The entries are
+// snapshotted at call time; later mutation of the map does not affect them.
 func (m *TreeMap[K, V]) SubMap(fromKey, toKey K) iter.Seq2[K, V] {
+	return m.rangeSnapshot(fromKey, true, toKey, true)
+}
+
+// rangeSnapshot copies the entries whose key lies within the given bounds
+// (lower inclusive when hasFrom, upper exclusive when hasTo; an absent bound is
+// unbounded) into slices and returns an iterator over that copy.
+func (m *TreeMap[K, V]) rangeSnapshot(fromKey K, hasFrom bool, toKey K, hasTo bool) iter.Seq2[K, V] {
+	var keys []K
+	var vals []V
+	for k, v := range m.All() {
+		if hasFrom && m.cmp(k, fromKey) < 0 {
+			continue
+		}
+		if hasTo && m.cmp(k, toKey) >= 0 {
+			break
+		}
+		keys = append(keys, k)
+		vals = append(vals, v)
+	}
 	return func(yield func(K, V) bool) {
-		for k, v := range m.All() {
-			if m.cmp(k, fromKey) < 0 {
-				continue
-			}
-			if m.cmp(k, toKey) >= 0 {
-				return
-			}
-			if !yield(k, v) {
+		for i, k := range keys {
+			if !yield(k, vals[i]) {
 				return
 			}
 		}

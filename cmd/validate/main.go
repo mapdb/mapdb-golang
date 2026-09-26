@@ -2115,6 +2115,9 @@ func evalRoaringAssertion(key string, set, other *roaring.RoaringU32) string {
 
 func runHashMap(s scenario) {
 	var m *hashmap.Int32Int32
+	// Value returned by each production AddToValue, in execution order
+	// (add_to_value_results). Never recomputed from the map.
+	addToValueResults := []int32{}
 	if s.Construction == "bulkLoadExact" {
 		keys, vals := int32Pairs(s.Operations)
 		var err error
@@ -2131,7 +2134,7 @@ func runHashMap(s scenario) {
 			case "remove":
 				m.Remove(asInt32(op["key"]))
 			case "addToValue":
-				m.AddToValue(asInt32(op["key"]), asInt32(op["delta"]))
+				addToValueResults = append(addToValueResults, m.AddToValue(asInt32(op["key"]), asInt32(op["delta"])))
 			case "clear":
 				m.Clear()
 			default:
@@ -2140,6 +2143,10 @@ func runHashMap(s scenario) {
 		}
 	}
 	for _, key := range sortedAssertionKeys(s.Assertions) {
+		if key == "add_to_value_results" {
+			emit(s.Name, key, formatArray(addToValueResults), s.Assertions[key], modeNone)
+			continue
+		}
 		emit(s.Name, key, evalMapAssertion(key, m), s.Assertions[key], modeNone)
 	}
 }

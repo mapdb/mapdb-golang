@@ -166,12 +166,26 @@ func (iv *Int8) ToSlice() []int8 {
 	return result
 }
 
-// Reversed returns a new interval with elements in reverse order.
+// Reversed returns a new interval with the same elements in reverse order:
+// Get(Len()-1), ..., Get(0). Its from is the last element actually produced,
+// not to, which is only an inclusive bound and may sit off the step grid
+// (NewInt8(0, 10, 3) yields 0, 3, 6, 9; its reverse is 9, 6, 3, 0).
+// Panics if step is the minimum int8, whose negation is unrepresentable.
 func (iv *Int8) Reversed() *Int8 {
 	if iv.step == int8(-1<<7) {
 		panic("interval.Int8: cannot reverse interval with minimum step")
 	}
-	return &Int8{from: iv.to, to: iv.from, step: -iv.step}
+	// Last element: pull to back onto the step grid. rem <= distance(), so
+	// the unsigned subtraction/addition cannot leave [from, to]. Len() caps
+	// at MaxInt, so Get(Len()-1) would be wrong for the widest ranges.
+	rem := iv.distance() % iv.absStep()
+	var last int8
+	if iv.step > 0 {
+		last = int8(uint64(int64(iv.to)) - rem)
+	} else {
+		last = int8(uint64(int64(iv.to)) + rem)
+	}
+	return &Int8{from: last, to: iv.from, step: -iv.step}
 }
 
 // String returns a string representation of the interval.

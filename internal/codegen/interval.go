@@ -244,12 +244,26 @@ func (iv *{{.StructName}}) ToSlice() []{{.GoType}} {
 	return result
 }
 
-// Reversed returns a new interval with elements in reverse order.
+// Reversed returns a new interval with the same elements in reverse order:
+// Get(Len()-1), ..., Get(0). Its from is the last element actually produced,
+// not to, which is only an inclusive bound and may sit off the step grid
+// (New{{.StructName}}(0, 10, 3) yields 0, 3, 6, 9; its reverse is 9, 6, 3, 0).
+// Panics if step is the minimum {{.GoType}}, whose negation is unrepresentable.
 func (iv *{{.StructName}}) Reversed() *{{.StructName}} {
 	if iv.step == {{.MinStepExpr}} {
 		panic("interval.{{.StructName}}: cannot reverse interval with minimum step")
 	}
-	return &{{.StructName}}{from: iv.to, to: iv.from, step: -iv.step}
+	// Last element: pull to back onto the step grid. rem <= distance(), so
+	// the unsigned subtraction/addition cannot leave [from, to]. Len() caps
+	// at MaxInt, so Get(Len()-1) would be wrong for the widest ranges.
+	rem := iv.distance() % iv.absStep()
+	var last {{.GoType}}
+	if iv.step > 0 {
+		last = {{.GoType}}(uint64(int64(iv.to)) - rem)
+	} else {
+		last = {{.GoType}}(uint64(int64(iv.to)) + rem)
+	}
+	return &{{.StructName}}{from: last, to: iv.from, step: -iv.step}
 }
 
 // String returns a string representation of the interval.

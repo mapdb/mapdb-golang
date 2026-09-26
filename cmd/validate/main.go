@@ -337,6 +337,8 @@ func runPositional(s scenario) {
 		runF32TreeSet(s)
 	case "ArrayList<f32>":
 		runF32ArrayList(s)
+	case "Interval<i32>":
+		runIntervalScenario(s)
 	case "Range<i32>":
 		runRange(s)
 	case "RangeSet<i32>":
@@ -520,11 +522,14 @@ func runPanicChild(path string) {
 	runPositional(s)
 }
 
-// runInterval applies Interval<i32> ops in order. Step 0 and reverse-at-min
-// must reach the production panics. A bad operand, an unknown op, or
-// reversed with no current interval prints the scenario banner and exits 1
-// so an empty-stdout failure cannot look like a clean trap.
-func runInterval(s scenario) {
+// runInterval applies Interval<i32> ops in order and returns the resulting
+// production interval (nil when the scenario has no from_to_by). Step 0 and
+// reverse-at-min must reach the production panics. A bad operand, an unknown
+// op, or reversed with no current interval prints the scenario banner and
+// exits 1 so an empty-stdout failure cannot look like a clean trap. The
+// --panic-child path calls this directly and prints no assertions; the value
+// path (runIntervalScenario) evaluates the assertions on the returned interval.
+func runInterval(s scenario) *interval.Int32 {
 	var cur *interval.Int32
 	for _, op := range s.Operations {
 		kind, _ := op["op"].(string)
@@ -545,6 +550,56 @@ func runInterval(s scenario) {
 			os.Exit(1)
 		}
 	}
+	return cur
+}
+
+// runIntervalScenario is the Interval<i32> value path: runPositional has
+// already printed the banner. A scenario with value assertions but no
+// from_to_by has nothing to assert against and is malformed (exit 1).
+func runIntervalScenario(s scenario) {
+	iv := runInterval(s)
+	if iv == nil {
+		os.Exit(1)
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		emit(s.Name, key, evalIntervalAssertion(key, iv), s.Assertions[key], modeNone)
+	}
+}
+
+// evalIntervalAssertion obtains every value from the production method the
+// README vocabulary names: Len, Get(0), Get(Len-1), iteration order via
+// ToSlice, Get(index) and Contains. Unknown keys are skipped by emit.
+func evalIntervalAssertion(key string, iv *interval.Int32) string {
+	switch key {
+	case "size":
+		return strconv.Itoa(iv.Len())
+	case "is_empty":
+		return strconv.FormatBool(iv.Len() == 0)
+	case "first":
+		return strconv.FormatInt(int64(iv.Get(0)), 10)
+	case "last":
+		return strconv.FormatInt(int64(iv.Get(iv.Len()-1)), 10)
+	case "to_array":
+		return formatArray(iv.ToSlice())
+	}
+	if rest, ok := strings.CutPrefix(key, "get_at_"); ok {
+		idx, err := strconv.Atoi(rest)
+		if err != nil || idx < 0 {
+			fatalf("invalid get_at_ suffix: %q", rest)
+		}
+		if idx >= iv.Len() {
+			return "null"
+		}
+		return strconv.FormatInt(int64(iv.Get(idx)), 10)
+	}
+	if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+		v, err := strconv.ParseInt(rest, 10, 32)
+		if err != nil {
+			fatalf("invalid or out-of-range i32 contains_ suffix: %q", rest)
+		}
+		return strconv.FormatBool(iv.Contains(int32(v)))
+	}
+	return "UNKNOWN_ASSERTION:" + key
 }
 
 // intervalI32 parses one operand with traceInt32. An out-of-range or

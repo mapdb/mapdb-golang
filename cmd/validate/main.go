@@ -413,10 +413,37 @@ func stdoutHasSentinel(stdout string) bool {
 	return false
 }
 
+// reachMarkerLine is the line the --panic-child prints on stdout immediately
+// before it calls the production operation for op i of n (1-based). It starts
+// with '[' so it can never be an assertion sentinel.
+func reachMarkerLine(i, n int) string {
+	return fmt.Sprintf("[panic-child] reached op %d/%d", i, n)
+}
+
+// stdoutHasReachMarker reports whether the child printed the marker for the
+// LAST operation, i.e. it got as far as calling the product for it. A runner
+// crash before that point leaves no such line (astra25/25 F4: any non-zero
+// exit used to count as the trap). A scenario with no operations has no
+// product call to reach and cannot pass.
+func stdoutHasReachMarker(stdout string, nOps int) bool {
+	if nOps < 1 {
+		return false
+	}
+	want := reachMarkerLine(nOps, nOps)
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.TrimRight(line, "\r") == want {
+			return true
+		}
+	}
+	return false
+}
+
 // panicPassed is the Q2 parent judge. A timeout is a failure even when the
 // killed child has a non-zero exit. ExitCode -1 (signal) is non-zero and
-// passes when stdout has no sentinel.
-func panicPassed(exitCode int, stdout string, timedOut bool) bool {
+// passes when stdout has no sentinel. nOps is the scenario's operation count:
+// the child must have reached the product call of the last op (see
+// stdoutHasReachMarker), so the trap has to be raised by that op.
+func panicPassed(exitCode int, stdout string, timedOut bool, nOps int) bool {
 	if timedOut {
 		return false
 	}
@@ -426,7 +453,7 @@ func panicPassed(exitCode int, stdout string, timedOut bool) bool {
 	if stdoutHasSentinel(stdout) {
 		return false
 	}
-	return true
+	return stdoutHasReachMarker(stdout, nOps)
 }
 
 func assertionBoolTrue(raw json.RawMessage) bool {
@@ -439,29 +466,41 @@ func assertionBoolTrue(raw json.RawMessage) bool {
 }
 
 func runPanicJudgeSelftest() {
+	// m1 is the reach marker for a one-op scenario, m2 the last-op marker of a
+	// two-op scenario. Cases 1-11 are the original sentinel/exit rules with the
+	// marker present; 12-17 pin the reach rule (astra25/25 F4).
+	m1 := reachMarkerLine(1, 1) + "\n"
+	m2 := reachMarkerLine(2, 2) + "\n"
 	cases := []struct {
 		exit     int
 		stdout   string
 		timedOut bool
+		ops      int
 		want     bool
 	}{
-		{0, "", false, false},
-		{0, "=== scenario: x ===\n", false, false},
-		{1, "size: 1\n", false, false},
-		{1, "", false, true},
-		{101, "boom\n", false, true},
-		{1, "", true, false},
-		{1, "FAIL name expect_panic\n", false, true},
-		{1, "expect_panic: true\n", false, false},
-		{1, "SUMMARY: 1\n", false, true},
-		{1, "boom:detail\n", false, true},
-		{1, "FAIL-count: 1\n", false, false},
+		{0, m1, false, 1, false},
+		{0, m1 + "=== scenario: x ===\n", false, 1, false},
+		{1, m1 + "size: 1\n", false, 1, false},
+		{1, m1, false, 1, true},
+		{101, m1 + "boom\n", false, 1, true},
+		{1, m1, true, 1, false},
+		{1, m1 + "FAIL name expect_panic\n", false, 1, true},
+		{1, m1 + "expect_panic: true\n", false, 1, false},
+		{1, m1 + "SUMMARY: 1\n", false, 1, true},
+		{1, m1 + "boom:detail\n", false, 1, true},
+		{1, m1 + "FAIL-count: 1\n", false, 1, false},
+		{1, "", false, 1, false},                                // crash before the product: no marker
+		{1, "boom\n", false, 1, false},                          // ditto, with noise
+		{1, reachMarkerLine(1, 2) + "\n", false, 2, false},      // trapped on op 1 of 2
+		{1, reachMarkerLine(1, 2) + "\n" + m2, false, 2, true},  // reached op 2 of 2
+		{1, m1, false, 0, false},                                // no ops: nothing to reach
+		{1, "[panic-child] reached op 1/1 \n", false, 1, false}, // marker must match exactly
 	}
 	for i, c := range cases {
-		got := panicPassed(c.exit, c.stdout, c.timedOut)
+		got := panicPassed(c.exit, c.stdout, c.timedOut, c.ops)
 		if got != c.want {
-			fmt.Fprintf(os.Stderr, "panic-judge-selftest case %d: exit=%d timedOut=%v stdout=%q want %v got %v\n",
-				i+1, c.exit, c.timedOut, c.stdout, c.want, got)
+			fmt.Fprintf(os.Stderr, "panic-judge-selftest case %d: exit=%d timedOut=%v ops=%d stdout=%q want %v got %v\n",
+				i+1, c.exit, c.timedOut, c.ops, c.stdout, c.want, got)
 			os.Exit(1)
 		}
 	}
@@ -500,7 +539,7 @@ func runExpectPanicParent(s scenario, raw json.RawMessage, path string) {
 			exitCode = 0
 		}
 	}
-	if panicPassed(exitCode, stdout.String(), timedOut) {
+	if panicPassed(exitCode, stdout.String(), timedOut, len(s.Operations)) {
 		fmt.Printf("=== scenario: %s ===\n", s.Name)
 		fmt.Printf("expect_panic: true\n")
 		os.Exit(0)
@@ -515,7 +554,7 @@ func runExpectPanicParent(s scenario, raw json.RawMessage, path string) {
 func runPanicChild(path string) {
 	s := loadScenario(path)
 	if s.Collection == "Interval<i32>" {
-		runInterval(s)
+		runInterval(s, true)
 		fmt.Printf("=== scenario: %s ===\n", s.Name)
 		os.Exit(0)
 	}
@@ -529,20 +568,31 @@ func runPanicChild(path string) {
 // exits 1 so an empty-stdout failure cannot look like a clean trap. The
 // --panic-child path calls this directly and prints no assertions; the value
 // path (runIntervalScenario) evaluates the assertions on the returned interval.
-func runInterval(s scenario) *interval.Int32 {
+// With markers set (panic child only) the reach marker for op i of n is
+// printed immediately before each production call, so the parent can tell a
+// trap raised by the product from a runner crash on the way there. os.Stdout
+// is unbuffered, so the line is in the pipe before the call.
+func runInterval(s scenario, markers bool) *interval.Int32 {
 	var cur *interval.Int32
-	for _, op := range s.Operations {
+	n := len(s.Operations)
+	for i, op := range s.Operations {
 		kind, _ := op["op"].(string)
 		switch kind {
 		case "from_to_by":
 			from := intervalI32(s, op["from"])
 			to := intervalI32(s, op["to"])
 			step := intervalI32(s, op["step"])
+			if markers {
+				fmt.Println(reachMarkerLine(i+1, n))
+			}
 			cur = interval.NewInt32(from, to, step)
 		case "reversed":
 			if cur == nil {
 				fmt.Printf("=== scenario: %s ===\n", s.Name)
 				os.Exit(1)
+			}
+			if markers {
+				fmt.Println(reachMarkerLine(i+1, n))
 			}
 			cur = (*interval.Int32).Reversed(cur)
 		default:
@@ -557,7 +607,7 @@ func runInterval(s scenario) *interval.Int32 {
 // already printed the banner. A scenario with value assertions but no
 // from_to_by has nothing to assert against and is malformed (exit 1).
 func runIntervalScenario(s scenario) {
-	iv := runInterval(s)
+	iv := runInterval(s, false)
 	if iv == nil {
 		os.Exit(1)
 	}
@@ -3004,6 +3054,12 @@ func runF32HashMap(s scenario) {
 					parts[i] = "\"" + formatF32(x) + "\""
 				}
 				return "[" + strings.Join(parts, ",") + "]"
+			case "sorted_values":
+				// The values are i32 (README: HashMap<*> sorted_values is the
+				// value multiset ascending), rendered like the i32 map's.
+				vals := m.ValuesToSlice()
+				sort.Slice(vals, func(i, j int) bool { return vals[i] < vals[j] })
+				return formatArray(vals)
 			}
 			if rest, ok := strings.CutPrefix(key, "get_"); ok {
 				probe := parseF32Label(rest)
@@ -3017,7 +3073,13 @@ func runF32HashMap(s scenario) {
 			}
 			return unknown(key)
 		}()
-		emit(s.Name, key, val, s.Assertions[key], modeF32Keyed)
+		// sorted_values is the i32 value multiset, so its expected side is
+		// rendered in i32 mode, not as quoted float labels.
+		mode := modeF32Keyed
+		if key == "sorted_values" {
+			mode = modeNone
+		}
+		emit(s.Name, key, val, s.Assertions[key], mode)
 	}
 }
 

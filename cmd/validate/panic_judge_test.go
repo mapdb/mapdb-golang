@@ -9,29 +9,46 @@ import (
 )
 
 func TestPanicPassedJudge(t *testing.T) {
+	m1 := reachMarkerLine(1, 1) + "\n"
+	m2 := reachMarkerLine(2, 2) + "\n"
 	cases := []struct {
 		name     string
 		exit     int
 		stdout   string
 		timedOut bool
+		ops      int
 		want     bool
 	}{
-		{"exit 0 empty", 0, "", false, false},
-		{"exit 0 banner", 0, "=== scenario: x ===\n", false, false},
-		{"exit 1 size", 1, "size: 1\n", false, false},
-		{"exit 1 empty", 1, "", false, true},
-		{"exit 101 boom", 101, "boom\n", false, true},
-		{"timed out", 1, "", true, false},
-		{"fail line", 1, "FAIL name expect_panic\n", false, true},
-		{"expect_panic line", 1, "expect_panic: true\n", false, false},
-		{"summary line", 1, "SUMMARY: 1\n", false, true},
-		{"colon without space", 1, "boom:detail\n", false, true},
-		{"fail-count key", 1, "FAIL-count: 1\n", false, false},
+		{"exit 0 empty", 0, m1, false, 1, false},
+		{"exit 0 banner", 0, m1 + "=== scenario: x ===\n", false, 1, false},
+		{"exit 1 size", 1, m1 + "size: 1\n", false, 1, false},
+		{"exit 1 marker only", 1, m1, false, 1, true},
+		{"exit 101 boom", 101, m1 + "boom\n", false, 1, true},
+		{"timed out", 1, m1, true, 1, false},
+		{"fail line", 1, m1 + "FAIL name expect_panic\n", false, 1, true},
+		{"expect_panic line", 1, m1 + "expect_panic: true\n", false, 1, false},
+		{"summary line", 1, m1 + "SUMMARY: 1\n", false, 1, true},
+		{"colon without space", 1, m1 + "boom:detail\n", false, 1, true},
+		{"fail-count key", 1, m1 + "FAIL-count: 1\n", false, 1, false},
+		// astra25/25 F4: a crash before the product leaves no reach marker.
+		{"crash before product", 1, "", false, 1, false},
+		{"crash before product with noise", 1, "boom\n", false, 1, false},
+		{"trapped on op 1 of 2", 1, reachMarkerLine(1, 2) + "\n", false, 2, false},
+		{"reached op 2 of 2", 1, reachMarkerLine(1, 2) + "\n" + m2, false, 2, true},
+		{"no ops", 1, m1, false, 0, false},
+		{"marker with trailing space", 1, "[panic-child] reached op 1/1 \n", false, 1, false},
+		{"marker with CR", 1, "[panic-child] reached op 1/1\r\n", false, 1, true},
 	}
 	for _, c := range cases {
-		if got := panicPassed(c.exit, c.stdout, c.timedOut); got != c.want {
+		if got := panicPassed(c.exit, c.stdout, c.timedOut, c.ops); got != c.want {
 			t.Fatalf("%s: got %v want %v", c.name, got, c.want)
 		}
+	}
+}
+
+func TestReachMarkerIsNotASentinel(t *testing.T) {
+	if stdoutHasSentinel(reachMarkerLine(1, 1) + "\n") {
+		t.Fatal("the reach marker must not be an assertion sentinel")
 	}
 }
 

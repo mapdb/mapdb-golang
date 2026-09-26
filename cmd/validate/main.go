@@ -569,6 +569,19 @@ func runIntervalScenario(s scenario) {
 // evalIntervalAssertion obtains every value from the production method the
 // README vocabulary names: Len, Get(0), Get(Len-1), iteration order via
 // ToSlice, Get(index) and Contains. Unknown keys are skipped by emit.
+// isASCIIDigits reports whether s is one or more ASCII digits and nothing else.
+func isASCIIDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func evalIntervalAssertion(key string, iv *interval.Int32) string {
 	switch key {
 	case "size":
@@ -583,8 +596,17 @@ func evalIntervalAssertion(key string, iv *interval.Int32) string {
 		return formatArray(iv.ToSlice())
 	}
 	if rest, ok := strings.CutPrefix(key, "get_at_"); ok {
+		// README: N is one or more ASCII digits, non-negative, no upper bound.
+		// A digits-only suffix that overflows int is necessarily >= size, so
+		// it yields null exactly like an in-range-but-past-the-end index.
+		if !isASCIIDigits(rest) {
+			fatalf("invalid get_at_ suffix: %q", rest)
+		}
 		idx, err := strconv.Atoi(rest)
-		if err != nil || idx < 0 {
+		if err != nil {
+			if errors.Is(err, strconv.ErrRange) {
+				return "null"
+			}
 			fatalf("invalid get_at_ suffix: %q", rest)
 		}
 		if idx >= iv.Len() {

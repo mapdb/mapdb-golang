@@ -67,12 +67,15 @@ func (iv *Int64) Len() int {
 	if (iv.step > 0 && iv.from > iv.to) || (iv.step < 0 && iv.from < iv.to) {
 		return 0
 	}
-	count := iv.distance()/iv.absStep() + 1
+	// Compare the quotient against the cap before adding one: for the full
+	// range (Min, Max, 1) the quotient is already MaxUint64 and +1 would wrap
+	// to 0.
+	q := iv.distance() / iv.absStep()
 	maxInt := uint64(^uint(0) >> 1)
-	if count > maxInt {
+	if q >= maxInt {
 		return int(maxInt)
 	}
-	return int(count)
+	return int(q) + 1
 }
 
 // Contains returns true if the interval contains the given value.
@@ -175,8 +178,12 @@ func (iv *Int64) ToSlice() []int64 {
 	return result
 }
 
-// Reversed returns a new interval with the same elements in reverse order:
-// Get(Len()-1), ..., Get(0). Its from is the last element actually produced,
+// Reversed returns a new interval with the same elements in reverse order.
+// It starts from the last element of the complete progression: to pulled
+// back onto the step grid by the remainder of the distance. That element
+// equals Get(Len()-1) whenever the element count is representable by the
+// index API; the general definition is the complete progression, as the
+// spec states. Its from is therefore the last element actually produced,
 // not to, which is only an inclusive bound and may sit off the step grid
 // (NewInt64(0, 10, 3) yields 0, 3, 6, 9; its reverse is 9, 6, 3, 0).
 // Panics if step is the minimum int64, whose negation is unrepresentable.

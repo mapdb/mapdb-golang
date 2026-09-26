@@ -149,13 +149,40 @@ func TestInt64_ReversedOffGridKeepsElements(t *testing.T) {
 
 // TestInt64_ReversedFullRangeNoSizeCap pins the remainder form: Len() caps at
 // MaxInt for the full int64 range, so deriving the last element from
-// Get(Len()-1) would be wrong; the remainder form has no cap. Only the
-// reversed shape is checked because the full range is not iterable.
+// Get(Len()-1) would be wrong; the remainder form has no cap. The full
+// range is not iterable to completion, so only the shape, the capped Len(),
+// Get(0) and the first element of All() are checked. Len() must reach the
+// cap rather than wrap to 0: the quotient distance/absStep is MaxUint64
+// there and a naive +1 wrapped before the cap check.
 func TestInt64_ReversedFullRangeNoSizeCap(t *testing.T) {
-	rev := NewInt64(math.MinInt64, math.MaxInt64, 1).Reversed()
+	src := NewInt64(math.MinInt64, math.MaxInt64, 1)
+	rev := src.Reversed()
 	if rev.From() != math.MaxInt64 || rev.To() != math.MinInt64 || rev.Step() != -1 {
 		t.Errorf("full-range reversed = [%d, %d] step %d, want [MaxInt64, MinInt64] step -1",
 			rev.From(), rev.To(), rev.Step())
+	}
+	if src.Len() != math.MaxInt {
+		t.Errorf("full-range Len() = %d, want MaxInt", src.Len())
+	}
+	if rev.Len() != math.MaxInt {
+		t.Errorf("full-range reversed Len() = %d, want MaxInt", rev.Len())
+	}
+	if got := src.Get(0); got != math.MinInt64 {
+		t.Errorf("full-range Get(0) = %d, want MinInt64", got)
+	}
+	if got := rev.Get(0); got != math.MaxInt64 {
+		t.Errorf("full-range reversed Get(0) = %d, want MaxInt64", got)
+	}
+	seen := false
+	for v := range rev.All() {
+		if v != math.MaxInt64 {
+			t.Errorf("full-range reversed first element from All() = %d, want MaxInt64", v)
+		}
+		seen = true
+		break
+	}
+	if !seen {
+		t.Errorf("full-range reversed All() produced no elements")
 	}
 	off := NewInt64(math.MinInt64, math.MaxInt64, 7).Reversed() // 2^64-1 = 1 (mod 7): MaxInt64 is off the grid
 	if off.From() != math.MaxInt64-1 || off.To() != math.MinInt64 || off.Step() != -7 {

@@ -21,6 +21,7 @@ type CharObject[V any] struct {
 	values   []V
 	occupied []bool
 	size     int
+	shift    uint // 64 - log2(len(keys)): home bucket = hashKey >> shift
 }
 
 // NewCharObject creates a new empty CharObject with default capacity.
@@ -33,6 +34,7 @@ func NewCharObjectWithCapacity[V any](capacity int) *CharObject[V] {
 	cap := nextPowerOfTwoCharObject(capacity)
 	return &CharObject[V]{
 		keys:     make([]uint16, cap),
+		shift:    shiftForCharObject(cap),
 		values:   make([]V, cap),
 		occupied: make([]bool, cap),
 		size:     0,
@@ -46,7 +48,7 @@ func (m *CharObject[V]) Put(key uint16, value V) (V, bool) {
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.occupied[idx] {
@@ -74,7 +76,7 @@ func (m *CharObject[V]) Get(key uint16) (V, bool) {
 		return zero, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.occupied[idx] {
@@ -104,7 +106,7 @@ func (m *CharObject[V]) Remove(key uint16) (V, bool) {
 		return zero, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.occupied[idx] {
@@ -238,17 +240,20 @@ func (m *CharObject[V]) String() string {
 	return sb.String()
 }
 
-// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: m.shift = 64-k and
+// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
 func (m *CharObject[V]) hashKey(key uint16) uint64 {
-	return bits.Reverse64(uint64(key) * 0x9E3779B97F4A7C15)
+	return uint64(key) * 0x9E3779B97F4A7C15
+}
+
+// shiftForCharObject returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftForCharObject(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (m *CharObject[V]) needsResize() bool {
@@ -264,6 +269,7 @@ func (m *CharObject[V]) resize() {
 		newCap = charObjectDefaultCapacity
 	}
 	m.keys = make([]uint16, newCap)
+	m.shift = shiftForCharObject(newCap)
 	m.values = make([]V, newCap)
 	m.occupied = make([]bool, newCap)
 	m.size = 0
@@ -278,7 +284,7 @@ func (m *CharObject[V]) resize() {
 func (m *CharObject[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
-		ideal := int(m.hashKey(m.keys[idx])) & mask
+		ideal := int(m.hashKey(m.keys[idx]) >> m.shift)
 		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
 		} else {
 			m.keys[deleted] = m.keys[idx]

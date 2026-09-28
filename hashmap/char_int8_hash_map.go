@@ -27,6 +27,7 @@ type charInt8Entry struct {
 type CharInt8 struct {
 	entries []charInt8Entry
 	size    int
+	shift   uint // 64 - log2(len(entries)): home bucket = hashKey >> shift
 }
 
 // NewCharInt8 creates a new empty CharInt8 with default capacity.
@@ -40,6 +41,7 @@ func NewCharInt8WithCapacity(capacity int) *CharInt8 {
 	return &CharInt8{
 		entries: make([]charInt8Entry, cap),
 		size:    0,
+		shift:   shiftForCharInt8(cap),
 	}
 }
 
@@ -71,7 +73,8 @@ func CharInt8BulkLoad(keys []uint16, values []int8, policy pump.DuplicatePolicy)
 	if len(keys) != len(values) {
 		panic("mapdb: CharInt8BulkLoad: len(keys) != len(values)")
 	}
-	m := &CharInt8{entries: make([]charInt8Entry, CharInt8bulkCap(len(keys)))}
+	c := CharInt8bulkCap(len(keys))
+	m := &CharInt8{entries: make([]charInt8Entry, c), shift: shiftForCharInt8(c)}
 	if err := m.bulkInsert(keys, values, policy); err != nil {
 		return nil, err
 	}
@@ -90,7 +93,8 @@ func CharInt8BulkLoadExact(keys []uint16, values []int8, n int, policy pump.Dupl
 	if n < 0 {
 		panic("mapdb: CharInt8BulkLoadExact: negative n")
 	}
-	m := &CharInt8{entries: make([]charInt8Entry, CharInt8bulkCap(n))}
+	c := CharInt8bulkCap(n)
+	m := &CharInt8{entries: make([]charInt8Entry, c), shift: shiftForCharInt8(c)}
 	if len(keys) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -123,7 +127,7 @@ func (m *CharInt8) bulkInsert(keys []uint16, values []int8, policy pump.Duplicat
 // whether the key was already present.
 func (m *CharInt8) bulkPut(key uint16, value int8, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(m.entries) - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 	for {
 		if !m.entries[idx].occupied {
 			m.entries[idx].key = key
@@ -160,7 +164,7 @@ func (m *CharInt8) Put(key uint16, value int8) (int8, bool) {
 	}
 	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -186,7 +190,7 @@ func (m *CharInt8) Get(key uint16) (int8, bool) {
 		return 0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -214,7 +218,7 @@ func (m *CharInt8) Remove(key uint16) (int8, bool) {
 		return 0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -592,7 +596,7 @@ func (e CharInt8Entry) AndModify(f func(*int8)) CharInt8Entry {
 		return e
 	}
 	mask := cap - 1
-	idx := int(e.m.hashKey(e.key)) & mask
+	idx := int(e.m.hashKey(e.key) >> e.m.shift)
 	for {
 		if !e.m.entries[idx].occupied {
 			return e
@@ -614,17 +618,20 @@ func (e CharInt8Entry) AndModify(f func(*int8)) CharInt8Entry {
 	}
 }
 
-// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: m.shift = 64-k and
+// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
 func (m *CharInt8) hashKey(key uint16) uint64 {
-	return bits.Reverse64(uint64(key) * 0x9E3779B97F4A7C15)
+	return uint64(key) * 0x9E3779B97F4A7C15
+}
+
+// shiftForCharInt8 returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftForCharInt8(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (m *CharInt8) needsResize() bool {
@@ -638,6 +645,7 @@ func (m *CharInt8) resize() {
 		newCap = charInt8DefaultCapacity
 	}
 	m.entries = make([]charInt8Entry, newCap)
+	m.shift = shiftForCharInt8(newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -652,7 +660,7 @@ func (m *CharInt8) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
-		ideal := int(m.hashKey(m.entries[idx].key)) & mask
+		ideal := int(m.hashKey(m.entries[idx].key) >> m.shift)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

@@ -18,11 +18,11 @@ import (
 // TWO independent float axes drive the only type-dependent logic:
 //
 // KEY axis (KeyIsFloat / KeyHashExpr / KeyBitsFn):
-//   - hashKey: bits.Reverse64(<KeyHashExpr> * 0x9E3779B97F4A7C15), the 64-bit
-//     Fibonacci multiply with its top bits reversed into the low bits the
-//     callers mask with. int/char keys mix uint64(<unsignedcast>(key)); int32
-//     alone double-casts through uint32; float keys mix their bit pattern
-//     (math.Float{32,64}bits). Each KeyHashExpr is captured verbatim.
+//   - hashKey: <KeyHashExpr> * 0x9E3779B97F4A7C15, the 64-bit Fibonacci
+//     multiply; the home bucket is its top k bits, hashKey >> shift, with the
+//     per-table field shift = 64 - log2(capacity). int/char keys mix
+//     uint64(<unsignedcast>(key)); int32 alone double-casts through uint32;
+//     float keys mix their bit pattern (math.Float{32,64}bits). Each KeyHashExpr is captured verbatim.
 //   - key equality at the probe sites (Put/Get/Remove/AndModify): float keys
 //     use math.Float{32,64}bits(a) == math.Float{32,64}bits(b); int/char keys
 //     use ==.
@@ -59,7 +59,7 @@ type hmData struct {
 	// (math.Float32bits / math.Float64bits). Float keys only.
 	KeyBitsFn string
 	// KeyHashExpr is the inner operand of the golden-ratio multiply in
-	// hashKey: bits.Reverse64(<KeyHashExpr> * 0x9E3779B97F4A7C15). Captured per key type
+	// hashKey: <KeyHashExpr> * 0x9E3779B97F4A7C15 (indexed by >> shift). Captured per key type
 	// because the integer/char/float reinterpretations differ (int32 alone
 	// double-casts through uint32; floats reinterpret via math.FloatNbits).
 	KeyHashExpr string
@@ -318,6 +318,7 @@ type {{.EntryStem}}Entry struct {
 type {{.MapName}} struct {
 	entries []{{.EntryStem}}Entry
 	size    int
+	shift   uint // 64 - log2(len(entries)): home bucket = hashKey >> shift
 }
 
 // New{{.MapName}} creates a new empty {{.MapName}} with default capacity.
@@ -331,6 +332,7 @@ func New{{.MapName}}WithCapacity(capacity int) *{{.MapName}} {
 	return &{{.MapName}}{
 		entries: make([]{{.EntryStem}}Entry, cap),
 		size:    0,
+		shift:   shiftFor{{.MapName}}(cap),
 	}
 }
 
@@ -362,7 +364,8 @@ func {{.MapName}}BulkLoad(keys []{{.KeyType}}, values []{{.ValType}}, policy pum
 	if len(keys) != len(values) {
 		panic("mapdb: {{.MapName}}BulkLoad: len(keys) != len(values)")
 	}
-	m := &{{.MapName}}{entries: make([]{{.EntryStem}}Entry, {{.MapName}}bulkCap(len(keys)))}
+	c := {{.MapName}}bulkCap(len(keys))
+	m := &{{.MapName}}{entries: make([]{{.EntryStem}}Entry, c), shift: shiftFor{{.MapName}}(c)}
 	if err := m.bulkInsert(keys, values, policy); err != nil {
 		return nil, err
 	}
@@ -381,7 +384,8 @@ func {{.MapName}}BulkLoadExact(keys []{{.KeyType}}, values []{{.ValType}}, n int
 	if n < 0 {
 		panic("mapdb: {{.MapName}}BulkLoadExact: negative n")
 	}
-	m := &{{.MapName}}{entries: make([]{{.EntryStem}}Entry, {{.MapName}}bulkCap(n))}
+	c := {{.MapName}}bulkCap(n)
+	m := &{{.MapName}}{entries: make([]{{.EntryStem}}Entry, c), shift: shiftFor{{.MapName}}(c)}
 	if len(keys) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -414,7 +418,7 @@ func (m *{{.MapName}}) bulkInsert(keys []{{.KeyType}}, values []{{.ValType}}, po
 // whether the key was already present.
 func (m *{{.MapName}}) bulkPut(key {{.KeyType}}, value {{.ValType}}, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(m.entries) - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 	for {
 		if !m.entries[idx].occupied {
 			m.entries[idx].key = key
@@ -451,7 +455,7 @@ func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, 
 	}
 	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -477,7 +481,7 @@ func (m *{{.MapName}}) Get(key {{.KeyType}}) ({{.ValType}}, bool) {
 		return {{.ValZero}}, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -505,7 +509,7 @@ func (m *{{.MapName}}) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
 		return {{.ValZero}}, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -883,7 +887,7 @@ func (e {{.MapName}}Entry) AndModify(f func(*{{.ValType}})) {{.MapName}}Entry {
 		return e
 	}
 	mask := cap - 1
-	idx := int(e.m.hashKey(e.key)) & mask
+	idx := int(e.m.hashKey(e.key) >> e.m.shift)
 	for {
 		if !e.m.entries[idx].occupied {
 			return e
@@ -905,17 +909,20 @@ func (e {{.MapName}}Entry) AndModify(f func(*{{.ValType}})) {{.MapName}}Entry {
 	}
 }
 
-// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: m.shift = 64-k and
+// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
 func (m *{{.MapName}}) hashKey(key {{.KeyType}}) uint64 {
-	return bits.Reverse64({{.KeyHashExpr}} * 0x9E3779B97F4A7C15)
+	return {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
+}
+
+// shiftFor{{.MapName}} returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftFor{{.MapName}}(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (m *{{.MapName}}) needsResize() bool {
@@ -929,6 +936,7 @@ func (m *{{.MapName}}) resize() {
 		newCap = {{.EntryStem}}DefaultCapacity
 	}
 	m.entries = make([]{{.EntryStem}}Entry, newCap)
+	m.shift = shiftFor{{.MapName}}(newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -943,7 +951,7 @@ func (m *{{.MapName}}) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
-		ideal := int(m.hashKey(m.entries[idx].key)) & mask
+		ideal := int(m.hashKey(m.entries[idx].key) >> m.shift)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {
@@ -2077,6 +2085,7 @@ type {{.MapName}}[V any] struct {
 	values   []V
 	occupied []bool
 	size     int
+	shift    uint // 64 - log2(len(keys)): home bucket = hashKey >> shift
 }
 
 // New{{.MapName}} creates a new empty {{.MapName}} with default capacity.
@@ -2089,6 +2098,7 @@ func New{{.MapName}}WithCapacity[V any](capacity int) *{{.MapName}}[V] {
 	cap := nextPowerOfTwo{{.MapName}}(capacity)
 	return &{{.MapName}}[V]{
 		keys:     make([]{{.PrimType}}, cap),
+		shift:    shiftFor{{.MapName}}(cap),
 		values:   make([]V, cap),
 		occupied: make([]bool, cap),
 		size:     0,
@@ -2102,7 +2112,7 @@ func (m *{{.MapName}}[V]) Put(key {{.PrimType}}, value V) (V, bool) {
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.occupied[idx] {
@@ -2130,7 +2140,7 @@ func (m *{{.MapName}}[V]) Get(key {{.PrimType}}) (V, bool) {
 		return zero, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.occupied[idx] {
@@ -2160,7 +2170,7 @@ func (m *{{.MapName}}[V]) Remove(key {{.PrimType}}) (V, bool) {
 		return zero, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.occupied[idx] {
@@ -2294,17 +2304,20 @@ func (m *{{.MapName}}[V]) String() string {
 	return sb.String()
 }
 
-// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: m.shift = 64-k and
+// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
 func (m *{{.MapName}}[V]) hashKey(key {{.PrimType}}) uint64 {
-	return bits.Reverse64({{.KeyHashExpr}} * 0x9E3779B97F4A7C15)
+	return {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
+}
+
+// shiftFor{{.MapName}} returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftFor{{.MapName}}(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (m *{{.MapName}}[V]) needsResize() bool {
@@ -2320,6 +2333,7 @@ func (m *{{.MapName}}[V]) resize() {
 		newCap = {{.EntryStem}}DefaultCapacity
 	}
 	m.keys = make([]{{.PrimType}}, newCap)
+	m.shift = shiftFor{{.MapName}}(newCap)
 	m.values = make([]V, newCap)
 	m.occupied = make([]bool, newCap)
 	m.size = 0
@@ -2334,7 +2348,7 @@ func (m *{{.MapName}}[V]) resize() {
 func (m *{{.MapName}}[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
-		ideal := int(m.hashKey(m.keys[idx])) & mask
+		ideal := int(m.hashKey(m.keys[idx]) >> m.shift)
 		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
 		} else {
 			m.keys[deleted] = m.keys[idx]

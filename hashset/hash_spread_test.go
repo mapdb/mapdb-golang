@@ -8,8 +8,8 @@ import (
 // Spread regressions for the primitive-key hashset tables (spec algorithms.md
 // §"Hash function": 64-bit Fibonacci multiply; its entropy is in the product's
 // HIGH bits, so a low-bit mask must see them). Each case inserts a key family
-// into a real map and counts the distinct HOME buckets the map itself computes
-// (its own hashKey masked by its real capacity), requiring at least 40% of
+// into a real table and counts the distinct HOME buckets the table itself
+// computes (its own hash >> its real index shift), requiring at least 40% of
 // min(n, capacity) distinct buckets. Before the fix, float keys 1..1000, i/2
 // and powers of two all landed in a single bucket.
 
@@ -61,8 +61,11 @@ func int64Families() map[string][]int64 {
 	return map[string][]int64{"1..1000": seq, "high-word": high, "high-word+1": high1, "i<<40": shl40, "pow2": pow2}
 }
 
-// checkSpread counts distinct home buckets; capacity is the table's real slot count.
-func checkSpread[K any](t *testing.T, name string, keys []K, capacity int, home func(K) int) {
+// checkSpread counts distinct home buckets; capacity is the table's real slot
+// count. slot(i) reports the key stored in slot i and whether it is occupied;
+// every key must be reachable by linear probing from its home bucket, which
+// proves home() is the index the table really uses.
+func checkSpread[K comparable](t *testing.T, name string, keys []K, capacity int, home func(K) int, slot func(int) (K, bool)) {
 	t.Helper()
 	seen := make(map[int]struct{}, len(keys))
 	for _, k := range keys {
@@ -71,6 +74,20 @@ func checkSpread[K any](t *testing.T, name string, keys []K, capacity int, home 
 			t.Fatalf("%s: home bucket %d outside [0,%d)", name, b, capacity)
 		}
 		seen[b] = struct{}{}
+		found := false
+		for i, n := b, 0; n < capacity; i, n = (i+1)&(capacity-1), n+1 {
+			sk, occ := slot(i)
+			if !occ {
+				break
+			}
+			if sk == k {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%s: key %v not reachable by probing from home bucket %d", name, k, b)
+		}
 	}
 	limit := min(len(keys), capacity)
 	t.Logf("%s: n=%d cap=%d distinct home buckets=%d (%.1f%% of %d)",
@@ -87,8 +104,8 @@ func TestHashSpread_Float64Set(t *testing.T) {
 		for _, k := range keys {
 			s.Add(k)
 		}
-		mask := len(s.entries) - 1
-		checkSpread(t, "Float64 set "+fam, keys, len(s.entries), func(k float64) int { return int(s.hash(k)) & mask })
+		checkSpread(t, "Float64 set "+fam, keys, len(s.entries), func(k float64) int { return int(s.hash(k) >> s.shift) },
+			func(i int) (float64, bool) { return s.entries[i].key, s.entries[i].occupied })
 	}
 }
 
@@ -98,8 +115,8 @@ func TestHashSpread_Float32Set(t *testing.T) {
 		for _, k := range keys {
 			s.Add(k)
 		}
-		mask := len(s.entries) - 1
-		checkSpread(t, "Float32 set "+fam, keys, len(s.entries), func(k float32) int { return int(s.hash(k)) & mask })
+		checkSpread(t, "Float32 set "+fam, keys, len(s.entries), func(k float32) int { return int(s.hash(k) >> s.shift) },
+			func(i int) (float32, bool) { return s.entries[i].key, s.entries[i].occupied })
 	}
 }
 
@@ -109,7 +126,7 @@ func TestHashSpread_Int64Set(t *testing.T) {
 		for _, k := range keys {
 			s.Add(k)
 		}
-		mask := len(s.entries) - 1
-		checkSpread(t, "Int64 set "+fam, keys, len(s.entries), func(k int64) int { return int(s.hash(k)) & mask })
+		checkSpread(t, "Int64 set "+fam, keys, len(s.entries), func(k int64) int { return int(s.hash(k) >> s.shift) },
+			func(i int) (int64, bool) { return s.entries[i].key, s.entries[i].occupied })
 	}
 }

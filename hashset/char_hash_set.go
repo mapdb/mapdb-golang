@@ -25,6 +25,7 @@ type charEntry struct {
 type Char struct {
 	entries []charEntry
 	size    int
+	shift   uint // 64 - log2(len(entries)): home bucket = hash >> shift (bool sets index by & mask)
 }
 
 // NewChar creates a new empty Char.
@@ -38,6 +39,7 @@ func NewCharWithCapacity(capacity int) *Char {
 	return &Char{
 		entries: make([]charEntry, cap),
 		size:    0,
+		shift:   shiftForChar(cap),
 	}
 }
 
@@ -58,7 +60,8 @@ func CharOf(values ...uint16) *Char {
 // Add. The size is a hint; use CharBulkLoadExact for the zero-rehash
 // guarantee.
 func CharBulkLoad(values []uint16, policy pump.DuplicatePolicy) (*Char, error) {
-	s := &Char{entries: make([]charEntry, CharbulkCap(len(values)))}
+	c := CharbulkCap(len(values))
+	s := &Char{entries: make([]charEntry, c), shift: shiftForChar(c)}
 	for _, v := range values {
 		if s.needsResize() {
 			s.resize()
@@ -79,7 +82,8 @@ func CharBulkLoadExact(values []uint16, n int, policy pump.DuplicatePolicy) (*Ch
 	if n < 0 {
 		panic("mapdb: CharBulkLoadExact: negative n")
 	}
-	s := &Char{entries: make([]charEntry, CharbulkCap(n))}
+	c := CharbulkCap(n)
+	s := &Char{entries: make([]charEntry, c), shift: shiftForChar(c)}
 	if len(values) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -95,7 +99,7 @@ func CharBulkLoadExact(values []uint16, n int, policy pump.DuplicatePolicy) (*Ch
 // (callers guarantee capacity), applying the duplicate policy.
 func (s *Char) bulkAdd(value uint16, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(s.entries) - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 	for {
 		if !s.entries[idx].occupied {
 			s.entries[idx].key = value
@@ -130,7 +134,7 @@ func (s *Char) Add(value uint16) bool {
 	}
 	cap := len(s.entries)
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -160,7 +164,7 @@ func (s *Char) Remove(value uint16) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -183,7 +187,7 @@ func (s *Char) Contains(value uint16) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -427,17 +431,20 @@ func (s *Char) Equals(other *Char) bool {
 	return true
 }
 
-// hash is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hash is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the value's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: s.shift = 64-k and
+// idx = int(hash >> s.shift). Linear probing still wraps with & mask.
 func (s *Char) hash(value uint16) uint64 {
-	return bits.Reverse64(uint64(value) * 0x9E3779B97F4A7C15)
+	return uint64(value) * 0x9E3779B97F4A7C15
+}
+
+// shiftForChar returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftForChar(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (s *Char) needsResize() bool {
@@ -451,6 +458,7 @@ func (s *Char) resize() {
 		newCap = charDefaultCapacity
 	}
 	s.entries = make([]charEntry, newCap)
+	s.shift = shiftForChar(newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -464,7 +472,7 @@ func (s *Char) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
-		ideal := int(s.hash(s.entries[idx].key)) & mask
+		ideal := int(s.hash(s.entries[idx].key) >> s.shift)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

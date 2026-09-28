@@ -27,6 +27,7 @@ type charInt16Entry struct {
 type CharInt16 struct {
 	entries []charInt16Entry
 	size    int
+	shift   uint // 64 - log2(len(entries)): home bucket = hashKey >> shift
 }
 
 // NewCharInt16 creates a new empty CharInt16 with default capacity.
@@ -40,6 +41,7 @@ func NewCharInt16WithCapacity(capacity int) *CharInt16 {
 	return &CharInt16{
 		entries: make([]charInt16Entry, cap),
 		size:    0,
+		shift:   shiftForCharInt16(cap),
 	}
 }
 
@@ -71,7 +73,8 @@ func CharInt16BulkLoad(keys []uint16, values []int16, policy pump.DuplicatePolic
 	if len(keys) != len(values) {
 		panic("mapdb: CharInt16BulkLoad: len(keys) != len(values)")
 	}
-	m := &CharInt16{entries: make([]charInt16Entry, CharInt16bulkCap(len(keys)))}
+	c := CharInt16bulkCap(len(keys))
+	m := &CharInt16{entries: make([]charInt16Entry, c), shift: shiftForCharInt16(c)}
 	if err := m.bulkInsert(keys, values, policy); err != nil {
 		return nil, err
 	}
@@ -90,7 +93,8 @@ func CharInt16BulkLoadExact(keys []uint16, values []int16, n int, policy pump.Du
 	if n < 0 {
 		panic("mapdb: CharInt16BulkLoadExact: negative n")
 	}
-	m := &CharInt16{entries: make([]charInt16Entry, CharInt16bulkCap(n))}
+	c := CharInt16bulkCap(n)
+	m := &CharInt16{entries: make([]charInt16Entry, c), shift: shiftForCharInt16(c)}
 	if len(keys) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -123,7 +127,7 @@ func (m *CharInt16) bulkInsert(keys []uint16, values []int16, policy pump.Duplic
 // whether the key was already present.
 func (m *CharInt16) bulkPut(key uint16, value int16, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(m.entries) - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 	for {
 		if !m.entries[idx].occupied {
 			m.entries[idx].key = key
@@ -160,7 +164,7 @@ func (m *CharInt16) Put(key uint16, value int16) (int16, bool) {
 	}
 	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -186,7 +190,7 @@ func (m *CharInt16) Get(key uint16) (int16, bool) {
 		return 0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -214,7 +218,7 @@ func (m *CharInt16) Remove(key uint16) (int16, bool) {
 		return 0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -592,7 +596,7 @@ func (e CharInt16Entry) AndModify(f func(*int16)) CharInt16Entry {
 		return e
 	}
 	mask := cap - 1
-	idx := int(e.m.hashKey(e.key)) & mask
+	idx := int(e.m.hashKey(e.key) >> e.m.shift)
 	for {
 		if !e.m.entries[idx].occupied {
 			return e
@@ -614,17 +618,20 @@ func (e CharInt16Entry) AndModify(f func(*int16)) CharInt16Entry {
 	}
 }
 
-// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: m.shift = 64-k and
+// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
 func (m *CharInt16) hashKey(key uint16) uint64 {
-	return bits.Reverse64(uint64(key) * 0x9E3779B97F4A7C15)
+	return uint64(key) * 0x9E3779B97F4A7C15
+}
+
+// shiftForCharInt16 returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftForCharInt16(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (m *CharInt16) needsResize() bool {
@@ -638,6 +645,7 @@ func (m *CharInt16) resize() {
 		newCap = charInt16DefaultCapacity
 	}
 	m.entries = make([]charInt16Entry, newCap)
+	m.shift = shiftForCharInt16(newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -652,7 +660,7 @@ func (m *CharInt16) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
-		ideal := int(m.hashKey(m.entries[idx].key)) & mask
+		ideal := int(m.hashKey(m.entries[idx].key) >> m.shift)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

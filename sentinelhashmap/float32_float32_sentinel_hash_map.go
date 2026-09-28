@@ -31,6 +31,7 @@ type Float32Float32 struct {
 	values     []float32
 	size       int
 	tombstones int
+	shift      uint // 64 - log2(len(keys)): home bucket = hashKey >> shift
 
 	// Sentinel key storage — keys 0 and 1 are valid user keys but also
 	// serve as empty/removed markers in the table, so we store them separately.
@@ -52,6 +53,7 @@ func NewFloat32Float32WithCapacity(capacity int) *Float32Float32 {
 	cap := nextPowerOfTwoFloat32Float32(capacity)
 	return &Float32Float32{
 		keys:   make([]float32, cap),
+		shift:  shiftForFloat32Float32(cap),
 		values: make([]float32, cap),
 		size:   0,
 	}
@@ -171,7 +173,7 @@ func (m *Float32Float32) putRegular(key float32, value float32) (float32, bool) 
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 	empty := float32Float32EmptyKey
 	removed := float32Float32RemovedKey
 	firstRemoved := -1
@@ -240,7 +242,7 @@ func (m *Float32Float32) Get(key float32) (float32, bool) {
 		return 0.0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 	empty := float32Float32EmptyKey
 
 	for probes := 0; probes < cap; probes++ {
@@ -305,7 +307,7 @@ func (m *Float32Float32) removeRegular(key float32) (float32, bool) {
 		return 0.0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key)) & mask
+	idx := int(m.hashKey(key) >> m.shift)
 	empty := float32Float32EmptyKey
 
 	for probes := 0; probes < cap; probes++ {
@@ -537,17 +539,15 @@ func (m *Float32Float32) String() string {
 	return sb.String()
 }
 
-// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: m.shift = 64-k and
+// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
 func (m *Float32Float32) hashKey(key float32) uint64 {
-	return bits.Reverse64(uint64(math.Float32bits(key)) * 0x9E3779B97F4A7C15)
+	return uint64(math.Float32bits(key)) * 0x9E3779B97F4A7C15
 }
 
 func (m *Float32Float32) needsResize() bool {
@@ -563,6 +563,11 @@ func (m *Float32Float32) needsResize() bool {
 		regularEntries--
 	}
 	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
+}
+
+// shiftForFloat32Float32 returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftForFloat32Float32(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (m *Float32Float32) needsRehash() bool {
@@ -597,6 +602,7 @@ func (m *Float32Float32) resize(newCap int) {
 	savedOneValue := m.oneKeyValue
 
 	m.keys = make([]float32, newCap)
+	m.shift = shiftForFloat32Float32(newCap)
 	m.values = make([]float32, newCap)
 	m.size = 0
 	m.tombstones = 0

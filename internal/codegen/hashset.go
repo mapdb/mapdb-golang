@@ -28,7 +28,7 @@ type hsData struct {
 	// IsBool selects the boolean hash body (no golden-ratio mixing).
 	IsBool bool
 	// HashExpr is the inner operand of the golden-ratio multiply for the
-	// non-bool hash body: bits.Reverse64(<HashExpr> * 0x9E3779B97F4A7C15). Captured
+	// non-bool hash body: <HashExpr> * 0x9E3779B97F4A7C15 (indexed by >> shift). Captured
 	// per type because the integer/char/float reinterpretations differ
 	// (and int32 alone double-casts through uint32).
 	HashExpr string
@@ -109,9 +109,7 @@ import (
 {{- if .NeedsMath}}
 	"math"
 {{- end}}
-{{- if not .IsBool}}
 	"math/bits"
-{{- end}}
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -131,6 +129,7 @@ type {{.SnakeName}}Entry struct {
 type {{.Name}} struct {
 	entries []{{.SnakeName}}Entry
 	size    int
+	shift   uint // 64 - log2(len(entries)): home bucket = hash >> shift (bool sets index by & mask)
 }
 
 // New{{.Name}} creates a new empty {{.Name}}.
@@ -144,6 +143,7 @@ func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
 	return &{{.Name}}{
 		entries: make([]{{.SnakeName}}Entry, cap),
 		size:    0,
+		shift:   shiftFor{{.Name}}(cap),
 	}
 }
 
@@ -164,7 +164,8 @@ func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
 // Add. The size is a hint; use {{.Name}}BulkLoadExact for the zero-rehash
 // guarantee.
 func {{.Name}}BulkLoad(values []{{.GoType}}, policy pump.DuplicatePolicy) (*{{.Name}}, error) {
-	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, {{.Name}}bulkCap(len(values)))}
+	c := {{.Name}}bulkCap(len(values))
+	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, c), shift: shiftFor{{.Name}}(c)}
 	for _, v := range values {
 		if s.needsResize() {
 			s.resize()
@@ -185,7 +186,8 @@ func {{.Name}}BulkLoadExact(values []{{.GoType}}, n int, policy pump.DuplicatePo
 	if n < 0 {
 		panic("mapdb: {{.Name}}BulkLoadExact: negative n")
 	}
-	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, {{.Name}}bulkCap(n))}
+	c := {{.Name}}bulkCap(n)
+	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, c), shift: shiftFor{{.Name}}(c)}
 	if len(values) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -201,7 +203,7 @@ func {{.Name}}BulkLoadExact(values []{{.GoType}}, n int, policy pump.DuplicatePo
 // (callers guarantee capacity), applying the duplicate policy.
 func (s *{{.Name}}) bulkAdd(value {{.GoType}}, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(s.entries) - 1
-	idx := int(s.hash(value)) & mask
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
 	for {
 		if !s.entries[idx].occupied {
 			s.entries[idx].key = value
@@ -236,7 +238,7 @@ func (s *{{.Name}}) Add(value {{.GoType}}) bool {
 	}
 	cap := len(s.entries)
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
 
 	for {
 		if !s.entries[idx].occupied {
@@ -266,7 +268,7 @@ func (s *{{.Name}}) Remove(value {{.GoType}}) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
 
 	for {
 		if !s.entries[idx].occupied {
@@ -289,7 +291,7 @@ func (s *{{.Name}}) Contains(value {{.GoType}}) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
 
 	for {
 		if !s.entries[idx].occupied {
@@ -536,15 +538,13 @@ func (s *{{.Name}}) Equals(other *{{.Name}}) bool {
 {{- if .IsBool}}
 // hash maps false/true to buckets 0/1.
 {{- else}}
-// hash is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hash is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the value's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: s.shift = 64-k and
+// idx = int(hash >> s.shift). Linear probing still wraps with & mask.
 {{- end}}
 func (s *{{.Name}}) hash(value {{.GoType}}) uint64 {
 {{- if .IsBool}}
@@ -553,8 +553,13 @@ func (s *{{.Name}}) hash(value {{.GoType}}) uint64 {
 	}
 	return 0
 {{- else}}
-	return bits.Reverse64({{.HashExpr}} * 0x9E3779B97F4A7C15)
+	return {{.HashExpr}} * 0x9E3779B97F4A7C15
 {{- end}}
+}
+
+// shiftFor{{.Name}} returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftFor{{.Name}}(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (s *{{.Name}}) needsResize() bool {
@@ -568,6 +573,7 @@ func (s *{{.Name}}) resize() {
 		newCap = {{.SnakeName}}DefaultCapacity
 	}
 	s.entries = make([]{{.SnakeName}}Entry, newCap)
+	s.shift = shiftFor{{.Name}}(newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -581,7 +587,7 @@ func (s *{{.Name}}) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
-		ideal := int(s.hash(s.entries[idx].key)) & mask
+		ideal := {{if .IsBool}}int(s.hash(s.entries[idx].key)) & mask{{else}}int(s.hash(s.entries[idx].key) >> s.shift){{end}}
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

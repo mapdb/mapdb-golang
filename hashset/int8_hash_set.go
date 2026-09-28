@@ -25,6 +25,7 @@ type int8Entry struct {
 type Int8 struct {
 	entries []int8Entry
 	size    int
+	shift   uint // 64 - log2(len(entries)): home bucket = hash >> shift (bool sets index by & mask)
 }
 
 // NewInt8 creates a new empty Int8.
@@ -38,6 +39,7 @@ func NewInt8WithCapacity(capacity int) *Int8 {
 	return &Int8{
 		entries: make([]int8Entry, cap),
 		size:    0,
+		shift:   shiftForInt8(cap),
 	}
 }
 
@@ -58,7 +60,8 @@ func Int8Of(values ...int8) *Int8 {
 // Add. The size is a hint; use Int8BulkLoadExact for the zero-rehash
 // guarantee.
 func Int8BulkLoad(values []int8, policy pump.DuplicatePolicy) (*Int8, error) {
-	s := &Int8{entries: make([]int8Entry, Int8bulkCap(len(values)))}
+	c := Int8bulkCap(len(values))
+	s := &Int8{entries: make([]int8Entry, c), shift: shiftForInt8(c)}
 	for _, v := range values {
 		if s.needsResize() {
 			s.resize()
@@ -79,7 +82,8 @@ func Int8BulkLoadExact(values []int8, n int, policy pump.DuplicatePolicy) (*Int8
 	if n < 0 {
 		panic("mapdb: Int8BulkLoadExact: negative n")
 	}
-	s := &Int8{entries: make([]int8Entry, Int8bulkCap(n))}
+	c := Int8bulkCap(n)
+	s := &Int8{entries: make([]int8Entry, c), shift: shiftForInt8(c)}
 	if len(values) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -95,7 +99,7 @@ func Int8BulkLoadExact(values []int8, n int, policy pump.DuplicatePolicy) (*Int8
 // (callers guarantee capacity), applying the duplicate policy.
 func (s *Int8) bulkAdd(value int8, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(s.entries) - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 	for {
 		if !s.entries[idx].occupied {
 			s.entries[idx].key = value
@@ -130,7 +134,7 @@ func (s *Int8) Add(value int8) bool {
 	}
 	cap := len(s.entries)
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -160,7 +164,7 @@ func (s *Int8) Remove(value int8) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -183,7 +187,7 @@ func (s *Int8) Contains(value int8) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value)) & mask
+	idx := int(s.hash(value) >> s.shift)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -427,17 +431,20 @@ func (s *Int8) Equals(other *Int8) bool {
 	return true
 }
 
-// hash is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// hash is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the value's bit
-// pattern, returned with its bits reversed. Callers index with the LOW bits
-// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
-// low bits depend only on the input's low bits, and 64-bit keys with long runs
-// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
-// bucket. Reversing moves the product's top k bits into the low k bits for
-// every table size 2^k, so the index is the Fibonacci top-bit index up to a
-// fixed permutation of the buckets (same form as object/float_identity.go).
+// pattern. A multiply's entropy is in the product's TOP bits (its low bits
+// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
+// would share one bucket under a low-bit mask), so the home bucket is the top
+// k bits of the product for a 2^k-slot table: s.shift = 64-k and
+// idx = int(hash >> s.shift). Linear probing still wraps with & mask.
 func (s *Int8) hash(value int8) uint64 {
-	return bits.Reverse64(uint64(value) * 0x9E3779B97F4A7C15)
+	return uint64(value) * 0x9E3779B97F4A7C15
+}
+
+// shiftForInt8 returns the top-bit index shift 64-k for a 2^k-slot table.
+func shiftForInt8(capacity int) uint {
+	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
 }
 
 func (s *Int8) needsResize() bool {
@@ -451,6 +458,7 @@ func (s *Int8) resize() {
 		newCap = int8DefaultCapacity
 	}
 	s.entries = make([]int8Entry, newCap)
+	s.shift = shiftForInt8(newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -464,7 +472,7 @@ func (s *Int8) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
-		ideal := int(s.hash(s.entries[idx].key)) & mask
+		ideal := int(s.hash(s.entries[idx].key) >> s.shift)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

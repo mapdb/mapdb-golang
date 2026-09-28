@@ -285,8 +285,10 @@ func (m *CharObject[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
 		ideal := int(m.hashKey(m.keys[idx]) >> m.shift)
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
+		// Shift the entry back into the gap only when its ideal slot is NOT
+		// cyclically inside (deleted, idx]; otherwise the move would put it
+		// before its ideal slot and make it unreachable.
+		if (idx-ideal+len(m.keys))&mask >= (idx-deleted+len(m.keys))&mask {
 			m.keys[deleted] = m.keys[idx]
 			m.values[deleted] = m.values[idx]
 			m.occupied[deleted] = true

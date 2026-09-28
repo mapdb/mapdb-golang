@@ -135,7 +135,12 @@ func (h *HashMultimap[K, V]) Clear() {
 }
 
 // All yields every (key, value) pair. The iteration order within one key
-// is insertion order; across keys it is the Go map's randomised order.
+// is insertion order; across keys it is unspecified (the Go map's
+// randomised order, or table order for float keys).
+//
+// Float keys: the HashMultimap must not be mutated during this iteration
+// when its key type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (h *HashMultimap[K, V]) All() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
 		for k, vs := range h.m.all() {
@@ -149,6 +154,10 @@ func (h *HashMultimap[K, V]) All() iter.Seq2[K, V] {
 }
 
 // Keys yields each distinct key once.
+//
+// Float keys: the HashMultimap must not be mutated during this iteration
+// when its key type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (h *HashMultimap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
 		for k := range h.m.all() {
@@ -160,6 +169,10 @@ func (h *HashMultimap[K, V]) Keys() iter.Seq[K] {
 }
 
 // Values yields every value across all keys.
+//
+// Float keys: the HashMultimap must not be mutated during this iteration
+// when its key type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (h *HashMultimap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		for _, vs := range h.m.all() {
@@ -174,6 +187,10 @@ func (h *HashMultimap[K, V]) Values() iter.Seq[V] {
 
 // ForEachKeyMultiValues invokes f once per key with a defensive copy of the
 // values at that key.
+//
+// Float keys: the HashMultimap must not be mutated during this iteration
+// when its key type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (h *HashMultimap[K, V]) ForEachKeyMultiValues(f func(K, []V)) {
 	for k, vs := range h.m.all() {
 		cp := make([]V, len(vs))
@@ -183,6 +200,10 @@ func (h *HashMultimap[K, V]) ForEachKeyMultiValues(f func(K, []V)) {
 }
 
 // ForEachKey invokes f once per distinct key.
+//
+// Float keys: the HashMultimap must not be mutated during this iteration
+// when its key type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (h *HashMultimap[K, V]) ForEachKey(f func(K)) {
 	for k := range h.m.all() {
 		f(k)
@@ -190,6 +211,10 @@ func (h *HashMultimap[K, V]) ForEachKey(f func(K)) {
 }
 
 // ForEach invokes f for every (key, value) pair.
+//
+// Float keys: the HashMultimap must not be mutated during this iteration
+// when its key type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (h *HashMultimap[K, V]) ForEach(f func(K, V)) {
 	for k, vs := range h.m.all() {
 		for _, v := range vs {
@@ -200,6 +225,13 @@ func (h *HashMultimap[K, V]) ForEach(f func(K, V)) {
 
 // ToMap returns a defensive copy as a plain Go map of slices. Callers
 // receive a shallow copy of both the map and each value slice.
+//
+// The returned builtin map uses Go == key identity, not the bit-pattern
+// identity of the multimap itself. For a float32 or float64 key type this
+// loses information: -0.0 and +0.0 merge into one map key (only one of the
+// two value lists survives, which one is unspecified), and every NaN key
+// becomes a map entry that no lookup can reach (NaN != NaN; such entries
+// are visible only by ranging over the map).
 func (h *HashMultimap[K, V]) ToMap() map[K][]V {
 	out := make(map[K][]V, h.m.len())
 	for k, vs := range h.m.all() {

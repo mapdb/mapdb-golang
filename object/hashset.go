@@ -43,6 +43,9 @@ func (s *HashSet[T]) Len() int { return s.m.len() }
 
 // ── Iterable ──────────────────────────────────────────────────────────
 
+// All: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
 		for v := range s.m.all() {
@@ -53,6 +56,9 @@ func (s *HashSet[T]) All() iter.Seq[T] {
 	}
 }
 
+// ForEach: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) ForEach(f func(T)) {
 	for v := range s.m.all() {
 		f(v)
@@ -65,6 +71,9 @@ func (s *HashSet[T]) Contains(value T) bool {
 	return s.m.contains(value)
 }
 
+// AnySatisfy: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) AnySatisfy(predicate func(T) bool) bool {
 	for v := range s.m.all() {
 		if predicate(v) {
@@ -74,6 +83,9 @@ func (s *HashSet[T]) AnySatisfy(predicate func(T) bool) bool {
 	return false
 }
 
+// AllSatisfy: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) AllSatisfy(predicate func(T) bool) bool {
 	for v := range s.m.all() {
 		if !predicate(v) {
@@ -83,6 +95,9 @@ func (s *HashSet[T]) AllSatisfy(predicate func(T) bool) bool {
 	return true
 }
 
+// NoneSatisfy: the HashSet must not be mutated during this iteration when
+// its element type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (s *HashSet[T]) NoneSatisfy(predicate func(T) bool) bool {
 	for v := range s.m.all() {
 		if predicate(v) {
@@ -179,6 +194,9 @@ func (s *HashSet[T]) SymmetricDifference(other *HashSet[T]) *HashSet[T] {
 
 // ── Functional operations ─────────────────────────────────────────────
 
+// Select: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) Select(predicate func(T) bool) *HashSet[T] {
 	result := NewHashSet[T]()
 	for v := range s.m.all() {
@@ -189,6 +207,9 @@ func (s *HashSet[T]) Select(predicate func(T) bool) *HashSet[T] {
 	return result
 }
 
+// Reject: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) Reject(predicate func(T) bool) *HashSet[T] {
 	result := NewHashSet[T]()
 	for v := range s.m.all() {
@@ -199,6 +220,9 @@ func (s *HashSet[T]) Reject(predicate func(T) bool) *HashSet[T] {
 	return result
 }
 
+// Detect: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) Detect(predicate func(T) bool) (T, bool) {
 	for v := range s.m.all() {
 		if predicate(v) {
@@ -209,6 +233,9 @@ func (s *HashSet[T]) Detect(predicate func(T) bool) (T, bool) {
 	return zero, false
 }
 
+// Count: the HashSet must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (s *HashSet[T]) Count(predicate func(T) bool) int {
 	n := 0
 	for v := range s.m.all() {

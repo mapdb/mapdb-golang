@@ -86,7 +86,9 @@ func floatBitsStrategy[K any]() (s HashingStrategy[K], ok bool) {
 // builtin map for ordinary K, a bit-pattern strategy map for float K (see the
 // file comment). The zero value is an empty index; it allocates on the first
 // put. Iteration must not mutate the index (the float path's backward-shift
-// deletion is not range-safe).
+// deletion and resize are not range-safe); the public form of this rule is
+// the package documentation's "Float keys" section, which every exported
+// iteration method of a keyIndex-backed collection points to.
 type keyIndex[K comparable, V any] struct {
 	m map[K]V                    // non-float K
 	f *HashMapWithStrategy[K, V] // float K; nil until allocated

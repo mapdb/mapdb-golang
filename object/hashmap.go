@@ -55,10 +55,16 @@ func (h *HashMap[K, V]) ContainsKey(key K) bool {
 // Len returns the number of entries. Use h.Len() == 0 to test for emptiness.
 func (h *HashMap[K, V]) Len() int { return h.m.len() }
 
+// All: the HashMap must not be mutated during this iteration when its key
+// type is float32 or float64 (see the package documentation, section "Float
+// keys").
 func (h *HashMap[K, V]) All() iter.Seq2[K, V] {
 	return h.m.all()
 }
 
+// Keys: the HashMap must not be mutated during this iteration when its key
+// type is float32 or float64 (see the package documentation, section "Float
+// keys").
 func (h *HashMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
 		for k := range h.m.all() {
@@ -69,6 +75,9 @@ func (h *HashMap[K, V]) Keys() iter.Seq[K] {
 	}
 }
 
+// Values: the HashMap must not be mutated during this iteration when its key
+// type is float32 or float64 (see the package documentation, section "Float
+// keys").
 func (h *HashMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		for _, v := range h.m.all() {
@@ -79,12 +88,18 @@ func (h *HashMap[K, V]) Values() iter.Seq[V] {
 	}
 }
 
+// ForEach: the HashMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) ForEach(f func(K, V)) {
 	for k, v := range h.m.all() {
 		f(k, v)
 	}
 }
 
+// AnySatisfy: the HashMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
 	for k, v := range h.m.all() {
 		if predicate(k, v) {
@@ -94,6 +109,9 @@ func (h *HashMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
 	return false
 }
 
+// AllSatisfy: the HashMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
 	for k, v := range h.m.all() {
 		if !predicate(k, v) {
@@ -103,6 +121,9 @@ func (h *HashMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
 	return true
 }
 
+// NoneSatisfy: the HashMap must not be mutated during this iteration when
+// its key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
 	for k, v := range h.m.all() {
 		if predicate(k, v) {
@@ -129,6 +150,10 @@ func (h *HashMap[K, V]) Clear() {
 // ── Functional operations ─────────────────────────────────────────────
 
 // Select returns a new HashMap with entries satisfying the predicate.
+//
+// Float keys: the HashMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) Select(predicate func(K, V) bool) *HashMap[K, V] {
 	result := NewHashMap[K, V]()
 	for k, v := range h.m.all() {
@@ -140,6 +165,10 @@ func (h *HashMap[K, V]) Select(predicate func(K, V) bool) *HashMap[K, V] {
 }
 
 // Reject returns a new HashMap with entries NOT satisfying the predicate.
+//
+// Float keys: the HashMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) Reject(predicate func(K, V) bool) *HashMap[K, V] {
 	result := NewHashMap[K, V]()
 	for k, v := range h.m.all() {
@@ -151,6 +180,10 @@ func (h *HashMap[K, V]) Reject(predicate func(K, V) bool) *HashMap[K, V] {
 }
 
 // Detect returns the first entry satisfying the predicate (iteration order is undefined).
+//
+// Float keys: the HashMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) Detect(predicate func(K, V) bool) (K, V, bool) {
 	for k, v := range h.m.all() {
 		if predicate(k, v) {
@@ -163,6 +196,10 @@ func (h *HashMap[K, V]) Detect(predicate func(K, V) bool) (K, V, bool) {
 }
 
 // Count returns the number of entries satisfying the predicate.
+//
+// Float keys: the HashMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (h *HashMap[K, V]) Count(predicate func(K, V) bool) int {
 	n := 0
 	for k, v := range h.m.all() {

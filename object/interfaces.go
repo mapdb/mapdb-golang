@@ -11,6 +11,36 @@
 //
 // The interface hierarchy follows Go idioms: small, composable interfaces
 // (like io.Reader / io.Writer) that can be embedded into larger contracts.
+//
+// # Float keys
+//
+// HashMap, HashSet, HashBag, HashBiMap, HashMultimap, LinkedHashMap and
+// LinkedHashSet give keys (elements, for sets and bags) whose underlying type
+// is float32 or float64 bit-pattern identity instead of Go ==: a NaN key is
+// found and replaced, distinct NaN payloads are distinct keys, and -0.0 and
+// +0.0 are distinct keys. Such collections store their keys in an
+// open-addressing table rather than a builtin map (see float_identity.go).
+// Composite keys that merely contain floats (structs, arrays, interfaces)
+// keep Go == semantics.
+//
+// Iteration rule for float keys: a HashMap, HashSet, HashBag, HashBiMap or
+// HashMultimap whose key (element) type is float32 or float64 must not be
+// mutated (Put, Add, Remove, Clear, or any other mutating call) while it is
+// being iterated: neither from inside a range over All, Keys or Values, nor
+// from a function passed to ForEach, ForEachWithOccurrences, ForEachKey,
+// ForEachKeyMultiValues, AnySatisfy, AllSatisfy, NoneSatisfy, Select,
+// Reject, Detect or Count. The table's backward-shift deletion and its
+// resize are not range-safe, so such an iteration may skip entries or yield
+// an entry twice. For every other key type these
+// collections are backed by a builtin map and keep the builtin map's range
+// semantics (an entry removed before it is reached is not produced; an entry
+// added during iteration may or may not be produced). LinkedHashMap and
+// LinkedHashSet iterate their insertion-order list, not the key table, so
+// their iteration behaviour does not depend on the key type and this rule
+// does not apply to them.
+//
+// HashMultimap.ToMap returns a builtin map and therefore uses Go == identity
+// even for float keys; see its documentation.
 package object
 
 import "iter"

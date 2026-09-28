@@ -55,6 +55,10 @@ func (b *HashBag[T]) SizeDistinct() int { return b.counts.len() }
 // ── Iterable ──────────────────────────────────────────────────────────
 
 // All yields each element once per occurrence.
+//
+// Float keys: the HashBag must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBag[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
 		for v, count := range b.counts.all() {
@@ -67,6 +71,9 @@ func (b *HashBag[T]) All() iter.Seq[T] {
 	}
 }
 
+// ForEach: the HashBag must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBag[T]) ForEach(f func(T)) {
 	for v, count := range b.counts.all() {
 		for i := 0; i < count; i++ {
@@ -76,6 +83,10 @@ func (b *HashBag[T]) ForEach(f func(T)) {
 }
 
 // ForEachWithOccurrences calls f once per distinct value with its count.
+//
+// Float keys: the HashBag must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBag[T]) ForEachWithOccurrences(f func(T, int)) {
 	for v, count := range b.counts.all() {
 		f(v, count)
@@ -86,6 +97,9 @@ func (b *HashBag[T]) ForEachWithOccurrences(f func(T, int)) {
 
 func (b *HashBag[T]) Contains(value T) bool { return b.OccurrencesOf(value) > 0 }
 
+// AnySatisfy: the HashBag must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBag[T]) AnySatisfy(predicate func(T) bool) bool {
 	for v := range b.counts.all() {
 		if predicate(v) {
@@ -95,6 +109,9 @@ func (b *HashBag[T]) AnySatisfy(predicate func(T) bool) bool {
 	return false
 }
 
+// AllSatisfy: the HashBag must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBag[T]) AllSatisfy(predicate func(T) bool) bool {
 	for v := range b.counts.all() {
 		if !predicate(v) {
@@ -104,6 +121,9 @@ func (b *HashBag[T]) AllSatisfy(predicate func(T) bool) bool {
 	return true
 }
 
+// NoneSatisfy: the HashBag must not be mutated during this iteration when
+// its element type is float32 or float64 (see the package documentation,
+// section "Float keys").
 func (b *HashBag[T]) NoneSatisfy(predicate func(T) bool) bool {
 	for v := range b.counts.all() {
 		if predicate(v) {
@@ -203,6 +223,9 @@ func (b *HashBag[T]) toValueCounts() []ValueCount[T] {
 
 // ── Functional operations ─────────────────────────────────────────────
 
+// Select: the HashBag must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBag[T]) Select(predicate func(T) bool) *HashBag[T] {
 	result := NewHashBag[T]()
 	for v, count := range b.counts.all() {
@@ -214,6 +237,9 @@ func (b *HashBag[T]) Select(predicate func(T) bool) *HashBag[T] {
 	return result
 }
 
+// Reject: the HashBag must not be mutated during this iteration when its
+// element type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBag[T]) Reject(predicate func(T) bool) *HashBag[T] {
 	result := NewHashBag[T]()
 	for v, count := range b.counts.all() {

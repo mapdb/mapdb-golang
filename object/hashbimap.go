@@ -55,10 +55,16 @@ func (b *HashBiMap[K, V]) ContainsKey(key K) bool {
 // Len returns the number of entries. Use b.Len() == 0 to test for emptiness.
 func (b *HashBiMap[K, V]) Len() int { return b.forward.len() }
 
+// All: the HashBiMap must not be mutated during this iteration when its key
+// type is float32 or float64 (see the package documentation, section "Float
+// keys").
 func (b *HashBiMap[K, V]) All() iter.Seq2[K, V] {
 	return b.forward.all()
 }
 
+// Keys: the HashBiMap must not be mutated during this iteration when its key
+// type is float32 or float64 (see the package documentation, section "Float
+// keys").
 func (b *HashBiMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
 		for k := range b.forward.all() {
@@ -69,6 +75,9 @@ func (b *HashBiMap[K, V]) Keys() iter.Seq[K] {
 	}
 }
 
+// Values: the HashBiMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBiMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		for _, v := range b.forward.all() {
@@ -79,12 +88,18 @@ func (b *HashBiMap[K, V]) Values() iter.Seq[V] {
 	}
 }
 
+// ForEach: the HashBiMap must not be mutated during this iteration when its
+// key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBiMap[K, V]) ForEach(f func(K, V)) {
 	for k, v := range b.forward.all() {
 		f(k, v)
 	}
 }
 
+// AnySatisfy: the HashBiMap must not be mutated during this iteration when
+// its key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBiMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
 	for k, v := range b.forward.all() {
 		if predicate(k, v) {
@@ -94,6 +109,9 @@ func (b *HashBiMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
 	return false
 }
 
+// AllSatisfy: the HashBiMap must not be mutated during this iteration when
+// its key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBiMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
 	for k, v := range b.forward.all() {
 		if !predicate(k, v) {
@@ -103,6 +121,9 @@ func (b *HashBiMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
 	return true
 }
 
+// NoneSatisfy: the HashBiMap must not be mutated during this iteration when
+// its key type is float32 or float64 (see the package documentation, section
+// "Float keys").
 func (b *HashBiMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
 	for k, v := range b.forward.all() {
 		if predicate(k, v) {

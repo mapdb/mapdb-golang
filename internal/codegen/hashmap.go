@@ -18,9 +18,11 @@ import (
 // TWO independent float axes drive the only type-dependent logic:
 //
 // KEY axis (KeyIsFloat / KeyHashExpr / KeyBitsFn):
-//   - hashKey: int/char keys golden-ratio-mix uint64(<unsignedcast>(key));
-//     int32 alone double-casts through uint32; float keys reinterpret the bit
-//     pattern via unsafe before mixing. Each KeyHashExpr is captured verbatim.
+//   - hashKey: bits.Reverse64(<KeyHashExpr> * 0x9E3779B97F4A7C15), the 64-bit
+//     Fibonacci multiply with its top bits reversed into the low bits the
+//     callers mask with. int/char keys mix uint64(<unsignedcast>(key)); int32
+//     alone double-casts through uint32; float keys mix their bit pattern
+//     (math.Float{32,64}bits). Each KeyHashExpr is captured verbatim.
 //   - key equality at the probe sites (Put/Get/Remove/AndModify): float keys
 //     use math.Float{32,64}bits(a) == math.Float{32,64}bits(b); int/char keys
 //     use ==.
@@ -57,7 +59,7 @@ type hmData struct {
 	// (math.Float32bits / math.Float64bits). Float keys only.
 	KeyBitsFn string
 	// KeyHashExpr is the inner operand of the golden-ratio multiply in
-	// hashKey: h := <KeyHashExpr> * 0x9E3779B97F4A7C15. Captured per key type
+	// hashKey: bits.Reverse64(<KeyHashExpr> * 0x9E3779B97F4A7C15). Captured per key type
 	// because the integer/char/float reinterpretations differ (int32 alone
 	// double-casts through uint32; floats reinterpret via math.FloatNbits).
 	KeyHashExpr string
@@ -294,6 +296,7 @@ import (
 {{- if .NeedsMath}}
 	"math"
 {{- end}}
+	"math/bits"
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -902,9 +905,17 @@ func (e {{.MapName}}Entry) AndModify(f func(*{{.ValType}})) {{.MapName}}Entry {
 	}
 }
 
+// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
+// pattern, returned with its bits reversed. Callers index with the LOW bits
+// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
+// low bits depend only on the input's low bits, and 64-bit keys with long runs
+// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
+// bucket. Reversing moves the product's top k bits into the low k bits for
+// every table size 2^k, so the index is the Fibonacci top-bit index up to a
+// fixed permutation of the buckets (same form as object/float_identity.go).
 func (m *{{.MapName}}) hashKey(key {{.KeyType}}) uint64 {
-	h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
-	return h ^ (h >> 32)
+	return bits.Reverse64({{.KeyHashExpr}} * 0x9E3779B97F4A7C15)
 }
 
 func (m *{{.MapName}}) needsResize() bool {
@@ -2050,6 +2061,7 @@ import (
 {{- if .NeedsMath}}
 	"math"
 {{- end}}
+	"math/bits"
 	"strings"
 )
 
@@ -2282,9 +2294,17 @@ func (m *{{.MapName}}[V]) String() string {
 	return sb.String()
 }
 
+// hashKey is the mapdb 64-bit Fibonacci hash (spec algorithms.md "Hash
+// function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
+// pattern, returned with its bits reversed. Callers index with the LOW bits
+// (hash & mask), but a multiply's entropy is in the product's TOP bits: its
+// low bits depend only on the input's low bits, and 64-bit keys with long runs
+// of zero low bits (float64 1.0, 0.5, 2^k; int64 i<<40) would all share one
+// bucket. Reversing moves the product's top k bits into the low k bits for
+// every table size 2^k, so the index is the Fibonacci top-bit index up to a
+// fixed permutation of the buckets (same form as object/float_identity.go).
 func (m *{{.MapName}}[V]) hashKey(key {{.PrimType}}) uint64 {
-	h := {{.KeyHashExpr}} * 0x9E3779B97F4A7C15
-	return h ^ (h >> 32)
+	return bits.Reverse64({{.KeyHashExpr}} * 0x9E3779B97F4A7C15)
 }
 
 func (m *{{.MapName}}[V]) needsResize() bool {

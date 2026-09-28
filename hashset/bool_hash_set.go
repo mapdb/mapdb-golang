@@ -426,6 +426,7 @@ func (s *Bool) Equals(other *Bool) bool {
 	return true
 }
 
+// hash maps false/true to buckets 0/1.
 func (s *Bool) hash(value bool) uint64 {
 	if value {
 		return 1

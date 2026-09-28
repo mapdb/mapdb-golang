@@ -91,10 +91,14 @@ func objectProfileKind(collection string) bool {
 	return false
 }
 
-// resolveProfile returns the scenario's profile name. An unknown value, a
-// non-string, or "object" on a kind without an object dispatch prints the
-// banner and a FAIL line and exits 1: the runner never falls back to the
-// primitive path.
+// resolveProfile returns the scenario's profile name. An unknown value or a
+// non-string prints the banner and a `FAIL profile: unknown` line; "object"
+// on a kind without an object dispatch (known or unknown kind) prints the
+// banner, the `profile: object` echo and a `FAIL profile: object not
+// supported` line. Both exit 1: the runner never falls back to the
+// primitive path. In the --panic-child (panicChild set) both cases exit 1
+// silently: a `profile:` line in child stdout would be read by the panic
+// judge as an assertion line, and the rejection must never look like a trap.
 func resolveProfile(s scenario) string {
 	raw := bytes.TrimSpace(s.Profile)
 	if len(raw) == 0 {
@@ -108,12 +112,19 @@ func resolveProfile(s scenario) string {
 		if isString {
 			shown = name
 		}
+		if panicChild {
+			os.Exit(1)
+		}
 		fmt.Printf("=== scenario: %s ===\n", s.Name)
 		fmt.Printf("FAIL profile: unknown '%s'\n", shown)
 		os.Exit(1)
 	}
 	if name == profileObject && !objectProfileKind(s.Collection) {
+		if panicChild {
+			os.Exit(1)
+		}
 		fmt.Printf("=== scenario: %s ===\n", s.Name)
+		fmt.Printf("profile: %s\n", name)
 		fmt.Printf("FAIL profile: object not supported for '%s'\n", s.Collection)
 		os.Exit(1)
 	}
@@ -123,6 +134,10 @@ func resolveProfile(s scenario) string {
 type otherSpec struct {
 	Operations []map[string]any `json:"operations"`
 }
+
+// panicChild is set in the --panic-child process: profile rejections exit 1
+// without output there (see resolveProfile).
+var panicChild bool
 
 // anyFail is set whenever any assertion mismatches; the process exits
 // non-zero at the end so the harness treats assertion failures as the
@@ -647,6 +662,7 @@ func runExpectPanicParent(s scenario, raw json.RawMessage, path, profile string)
 // runPanicChild applies the scenario in this process. It must not spawn and
 // must not recover: an Interval trap has to kill this process.
 func runPanicChild(path string) {
+	panicChild = true
 	s := loadScenario(path)
 	profile := resolveProfile(s)
 	if s.Collection == "Interval<i32>" {

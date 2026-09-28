@@ -476,3 +476,34 @@ func TestTreeMapFloat64NaturalKeepsZerosAndNaNs(t *testing.T) {
 		t.Fatalf("Get(NaN) = %d,%v; want 4,true", v, ok)
 	}
 }
+
+// TestFloatKeyHashSpread pins the bucket spread of the float-key strategy
+// hash. Round float values have long runs of zero low bits; a hash whose low
+// bits (the table index) come from the Fibonacci product's low bits would put
+// all of them in one bucket.
+func TestFloatKeyHashSpread(t *testing.T) {
+	const mask = 2047 // a 2048-slot table
+	s32, ok32 := floatBitsStrategy[float32]()
+	s64, ok64 := floatBitsStrategy[float64]()
+	if !ok32 || !ok64 {
+		t.Fatal("floatBitsStrategy: float kinds not recognised")
+	}
+	cases := []struct {
+		name string
+		hash func(i int) uint64
+	}{
+		{"float32 1..1000", func(i int) uint64 { return s32.HashCode(float32(i)) }},
+		{"float64 1..1000", func(i int) uint64 { return s64.HashCode(float64(i)) }},
+		{"float64 i/2", func(i int) uint64 { return s64.HashCode(float64(i) / 2) }},
+		{"float64 2^(i-500)", func(i int) uint64 { return s64.HashCode(math.Ldexp(1, i-500)) }},
+	}
+	for _, c := range cases {
+		buckets := map[uint64]bool{}
+		for i := 1; i <= 1000; i++ {
+			buckets[c.hash(i)&mask] = true
+		}
+		if len(buckets) < 700 { // a random hash fills ~790
+			t.Errorf("%s: 1000 keys hit only %d of 2048 buckets", c.name, len(buckets))
+		}
+	}
+}

@@ -8,6 +8,7 @@ package object
 import (
 	"iter"
 	"math"
+	"math/bits"
 	"reflect"
 	"unsafe"
 )
@@ -48,16 +49,22 @@ func float32Of[T any](v T) float32 { return *(*float32)(unsafe.Pointer(&v)) }
 // reflect.Float64.
 func float64Of[T any](v T) float64 { return *(*float64)(unsafe.Pointer(&v)) }
 
-// mixBits is the murmur3 fmix64 finaliser. HashMapWithStrategy indexes by the
-// low bits of the hash, and float bit patterns of round values have all-zero
-// low bits, so the raw pattern must be avalanched first.
-func mixBits(h uint64) uint64 {
-	h ^= h >> 33
-	h *= 0xff51afd7ed558ccd
-	h ^= h >> 33
-	h *= 0xc4ceb9fe1a85ec53
-	h ^= h >> 33
-	return h
+// fibonacciHash is the mapdb 64-bit Fibonacci hash (spec algorithms.md
+// "Hash function": golden-ratio multiply by 0x9e3779b97f4a7c15, the constant
+// every primitive hash map in this module uses) of a key's bit pattern,
+// returned with its bits reversed.
+//
+// Fibonacci hashing takes the TOP bits of the product as the bucket index:
+// they depend on every input bit, while the product's low bits depend only on
+// the input's low bits. HashMapWithStrategy indexes by the LOW bits
+// (hash & mask) and does not know its capacity, and float bit patterns of
+// round values (1.0, 2.0, 0.5, ...) have long runs of zero low bits, so the
+// low bits of the plain product would put them all in one bucket. Reversing
+// the product moves its top k bits into the low k bits for every table size
+// 2^k: the index is the Fibonacci top-bit index up to a fixed permutation of
+// the buckets.
+func fibonacciHash(b uint64) uint64 {
+	return bits.Reverse64(b * 0x9e3779b97f4a7c15)
 }
 
 // floatBitsStrategy returns a bit-pattern HashingStrategy when K's underlying
@@ -66,14 +73,14 @@ func floatBitsStrategy[K any]() (s HashingStrategy[K], ok bool) {
 	switch floatKind[K]() {
 	case reflect.Float32:
 		return HashingStrategy[K]{
-			HashCode: func(k K) uint64 { return mixBits(uint64(math.Float32bits(float32Of(k)))) },
+			HashCode: func(k K) uint64 { return fibonacciHash(uint64(math.Float32bits(float32Of(k)))) },
 			Equals: func(a, b K) bool {
 				return math.Float32bits(float32Of(a)) == math.Float32bits(float32Of(b))
 			},
 		}, true
 	case reflect.Float64:
 		return HashingStrategy[K]{
-			HashCode: func(k K) uint64 { return mixBits(math.Float64bits(float64Of(k))) },
+			HashCode: func(k K) uint64 { return fibonacciHash(math.Float64bits(float64Of(k))) },
 			Equals: func(a, b K) bool {
 				return math.Float64bits(float64Of(a)) == math.Float64bits(float64Of(b))
 			},

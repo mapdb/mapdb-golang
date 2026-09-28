@@ -420,6 +420,22 @@ func reachMarkerLine(i, n int) string {
 	return fmt.Sprintf("[panic-child] reached op %d/%d", i, n)
 }
 
+// returnMarkerLine is printed immediately after that production call returns
+// normally. Its presence for the last op means the product did NOT trap
+// there, whatever killed the process afterwards.
+func returnMarkerLine(i, n int) string {
+	return fmt.Sprintf("[panic-child] returned op %d/%d", i, n)
+}
+
+func stdoutHasLine(stdout, want string) bool {
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.TrimRight(line, "\r") == want {
+			return true
+		}
+	}
+	return false
+}
+
 // stdoutHasReachMarker reports whether the child printed the marker for the
 // LAST operation, i.e. it got as far as calling the product for it. A runner
 // crash before that point leaves no such line (astra25/25 F4: any non-zero
@@ -429,13 +445,7 @@ func stdoutHasReachMarker(stdout string, nOps int) bool {
 	if nOps < 1 {
 		return false
 	}
-	want := reachMarkerLine(nOps, nOps)
-	for _, line := range strings.Split(stdout, "\n") {
-		if strings.TrimRight(line, "\r") == want {
-			return true
-		}
-	}
-	return false
+	return stdoutHasLine(stdout, reachMarkerLine(nOps, nOps))
 }
 
 // panicPassed is the Q2 parent judge. A timeout is a failure even when the
@@ -453,7 +463,12 @@ func panicPassed(exitCode int, stdout string, timedOut bool, nOps int) bool {
 	if stdoutHasSentinel(stdout) {
 		return false
 	}
-	return stdoutHasReachMarker(stdout, nOps)
+	if !stdoutHasReachMarker(stdout, nOps) {
+		return false
+	}
+	// The last call returned normally: whatever killed the child afterwards
+	// (a crash on the way to the banner), it was not the product's trap.
+	return !stdoutHasLine(stdout, returnMarkerLine(nOps, nOps))
 }
 
 func assertionBoolTrue(raw json.RawMessage) bool {
@@ -489,12 +504,14 @@ func runPanicJudgeSelftest() {
 		{1, m1 + "SUMMARY: 1\n", false, 1, true},
 		{1, m1 + "boom:detail\n", false, 1, true},
 		{1, m1 + "FAIL-count: 1\n", false, 1, false},
-		{1, "", false, 1, false},                                // crash before the product: no marker
-		{1, "boom\n", false, 1, false},                          // ditto, with noise
-		{1, reachMarkerLine(1, 2) + "\n", false, 2, false},      // trapped on op 1 of 2
-		{1, reachMarkerLine(1, 2) + "\n" + m2, false, 2, true},  // reached op 2 of 2
-		{1, m1, false, 0, false},                                // no ops: nothing to reach
-		{1, "[panic-child] reached op 1/1 \n", false, 1, false}, // marker must match exactly
+		{1, "", false, 1, false},                                                               // crash before the product: no marker
+		{1, "boom\n", false, 1, false},                                                         // ditto, with noise
+		{1, reachMarkerLine(1, 2) + "\n", false, 2, false},                                     // trapped on op 1 of 2
+		{1, reachMarkerLine(1, 2) + "\n" + m2, false, 2, true},                                 // reached op 2 of 2
+		{1, m1, false, 0, false},                                                               // no ops: nothing to reach
+		{1, "[panic-child] reached op 1/1 \n", false, 1, false},                                // marker must match exactly
+		{1, m1 + returnMarkerLine(1, 1) + "\n", false, 1, false},                               // the last call returned: not the product's trap
+		{1, reachMarkerLine(1, 2) + "\n" + returnMarkerLine(1, 2) + "\n" + m2, false, 2, true}, // op 1 returned, op 2 trapped
 	}
 	for i, c := range cases {
 		got := panicPassed(c.exit, c.stdout, c.timedOut, c.ops)
@@ -586,6 +603,9 @@ func runInterval(s scenario, markers bool) *interval.Int32 {
 				fmt.Println(reachMarkerLine(i+1, n))
 			}
 			cur = interval.NewInt32(from, to, step)
+			if markers {
+				fmt.Println(returnMarkerLine(i+1, n))
+			}
 		case "reversed":
 			if cur == nil {
 				fmt.Printf("=== scenario: %s ===\n", s.Name)
@@ -595,6 +615,9 @@ func runInterval(s scenario, markers bool) *interval.Int32 {
 				fmt.Println(reachMarkerLine(i+1, n))
 			}
 			cur = (*interval.Int32).Reversed(cur)
+			if markers {
+				fmt.Println(returnMarkerLine(i+1, n))
+			}
 		default:
 			fmt.Printf("=== scenario: %s ===\n", s.Name)
 			os.Exit(1)

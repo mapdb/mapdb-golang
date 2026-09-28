@@ -38,6 +38,8 @@ func TestPanicPassedJudge(t *testing.T) {
 		{"no ops", 1, m1, false, 0, false},
 		{"marker with trailing space", 1, "[panic-child] reached op 1/1 \n", false, 1, false},
 		{"marker with CR", 1, "[panic-child] reached op 1/1\r\n", false, 1, true},
+		{"last call returned", 1, m1 + returnMarkerLine(1, 1) + "\n", false, 1, false},
+		{"op 1 returned, op 2 trapped", 1, reachMarkerLine(1, 2) + "\n" + returnMarkerLine(1, 2) + "\n" + m2, false, 2, true},
 	}
 	for _, c := range cases {
 		if got := panicPassed(c.exit, c.stdout, c.timedOut, c.ops); got != c.want {
@@ -47,8 +49,8 @@ func TestPanicPassedJudge(t *testing.T) {
 }
 
 func TestReachMarkerIsNotASentinel(t *testing.T) {
-	if stdoutHasSentinel(reachMarkerLine(1, 1) + "\n") {
-		t.Fatal("the reach marker must not be an assertion sentinel")
+	if stdoutHasSentinel(reachMarkerLine(1, 1) + "\n" + returnMarkerLine(1, 1) + "\n") {
+		t.Fatal("the reach/return markers must not be assertion sentinels")
 	}
 }
 

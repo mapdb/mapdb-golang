@@ -30,7 +30,15 @@ func TestKind(t *testing.T) {
 	}
 }
 
-func TestSame(t *testing.T) {
+// same is the bit-pattern identity the callers build from Kind and Bits.
+func same[T comparable](a, b T) bool {
+	if k := Kind[T](); k != reflect.Invalid {
+		return Bits(k, a) == Bits(k, b)
+	}
+	return a == b
+}
+
+func TestBitsIdentity(t *testing.T) {
 	nan := math.Float64frombits(0x7ff8000000000000)
 	nanP := math.Float64frombits(0x7ff8000000000001)
 	negZero := math.Copysign(0, -1)
@@ -39,22 +47,22 @@ func TestSame(t *testing.T) {
 		got  bool
 		want bool
 	}{
-		{"NaN self", Same(nan, nan), true},
-		{"NaN payloads", Same(nan, nanP), false},
-		{"NaN sign", Same(nan, -nan), false},
-		{"signed zeros", Same(0.0, negZero), false},
-		{"+Inf", Same(math.Inf(1), math.Inf(1)), true},
-		{"+Inf/-Inf", Same(math.Inf(1), math.Inf(-1)), false},
-		{"float32 NaN", Same(float32(nan), float32(nan)), true},
-		{"float32 zeros", Same(float32(0), float32(negZero)), false},
-		{"named NaN", Same(celsius(nan), celsius(nan)), true},
-		{"named zeros", Same(celsius(0), celsius(negZero)), false},
-		{"int", Same(3, 3), true},
-		{"struct keeps ==", Same(struct{ F float64 }{nan}, struct{ F float64 }{nan}), false},
+		{"NaN self", same(nan, nan), true},
+		{"NaN payloads", same(nan, nanP), false},
+		{"NaN sign", same(nan, -nan), false},
+		{"signed zeros", same(0.0, negZero), false},
+		{"+Inf", same(math.Inf(1), math.Inf(1)), true},
+		{"+Inf/-Inf", same(math.Inf(1), math.Inf(-1)), false},
+		{"float32 NaN", same(float32(nan), float32(nan)), true},
+		{"float32 zeros", same(float32(0), float32(negZero)), false},
+		{"named NaN", same(celsius(nan), celsius(nan)), true},
+		{"named zeros", same(celsius(0), celsius(negZero)), false},
+		{"int", same(3, 3), true},
+		{"struct keeps ==", same(struct{ F float64 }{nan}, struct{ F float64 }{nan}), false},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
-			t.Errorf("%s: Same = %v, want %v", c.name, c.got, c.want)
+			t.Errorf("%s: identity = %v, want %v", c.name, c.got, c.want)
 		}
 	}
 }

@@ -102,12 +102,7 @@ func (s *ArrayStack[T]) ForEach(f func(T)) {
 // type float32/float64) are matched by bit pattern: NaN matches itself,
 // distinct NaN payloads are distinct and -0.0 != +0.0.
 func (s *ArrayStack[T]) Contains(value T) bool {
-	for _, v := range s.items {
-		if sameKey(v, value) {
-			return true
-		}
-	}
-	return false
+	return indexOfValue(s.items, value) >= 0
 }
 
 func (s *ArrayStack[T]) AnySatisfy(predicate func(T) bool) bool {

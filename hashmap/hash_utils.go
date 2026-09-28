@@ -33,10 +33,16 @@ func hashComparable[K comparable](key K) uint64 {
 	return maphash.Comparable(objectKeySeed, key)
 }
 
+// objectKeyClass is the per-table cached classification of an object-map key
+// type K: objectKeyKind[K](). Zero (reflect.Invalid) means "not a float type"
+// and selects the direct hashComparable + == path.
+type objectKeyClass = reflect.Kind
+
 // objectKeyKind reports whether K's underlying type is float32 or float64
 // (reflect.Float32/Float64) or anything else (reflect.Invalid). The
-// object-keyed maps (Object<Value>[K]) evaluate it once per operation and pass
-// it to hashObjectKey/sameObjectKey.
+// object-keyed maps (Object<Value>[K]) evaluate it once per table, at
+// construction and in resize (which also initialises a zero-value map), and
+// cache it; it is never evaluated per lookup.
 //
 // Float keys use bit-pattern identity (spec algorithms.md "NaN must hash and
 // compare by bit pattern"): NaN finds itself, distinct NaN payloads are
@@ -44,20 +50,33 @@ func hashComparable[K comparable](key K) uint64 {
 // ==-consistent and hashes NaN randomly) would make a NaN key unreachable and
 // merge the two zeros. Named float types are included; composite keys that
 // merely contain floats keep == semantics.
-func objectKeyKind[K comparable]() reflect.Kind { return floatid.Kind[K]() }
+func objectKeyKind[K comparable]() objectKeyClass { return floatid.Kind[K]() }
 
 // hashObjectKey hashes an object-map key: the mapdb Fibonacci bit-pattern hash
-// for float K, hashComparable otherwise. fk must be objectKeyKind[K]().
-func hashObjectKey[K comparable](fk reflect.Kind, key K) uint64 {
+// for float K, hashComparable otherwise. fk is the table's cached class. Used
+// by the backward-shift deletion; lookups branch on fk themselves.
+func hashObjectKey[K comparable](fk objectKeyClass, key K) uint64 {
 	if fk != reflect.Invalid {
 		return floatid.Hash(floatid.Bits(fk, key))
 	}
 	return hashComparable(key)
 }
 
-// sameObjectKey is the object-map key equality matching hashObjectKey:
-// bit-pattern equality for float K, == otherwise. fk must be
-// objectKeyKind[K]().
-func sameObjectKey[K comparable](fk reflect.Kind, a, b K) bool {
-	return floatid.SameKind(fk, a, b)
+// probeFloatKey is the linear probe of an object-map table for a float K
+// (fk non-zero): Fibonacci bit-pattern hash, bit-pattern equality. It returns
+// the slot holding key (found) or the first empty slot of its probe run. The
+// table must have at least one empty slot.
+func probeFloatKey[K comparable](fk objectKeyClass, keys []K, occupied []bool, key K) (idx int, found bool) {
+	mask := len(keys) - 1
+	kb := floatid.Bits(fk, key)
+	idx = int(floatid.Hash(kb)) & mask
+	for {
+		if !occupied[idx] {
+			return idx, false
+		}
+		if floatid.Bits(fk, keys[idx]) == kb {
+			return idx, true
+		}
+		idx = (idx + 1) & mask
+	}
 }

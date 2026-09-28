@@ -20,6 +20,12 @@ type ObjectFloat64[K comparable] struct {
 	values   []float64
 	occupied []bool
 	size     int
+	// fk caches objectKeyKind[K]() (set by the constructors and by resize,
+	// which also lazily initialises a zero-value map): non-zero when K's
+	// underlying type is float32/float64, whose keys use bit-pattern
+	// identity via putFloat/probeFloatKey. Zero keeps the direct maphash + ==
+	// path.
+	fk objectKeyClass
 }
 
 // NewObjectFloat64 creates a new empty ObjectFloat64 with default capacity.
@@ -35,6 +41,7 @@ func NewObjectFloat64WithCapacity[K comparable](capacity int) *ObjectFloat64[K] 
 		values:   make([]float64, cap),
 		occupied: make([]bool, cap),
 		size:     0,
+		fk:       objectKeyKind[K](),
 	}
 }
 
@@ -43,10 +50,12 @@ func (m *ObjectFloat64[K]) Put(key K, value float64) (float64, bool) {
 	if m.needsResize() {
 		m.resize()
 	}
+	if m.fk != 0 {
+		return m.putFloat(key, value)
+	}
 	cap := len(m.keys)
 	mask := cap - 1
-	fk := objectKeyKind[K]()
-	idx := int(hashObjectKey(fk, key)) & mask
+	idx := int(hashComparable(key)) & mask
 
 	for {
 		if !m.occupied[idx] {
@@ -56,7 +65,7 @@ func (m *ObjectFloat64[K]) Put(key K, value float64) (float64, bool) {
 			m.size++
 			return 0.0, false
 		}
-		if sameObjectKey(fk, m.keys[idx], key) {
+		if m.keys[idx] == key {
 			old := m.values[idx]
 			m.values[idx] = value
 			return old, true
@@ -71,15 +80,20 @@ func (m *ObjectFloat64[K]) Get(key K) (float64, bool) {
 	if cap == 0 {
 		return 0.0, false
 	}
+	if m.fk != 0 {
+		if idx, found := probeFloatKey(m.fk, m.keys, m.occupied, key); found {
+			return m.values[idx], true
+		}
+		return 0.0, false
+	}
 	mask := cap - 1
-	fk := objectKeyKind[K]()
-	idx := int(hashObjectKey(fk, key)) & mask
+	idx := int(hashComparable(key)) & mask
 
 	for {
 		if !m.occupied[idx] {
 			return 0.0, false
 		}
-		if sameObjectKey(fk, m.keys[idx], key) {
+		if m.keys[idx] == key {
 			return m.values[idx], true
 		}
 		idx = (idx + 1) & mask
@@ -101,14 +115,27 @@ func (m *ObjectFloat64[K]) Remove(key K) (float64, bool) {
 		return 0.0, false
 	}
 	mask := cap - 1
-	fk := objectKeyKind[K]()
-	idx := int(hashObjectKey(fk, key)) & mask
+	if m.fk != 0 {
+		idx, found := probeFloatKey(m.fk, m.keys, m.occupied, key)
+		if !found {
+			return 0.0, false
+		}
+		old := m.values[idx]
+		m.occupied[idx] = false
+		var zeroK K
+		m.keys[idx] = zeroK
+		m.values[idx] = 0.0
+		m.size--
+		m.rehashFromObjectFloat64(idx, mask)
+		return old, true
+	}
+	idx := int(hashComparable(key)) & mask
 
 	for {
 		if !m.occupied[idx] {
 			return 0.0, false
 		}
-		if sameObjectKey(fk, m.keys[idx], key) {
+		if m.keys[idx] == key {
 			old := m.values[idx]
 			m.occupied[idx] = false
 			var zeroK K
@@ -120,6 +147,21 @@ func (m *ObjectFloat64[K]) Remove(key K) (float64, bool) {
 		}
 		idx = (idx + 1) & mask
 	}
+}
+
+// putFloat is Put for a float K (m.fk != 0): bit-pattern identity.
+func (m *ObjectFloat64[K]) putFloat(key K, value float64) (float64, bool) {
+	idx, found := probeFloatKey(m.fk, m.keys, m.occupied, key)
+	if found {
+		old := m.values[idx]
+		m.values[idx] = value
+		return old, true
+	}
+	m.keys[idx] = key
+	m.values[idx] = value
+	m.occupied[idx] = true
+	m.size++
+	return 0.0, false
 }
 
 // ContainsKey returns true if the map contains the given key.
@@ -251,6 +293,7 @@ func (m *ObjectFloat64[K]) resize() {
 	m.values = make([]float64, newCap)
 	m.occupied = make([]bool, newCap)
 	m.size = 0
+	m.fk = objectKeyKind[K]()
 
 	for i := range oldOccupied {
 		if oldOccupied[i] {
@@ -260,10 +303,9 @@ func (m *ObjectFloat64[K]) resize() {
 }
 
 func (m *ObjectFloat64[K]) rehashFromObjectFloat64(deleted int, mask int) {
-	fk := objectKeyKind[K]()
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
-		ideal := int(hashObjectKey(fk, m.keys[idx])) & mask
+		ideal := int(hashObjectKey(m.fk, m.keys[idx])) & mask
 		// Shift the entry back into the gap only when its ideal slot is NOT
 		// cyclically inside (deleted, idx]; otherwise the move would put it
 		// before its ideal slot and make it unreachable.

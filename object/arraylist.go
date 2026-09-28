@@ -9,6 +9,8 @@ package object
 import (
 	"fmt"
 	"iter"
+	"math"
+	"reflect"
 	"slices"
 	"strings"
 )
@@ -64,12 +66,7 @@ func (a *ArrayList[T]) ForEach(f func(T)) {
 // Contains reports whether value is in the list (float elements by bit
 // pattern; see Distinct).
 func (a *ArrayList[T]) Contains(value T) bool {
-	for _, v := range a.items {
-		if sameKey(v, value) {
-			return true
-		}
-	}
-	return false
+	return indexOfValue(a.items, value) >= 0
 }
 
 func (a *ArrayList[T]) AnySatisfy(predicate func(T) bool) bool {
@@ -119,8 +116,39 @@ func (a *ArrayList[T]) Get(index int) T {
 // IndexOf returns the index of the first occurrence of value, or -1 (float
 // elements by bit pattern; see Distinct).
 func (a *ArrayList[T]) IndexOf(value T) int {
-	for i, v := range a.items {
-		if sameKey(v, value) {
+	return indexOfValue(a.items, value)
+}
+
+// indexOfValue returns the index of the first element identical to value, or
+// -1: bit-pattern identity when T's underlying type is float32/float64, ==
+// otherwise. T is classified once per call (not per element), and the
+// non-float scan is the plain == loop.
+func indexOfValue[T comparable](items []T, value T) int {
+	if k := floatKind[T](); k != reflect.Invalid {
+		return indexOfFloat(items, k, value)
+	}
+	for i, v := range items {
+		if v == value {
+			return i
+		}
+	}
+	return -1
+}
+
+// indexOfFloat is indexOfValue for a float T of kind k.
+func indexOfFloat[T comparable](items []T, k reflect.Kind, value T) int {
+	if k == reflect.Float32 {
+		b := math.Float32bits(float32Of(value))
+		for i, v := range items {
+			if math.Float32bits(float32Of(v)) == b {
+				return i
+			}
+		}
+		return -1
+	}
+	b := math.Float64bits(float64Of(value))
+	for i, v := range items {
+		if math.Float64bits(float64Of(v)) == b {
 			return i
 		}
 	}
@@ -246,11 +274,9 @@ func (a *ArrayList[T]) Distinct() *ArrayList[T] {
 // Remove removes the first occurrence of value. Returns true if found.
 // Float elements are matched by bit pattern (see Distinct).
 func (a *ArrayList[T]) Remove(value T) bool {
-	for i, v := range a.items {
-		if sameKey(v, value) {
-			a.items = append(a.items[:i], a.items[i+1:]...)
-			return true
-		}
+	if i := indexOfValue(a.items, value); i >= 0 {
+		a.items = append(a.items[:i], a.items[i+1:]...)
+		return true
 	}
 	return false
 }

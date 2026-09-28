@@ -2,6 +2,7 @@ package stream
 
 import (
 	"iter"
+	"reflect"
 
 	"github.com/mapdb/mapdb-golang/internal/floatid"
 )
@@ -37,9 +38,17 @@ func None[V any](seq iter.Seq[V], predicate func(V) bool) bool {
 // pattern: NaN matches a NaN with the same bits, distinct NaN payloads are
 // distinct and -0.0 != +0.0. Other types use Go ==.
 func Contains[V comparable](seq iter.Seq[V], value V) bool {
-	kind := floatid.Kind[V]()
+	if kind := floatid.Kind[V](); kind != reflect.Invalid {
+		b := floatid.Bits(kind, value)
+		for v := range seq {
+			if floatid.Bits(kind, v) == b {
+				return true
+			}
+		}
+		return false
+	}
 	for v := range seq {
-		if floatid.SameKind(kind, v, value) {
+		if v == value {
 			return true
 		}
 	}

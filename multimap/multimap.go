@@ -24,6 +24,10 @@ type Multimap[K comparable, V any] struct {
 	data  map[K][]V                  // non-float K
 	fdata map[uint64]floatSlot[K, V] // float K, keyed by bit pattern
 	size  int                        // total values across all keys
+	// fk caches floatid.Kind[K]() once per Multimap (set by init, which
+	// runs at construction or on the first write to a zero value); non-zero
+	// iff fdata is in use. Never evaluated per operation.
+	fk reflect.Kind
 }
 
 // floatSlot keeps the original float key next to its values so iteration can
@@ -41,7 +45,8 @@ func NewMultimap[K comparable, V any]() *Multimap[K, V] {
 }
 
 func (m *Multimap[K, V]) init() {
-	if floatid.IsFloat[K]() {
+	m.fk = floatid.Kind[K]()
+	if m.fk != reflect.Invalid {
 		m.fdata = make(map[uint64]floatSlot[K, V])
 	} else {
 		m.data = make(map[K][]V)
@@ -49,8 +54,8 @@ func (m *Multimap[K, V]) init() {
 }
 
 func (m *Multimap[K, V]) lookup(key K) ([]V, bool) {
-	if k := floatid.Kind[K](); k != reflect.Invalid {
-		s, ok := m.fdata[floatid.Bits(k, key)]
+	if m.fk != reflect.Invalid {
+		s, ok := m.fdata[floatid.Bits(m.fk, key)]
 		return s.vals, ok
 	}
 	vals, ok := m.data[key]
@@ -61,16 +66,16 @@ func (m *Multimap[K, V]) store(key K, vals []V) {
 	if m.data == nil && m.fdata == nil {
 		m.init()
 	}
-	if k := floatid.Kind[K](); k != reflect.Invalid {
-		m.fdata[floatid.Bits(k, key)] = floatSlot[K, V]{key: key, vals: vals}
+	if m.fk != reflect.Invalid {
+		m.fdata[floatid.Bits(m.fk, key)] = floatSlot[K, V]{key: key, vals: vals}
 		return
 	}
 	m.data[key] = vals
 }
 
 func (m *Multimap[K, V]) delete(key K) {
-	if k := floatid.Kind[K](); k != reflect.Invalid {
-		delete(m.fdata, floatid.Bits(k, key))
+	if m.fk != reflect.Invalid {
+		delete(m.fdata, floatid.Bits(m.fk, key))
 		return
 	}
 	delete(m.data, key)

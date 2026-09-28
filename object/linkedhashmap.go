@@ -15,8 +15,12 @@ import (
 // LinkedHashMap is a generic insertion-ordered map backed by a Go builtin map
 // and a doubly-linked list of entries. Iteration follows insertion order.
 // It implements MutableMap[K, V].
+//
+// Float keys (underlying type float32/float64) use bit-pattern identity, not
+// ==: NaN is found and not duplicated, NaN payloads are distinct, and -0.0 and
+// +0.0 are distinct; see keyIndex.
 type LinkedHashMap[K comparable, V any] struct {
-	m    map[K]*lhmEntry[K, V]
+	m    keyIndex[K, *lhmEntry[K, V]]
 	head *lhmEntry[K, V]
 	tail *lhmEntry[K, V]
 }
@@ -29,13 +33,13 @@ type lhmEntry[K comparable, V any] struct {
 
 // NewLinkedHashMap creates an empty LinkedHashMap.
 func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
-	return &LinkedHashMap[K, V]{m: make(map[K]*lhmEntry[K, V])}
+	return &LinkedHashMap[K, V]{m: newKeyIndex[K, *lhmEntry[K, V]](0)}
 }
 
 // ── MapIterable ───────────────────────────────────────────────────────
 
 func (h *LinkedHashMap[K, V]) Get(key K) (V, bool) {
-	if e, ok := h.m[key]; ok {
+	if e, ok := h.m.get(key); ok {
 		return e.value, true
 	}
 	var zero V
@@ -43,19 +47,18 @@ func (h *LinkedHashMap[K, V]) Get(key K) (V, bool) {
 }
 
 func (h *LinkedHashMap[K, V]) GetOrDefault(key K, defaultValue V) V {
-	if e, ok := h.m[key]; ok {
+	if e, ok := h.m.get(key); ok {
 		return e.value
 	}
 	return defaultValue
 }
 
 func (h *LinkedHashMap[K, V]) ContainsKey(key K) bool {
-	_, ok := h.m[key]
-	return ok
+	return h.m.contains(key)
 }
 
 // Len returns the number of entries. Use h.Len() == 0 to test for emptiness.
-func (h *LinkedHashMap[K, V]) Len() int { return len(h.m) }
+func (h *LinkedHashMap[K, V]) Len() int { return h.m.len() }
 
 func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
@@ -123,10 +126,7 @@ func (h *LinkedHashMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
 // ── MutableMap ────────────────────────────────────────────────────────
 
 func (h *LinkedHashMap[K, V]) Put(key K, value V) (V, bool) {
-	if h.m == nil {
-		h.m = make(map[K]*lhmEntry[K, V])
-	}
-	if e, ok := h.m[key]; ok {
+	if e, ok := h.m.get(key); ok {
 		old := e.value
 		e.value = value
 		return old, true
@@ -138,24 +138,23 @@ func (h *LinkedHashMap[K, V]) Put(key K, value V) (V, bool) {
 		h.head = e
 	}
 	h.tail = e
-	h.m[key] = e
+	h.m.put(key, e)
 	var zero V
 	return zero, false
 }
 
 func (h *LinkedHashMap[K, V]) Remove(key K) (V, bool) {
-	e, ok := h.m[key]
+	e, ok := h.m.remove(key)
 	if !ok {
 		var zero V
 		return zero, false
 	}
 	h.unlink(e)
-	delete(h.m, key)
 	return e.value, true
 }
 
 func (h *LinkedHashMap[K, V]) Clear() {
-	clear(h.m)
+	h.m.clear()
 	h.head = nil
 	h.tail = nil
 }
@@ -217,7 +216,7 @@ func (h *LinkedHashMap[K, V]) Count(predicate func(K, V) bool) int {
 }
 
 func (h *LinkedHashMap[K, V]) KeysToSlice() []K {
-	result := make([]K, 0, len(h.m))
+	result := make([]K, 0, h.m.len())
 	for e := h.head; e != nil; e = e.next {
 		result = append(result, e.key)
 	}
@@ -225,7 +224,7 @@ func (h *LinkedHashMap[K, V]) KeysToSlice() []K {
 }
 
 func (h *LinkedHashMap[K, V]) ValuesToSlice() []V {
-	result := make([]V, 0, len(h.m))
+	result := make([]V, 0, h.m.len())
 	for e := h.head; e != nil; e = e.next {
 		result = append(result, e.value)
 	}

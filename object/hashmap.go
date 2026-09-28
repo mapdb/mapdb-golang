@@ -14,56 +14,54 @@ import (
 
 // HashMap is a generic unordered map backed by a Go builtin map.
 // It implements MutableMap[K, V].
+//
+// Float keys (K with underlying type float32/float64) use bit-pattern
+// identity, not ==: a NaN key is found and replaced, NaN payloads are
+// distinct keys, and -0.0 and +0.0 are distinct keys. Such maps are backed by
+// the strategy-based open-addressing table instead of a builtin map; see
+// keyIndex.
 type HashMap[K comparable, V any] struct {
-	m map[K]V
+	m keyIndex[K, V]
 }
 
 // NewHashMap creates an empty HashMap.
 func NewHashMap[K comparable, V any]() *HashMap[K, V] {
-	return &HashMap[K, V]{m: make(map[K]V)}
+	return &HashMap[K, V]{m: newKeyIndex[K, V](0)}
 }
 
 // NewHashMapWithCapacity creates a HashMap with pre-allocated capacity.
 func NewHashMapWithCapacity[K comparable, V any](capacity int) *HashMap[K, V] {
-	return &HashMap[K, V]{m: make(map[K]V, capacity)}
+	return &HashMap[K, V]{m: newKeyIndex[K, V](capacity)}
 }
 
 // ── MapIterable ───────────────────────────────────────────────────────
 
 func (h *HashMap[K, V]) Get(key K) (V, bool) {
-	v, ok := h.m[key]
-	return v, ok
+	return h.m.get(key)
 }
 
 // GetOrDefault returns the value for key, or defaultValue if not found.
 func (h *HashMap[K, V]) GetOrDefault(key K, defaultValue V) V {
-	if v, ok := h.m[key]; ok {
+	if v, ok := h.m.get(key); ok {
 		return v
 	}
 	return defaultValue
 }
 
 func (h *HashMap[K, V]) ContainsKey(key K) bool {
-	_, ok := h.m[key]
-	return ok
+	return h.m.contains(key)
 }
 
 // Len returns the number of entries. Use h.Len() == 0 to test for emptiness.
-func (h *HashMap[K, V]) Len() int { return len(h.m) }
+func (h *HashMap[K, V]) Len() int { return h.m.len() }
 
 func (h *HashMap[K, V]) All() iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		for k, v := range h.m {
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return h.m.all()
 }
 
 func (h *HashMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for k := range h.m {
+		for k := range h.m.all() {
 			if !yield(k) {
 				return
 			}
@@ -73,7 +71,7 @@ func (h *HashMap[K, V]) Keys() iter.Seq[K] {
 
 func (h *HashMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for _, v := range h.m {
+		for _, v := range h.m.all() {
 			if !yield(v) {
 				return
 			}
@@ -82,13 +80,13 @@ func (h *HashMap[K, V]) Values() iter.Seq[V] {
 }
 
 func (h *HashMap[K, V]) ForEach(f func(K, V)) {
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		f(k, v)
 	}
 }
 
 func (h *HashMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if predicate(k, v) {
 			return true
 		}
@@ -97,7 +95,7 @@ func (h *HashMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
 }
 
 func (h *HashMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if !predicate(k, v) {
 			return false
 		}
@@ -106,7 +104,7 @@ func (h *HashMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
 }
 
 func (h *HashMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if predicate(k, v) {
 			return false
 		}
@@ -117,24 +115,15 @@ func (h *HashMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
 // ── MutableMap ────────────────────────────────────────────────────────
 
 func (h *HashMap[K, V]) Put(key K, value V) (V, bool) {
-	if h.m == nil {
-		h.m = make(map[K]V)
-	}
-	old, existed := h.m[key]
-	h.m[key] = value
-	return old, existed
+	return h.m.put(key, value)
 }
 
 func (h *HashMap[K, V]) Remove(key K) (V, bool) {
-	old, existed := h.m[key]
-	if existed {
-		delete(h.m, key)
-	}
-	return old, existed
+	return h.m.remove(key)
 }
 
 func (h *HashMap[K, V]) Clear() {
-	clear(h.m)
+	h.m.clear()
 }
 
 // ── Functional operations ─────────────────────────────────────────────
@@ -142,9 +131,9 @@ func (h *HashMap[K, V]) Clear() {
 // Select returns a new HashMap with entries satisfying the predicate.
 func (h *HashMap[K, V]) Select(predicate func(K, V) bool) *HashMap[K, V] {
 	result := NewHashMap[K, V]()
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if predicate(k, v) {
-			result.m[k] = v
+			result.m.put(k, v)
 		}
 	}
 	return result
@@ -153,9 +142,9 @@ func (h *HashMap[K, V]) Select(predicate func(K, V) bool) *HashMap[K, V] {
 // Reject returns a new HashMap with entries NOT satisfying the predicate.
 func (h *HashMap[K, V]) Reject(predicate func(K, V) bool) *HashMap[K, V] {
 	result := NewHashMap[K, V]()
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if !predicate(k, v) {
-			result.m[k] = v
+			result.m.put(k, v)
 		}
 	}
 	return result
@@ -163,7 +152,7 @@ func (h *HashMap[K, V]) Reject(predicate func(K, V) bool) *HashMap[K, V] {
 
 // Detect returns the first entry satisfying the predicate (iteration order is undefined).
 func (h *HashMap[K, V]) Detect(predicate func(K, V) bool) (K, V, bool) {
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if predicate(k, v) {
 			return k, v, true
 		}
@@ -176,7 +165,7 @@ func (h *HashMap[K, V]) Detect(predicate func(K, V) bool) (K, V, bool) {
 // Count returns the number of entries satisfying the predicate.
 func (h *HashMap[K, V]) Count(predicate func(K, V) bool) int {
 	n := 0
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if predicate(k, v) {
 			n++
 		}
@@ -186,8 +175,8 @@ func (h *HashMap[K, V]) Count(predicate func(K, V) bool) int {
 
 // KeysToSlice returns all keys as a slice.
 func (h *HashMap[K, V]) KeysToSlice() []K {
-	result := make([]K, 0, len(h.m))
-	for k := range h.m {
+	result := make([]K, 0, h.m.len())
+	for k := range h.m.all() {
 		result = append(result, k)
 	}
 	return result
@@ -195,8 +184,8 @@ func (h *HashMap[K, V]) KeysToSlice() []K {
 
 // ValuesToSlice returns all values as a slice.
 func (h *HashMap[K, V]) ValuesToSlice() []V {
-	result := make([]V, 0, len(h.m))
-	for _, v := range h.m {
+	result := make([]V, 0, h.m.len())
+	for _, v := range h.m.all() {
 		result = append(result, v)
 	}
 	return result
@@ -208,7 +197,7 @@ func (h *HashMap[K, V]) String() string {
 	var b strings.Builder
 	b.WriteByte('{')
 	first := true
-	for k, v := range h.m {
+	for k, v := range h.m.all() {
 		if !first {
 			b.WriteString(", ")
 		}

@@ -14,20 +14,24 @@ import (
 
 // HashSet is a generic unordered set backed by a Go map.
 // It implements MutableSet[T].
+//
+// Float elements (T with underlying type float32/float64) use bit-pattern
+// identity, not ==: NaN is found and not duplicated, NaN payloads are
+// distinct elements, and -0.0 and +0.0 are distinct elements; see keyIndex.
 type HashSet[T comparable] struct {
-	m map[T]struct{}
+	m keyIndex[T, struct{}]
 }
 
 // NewHashSet creates an empty HashSet.
 func NewHashSet[T comparable]() *HashSet[T] {
-	return &HashSet[T]{m: make(map[T]struct{})}
+	return &HashSet[T]{m: newKeyIndex[T, struct{}](0)}
 }
 
 // NewHashSetFrom creates a HashSet from existing elements.
 func NewHashSetFrom[T comparable](values ...T) *HashSet[T] {
-	s := &HashSet[T]{m: make(map[T]struct{}, len(values))}
+	s := &HashSet[T]{m: newKeyIndex[T, struct{}](len(values))}
 	for _, v := range values {
-		s.m[v] = struct{}{}
+		s.m.put(v, struct{}{})
 	}
 	return s
 }
@@ -35,13 +39,13 @@ func NewHashSetFrom[T comparable](values ...T) *HashSet[T] {
 // ── Sized ─────────────────────────────────────────────────────────────
 
 // Len returns the number of elements. Use s.Len() == 0 to test for emptiness.
-func (s *HashSet[T]) Len() int { return len(s.m) }
+func (s *HashSet[T]) Len() int { return s.m.len() }
 
 // ── Iterable ──────────────────────────────────────────────────────────
 
 func (s *HashSet[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
-		for v := range s.m {
+		for v := range s.m.all() {
 			if !yield(v) {
 				return
 			}
@@ -50,7 +54,7 @@ func (s *HashSet[T]) All() iter.Seq[T] {
 }
 
 func (s *HashSet[T]) ForEach(f func(T)) {
-	for v := range s.m {
+	for v := range s.m.all() {
 		f(v)
 	}
 }
@@ -58,12 +62,11 @@ func (s *HashSet[T]) ForEach(f func(T)) {
 // ── Searchable ────────────────────────────────────────────────────────
 
 func (s *HashSet[T]) Contains(value T) bool {
-	_, ok := s.m[value]
-	return ok
+	return s.m.contains(value)
 }
 
 func (s *HashSet[T]) AnySatisfy(predicate func(T) bool) bool {
-	for v := range s.m {
+	for v := range s.m.all() {
 		if predicate(v) {
 			return true
 		}
@@ -72,7 +75,7 @@ func (s *HashSet[T]) AnySatisfy(predicate func(T) bool) bool {
 }
 
 func (s *HashSet[T]) AllSatisfy(predicate func(T) bool) bool {
-	for v := range s.m {
+	for v := range s.m.all() {
 		if !predicate(v) {
 			return false
 		}
@@ -81,7 +84,7 @@ func (s *HashSet[T]) AllSatisfy(predicate func(T) bool) bool {
 }
 
 func (s *HashSet[T]) NoneSatisfy(predicate func(T) bool) bool {
-	for v := range s.m {
+	for v := range s.m.all() {
 		if predicate(v) {
 			return false
 		}
@@ -92,8 +95,8 @@ func (s *HashSet[T]) NoneSatisfy(predicate func(T) bool) bool {
 // ── Convertible ───────────────────────────────────────────────────────
 
 func (s *HashSet[T]) ToSlice() []T {
-	result := make([]T, 0, len(s.m))
-	for v := range s.m {
+	result := make([]T, 0, s.m.len())
+	for v := range s.m.all() {
 		result = append(result, v)
 	}
 	return result
@@ -102,26 +105,20 @@ func (s *HashSet[T]) ToSlice() []T {
 // ── MutableSet ────────────────────────────────────────────────────────
 
 func (s *HashSet[T]) Add(value T) bool {
-	if s.m == nil {
-		s.m = make(map[T]struct{})
+	if s.m.contains(value) {
+		return false // keep the stored element (matters for == -equal composites)
 	}
-	if _, ok := s.m[value]; ok {
-		return false
-	}
-	s.m[value] = struct{}{}
+	s.m.put(value, struct{}{})
 	return true
 }
 
 func (s *HashSet[T]) Remove(value T) bool {
-	if _, ok := s.m[value]; !ok {
-		return false
-	}
-	delete(s.m, value)
-	return true
+	_, existed := s.m.remove(value)
+	return existed
 }
 
 func (s *HashSet[T]) Clear() {
-	clear(s.m)
+	s.m.clear()
 }
 
 // ── Set operations ────────────────────────────────────────────────────
@@ -129,11 +126,11 @@ func (s *HashSet[T]) Clear() {
 // Union returns a new set containing all elements from both sets.
 func (s *HashSet[T]) Union(other *HashSet[T]) *HashSet[T] {
 	result := NewHashSet[T]()
-	for v := range s.m {
-		result.m[v] = struct{}{}
+	for v := range s.m.all() {
+		result.m.put(v, struct{}{})
 	}
-	for v := range other.m {
-		result.m[v] = struct{}{}
+	for v := range other.m.all() {
+		result.m.put(v, struct{}{})
 	}
 	return result
 }
@@ -142,12 +139,12 @@ func (s *HashSet[T]) Union(other *HashSet[T]) *HashSet[T] {
 func (s *HashSet[T]) Intersect(other *HashSet[T]) *HashSet[T] {
 	result := NewHashSet[T]()
 	smaller, larger := s, other
-	if len(smaller.m) > len(larger.m) {
+	if smaller.m.len() > larger.m.len() {
 		smaller, larger = larger, smaller
 	}
-	for v := range smaller.m {
-		if _, ok := larger.m[v]; ok {
-			result.m[v] = struct{}{}
+	for v := range smaller.m.all() {
+		if larger.m.contains(v) {
+			result.m.put(v, struct{}{})
 		}
 	}
 	return result
@@ -156,9 +153,9 @@ func (s *HashSet[T]) Intersect(other *HashSet[T]) *HashSet[T] {
 // Difference returns a new set containing elements in s but not in other.
 func (s *HashSet[T]) Difference(other *HashSet[T]) *HashSet[T] {
 	result := NewHashSet[T]()
-	for v := range s.m {
-		if _, ok := other.m[v]; !ok {
-			result.m[v] = struct{}{}
+	for v := range s.m.all() {
+		if !other.m.contains(v) {
+			result.m.put(v, struct{}{})
 		}
 	}
 	return result
@@ -167,14 +164,14 @@ func (s *HashSet[T]) Difference(other *HashSet[T]) *HashSet[T] {
 // SymmetricDifference returns elements in either set but not both.
 func (s *HashSet[T]) SymmetricDifference(other *HashSet[T]) *HashSet[T] {
 	result := NewHashSet[T]()
-	for v := range s.m {
-		if _, ok := other.m[v]; !ok {
-			result.m[v] = struct{}{}
+	for v := range s.m.all() {
+		if !other.m.contains(v) {
+			result.m.put(v, struct{}{})
 		}
 	}
-	for v := range other.m {
-		if _, ok := s.m[v]; !ok {
-			result.m[v] = struct{}{}
+	for v := range other.m.all() {
+		if !s.m.contains(v) {
+			result.m.put(v, struct{}{})
 		}
 	}
 	return result
@@ -184,9 +181,9 @@ func (s *HashSet[T]) SymmetricDifference(other *HashSet[T]) *HashSet[T] {
 
 func (s *HashSet[T]) Select(predicate func(T) bool) *HashSet[T] {
 	result := NewHashSet[T]()
-	for v := range s.m {
+	for v := range s.m.all() {
 		if predicate(v) {
-			result.m[v] = struct{}{}
+			result.m.put(v, struct{}{})
 		}
 	}
 	return result
@@ -194,16 +191,16 @@ func (s *HashSet[T]) Select(predicate func(T) bool) *HashSet[T] {
 
 func (s *HashSet[T]) Reject(predicate func(T) bool) *HashSet[T] {
 	result := NewHashSet[T]()
-	for v := range s.m {
+	for v := range s.m.all() {
 		if !predicate(v) {
-			result.m[v] = struct{}{}
+			result.m.put(v, struct{}{})
 		}
 	}
 	return result
 }
 
 func (s *HashSet[T]) Detect(predicate func(T) bool) (T, bool) {
-	for v := range s.m {
+	for v := range s.m.all() {
 		if predicate(v) {
 			return v, true
 		}
@@ -214,7 +211,7 @@ func (s *HashSet[T]) Detect(predicate func(T) bool) (T, bool) {
 
 func (s *HashSet[T]) Count(predicate func(T) bool) int {
 	n := 0
-	for v := range s.m {
+	for v := range s.m.all() {
 		if predicate(v) {
 			n++
 		}
@@ -228,7 +225,7 @@ func (s *HashSet[T]) String() string {
 	var b strings.Builder
 	b.WriteByte('{')
 	first := true
-	for v := range s.m {
+	for v := range s.m.all() {
 		if !first {
 			b.WriteString(", ")
 		}

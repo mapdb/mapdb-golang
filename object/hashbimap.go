@@ -17,55 +17,51 @@ import (
 // value that already exists under a different key, the old key is removed.
 //
 // It implements MutableBiMap[K, V].
+//
+// Float keys and float values (underlying type float32/float64) use
+// bit-pattern identity, not ==: NaN is found and not duplicated, NaN payloads
+// are distinct, and -0.0 and +0.0 are distinct; see keyIndex.
 type HashBiMap[K, V comparable] struct {
-	forward map[K]V
-	inverse map[V]K
+	forward keyIndex[K, V]
+	inverse keyIndex[V, K]
 }
 
 // NewHashBiMap creates an empty HashBiMap.
 func NewHashBiMap[K, V comparable]() *HashBiMap[K, V] {
 	return &HashBiMap[K, V]{
-		forward: make(map[K]V),
-		inverse: make(map[V]K),
+		forward: newKeyIndex[K, V](0),
+		inverse: newKeyIndex[V, K](0),
 	}
 }
 
 // NewHashBiMapWithCapacity creates a HashBiMap with pre-allocated capacity.
 func NewHashBiMapWithCapacity[K, V comparable](capacity int) *HashBiMap[K, V] {
 	return &HashBiMap[K, V]{
-		forward: make(map[K]V, capacity),
-		inverse: make(map[V]K, capacity),
+		forward: newKeyIndex[K, V](capacity),
+		inverse: newKeyIndex[V, K](capacity),
 	}
 }
 
 // ── MapIterable ───────────────────────────────────────────────────────
 
 func (b *HashBiMap[K, V]) Get(key K) (V, bool) {
-	v, ok := b.forward[key]
-	return v, ok
+	return b.forward.get(key)
 }
 
 func (b *HashBiMap[K, V]) ContainsKey(key K) bool {
-	_, ok := b.forward[key]
-	return ok
+	return b.forward.contains(key)
 }
 
 // Len returns the number of entries. Use b.Len() == 0 to test for emptiness.
-func (b *HashBiMap[K, V]) Len() int { return len(b.forward) }
+func (b *HashBiMap[K, V]) Len() int { return b.forward.len() }
 
 func (b *HashBiMap[K, V]) All() iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		for k, v := range b.forward {
-			if !yield(k, v) {
-				return
-			}
-		}
-	}
+	return b.forward.all()
 }
 
 func (b *HashBiMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for k := range b.forward {
+		for k := range b.forward.all() {
 			if !yield(k) {
 				return
 			}
@@ -75,7 +71,7 @@ func (b *HashBiMap[K, V]) Keys() iter.Seq[K] {
 
 func (b *HashBiMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for _, v := range b.forward {
+		for _, v := range b.forward.all() {
 			if !yield(v) {
 				return
 			}
@@ -84,13 +80,13 @@ func (b *HashBiMap[K, V]) Values() iter.Seq[V] {
 }
 
 func (b *HashBiMap[K, V]) ForEach(f func(K, V)) {
-	for k, v := range b.forward {
+	for k, v := range b.forward.all() {
 		f(k, v)
 	}
 }
 
 func (b *HashBiMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
-	for k, v := range b.forward {
+	for k, v := range b.forward.all() {
 		if predicate(k, v) {
 			return true
 		}
@@ -99,7 +95,7 @@ func (b *HashBiMap[K, V]) AnySatisfy(predicate func(K, V) bool) bool {
 }
 
 func (b *HashBiMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
-	for k, v := range b.forward {
+	for k, v := range b.forward.all() {
 		if !predicate(k, v) {
 			return false
 		}
@@ -108,7 +104,7 @@ func (b *HashBiMap[K, V]) AllSatisfy(predicate func(K, V) bool) bool {
 }
 
 func (b *HashBiMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
-	for k, v := range b.forward {
+	for k, v := range b.forward.all() {
 		if predicate(k, v) {
 			return false
 		}
@@ -120,14 +116,12 @@ func (b *HashBiMap[K, V]) NoneSatisfy(predicate func(K, V) bool) bool {
 
 // GetInverse returns the key for the given value (reverse lookup).
 func (b *HashBiMap[K, V]) GetInverse(value V) (K, bool) {
-	k, ok := b.inverse[value]
-	return k, ok
+	return b.inverse.get(value)
 }
 
 // ContainsValue returns true if the value exists in the map.
 func (b *HashBiMap[K, V]) ContainsValue(value V) bool {
-	_, ok := b.inverse[value]
-	return ok
+	return b.inverse.contains(value)
 }
 
 // ── MutableBiMap ──────────────────────────────────────────────────────
@@ -136,26 +130,22 @@ func (b *HashBiMap[K, V]) ContainsValue(value V) bool {
 // key, that old key is removed to maintain the bijection invariant.
 // Returns the old value for the key if it existed.
 func (b *HashBiMap[K, V]) Put(key K, value V) (V, bool) {
-	if b.forward == nil {
-		b.forward = make(map[K]V)
-		b.inverse = make(map[V]K)
-	}
 	// If this value already maps to a different key, remove that key
-	if existingKey, ok := b.inverse[value]; ok {
-		if existingKey != key {
-			delete(b.forward, existingKey)
-			delete(b.inverse, value)
+	if existingKey, ok := b.inverse.get(value); ok {
+		if !sameKey(existingKey, key) {
+			b.forward.remove(existingKey)
+			b.inverse.remove(value)
 		}
 	}
 
 	// If this key already maps to a different value, remove old inverse
-	oldValue, existed := b.forward[key]
+	oldValue, existed := b.forward.get(key)
 	if existed {
-		delete(b.inverse, oldValue)
+		b.inverse.remove(oldValue)
 	}
 
-	b.forward[key] = value
-	b.inverse[value] = key
+	b.forward.put(key, value)
+	b.inverse.put(value, key)
 	return oldValue, existed
 }
 
@@ -165,27 +155,25 @@ func (b *HashBiMap[K, V]) ForcePut(key K, value V) (V, bool) {
 }
 
 func (b *HashBiMap[K, V]) Remove(key K) (V, bool) {
-	v, ok := b.forward[key]
+	v, ok := b.forward.remove(key)
 	if ok {
-		delete(b.forward, key)
-		delete(b.inverse, v)
+		b.inverse.remove(v)
 	}
 	return v, ok
 }
 
 // RemoveInverse removes the entry with the given value (reverse removal).
 func (b *HashBiMap[K, V]) RemoveInverse(value V) (K, bool) {
-	k, ok := b.inverse[value]
+	k, ok := b.inverse.remove(value)
 	if ok {
-		delete(b.inverse, value)
-		delete(b.forward, k)
+		b.forward.remove(k)
 	}
 	return k, ok
 }
 
 func (b *HashBiMap[K, V]) Clear() {
-	clear(b.forward)
-	clear(b.inverse)
+	b.forward.clear()
+	b.inverse.clear()
 }
 
 // ── View ──────────────────────────────────────────────────────────────
@@ -193,10 +181,10 @@ func (b *HashBiMap[K, V]) Clear() {
 // Inverse returns a new HashBiMap with keys and values swapped.
 // This is a snapshot copy, not a live view.
 func (b *HashBiMap[K, V]) Inverse() *HashBiMap[V, K] {
-	inv := NewHashBiMapWithCapacity[V, K](len(b.forward))
-	for k, v := range b.forward {
-		inv.forward[v] = k
-		inv.inverse[k] = v
+	inv := NewHashBiMapWithCapacity[V, K](b.forward.len())
+	for k, v := range b.forward.all() {
+		inv.forward.put(v, k)
+		inv.inverse.put(k, v)
 	}
 	return inv
 }
@@ -205,8 +193,8 @@ func (b *HashBiMap[K, V]) Inverse() *HashBiMap[V, K] {
 
 // KeysToSlice returns all keys as a slice.
 func (b *HashBiMap[K, V]) KeysToSlice() []K {
-	result := make([]K, 0, len(b.forward))
-	for k := range b.forward {
+	result := make([]K, 0, b.forward.len())
+	for k := range b.forward.all() {
 		result = append(result, k)
 	}
 	return result
@@ -214,8 +202,8 @@ func (b *HashBiMap[K, V]) KeysToSlice() []K {
 
 // ValuesToSlice returns all values as a slice.
 func (b *HashBiMap[K, V]) ValuesToSlice() []V {
-	result := make([]V, 0, len(b.forward))
-	for _, v := range b.forward {
+	result := make([]V, 0, b.forward.len())
+	for _, v := range b.forward.all() {
 		result = append(result, v)
 	}
 	return result
@@ -227,7 +215,7 @@ func (b *HashBiMap[K, V]) String() string {
 	var s strings.Builder
 	s.WriteString("{BiMap: ")
 	first := true
-	for k, v := range b.forward {
+	for k, v := range b.forward.all() {
 		if !first {
 			s.WriteString(", ")
 		}

@@ -15,22 +15,25 @@ import (
 
 // HashBag is a generic multiset (bag) backed by map[T]int.
 // It implements MutableBag[T].
+//
+// Float elements (T with underlying type float32/float64) use bit-pattern
+// identity, not ==: NaN is counted as one element, NaN payloads are distinct
+// elements, and -0.0 and +0.0 are distinct elements; see keyIndex.
 type HashBag[T comparable] struct {
-	counts map[T]int
+	counts keyIndex[T, int]
 	size   int // total count including multiplicities
 }
 
 // NewHashBag creates an empty HashBag.
 func NewHashBag[T comparable]() *HashBag[T] {
-	return &HashBag[T]{counts: make(map[T]int)}
+	return &HashBag[T]{counts: newKeyIndex[T, int](0)}
 }
 
 // NewHashBagFrom creates a HashBag from existing elements.
 func NewHashBagFrom[T comparable](values ...T) *HashBag[T] {
-	b := &HashBag[T]{counts: make(map[T]int, len(values))}
+	b := &HashBag[T]{counts: newKeyIndex[T, int](len(values))}
 	for _, v := range values {
-		b.counts[v]++
-		b.size++
+		b.Add(v)
 	}
 	return b
 }
@@ -43,15 +46,18 @@ func (b *HashBag[T]) Len() int { return b.size }
 
 // ── Bag ───────────────────────────────────────────────────────────────
 
-func (b *HashBag[T]) OccurrencesOf(value T) int { return b.counts[value] }
-func (b *HashBag[T]) SizeDistinct() int         { return len(b.counts) }
+func (b *HashBag[T]) OccurrencesOf(value T) int {
+	n, _ := b.counts.get(value)
+	return n
+}
+func (b *HashBag[T]) SizeDistinct() int { return b.counts.len() }
 
 // ── Iterable ──────────────────────────────────────────────────────────
 
 // All yields each element once per occurrence.
 func (b *HashBag[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
-		for v, count := range b.counts {
+		for v, count := range b.counts.all() {
 			for i := 0; i < count; i++ {
 				if !yield(v) {
 					return
@@ -62,7 +68,7 @@ func (b *HashBag[T]) All() iter.Seq[T] {
 }
 
 func (b *HashBag[T]) ForEach(f func(T)) {
-	for v, count := range b.counts {
+	for v, count := range b.counts.all() {
 		for i := 0; i < count; i++ {
 			f(v)
 		}
@@ -71,17 +77,17 @@ func (b *HashBag[T]) ForEach(f func(T)) {
 
 // ForEachWithOccurrences calls f once per distinct value with its count.
 func (b *HashBag[T]) ForEachWithOccurrences(f func(T, int)) {
-	for v, count := range b.counts {
+	for v, count := range b.counts.all() {
 		f(v, count)
 	}
 }
 
 // ── Searchable ────────────────────────────────────────────────────────
 
-func (b *HashBag[T]) Contains(value T) bool { return b.counts[value] > 0 }
+func (b *HashBag[T]) Contains(value T) bool { return b.OccurrencesOf(value) > 0 }
 
 func (b *HashBag[T]) AnySatisfy(predicate func(T) bool) bool {
-	for v := range b.counts {
+	for v := range b.counts.all() {
 		if predicate(v) {
 			return true
 		}
@@ -90,7 +96,7 @@ func (b *HashBag[T]) AnySatisfy(predicate func(T) bool) bool {
 }
 
 func (b *HashBag[T]) AllSatisfy(predicate func(T) bool) bool {
-	for v := range b.counts {
+	for v := range b.counts.all() {
 		if !predicate(v) {
 			return false
 		}
@@ -99,7 +105,7 @@ func (b *HashBag[T]) AllSatisfy(predicate func(T) bool) bool {
 }
 
 func (b *HashBag[T]) NoneSatisfy(predicate func(T) bool) bool {
-	for v := range b.counts {
+	for v := range b.counts.all() {
 		if predicate(v) {
 			return false
 		}
@@ -112,7 +118,7 @@ func (b *HashBag[T]) NoneSatisfy(predicate func(T) bool) bool {
 // ToSlice returns all elements (with multiplicities) as a slice.
 func (b *HashBag[T]) ToSlice() []T {
 	result := make([]T, 0, b.size)
-	for v, count := range b.counts {
+	for v, count := range b.counts.all() {
 		for i := 0; i < count; i++ {
 			result = append(result, v)
 		}
@@ -123,10 +129,8 @@ func (b *HashBag[T]) ToSlice() []T {
 // ── MutableBag ────────────────────────────────────────────────────────
 
 func (b *HashBag[T]) Add(value T) {
-	if b.counts == nil {
-		b.counts = make(map[T]int)
-	}
-	b.counts[value]++
+	n, _ := b.counts.get(value)
+	b.counts.put(value, n+1)
 	b.size++
 }
 
@@ -135,28 +139,28 @@ func (b *HashBag[T]) AddOccurrences(value T, occurrences int) {
 	if occurrences <= 0 {
 		return
 	}
-	if b.counts == nil {
-		b.counts = make(map[T]int)
-	}
-	b.counts[value] += occurrences
+	n, _ := b.counts.get(value)
+	b.counts.put(value, n+occurrences)
 	b.size += occurrences
 }
 
 // Remove removes one occurrence of value. Returns true if it was present.
 func (b *HashBag[T]) Remove(value T) bool {
-	if b.counts[value] <= 0 {
+	n, _ := b.counts.get(value)
+	if n <= 0 {
 		return false
 	}
-	b.counts[value]--
 	b.size--
-	if b.counts[value] == 0 {
-		delete(b.counts, value)
+	if n == 1 {
+		b.counts.remove(value)
+	} else {
+		b.counts.put(value, n-1)
 	}
 	return true
 }
 
 func (b *HashBag[T]) Clear() {
-	clear(b.counts)
+	b.counts.clear()
 	b.size = 0
 }
 
@@ -190,8 +194,8 @@ type ValueCount[T comparable] struct {
 }
 
 func (b *HashBag[T]) toValueCounts() []ValueCount[T] {
-	pairs := make([]ValueCount[T], 0, len(b.counts))
-	for v, c := range b.counts {
+	pairs := make([]ValueCount[T], 0, b.counts.len())
+	for v, c := range b.counts.all() {
 		pairs = append(pairs, ValueCount[T]{Value: v, Count: c})
 	}
 	return pairs
@@ -201,9 +205,9 @@ func (b *HashBag[T]) toValueCounts() []ValueCount[T] {
 
 func (b *HashBag[T]) Select(predicate func(T) bool) *HashBag[T] {
 	result := NewHashBag[T]()
-	for v, count := range b.counts {
+	for v, count := range b.counts.all() {
 		if predicate(v) {
-			result.counts[v] = count
+			result.counts.put(v, count)
 			result.size += count
 		}
 	}
@@ -212,9 +216,9 @@ func (b *HashBag[T]) Select(predicate func(T) bool) *HashBag[T] {
 
 func (b *HashBag[T]) Reject(predicate func(T) bool) *HashBag[T] {
 	result := NewHashBag[T]()
-	for v, count := range b.counts {
+	for v, count := range b.counts.all() {
 		if !predicate(v) {
-			result.counts[v] = count
+			result.counts.put(v, count)
 			result.size += count
 		}
 	}
@@ -227,7 +231,7 @@ func (b *HashBag[T]) String() string {
 	var s strings.Builder
 	s.WriteByte('{')
 	first := true
-	for v, count := range b.counts {
+	for v, count := range b.counts.all() {
 		if !first {
 			s.WriteString(", ")
 		}

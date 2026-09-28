@@ -27,7 +27,9 @@ Currently supported: `arraylist`, `interval`, `hashset`, `stack`, `deque`,
 `treeset`, `priorityqueue`, `bag`, `treemap`. Float-ordered collections
 (`arraylist`, `treeset`, `priorityqueue`, `bag`, `treemap`) also emit a
 `cmp_float.go` from the single shared `genCmpFloat` template, so the IEEE
-total-order comparator has exactly one source of truth.
+total-order comparator has exactly one source of truth. The hand-written
+generic `object` package uses the `object` target, which emits only its
+`cmp_float.go` (backing `object.NaturalComparator` for float types).
 
 Run a regeneration with:
 

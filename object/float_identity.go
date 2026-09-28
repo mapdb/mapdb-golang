@@ -1,0 +1,179 @@
+// Copyright (c) 2026 Jan Kotek.
+// Licensed under the Eclipse Public License v1.0 and Eclipse Distribution License v1.0.
+// See LICENSE-EPL-1.0.txt and LICENSE-EDL-1.0.txt.
+// USE AT YOUR OWN RISK — THIS SOFTWARE IS PROVIDED WITHOUT WARRANTY OF ANY KIND.
+
+package object
+
+import (
+	"iter"
+	"math"
+	"reflect"
+	"unsafe"
+)
+
+// Float identity for the generic object/ collections.
+//
+// The collection spec (algorithms.md "NaN must hash and compare by bit
+// pattern") requires float keys to use bit-pattern identity: NaN equals
+// itself, distinct NaN payloads are distinct, and -0.0 != +0.0. Go's builtin
+// map and == use IEEE equality instead (NaN != NaN, -0.0 == +0.0), so a
+// builtin map[float64]V can neither find nor replace a NaN key and merges the
+// two zeros.
+//
+// Every object/ hash collection therefore stores its keys in a keyIndex
+// rather than a raw builtin map. For ordinary key types a keyIndex is exactly
+// the builtin map it replaces. For a key type whose underlying type is
+// float32 or float64 (including named types such as `type Celsius float64`)
+// it is the open-addressing HashMapWithStrategy with a bit-pattern
+// HashingStrategy. The choice is made once, when the index is first
+// allocated. Composite keys that merely contain floats (structs, arrays,
+// interfaces) keep Go's == semantics.
+
+// floatKind reports reflect.Float32 or reflect.Float64 when T's underlying
+// type is float32 or float64, and reflect.Invalid otherwise.
+func floatKind[T any]() reflect.Kind {
+	switch k := reflect.TypeFor[T]().Kind(); k {
+	case reflect.Float32, reflect.Float64:
+		return k
+	}
+	return reflect.Invalid
+}
+
+// float32Of reinterprets v as a float32. Only valid when floatKind[T]() is
+// reflect.Float32 (T's underlying type is float32, so the layouts match).
+func float32Of[T any](v T) float32 { return *(*float32)(unsafe.Pointer(&v)) }
+
+// float64Of reinterprets v as a float64. Only valid when floatKind[T]() is
+// reflect.Float64.
+func float64Of[T any](v T) float64 { return *(*float64)(unsafe.Pointer(&v)) }
+
+// mixBits is the murmur3 fmix64 finaliser. HashMapWithStrategy indexes by the
+// low bits of the hash, and float bit patterns of round values have all-zero
+// low bits, so the raw pattern must be avalanched first.
+func mixBits(h uint64) uint64 {
+	h ^= h >> 33
+	h *= 0xff51afd7ed558ccd
+	h ^= h >> 33
+	h *= 0xc4ceb9fe1a85ec53
+	h ^= h >> 33
+	return h
+}
+
+// floatBitsStrategy returns a bit-pattern HashingStrategy when K's underlying
+// type is float32 or float64, and ok=false for every other K.
+func floatBitsStrategy[K any]() (s HashingStrategy[K], ok bool) {
+	switch floatKind[K]() {
+	case reflect.Float32:
+		return HashingStrategy[K]{
+			HashCode: func(k K) uint64 { return mixBits(uint64(math.Float32bits(float32Of(k)))) },
+			Equals: func(a, b K) bool {
+				return math.Float32bits(float32Of(a)) == math.Float32bits(float32Of(b))
+			},
+		}, true
+	case reflect.Float64:
+		return HashingStrategy[K]{
+			HashCode: func(k K) uint64 { return mixBits(math.Float64bits(float64Of(k))) },
+			Equals: func(a, b K) bool {
+				return math.Float64bits(float64Of(a)) == math.Float64bits(float64Of(b))
+			},
+		}, true
+	}
+	return HashingStrategy[K]{}, false
+}
+
+// keyIndex is the key -> value table behind the object/ hash collections: a
+// builtin map for ordinary K, a bit-pattern strategy map for float K (see the
+// file comment). The zero value is an empty index; it allocates on the first
+// put. Iteration must not mutate the index (the float path's backward-shift
+// deletion is not range-safe).
+type keyIndex[K comparable, V any] struct {
+	m map[K]V                    // non-float K
+	f *HashMapWithStrategy[K, V] // float K; nil until allocated
+}
+
+// newKeyIndex returns an allocated index with room for capacity entries.
+func newKeyIndex[K comparable, V any](capacity int) keyIndex[K, V] {
+	if s, ok := floatBitsStrategy[K](); ok {
+		return keyIndex[K, V]{f: NewHashMapWithStrategyCapacity[K, V](s, capacity)}
+	}
+	return keyIndex[K, V]{m: make(map[K]V, capacity)}
+}
+
+func (x *keyIndex[K, V]) get(k K) (V, bool) {
+	if x.f != nil {
+		return x.f.Get(k)
+	}
+	v, ok := x.m[k]
+	return v, ok
+}
+
+func (x *keyIndex[K, V]) contains(k K) bool {
+	_, ok := x.get(k)
+	return ok
+}
+
+// put stores v under k and returns the previous value, if any.
+func (x *keyIndex[K, V]) put(k K, v V) (V, bool) {
+	if x.f == nil && x.m == nil {
+		*x = newKeyIndex[K, V](0)
+	}
+	if x.f != nil {
+		return x.f.Put(k, v)
+	}
+	old, existed := x.m[k]
+	x.m[k] = v
+	return old, existed
+}
+
+func (x *keyIndex[K, V]) remove(k K) (V, bool) {
+	if x.f != nil {
+		return x.f.Remove(k)
+	}
+	old, existed := x.m[k]
+	if existed {
+		delete(x.m, k)
+	}
+	return old, existed
+}
+
+func (x *keyIndex[K, V]) len() int {
+	if x.f != nil {
+		return x.f.Len()
+	}
+	return len(x.m)
+}
+
+func (x *keyIndex[K, V]) clear() {
+	if x.f != nil {
+		x.f.Clear()
+		return
+	}
+	clear(x.m)
+}
+
+// all iterates the entries in unspecified order.
+func (x *keyIndex[K, V]) all() iter.Seq2[K, V] {
+	if x.f != nil {
+		return x.f.All()
+	}
+	return func(yield func(K, V) bool) {
+		for k, v := range x.m {
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// sameKey is key equality as seen by keyIndex: bit-pattern equality for float
+// K, == otherwise.
+func sameKey[K comparable](a, b K) bool {
+	switch floatKind[K]() {
+	case reflect.Float32:
+		return math.Float32bits(float32Of(a)) == math.Float32bits(float32Of(b))
+	case reflect.Float64:
+		return math.Float64bits(float64Of(a)) == math.Float64bits(float64Of(b))
+	}
+	return a == b
+}

@@ -9,8 +9,11 @@ package object
 import (
 	"cmp"
 	"hash/maphash"
+	"reflect"
 	"strings"
 )
+
+//go:generate go run ../internal/codegen object
 
 // ── HashingStrategy ───────────────────────────────────────────────────
 
@@ -84,25 +87,46 @@ type Comparator[T any] func(a, b T) int
 
 // NaturalComparator returns a comparator that uses the natural ordering
 // of ordered types (numbers, strings).
+//
+// For float32/float64 T (including named types with a float underlying
+// type) the natural ordering is the IEEE 754 totalOrder mandated by the
+// collection spec, not Go's < / cmp.Compare:
+//
+//	-NaN < -Inf < negative finite < -0.0 < +0.0 < positive finite < +Inf < +NaN
+//
+// -0.0 and +0.0 are distinct, and NaNs with different payloads are distinct
+// and ordered by payload, so a TreeSet/TreeMap keeps all of them.
 func NaturalComparator[T cmp.Ordered]() Comparator[T] {
+	switch floatKind[T]() {
+	case reflect.Float32:
+		return func(a, b T) int { return cmpFloat32(float32Of(a), float32Of(b)) }
+	case reflect.Float64:
+		return func(a, b T) int { return cmpFloat64(float64Of(a), float64Of(b)) }
+	}
 	return func(a, b T) int { return cmp.Compare(a, b) }
 }
 
-// ReverseComparator returns a comparator with reversed natural ordering.
+// ReverseComparator returns the exact reverse of NaturalComparator
+// (for floats: the reversed IEEE 754 totalOrder).
 func ReverseComparator[T cmp.Ordered]() Comparator[T] {
-	return func(a, b T) int { return cmp.Compare(b, a) }
+	natural := NaturalComparator[T]()
+	return func(a, b T) int { return natural(b, a) }
 }
 
-// ComparatorByField returns a comparator that orders by an extracted field.
+// ComparatorByField returns a comparator that orders by an extracted field,
+// using NaturalComparator ordering on the field (so float fields use the
+// IEEE 754 totalOrder).
 //
 //	cmp := ComparatorByField(func(p Person) string { return p.Name })
 func ComparatorByField[T any, F cmp.Ordered](extract func(T) F) Comparator[T] {
-	return func(a, b T) int { return cmp.Compare(extract(a), extract(b)) }
+	natural := NaturalComparator[F]()
+	return func(a, b T) int { return natural(extract(a), extract(b)) }
 }
 
 // ReverseComparatorByField returns a comparator that orders by an extracted field in reverse.
 func ReverseComparatorByField[T any, F cmp.Ordered](extract func(T) F) Comparator[T] {
-	return func(a, b T) int { return cmp.Compare(extract(b), extract(a)) }
+	natural := NaturalComparator[F]()
+	return func(a, b T) int { return natural(extract(b), extract(a)) }
 }
 
 // ThenComparing chains two comparators: uses the second when the first returns zero.

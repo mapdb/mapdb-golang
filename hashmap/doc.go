@@ -8,7 +8,9 @@
 // keys), and float values are likewise compared by bit pattern in
 // ContainsValue / Equals. The package also provides bidirectional maps and two
 // generic object-map shapes — Object<Value>[K comparable] (object keys
-// hashed via the shared hashComparable helper, prim values) and
+// hashed via the shared hashObjectKey helper, prim values; a K whose
+// underlying type is float32/float64 is hashed and compared by bit pattern
+// too, other K by maphash.Comparable and ==) and
 // <Key>Object[V any] (prim keys, generic values) — each with an
 // immutable wrapper.
 //

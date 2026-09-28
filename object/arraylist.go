@@ -61,9 +61,11 @@ func (a *ArrayList[T]) ForEach(f func(T)) {
 
 // ── Searchable ────────────────────────────────────────────────────────
 
+// Contains reports whether value is in the list (float elements by bit
+// pattern; see Distinct).
 func (a *ArrayList[T]) Contains(value T) bool {
 	for _, v := range a.items {
-		if v == value {
+		if sameKey(v, value) {
 			return true
 		}
 	}
@@ -114,9 +116,11 @@ func (a *ArrayList[T]) Get(index int) T {
 	return a.items[index]
 }
 
+// IndexOf returns the index of the first occurrence of value, or -1 (float
+// elements by bit pattern; see Distinct).
 func (a *ArrayList[T]) IndexOf(value T) int {
 	for i, v := range a.items {
-		if v == value {
+		if sameKey(v, value) {
 			return i
 		}
 	}
@@ -222,12 +226,17 @@ func (a *ArrayList[T]) Reversed() *ArrayList[T] {
 }
 
 // Distinct returns a new ArrayList with duplicate elements removed (first occurrence kept).
+//
+// Float elements (T's underlying type float32 or float64) are compared by bit
+// pattern, as are Contains, IndexOf and Remove: NaN matches itself, distinct
+// NaN payloads are distinct and -0.0 != +0.0 (spec algorithms.md "NaN must
+// hash and compare by bit pattern").
 func (a *ArrayList[T]) Distinct() *ArrayList[T] {
-	seen := make(map[T]struct{}, len(a.items))
+	seen := newKeyIndex[T, struct{}](len(a.items))
 	result := NewArrayList[T]()
 	for _, v := range a.items {
-		if _, ok := seen[v]; !ok {
-			seen[v] = struct{}{}
+		if !seen.contains(v) {
+			seen.put(v, struct{}{})
 			result.Add(v)
 		}
 	}
@@ -235,9 +244,10 @@ func (a *ArrayList[T]) Distinct() *ArrayList[T] {
 }
 
 // Remove removes the first occurrence of value. Returns true if found.
+// Float elements are matched by bit pattern (see Distinct).
 func (a *ArrayList[T]) Remove(value T) bool {
 	for i, v := range a.items {
-		if v == value {
+		if sameKey(v, value) {
 			a.items = append(a.items[:i], a.items[i+1:]...)
 			return true
 		}

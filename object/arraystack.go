@@ -98,9 +98,12 @@ func (s *ArrayStack[T]) ForEach(f func(T)) {
 
 // ── Searchable ────────────────────────────────────────────────────────
 
+// Contains reports whether value is on the stack. Float elements (underlying
+// type float32/float64) are matched by bit pattern: NaN matches itself,
+// distinct NaN payloads are distinct and -0.0 != +0.0.
 func (s *ArrayStack[T]) Contains(value T) bool {
 	for _, v := range s.items {
-		if v == value {
+		if sameKey(v, value) {
 			return true
 		}
 	}

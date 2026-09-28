@@ -108,8 +108,10 @@ func keyHashExpr(p Primitive) string {
 // The object hash map family has TWO distinct generic shapes that do NOT mix:
 //
 // Shape A — Object<Value>HashMap[K comparable] (object KEY, prim value): the
-// key is a generic comparable, hashed with the shared hashComparable helper and
-// compared with ==; the value is a pure prim payload (no value-comparison
+// key is a generic comparable, hashed with the shared hashObjectKey helper and
+// compared with sameObjectKey (hashmap/hash_utils.go: bit-pattern identity
+// when K's underlying type is float32/float64, maphash.Comparable and ==
+// otherwise); the value is a pure prim payload (no value-comparison
 // methods). The only type-dependent bit is the value Go type name and its zero
 // literal (ValZero: "0" or "0.0"). There is NO float-value branch.
 //
@@ -1730,7 +1732,8 @@ func (m *{{.MapName}}[K]) Put(key K, value {{.PrimType}}) ({{.PrimType}}, bool) 
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	fk := objectKeyKind[K]()
+	idx := int(hashObjectKey(fk, key)) & mask
 
 	for {
 		if !m.occupied[idx] {
@@ -1740,7 +1743,7 @@ func (m *{{.MapName}}[K]) Put(key K, value {{.PrimType}}) ({{.PrimType}}, bool) 
 			m.size++
 			return {{.PrimZero}}, false
 		}
-		if m.keys[idx] == key {
+		if sameObjectKey(fk, m.keys[idx], key) {
 			old := m.values[idx]
 			m.values[idx] = value
 			return old, true
@@ -1756,13 +1759,14 @@ func (m *{{.MapName}}[K]) Get(key K) ({{.PrimType}}, bool) {
 		return {{.PrimZero}}, false
 	}
 	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	fk := objectKeyKind[K]()
+	idx := int(hashObjectKey(fk, key)) & mask
 
 	for {
 		if !m.occupied[idx] {
 			return {{.PrimZero}}, false
 		}
-		if m.keys[idx] == key {
+		if sameObjectKey(fk, m.keys[idx], key) {
 			return m.values[idx], true
 		}
 		idx = (idx + 1) & mask
@@ -1784,13 +1788,14 @@ func (m *{{.MapName}}[K]) Remove(key K) ({{.PrimType}}, bool) {
 		return {{.PrimZero}}, false
 	}
 	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	fk := objectKeyKind[K]()
+	idx := int(hashObjectKey(fk, key)) & mask
 
 	for {
 		if !m.occupied[idx] {
 			return {{.PrimZero}}, false
 		}
-		if m.keys[idx] == key {
+		if sameObjectKey(fk, m.keys[idx], key) {
 			old := m.values[idx]
 			m.occupied[idx] = false
 			var zeroK K
@@ -1942,11 +1947,14 @@ func (m *{{.MapName}}[K]) resize() {
 }
 
 func (m *{{.MapName}}[K]) rehashFrom{{.MapName}}(deleted int, mask int) {
+	fk := objectKeyKind[K]()
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
-		ideal := int(hashComparable(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
+		ideal := int(hashObjectKey(fk, m.keys[idx])) & mask
+		// Shift the entry back into the gap only when its ideal slot is NOT
+		// cyclically inside (deleted, idx]; otherwise the move would put it
+		// before its ideal slot and make it unreachable.
+		if (idx-ideal+len(m.keys))&mask >= (idx-deleted+len(m.keys))&mask {
 			m.keys[deleted] = m.keys[idx]
 			m.values[deleted] = m.values[idx]
 			m.occupied[deleted] = true

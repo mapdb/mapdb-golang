@@ -1,6 +1,10 @@
 package stream
 
-import "iter"
+import (
+	"iter"
+
+	"github.com/mapdb/mapdb-golang/internal/floatid"
+)
 
 // Any returns true if any element satisfies the predicate.
 func Any[V any](seq iter.Seq[V], predicate func(V) bool) bool {
@@ -28,9 +32,14 @@ func None[V any](seq iter.Seq[V], predicate func(V) bool) bool {
 }
 
 // Contains returns true if the sequence contains the value.
+//
+// Float elements (V's underlying type float32 or float64) are matched by bit
+// pattern: NaN matches a NaN with the same bits, distinct NaN payloads are
+// distinct and -0.0 != +0.0. Other types use Go ==.
 func Contains[V comparable](seq iter.Seq[V], value V) bool {
+	kind := floatid.Kind[V]()
 	for v := range seq {
-		if v == value {
+		if floatid.SameKind(kind, v, value) {
 			return true
 		}
 	}

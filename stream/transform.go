@@ -26,6 +26,15 @@ func GroupBy[V any, K comparable](seq iter.Seq[V], keyFunc func(V) K) *object.Ha
 
 // GroupByToMap is the escape hatch for callers that genuinely want a
 // bare map[K][]V (e.g. for marshalling) rather than a HashMultimap.
+//
+// The returned builtin map uses Go == key identity, not the bit-pattern
+// identity the collection spec requires for float keys (algorithms.md "NaN
+// must hash and compare by bit pattern"). For a key type whose underlying
+// type is float32 or float64 this loses information: -0.0 and +0.0 fall into
+// one group, and every element whose key is NaN lands in its own
+// single-element group that no lookup can reach (NaN != NaN; such groups are
+// visible only by ranging over the map). Use GroupBy, whose HashMultimap
+// keeps float keys by bit pattern, when keys may be floats.
 func GroupByToMap[V any, K comparable](seq iter.Seq[V], keyFunc func(V) K) map[K][]V {
 	result := make(map[K][]V)
 	for v := range seq {
@@ -62,13 +71,18 @@ func Partition[V any](seq iter.Seq[V], predicate func(V) bool) (matching iter.Se
 	return slices.Values(yes), slices.Values(no)
 }
 
-// Distinct returns a sequence with duplicate elements removed.
+// Distinct returns a sequence with duplicate elements removed (first
+// occurrence kept).
+//
+// Float elements (V's underlying type float32 or float64) are compared by bit
+// pattern: NaN is a duplicate of an earlier NaN with the same bits, distinct
+// NaN payloads are distinct and -0.0 != +0.0 (spec algorithms.md "NaN must
+// hash and compare by bit pattern"). Other types use Go ==.
 func Distinct[V comparable](seq iter.Seq[V]) iter.Seq[V] {
 	return func(yield func(V) bool) {
-		seen := make(map[V]struct{})
+		seen := object.NewHashSet[V]()
 		for v := range seq {
-			if _, ok := seen[v]; !ok {
-				seen[v] = struct{}{}
+			if seen.Add(v) {
 				if !yield(v) {
 					return
 				}

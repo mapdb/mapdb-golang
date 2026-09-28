@@ -12,6 +12,16 @@ func ToSlice[V any](seq iter.Seq[V]) []V {
 }
 
 // ToMap collects key-value pairs from an iter.Seq2 into a Go map.
+//
+// The returned builtin map uses Go == key identity, not the bit-pattern
+// identity the collection spec requires for float keys (algorithms.md "NaN
+// must hash and compare by bit pattern"). For a key type whose underlying
+// type is float32 or float64 this loses information: a pair keyed -0.0 and a
+// pair keyed +0.0 collapse into one entry (the later value wins), and every
+// NaN-keyed pair becomes its own entry that no lookup can reach (NaN != NaN;
+// such entries are visible only by ranging over the map). When keys may be
+// floats, collect into an object.HashMap (object.NewHashMap[K, V]() and Put),
+// which keeps float keys by bit pattern.
 func ToMap[K comparable, V any](seq iter.Seq2[K, V]) map[K]V {
 	result := make(map[K]V)
 	for k, v := range seq {

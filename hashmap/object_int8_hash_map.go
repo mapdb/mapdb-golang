@@ -45,7 +45,8 @@ func (m *ObjectInt8[K]) Put(key K, value int8) (int8, bool) {
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	fk := objectKeyKind[K]()
+	idx := int(hashObjectKey(fk, key)) & mask
 
 	for {
 		if !m.occupied[idx] {
@@ -55,7 +56,7 @@ func (m *ObjectInt8[K]) Put(key K, value int8) (int8, bool) {
 			m.size++
 			return 0, false
 		}
-		if m.keys[idx] == key {
+		if sameObjectKey(fk, m.keys[idx], key) {
 			old := m.values[idx]
 			m.values[idx] = value
 			return old, true
@@ -71,13 +72,14 @@ func (m *ObjectInt8[K]) Get(key K) (int8, bool) {
 		return 0, false
 	}
 	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	fk := objectKeyKind[K]()
+	idx := int(hashObjectKey(fk, key)) & mask
 
 	for {
 		if !m.occupied[idx] {
 			return 0, false
 		}
-		if m.keys[idx] == key {
+		if sameObjectKey(fk, m.keys[idx], key) {
 			return m.values[idx], true
 		}
 		idx = (idx + 1) & mask
@@ -99,13 +101,14 @@ func (m *ObjectInt8[K]) Remove(key K) (int8, bool) {
 		return 0, false
 	}
 	mask := cap - 1
-	idx := int(hashComparable(key)) & mask
+	fk := objectKeyKind[K]()
+	idx := int(hashObjectKey(fk, key)) & mask
 
 	for {
 		if !m.occupied[idx] {
 			return 0, false
 		}
-		if m.keys[idx] == key {
+		if sameObjectKey(fk, m.keys[idx], key) {
 			old := m.values[idx]
 			m.occupied[idx] = false
 			var zeroK K
@@ -257,11 +260,14 @@ func (m *ObjectInt8[K]) resize() {
 }
 
 func (m *ObjectInt8[K]) rehashFromObjectInt8(deleted int, mask int) {
+	fk := objectKeyKind[K]()
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
-		ideal := int(hashComparable(m.keys[idx])) & mask
-		if (idx-ideal+len(m.keys))&mask > (idx-deleted+len(m.keys))&mask {
-		} else {
+		ideal := int(hashObjectKey(fk, m.keys[idx])) & mask
+		// Shift the entry back into the gap only when its ideal slot is NOT
+		// cyclically inside (deleted, idx]; otherwise the move would put it
+		// before its ideal slot and make it unreachable.
+		if (idx-ideal+len(m.keys))&mask >= (idx-deleted+len(m.keys))&mask {
 			m.keys[deleted] = m.keys[idx]
 			m.values[deleted] = m.values[idx]
 			m.occupied[deleted] = true

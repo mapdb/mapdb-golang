@@ -72,7 +72,7 @@ type scenario struct {
 	// Profile is the optional implementation profile (README "profile"):
 	// absent or "primitive" drives the primitive tier, "object" the generic
 	// object tier. Kept raw so a non-string value is rejected, not coerced.
-	Profile json.RawMessage `json:"profile,omitempty"`
+	Profile json.RawMessage `json:"profile"`
 }
 
 // Resolved scenario profiles (closed vocabulary, runners.json "profiles").

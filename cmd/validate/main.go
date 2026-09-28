@@ -45,6 +45,7 @@ import (
 	"github.com/mapdb/mapdb-golang/immutablesorted"
 	"github.com/mapdb/mapdb-golang/interval"
 	"github.com/mapdb/mapdb-golang/multimap"
+	"github.com/mapdb/mapdb-golang/object"
 	"github.com/mapdb/mapdb-golang/pump"
 	"github.com/mapdb/mapdb-golang/rangev"
 	"github.com/mapdb/mapdb-golang/roaring"
@@ -68,6 +69,55 @@ type scenario struct {
 	// u64 logical tick encoded as a decimal string (or plain number).
 	MaxSize *json.Number    `json:"max_size,omitempty"`
 	TTL     json.RawMessage `json:"ttl,omitempty"`
+	// Profile is the optional implementation profile (README "profile"):
+	// absent or "primitive" drives the primitive tier, "object" the generic
+	// object tier. Kept raw so a non-string value is rejected, not coerced.
+	Profile json.RawMessage `json:"profile,omitempty"`
+}
+
+// Resolved scenario profiles (closed vocabulary, runners.json "profiles").
+const (
+	profilePrimitive = "primitive"
+	profileObject    = "object"
+)
+
+// objectProfileKinds are the collection kinds with an object-profile
+// dispatch in runPositional. Any other kind under "object" is a FAIL.
+func objectProfileKind(collection string) bool {
+	switch collection {
+	case "HashMap<f32, i32>", "HashSet<f32>", "TreeSet<f32>":
+		return true
+	}
+	return false
+}
+
+// resolveProfile returns the scenario's profile name. An unknown value, a
+// non-string, or "object" on a kind without an object dispatch prints the
+// banner and a FAIL line and exits 1: the runner never falls back to the
+// primitive path.
+func resolveProfile(s scenario) string {
+	raw := bytes.TrimSpace(s.Profile)
+	if len(raw) == 0 {
+		return profilePrimitive
+	}
+	// json.Unmarshal accepts null into a string, so require a string token.
+	var name string
+	isString := raw[0] == '"' && json.Unmarshal(raw, &name) == nil
+	if !isString || (name != profilePrimitive && name != profileObject) {
+		shown := string(raw)
+		if isString {
+			shown = name
+		}
+		fmt.Printf("=== scenario: %s ===\n", s.Name)
+		fmt.Printf("FAIL profile: unknown '%s'\n", shown)
+		os.Exit(1)
+	}
+	if name == profileObject && !objectProfileKind(s.Collection) {
+		fmt.Printf("=== scenario: %s ===\n", s.Name)
+		fmt.Printf("FAIL profile: object not supported for '%s'\n", s.Collection)
+		os.Exit(1)
+	}
+	return name
 }
 
 type otherSpec struct {
@@ -271,19 +321,20 @@ func main() {
 		return
 	}
 	s := loadScenario(os.Args[1])
+	profile := resolveProfile(s)
 	if raw, ok := s.Assertions["expect_panic"]; ok {
 		if !assertionBoolTrue(raw) {
 			fmt.Fprintln(os.Stderr, "malformed expect_panic: require boolean true")
 			os.Exit(1)
 		}
 		if !panicCollectionKnown(s.Collection) {
-			runPositional(s)
+			runPositional(s, profile, true)
 			return
 		}
-		runExpectPanicParent(s, raw, os.Args[1])
+		runExpectPanicParent(s, raw, os.Args[1], profile)
 		return
 	}
-	runPositional(s)
+	runPositional(s, profile, true)
 }
 
 func panicCollectionKnown(collection string) bool {
@@ -304,11 +355,36 @@ func panicCollectionKnown(collection string) bool {
 	}
 }
 
-// runPositional is the pre-existing scenario evaluator (banner, then the
-// collection switch). expect_panic is not a value assertion; see
-// sortedAssertionKeys.
-func runPositional(s scenario) {
+// runPositional is the pre-existing scenario evaluator (banner, the
+// `profile: <name>` echo when echoProfile is set, then the collection
+// switch). The --panic-child path passes echoProfile=false: the parent owns
+// the echo, and a `key: value` line in child output would be read by the
+// panic judge as an assertion line. expect_panic is not a value assertion;
+// see sortedAssertionKeys.
+func runPositional(s scenario, profile string, echoProfile bool) {
 	fmt.Printf("=== scenario: %s ===\n", s.Name)
+	if echoProfile {
+		fmt.Printf("profile: %s\n", profile)
+	}
+
+	if profile == profileObject {
+		switch s.Collection {
+		case "HashMap<f32, i32>":
+			runF32HashMapObject(s)
+		case "HashSet<f32>":
+			runF32HashSetObject(s)
+		case "TreeSet<f32>":
+			runF32TreeSetObject(s)
+		default:
+			// resolveProfile already rejected this; never fall back.
+			fmt.Printf("FAIL profile: object not supported for '%s'\n", s.Collection)
+			os.Exit(1)
+		}
+		if anyFail {
+			os.Exit(1)
+		}
+		return
+	}
 
 	switch s.Collection {
 	case "HashMap<i32, i32>":
@@ -527,7 +603,7 @@ func runPanicJudgeSelftest() {
 // runExpectPanicParent re-execs this binary. It prints nothing until the
 // child has been reaped. A non-true expect_panic value is malformed (exit 1,
 // no child).
-func runExpectPanicParent(s scenario, raw json.RawMessage, path string) {
+func runExpectPanicParent(s scenario, raw json.RawMessage, path, profile string) {
 	if !assertionBoolTrue(raw) {
 		fmt.Fprintln(os.Stderr, "malformed expect_panic: require boolean true")
 		os.Exit(1)
@@ -558,10 +634,12 @@ func runExpectPanicParent(s scenario, raw json.RawMessage, path string) {
 	}
 	if panicPassed(exitCode, stdout.String(), timedOut, len(s.Operations)) {
 		fmt.Printf("=== scenario: %s ===\n", s.Name)
+		fmt.Printf("profile: %s\n", profile)
 		fmt.Printf("expect_panic: true\n")
 		os.Exit(0)
 	}
 	fmt.Printf("=== scenario: %s ===\n", s.Name)
+	fmt.Printf("profile: %s\n", profile)
 	fmt.Printf("FAIL %s expect_panic: child did not trap cleanly\n", s.Name)
 	os.Exit(1)
 }
@@ -570,12 +648,13 @@ func runExpectPanicParent(s scenario, raw json.RawMessage, path string) {
 // must not recover: an Interval trap has to kill this process.
 func runPanicChild(path string) {
 	s := loadScenario(path)
+	profile := resolveProfile(s)
 	if s.Collection == "Interval<i32>" {
 		runInterval(s, true)
 		fmt.Printf("=== scenario: %s ===\n", s.Name)
 		os.Exit(0)
 	}
-	runPositional(s)
+	runPositional(s, profile, false)
 }
 
 // runInterval applies Interval<i32> ops in order and returns the resulting
@@ -801,6 +880,9 @@ func runTraceCLI(args []string) {
 
 func runTrace(path, outPath string) {
 	s := loadScenario(path)
+	if resolveProfile(s) != profilePrimitive {
+		fatalf("trace mode supports profile primitive only")
+	}
 	var obs map[string]string
 	switch s.Collection {
 	case "HashMap<i32, i32>":
@@ -3198,6 +3280,164 @@ func runF32TreeSet(s scenario) {
 				// ToSlice() is the production materializer and already returns
 				// the tree's in-order (total-order) sequence -- no runner-side
 				// sort, the harness only formats.
+				elems := set.ToSlice()
+				parts := make([]string, len(elems))
+				for i, v := range elems {
+					parts[i] = "\"" + formatF32(v) + "\""
+				}
+				return "[" + strings.Join(parts, ",") + "]"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				return strconv.FormatBool(set.Contains(parseF32Label(rest)))
+			}
+			return unknown(key)
+		}()
+		emit(s.Name, key, val, s.Assertions[key], modeF32Keyed)
+	}
+}
+
+// ---- object profile: HashMap<f32, i32> / HashSet<f32> / TreeSet<f32> ------
+//
+// The "object" profile drives the generic object tier (package object) for
+// the same scenarios, operand decoding and output formatting as the
+// primitive f32 functions above; only the collection differs. Every
+// operation and assertion goes through the object collection's production
+// methods. The runner's own work is operand decoding (parseF32 /
+// parseF32Label) and sorting the unordered hash views for display, exactly
+// as the primitive functions do.
+
+func runF32HashMapObject(s scenario) {
+	m := object.NewHashMap[float32, int32]()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "put":
+			m.Put(parseF32(op["key"]), asInt32(op["value"]))
+		case "remove":
+			m.Remove(parseF32(op["key"]))
+		case "clear":
+			m.Clear()
+		default:
+			fatalf("unknown f32-hashmap op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(m.Len())
+			case "is_empty":
+				return strconv.FormatBool(m.Len() == 0)
+			case "sorted_keys":
+				// KeysToSlice() is the production materializer; a hash map has
+				// no order, so the harness sorts the RESULT (IEEE total order)
+				// for rendering only.
+				keys := m.KeysToSlice()
+				sortFloat32Total(keys)
+				parts := make([]string, len(keys))
+				for i, x := range keys {
+					parts[i] = "\"" + formatF32(x) + "\""
+				}
+				return "[" + strings.Join(parts, ",") + "]"
+			case "sorted_values":
+				vals := m.ValuesToSlice()
+				sort.Slice(vals, func(i, j int) bool { return vals[i] < vals[j] })
+				return formatArray(vals)
+			}
+			if rest, ok := strings.CutPrefix(key, "get_"); ok {
+				if v, ok := m.Get(parseF32Label(rest)); ok {
+					return strconv.FormatInt(int64(v), 10)
+				}
+				return "null"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				return strconv.FormatBool(m.ContainsKey(parseF32Label(rest)))
+			}
+			return unknown(key)
+		}()
+		mode := modeF32Keyed
+		if key == "sorted_values" {
+			mode = modeNone
+		}
+		emit(s.Name, key, val, s.Assertions[key], mode)
+	}
+}
+
+func runF32HashSetObject(s scenario) {
+	set := object.NewHashSet[float32]()
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			set.Add(parseF32(op["value"]))
+		case "remove":
+			set.Remove(parseF32(op["value"]))
+		case "clear":
+			set.Clear()
+		default:
+			fatalf("unknown f32-hashset op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(set.Len())
+			case "is_empty":
+				return strconv.FormatBool(set.Len() == 0)
+			case "sorted_values", "to_sorted_array":
+				// ToSlice() is the production materializer; the harness sorts
+				// the RESULT (IEEE total order) for rendering only.
+				vals := set.ToSlice()
+				sortFloat32Total(vals)
+				parts := make([]string, len(vals))
+				for i, x := range vals {
+					parts[i] = "\"" + formatF32(x) + "\""
+				}
+				return "[" + strings.Join(parts, ",") + "]"
+			}
+			if rest, ok := strings.CutPrefix(key, "contains_"); ok {
+				return strconv.FormatBool(set.Contains(parseF32Label(rest)))
+			}
+			return unknown(key)
+		}()
+		emit(s.Name, key, val, s.Assertions[key], modeF32Keyed)
+	}
+}
+
+// runF32TreeSetObject uses the comparator the object package documents as
+// natural for float32. Order, min and max come from the production tree
+// (ToSlice is its in-order traversal); the runner never sorts.
+func runF32TreeSetObject(s scenario) {
+	set := object.NewTreeSet[float32](object.NaturalComparator[float32]())
+	for _, op := range s.Operations {
+		switch op["op"] {
+		case "add":
+			set.Add(parseF32(op["value"]))
+		case "remove":
+			set.Remove(parseF32(op["value"]))
+		case "clear":
+			set.Clear()
+		default:
+			fatalf("unknown f32-treeset op: %v", op["op"])
+		}
+	}
+	for _, key := range sortedAssertionKeys(s.Assertions) {
+		val := func() string {
+			switch key {
+			case "size":
+				return strconv.Itoa(set.Len())
+			case "is_empty":
+				return strconv.FormatBool(set.Len() == 0)
+			case "min":
+				if mn, ok := set.Min(); ok {
+					return formatF32(mn)
+				}
+				return "null"
+			case "max":
+				if mx, ok := set.Max(); ok {
+					return formatF32(mx)
+				}
+				return "null"
+			case "sorted", "sorted_values", "to_sorted_array":
 				elems := set.ToSlice()
 				parts := make([]string, len(elems))
 				for i, v := range elems {

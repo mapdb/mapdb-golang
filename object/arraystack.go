@@ -70,11 +70,14 @@ func (s *ArrayStack[T]) Pop() (T, bool) {
 		return zero, false
 	}
 	top := s.items[len(s.items)-1]
+	var zero T
+	s.items[len(s.items)-1] = zero
 	s.items = s.items[:len(s.items)-1]
 	return top, true
 }
 
 func (s *ArrayStack[T]) Clear() {
+	clear(s.items)
 	s.items = s.items[:0]
 }
 

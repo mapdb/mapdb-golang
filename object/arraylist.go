@@ -171,6 +171,7 @@ func (a *ArrayList[T]) Set(index int, value T) T {
 }
 
 func (a *ArrayList[T]) Clear() {
+	clear(a.items)
 	a.items = a.items[:0]
 }
 
@@ -275,7 +276,10 @@ func (a *ArrayList[T]) Distinct() *ArrayList[T] {
 // Float elements are matched by bit pattern (see Distinct).
 func (a *ArrayList[T]) Remove(value T) bool {
 	if i := indexOfValue(a.items, value); i >= 0 {
+		last := len(a.items) - 1
 		a.items = append(a.items[:i], a.items[i+1:]...)
+		var zero T
+		a.items[:cap(a.items)][last] = zero
 		return true
 	}
 	return false

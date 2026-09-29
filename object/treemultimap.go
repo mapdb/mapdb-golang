@@ -106,6 +106,7 @@ func (t *TreeMultimap[K, V]) RemoveMatching(k K, target V, eq func(V, V) bool) i
 	if removed == 0 {
 		return 0
 	}
+	clear(vs[len(out):])
 	if len(out) == 0 {
 		t.tm.Remove(k)
 	} else {

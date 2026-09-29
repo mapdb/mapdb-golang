@@ -1783,8 +1783,8 @@ func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperL
 		// scenario -> SKIP (mirrors Rust build_hll's `first["p"].as_u64()?`,
 		// which returns None rather than panicking).
 		pv, ok := tryInt(first["p"])
-		if !ok {
-			fmt.Fprintln(os.Stderr, "skip: HyperLogLog with_precision needs an integer p (forward-compat)")
+		if !ok || pv < 4 || pv > 18 {
+			fmt.Fprintln(os.Stderr, "skip: HyperLogLog with_precision needs an integer p in [4, 18] (forward-compat)")
 			return hyperloglog.HyperLogLog{}, false
 		}
 		p := uint8(pv)

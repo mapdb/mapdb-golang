@@ -24,7 +24,11 @@ func NewInt64() *Int64 {
 }
 
 // NewInt64WithCapacity creates a new empty Int64 with the given initial capacity.
+// A negative capacity panics.
 func NewInt64WithCapacity(capacity int) *Int64 {
+	if capacity < 0 {
+		panic("mapdb: NewInt64WithCapacity: negative capacity")
+	}
 	return &Int64{items: make([]int64, 0, capacity)}
 }
 

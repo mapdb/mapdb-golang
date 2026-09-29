@@ -279,10 +279,14 @@ func (b *HashChar) NoneSatisfy(predicate func(uint16) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
+// A negative n panics.
 func (b *HashChar) TopOccurrences(n int) []struct {
 	Value uint16
 	Count int
 } {
+	if n < 0 {
+		panic("mapdb: TopOccurrences: negative count")
+	}
 	type pair struct {
 		Value uint16
 		Count int

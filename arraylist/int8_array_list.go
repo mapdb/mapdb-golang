@@ -24,7 +24,11 @@ func NewInt8() *Int8 {
 }
 
 // NewInt8WithCapacity creates a new empty Int8 with the given initial capacity.
+// A negative capacity panics.
 func NewInt8WithCapacity(capacity int) *Int8 {
+	if capacity < 0 {
+		panic("mapdb: NewInt8WithCapacity: negative capacity")
+	}
 	return &Int8{items: make([]int8, 0, capacity)}
 }
 

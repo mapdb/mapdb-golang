@@ -574,10 +574,14 @@ func (b *Hash{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
+// A negative n panics.
 func (b *Hash{{.Name}}) TopOccurrences(n int) []struct {
 	Value {{.GoType}}
 	Count int
 } {
+	if n < 0 {
+		panic("mapdb: TopOccurrences: negative count")
+	}
 	type pair struct {
 		Value {{.GoType}}
 		Count int
@@ -1534,10 +1538,14 @@ func (b *Tree{{.Name}}) NoneSatisfy(predicate func({{.GoType}}) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
+// A negative n panics.
 func (b *Tree{{.Name}}) TopOccurrences(n int) []struct {
 	Value {{.GoType}}
 	Count int
 } {
+	if n < 0 {
+		panic("mapdb: TopOccurrences: negative count")
+	}
 	// Copy entries and sort by count descending
 	sorted := make([]Tree{{.Name}}Entry, len(b.entries))
 	copy(sorted, b.entries)

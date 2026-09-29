@@ -360,10 +360,14 @@ func (b *TreeChar) NoneSatisfy(predicate func(uint16) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
+// A negative n panics.
 func (b *TreeChar) TopOccurrences(n int) []struct {
 	Value uint16
 	Count int
 } {
+	if n < 0 {
+		panic("mapdb: TopOccurrences: negative count")
+	}
 	// Copy entries and sort by count descending
 	sorted := make([]TreeCharEntry, len(b.entries))
 	copy(sorted, b.entries)

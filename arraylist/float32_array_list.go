@@ -24,7 +24,11 @@ func NewFloat32() *Float32 {
 }
 
 // NewFloat32WithCapacity creates a new empty Float32 with the given initial capacity.
+// A negative capacity panics.
 func NewFloat32WithCapacity(capacity int) *Float32 {
+	if capacity < 0 {
+		panic("mapdb: NewFloat32WithCapacity: negative capacity")
+	}
 	return &Float32{items: make([]float32, 0, capacity)}
 }
 

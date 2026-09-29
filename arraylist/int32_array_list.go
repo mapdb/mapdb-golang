@@ -24,7 +24,11 @@ func NewInt32() *Int32 {
 }
 
 // NewInt32WithCapacity creates a new empty Int32 with the given initial capacity.
+// A negative capacity panics.
 func NewInt32WithCapacity(capacity int) *Int32 {
+	if capacity < 0 {
+		panic("mapdb: NewInt32WithCapacity: negative capacity")
+	}
 	return &Int32{items: make([]int32, 0, capacity)}
 }
 

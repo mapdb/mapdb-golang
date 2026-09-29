@@ -118,7 +118,11 @@ func New{{.Name}}() *{{.Name}} {
 }
 
 // New{{.Name}}WithCapacity creates a new empty {{.Name}} with the given initial capacity.
+// A negative capacity panics.
 func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
+	if capacity < 0 {
+		panic("mapdb: New{{.Name}}WithCapacity: negative capacity")
+	}
 	return &{{.Name}}{items: make([]{{.GoType}}, 0, capacity)}
 }
 

@@ -360,10 +360,14 @@ func (b *TreeInt32) NoneSatisfy(predicate func(int32) bool) bool {
 }
 
 // TopOccurrences returns the n elements with the highest occurrence counts.
+// A negative n panics.
 func (b *TreeInt32) TopOccurrences(n int) []struct {
 	Value int32
 	Count int
 } {
+	if n < 0 {
+		panic("mapdb: TopOccurrences: negative count")
+	}
 	// Copy entries and sort by count descending
 	sorted := make([]TreeInt32Entry, len(b.entries))
 	copy(sorted, b.entries)

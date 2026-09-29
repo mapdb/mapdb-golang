@@ -24,7 +24,11 @@ func NewFloat64() *Float64 {
 }
 
 // NewFloat64WithCapacity creates a new empty Float64 with the given initial capacity.
+// A negative capacity panics.
 func NewFloat64WithCapacity(capacity int) *Float64 {
+	if capacity < 0 {
+		panic("mapdb: NewFloat64WithCapacity: negative capacity")
+	}
 	return &Float64{items: make([]float64, 0, capacity)}
 }
 

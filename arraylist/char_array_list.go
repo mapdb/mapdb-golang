@@ -24,7 +24,11 @@ func NewChar() *Char {
 }
 
 // NewCharWithCapacity creates a new empty Char with the given initial capacity.
+// A negative capacity panics.
 func NewCharWithCapacity(capacity int) *Char {
+	if capacity < 0 {
+		panic("mapdb: NewCharWithCapacity: negative capacity")
+	}
 	return &Char{items: make([]uint16, 0, capacity)}
 }
 

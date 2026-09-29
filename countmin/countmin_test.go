@@ -312,6 +312,7 @@ func TestOptimalRejectsBadInputs(t *testing.T) {
 		{"epsilon=NaN", math.NaN(), 0.5},
 		{"delta=Inf", 0.5, math.Inf(1)},
 		{"epsilon>=1", 1.5, 0.5},
+		{"width>uint32", math.E / (float64(math.MaxUint32) + 3), 0.5},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			defer func() {

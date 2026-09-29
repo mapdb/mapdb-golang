@@ -89,7 +89,8 @@ func NewCountMinWithParams(d, w uint32) *CountMin {
 //
 // Panics unless 0 < epsilon < 1 and 0 < delta < 1; values <= 0, >= 1, NaN, or
 // +-Infinity are invalid (they would divide by zero, take ln of a non-positive
-// value, or yield a non-finite (d, w)).
+// value, or yield a non-finite (d, w)). Also panics if a derived dimension
+// exceeds uint32, which cannot be represented by CountMin.
 func NewCountMinOptimal(epsilon, delta float64) *CountMin {
 	if !(epsilon > 0.0 && epsilon < 1.0) {
 		panic("CountMin optimal requires 0 < epsilon < 1")
@@ -99,14 +100,14 @@ func NewCountMinOptimal(epsilon, delta float64) *CountMin {
 	}
 	w := math.Ceil(eulerE / epsilon)
 	d := math.Ceil(math.Log(1.0 / delta))
-	if !(isFiniteGE1(w) && isFiniteGE1(d)) {
-		panic("CountMin optimal produced a non-finite (d, w)")
+	if !(isValidDimension(w) && isValidDimension(d)) {
+		panic("CountMin optimal produced an out-of-range (d, w)")
 	}
 	return NewCountMinWithParams(uint32(d), uint32(w))
 }
 
-func isFiniteGE1(x float64) bool {
-	return !math.IsInf(x, 0) && !math.IsNaN(x) && x >= 1.0
+func isValidDimension(x float64) bool {
+	return !math.IsInf(x, 0) && !math.IsNaN(x) && x >= 1.0 && x <= float64(math.MaxUint32)
 }
 
 // columns returns the d column indices for item, one per row, in derivation

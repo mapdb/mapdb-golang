@@ -58,17 +58,11 @@ func ForEachWith[T any](data []T, f func(T), minForkSize, taskCount int) {
 	}
 
 	batches := splitBatches(n, taskCount)
-	var wg sync.WaitGroup
-	wg.Add(len(batches))
-	for _, b := range batches {
-		go func(lo, hi int) {
-			defer wg.Done()
-			for i := lo; i < hi; i++ {
-				f(data[i])
-			}
-		}(b.lo, b.hi)
-	}
-	wg.Wait()
+	runBatches(batches, func(_ int, b batch) {
+		for i := b.lo; i < b.hi; i++ {
+			f(data[i])
+		}
+	})
 }
 
 // Select returns a new slice containing only elements that satisfy the
@@ -89,15 +83,9 @@ func SelectWith[T any](data []T, predicate func(T) bool, minForkSize, taskCount 
 
 	batches := splitBatches(n, taskCount)
 	parts := make([][]T, len(batches))
-	var wg sync.WaitGroup
-	wg.Add(len(batches))
-	for idx, b := range batches {
-		go func(i, lo, hi int) {
-			defer wg.Done()
-			parts[i] = selectSeq(data[lo:hi], predicate)
-		}(idx, b.lo, b.hi)
-	}
-	wg.Wait()
+	runBatches(batches, func(i int, b batch) {
+		parts[i] = selectSeq(data[b.lo:b.hi], predicate)
+	})
 	return concat(parts)
 }
 
@@ -130,17 +118,11 @@ func CollectWith[T any, R any](data []T, transform func(T) R, minForkSize, taskC
 
 	result := make([]R, n)
 	batches := splitBatches(n, taskCount)
-	var wg sync.WaitGroup
-	wg.Add(len(batches))
-	for _, b := range batches {
-		go func(lo, hi int) {
-			defer wg.Done()
-			for i := lo; i < hi; i++ {
-				result[i] = transform(data[i])
-			}
-		}(b.lo, b.hi)
-	}
-	wg.Wait()
+	runBatches(batches, func(_ int, b batch) {
+		for i := b.lo; i < b.hi; i++ {
+			result[i] = transform(data[i])
+		}
+	})
 	return result
 }
 
@@ -162,15 +144,9 @@ func CountWith[T any](data []T, predicate func(T) bool, minForkSize, taskCount i
 
 	batches := splitBatches(n, taskCount)
 	counts := make([]int, len(batches))
-	var wg sync.WaitGroup
-	wg.Add(len(batches))
-	for idx, b := range batches {
-		go func(i, lo, hi int) {
-			defer wg.Done()
-			counts[i] = countSeq(data[lo:hi], predicate)
-		}(idx, b.lo, b.hi)
-	}
-	wg.Wait()
+	runBatches(batches, func(i int, b batch) {
+		counts[i] = countSeq(data[b.lo:b.hi], predicate)
+	})
 
 	total := 0
 	for _, c := range counts {
@@ -203,23 +179,17 @@ func AnySatisfyWith[T any](data []T, predicate func(T) bool, minForkSize, taskCo
 
 	batches := splitBatches(n, taskCount)
 	var found atomic.Bool
-	var wg sync.WaitGroup
-	wg.Add(len(batches))
-	for _, b := range batches {
-		go func(lo, hi int) {
-			defer wg.Done()
-			for i := lo; i < hi; i++ {
-				if found.Load() {
-					return
-				}
-				if predicate(data[i]) {
-					found.Store(true)
-					return
-				}
+	runBatches(batches, func(_ int, b batch) {
+		for i := b.lo; i < b.hi; i++ {
+			if found.Load() {
+				return
 			}
-		}(b.lo, b.hi)
-	}
-	wg.Wait()
+			if predicate(data[i]) {
+				found.Store(true)
+				return
+			}
+		}
+	})
 	return found.Load()
 }
 
@@ -254,19 +224,13 @@ func SumWith[T interface {
 
 	batches := splitBatches(n, taskCount)
 	sums := make([]T, len(batches))
-	var wg sync.WaitGroup
-	wg.Add(len(batches))
-	for idx, b := range batches {
-		go func(i, lo, hi int) {
-			defer wg.Done()
-			var s T
-			for j := lo; j < hi; j++ {
-				s += data[j]
-			}
-			sums[i] = s
-		}(idx, b.lo, b.hi)
-	}
-	wg.Wait()
+	runBatches(batches, func(i int, b batch) {
+		var s T
+		for j := b.lo; j < b.hi; j++ {
+			s += data[j]
+		}
+		sums[i] = s
+	})
 
 	var total T
 	for _, s := range sums {
@@ -278,6 +242,33 @@ func SumWith[T interface {
 // ── internal helpers ──────────────────────────────────────────────────
 
 type batch struct{ lo, hi int }
+
+// runBatches waits for every worker before re-panicking on the caller's
+// goroutine. A callback panic must have the same recoverable behavior whether
+// the input crosses the fork threshold or not. If several workers panic, the
+// earliest batch's panic is reported.
+func runBatches(batches []batch, process func(int, batch)) {
+	panics := make([]any, len(batches))
+	var wg sync.WaitGroup
+	wg.Add(len(batches))
+	for i, b := range batches {
+		go func(i int, b batch) {
+			defer wg.Done()
+			defer func() {
+				if p := recover(); p != nil {
+					panics[i] = p
+				}
+			}()
+			process(i, b)
+		}(i, b)
+	}
+	wg.Wait()
+	for _, p := range panics {
+		if p != nil {
+			panic(p)
+		}
+	}
+}
 
 func splitBatches(n, taskCount int) []batch {
 	if taskCount > n {

@@ -135,30 +135,24 @@ func detectWith[T any](data []T, predicate func(T) bool, minForkSize, taskCount 
 	hits := make([]bool, len(batches))
 	var done sync.Mutex
 	stopped := false
-	var wg sync.WaitGroup
-	wg.Add(len(batches))
-	for idx, b := range batches {
-		go func(i, lo, hi int) {
-			defer wg.Done()
-			for j := lo; j < hi; j++ {
-				done.Lock()
-				s := stopped
-				done.Unlock()
-				if s {
-					return
-				}
-				if predicate(data[j]) {
-					results[i] = data[j]
-					hits[i] = true
-					done.Lock()
-					stopped = true
-					done.Unlock()
-					return
-				}
+	runBatches(batches, func(i int, b batch) {
+		for j := b.lo; j < b.hi; j++ {
+			done.Lock()
+			s := stopped
+			done.Unlock()
+			if s {
+				return
 			}
-		}(idx, b.lo, b.hi)
-	}
-	wg.Wait()
+			if predicate(data[j]) {
+				results[i] = data[j]
+				hits[i] = true
+				done.Lock()
+				stopped = true
+				done.Unlock()
+				return
+			}
+		}
+	})
 
 	// Prefer the earliest batch that found a match so the result is stable.
 	for i := range hits {

@@ -45,6 +45,39 @@ func TestCaseInsensitiveHashMap(t *testing.T) {
 	}
 }
 
+func TestCaseInsensitiveStrategyUnicodeFoldHash(t *testing.T) {
+	for _, pair := range [][2]string{
+		{"Hello", "hELLo"},
+		{"s", "ſ"},
+		{"σ", "ς"},
+		{"K", "K"},
+		{"prefix-ſ-end", "PREFIX-S-END"},
+	} {
+		strategy := CaseInsensitiveHashingStrategy()
+		a, b := pair[0], pair[1]
+		if !strategy.Equals(a, b) {
+			t.Fatalf("test pair %q and %q is not EqualFold-equivalent", a, b)
+		}
+		if strategy.HashCode(a) != strategy.HashCode(b) {
+			t.Errorf("equal strings %q and %q hash differently", a, b)
+		}
+
+		set := NewHashSetWithStrategy(strategy)
+		set.Add(a)
+		set.Add(b)
+		if set.Len() != 1 || !set.Contains(b) {
+			t.Errorf("equal strings %q and %q form distinct set keys", a, b)
+		}
+
+		m := NewHashMapWithStrategy[string, int](strategy)
+		m.Put(a, 1)
+		m.Put(b, 2)
+		if value, ok := m.Get(a); m.Len() != 1 || !ok || value != 2 {
+			t.Errorf("equal strings %q and %q form distinct map keys", a, b)
+		}
+	}
+}
+
 type Person struct {
 	Name string
 	Age  int

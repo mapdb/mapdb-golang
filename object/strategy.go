@@ -11,6 +11,7 @@ import (
 	"hash/maphash"
 	"reflect"
 	"strings"
+	"unicode"
 )
 
 //go:generate go run ../internal/codegen object
@@ -42,9 +43,27 @@ func StringHashingStrategy() HashingStrategy[string] {
 func CaseInsensitiveHashingStrategy() HashingStrategy[string] {
 	seed := maphash.MakeSeed()
 	return HashingStrategy[string]{
-		HashCode: func(s string) uint64 { return maphash.String(seed, strings.ToLower(s)) },
+		HashCode: func(s string) uint64 { return maphash.String(seed, simpleFoldCanonical(s)) },
 		Equals:   func(a, b string) bool { return strings.EqualFold(a, b) },
 	}
+}
+
+// simpleFoldCanonical chooses the smallest rune in each Unicode simple-fold
+// orbit. EqualFold compares by those orbits; lowercasing alone does not (for
+// example, "s" and "ſ" or "σ" and "ς" would hash differently).
+func simpleFoldCanonical(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		canonical := r
+		for folded := unicode.SimpleFold(r); folded != r; folded = unicode.SimpleFold(folded) {
+			if folded < canonical {
+				canonical = folded
+			}
+		}
+		b.WriteRune(canonical)
+	}
+	return b.String()
 }
 
 // ByField returns a hashing strategy that hashes and compares by an

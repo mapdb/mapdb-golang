@@ -38,6 +38,37 @@ func TestMultimap_RemoveAll(t *testing.T) {
 	}
 }
 
+func TestMultimap_EmptyPutAllDoesNotCreateKey(t *testing.T) {
+	for _, newMap := range []func() *Multimap[string, int]{
+		NewMultimap[string, int],
+		func() *Multimap[string, int] { return new(Multimap[string, int]) },
+	} {
+		m := newMap()
+		m.PutAll("absent")
+		if m.Len() != 0 || m.SizeDistinct() != 0 || m.ContainsKey("absent") {
+			t.Fatalf("empty PutAll created a key: len=%d distinct=%d", m.Len(), m.SizeDistinct())
+		}
+		for range m.Keys() {
+			t.Fatal("empty PutAll exposed a key through Keys")
+		}
+
+		m.Put("present", 7)
+		m.PutAll("present")
+		if m.Len() != 1 || m.SizeDistinct() != 1 || len(m.Get("present")) != 1 {
+			t.Fatal("empty PutAll changed an existing key")
+		}
+	}
+}
+
+func TestMultimap_RemoveAllClearsEmptyStoredKey(t *testing.T) {
+	m := NewMultimap[string, int]()
+	m.store("empty", nil)
+	m.RemoveAll("empty")
+	if m.SizeDistinct() != 0 {
+		t.Fatalf("RemoveAll left an empty stored key: distinct=%d", m.SizeDistinct())
+	}
+}
+
 func TestMultimap_All(t *testing.T) {
 	m := NewMultimap[int, string]()
 	m.Put(1, "a")

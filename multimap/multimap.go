@@ -110,6 +110,9 @@ func (m *Multimap[K, V]) Put(key K, value V) {
 
 // PutAll adds multiple values for the key.
 func (m *Multimap[K, V]) PutAll(key K, values ...V) {
+	if len(values) == 0 {
+		return
+	}
 	vals, _ := m.lookup(key)
 	m.store(key, append(vals, values...))
 	m.size += len(values)
@@ -134,8 +137,8 @@ func (m *Multimap[K, V]) ContainsKey(key K) bool {
 
 // RemoveAll removes all values for the key. Returns the removed values.
 func (m *Multimap[K, V]) RemoveAll(key K) []V {
-	vals, _ := m.lookup(key)
-	if vals != nil {
+	vals, ok := m.lookup(key)
+	if ok {
 		m.size -= len(vals)
 		m.delete(key)
 	}

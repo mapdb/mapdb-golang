@@ -51,6 +51,28 @@ func TestTakeDrop(t *testing.T) {
 	}
 }
 
+func TestTakeDoesNotPullPastLimit(t *testing.T) {
+	for _, n := range []int{-1, 0, 2} {
+		pulled := 0
+		seq := func(yield func(int) bool) {
+			for v := 1; v <= 4; v++ {
+				pulled++
+				if !yield(v) {
+					return
+				}
+			}
+		}
+		got := ToSlice(Take(seq, n))
+		want := []int{}
+		if n > 0 {
+			want = []int{1, 2}
+		}
+		if !slices.Equal(got, want) || pulled != len(want) {
+			t.Errorf("Take(%d) = %v after %d pulls, want %v after %d pulls", n, got, pulled, want, len(want))
+		}
+	}
+}
+
 func TestReduce(t *testing.T) {
 	sum := Reduce(seqOf(1, 2, 3, 4, 5), 0, func(a, b int) int { return a + b })
 	if sum != 15 {

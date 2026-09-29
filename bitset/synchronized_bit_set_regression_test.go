@@ -36,6 +36,21 @@ func TestSynchronizedBitSetSelfAlgebra(t *testing.T) {
 	}
 }
 
+func TestSynchronizedBitSetEqualsPreservesLength(t *testing.T) {
+	a, b := NewSynchronizedBitSet(), NewSynchronizedBitSet()
+	a.Set(130)
+	a.Clear(130)
+	if a.Length() != 131 || b.Length() != 0 || !a.IsEmpty() || !b.IsEmpty() {
+		t.Fatal("test setup did not produce equal set bits at different lengths")
+	}
+	if a.Equals(b) || b.Equals(a) {
+		t.Fatal("equal set bits with different logical lengths must compare unequal")
+	}
+	if !a.Equals(a) || !b.Equals(b) {
+		t.Fatal("a bitset must equal itself")
+	}
+}
+
 func TestSynchronizedBitSetOpposingAlgebra(t *testing.T) {
 	ops := []struct {
 		name string

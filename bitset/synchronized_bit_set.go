@@ -138,12 +138,14 @@ func (b *SynchronizedBitSet) ToSlice() []int {
 
 func (b *SynchronizedBitSet) Equals(other *SynchronizedBitSet) bool {
 	b.mu.RLock()
+	thisLength := b.delegate.Length()
 	thisBits := b.delegate.ToSlice()
 	b.mu.RUnlock()
 	other.mu.RLock()
+	otherLength := other.delegate.Length()
 	otherBits := other.delegate.ToSlice()
 	other.mu.RUnlock()
-	if len(thisBits) != len(otherBits) {
+	if thisLength != otherLength || len(thisBits) != len(otherBits) {
 		return false
 	}
 	for i, bit := range thisBits {

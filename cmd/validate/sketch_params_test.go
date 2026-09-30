@@ -79,7 +79,7 @@ func TestExactU32(t *testing.T) {
 			t.Errorf("in-domain %v rejected", v)
 		}
 	}
-	for _, v := range []any{json.Number("-1"), json.Number("4294967296"), json.Number("18446744073709551620"), float64(-1), float64(4294967312)} {
+	for _, v := range []any{json.Number("-1"), json.Number("4294967296"), json.Number("18446744073709551620"), json.Number("-9223372036854775809"), float64(-1), float64(4294967312)} {
 		if _, ok := exactU32(v); ok {
 			t.Errorf("out-of-domain %v accepted", v)
 		}

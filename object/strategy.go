@@ -52,6 +52,34 @@ func CaseInsensitiveHashingStrategy() HashingStrategy[string] {
 // orbit. EqualFold compares by those orbits; lowercasing alone does not (for
 // example, "s" and "ſ" or "σ" and "ς" would hash differently).
 func simpleFoldCanonical(s string) string {
+	// ASCII simple-fold orbits have their smallest rune at the uppercase
+	// letter. Keep already-canonical ASCII strings as-is for hashing.
+	ascii, hasLower := true, false
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			ascii = false
+			break
+		}
+		if s[i] >= 'a' && s[i] <= 'z' {
+			hasLower = true
+		}
+	}
+	if ascii {
+		if !hasLower {
+			return s
+		}
+		var b strings.Builder
+		b.Grow(len(s))
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c >= 'a' && c <= 'z' {
+				c -= 'a' - 'A'
+			}
+			b.WriteByte(c)
+		}
+		return b.String()
+	}
+
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {

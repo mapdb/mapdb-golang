@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // ── HashingStrategy tests ─────────────────────────────────────────────
@@ -74,6 +75,41 @@ func TestCaseInsensitiveStrategyUnicodeFoldHash(t *testing.T) {
 		m.Put(b, 2)
 		if value, ok := m.Get(a); m.Len() != 1 || !ok || value != 2 {
 			t.Errorf("equal strings %q and %q form distinct map keys", a, b)
+		}
+	}
+}
+
+var caseInsensitiveHashSink uint64
+
+func TestCaseInsensitiveASCIIHashNoAllocation(t *testing.T) {
+	strategy := CaseInsensitiveHashingStrategy()
+	key := strings.Repeat("HEADER-1234!?", 4)
+	allocs := testing.AllocsPerRun(1000, func() {
+		caseInsensitiveHashSink = strategy.HashCode(key)
+	})
+	if allocs != 0 {
+		t.Fatalf("uppercase ASCII hash allocated %.1f times per call", allocs)
+	}
+}
+
+func TestCaseInsensitiveASCIIFoldOrbitHash(t *testing.T) {
+	strategy := CaseInsensitiveHashingStrategy()
+	for r := rune(0); r < 128; r++ {
+		for folded := unicode.SimpleFold(r); folded != r; folded = unicode.SimpleFold(folded) {
+			a, b := "prefix-"+string(r), "PREFIX-"+string(folded)
+			if !strategy.Equals(a, b) || strategy.HashCode(a) != strategy.HashCode(b) {
+				t.Errorf("ASCII rune %U and folded rune %U disagree", r, folded)
+			}
+		}
+	}
+	for _, pair := range [][2]string{
+		{"prefix-k", "PREFIX-K"},
+		{"prefix-s", "PREFIX-ſ"},
+		{"prefix-σ", "PREFIX-ς"},
+		{"prefix-\xff", "PREFIX-\xfe"},
+	} {
+		if !strategy.Equals(pair[0], pair[1]) || strategy.HashCode(pair[0]) != strategy.HashCode(pair[1]) {
+			t.Errorf("mixed or invalid UTF-8 fold mismatch for %q and %q", pair[0], pair[1])
 		}
 	}
 }

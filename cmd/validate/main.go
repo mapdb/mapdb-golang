@@ -1204,6 +1204,46 @@ func asInt(v any) int {
 	return 0
 }
 
+// wideIntegerLiteral matches a JSON integer token that json.Number.Int64
+// rejects only because it is too wide.
+var wideIntegerLiteral = regexp.MustCompile(`^-?[0-9]+$`)
+
+// exactU32 reads a u32 sketch parameter (CountMin d/w, SpaceSaving m,
+// positions m/k) WITHOUT narrowing: an integer outside [0, 2^32-1] (negative,
+// or wider than int64) reports !ok so the caller SKIPs, instead of wrapping
+// under uint32(...) (4294967312 -> 16). Every in-domain value reaches the
+// production constructor unchanged, so production's own checks (e.g. w == 0)
+// still decide. Missing / non-numeric / non-integral operands keep asInt's
+// behaviour.
+func exactU32(v any) (uint32, bool) {
+	var i int64
+	switch n := v.(type) {
+	case json.Number:
+		x, err := n.Int64()
+		if err != nil {
+			if wideIntegerLiteral.MatchString(n.String()) {
+				return 0, false
+			}
+			return uint32(asInt(v)), true // fatal, as before
+		}
+		i = x
+	case float64:
+		if n != math.Trunc(n) {
+			return uint32(asInt(v)), true // unchanged truncation
+		}
+		if n < 0 || n > math.MaxUint32 {
+			return 0, false
+		}
+		return uint32(n), true
+	default:
+		return uint32(asInt(v)), true // fatal, as before
+	}
+	if i < 0 || i > math.MaxUint32 {
+		return 0, false
+	}
+	return uint32(i), true
+}
+
 // tryInt is the non-fatal variant of asInt: it returns ok=false on a missing
 // (nil) or non-numeric operand instead of fataling. Used by builders that must
 // SKIP a malformed scenario (forward-compat), mirroring the Rust runner's
@@ -1389,8 +1429,12 @@ func runHashPipeline(s scenario) {
 		probe = hashProbe{kind: "bytes", bytes: parseHexBytes(op["bytes"]), seed: parseSeed(op["seed"])}
 	case "positions":
 		value := asInt32(op["value"])
-		m := uint32(asInt(op["m"]))
-		k := uint32(asInt(op["k"]))
+		m, okM := exactU32(op["m"])
+		k, okK := exactU32(op["k"])
+		if !okM || !okK {
+			fmt.Fprintln(os.Stderr, "skip: positions m/k outside u32 range (forward-compat)")
+			return
+		}
 		// The byte encoding of an i32 element drives positions: encode the i32
 		// to its little-endian 4-byte form (the byte path the sketches use),
 		// then derive. No op-level seed (the scheme fixes 0 / SALT2).
@@ -1782,9 +1826,11 @@ func buildHLL(operations []map[string]any, other *otherSpec) (hyperloglog.HyperL
 		// Non-fatal operand parse: a missing/mistyped `p` is a malformed
 		// scenario -> SKIP (mirrors Rust build_hll's `first["p"].as_u64()?`,
 		// which returns None rather than panicking).
+		// Only the uint8 parameter domain is checked here (so a wide p cannot
+		// wrap into range); the [4, 18] range itself is production's check.
 		pv, ok := tryInt(first["p"])
-		if !ok || pv < 4 || pv > 18 {
-			fmt.Fprintln(os.Stderr, "skip: HyperLogLog with_precision needs an integer p in [4, 18] (forward-compat)")
+		if !ok || pv < 0 || pv > math.MaxUint8 {
+			fmt.Fprintln(os.Stderr, "skip: HyperLogLog with_precision needs an integer p in the uint8 domain (forward-compat)")
 			return hyperloglog.HyperLogLog{}, false
 		}
 		p := uint8(pv)
@@ -4454,8 +4500,12 @@ func runCountMin(s scenario) {
 		return
 	}
 	ctor := s.Operations[0]
-	d := uint32(asInt(ctor["d"]))
-	w := uint32(asInt(ctor["w"]))
+	d, okD := exactU32(ctor["d"])
+	w, okW := exactU32(ctor["w"])
+	if !okD || !okW {
+		fmt.Fprintln(os.Stderr, "skip: CountMin with_params d/w outside u32 range (forward-compat)")
+		return
+	}
 	cms := countmin.NewCountMinWithParams(d, w)
 
 	for _, op := range s.Operations[1:] {
@@ -4543,7 +4593,11 @@ func runSpaceSaving(s scenario) {
 		fmt.Fprintln(os.Stderr, "skip: SpaceSaving scenario needs exactly one leading `with_capacity` op (forward-compat)")
 		return
 	}
-	m := uint32(asInt(s.Operations[0]["m"]))
+	m, ok := exactU32(s.Operations[0]["m"])
+	if !ok {
+		fmt.Fprintln(os.Stderr, "skip: SpaceSaving with_capacity m outside u32 range (forward-compat)")
+		return
+	}
 	ss := countmin.NewSpaceSaving(m)
 
 	for _, op := range s.Operations[1:] {

@@ -28,7 +28,7 @@ type hsData struct {
 	// IsBool selects the boolean hash body (no golden-ratio mixing).
 	IsBool bool
 	// HashExpr is the inner operand of the golden-ratio multiply for the
-	// non-bool hash body: <HashExpr> * 0x9E3779B97F4A7C15 (indexed by >> shift). Captured
+	// non-bool hash body: <HashExpr> * 0x9E3779B97F4A7C15 (indexed by home(): Reverse64 & mask). Captured
 	// per type because the integer/char/float reinterpretations differ
 	// (and int32 alone double-casts through uint32).
 	HashExpr string
@@ -109,7 +109,9 @@ import (
 {{- if .NeedsMath}}
 	"math"
 {{- end}}
+{{- if not .IsBool}}
 	"math/bits"
+{{- end}}
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -129,7 +131,6 @@ type {{.SnakeName}}Entry struct {
 type {{.Name}} struct {
 	entries []{{.SnakeName}}Entry
 	size    int
-	shift   uint // 64 - log2(len(entries)): home bucket = hash >> shift (bool sets index by & mask)
 }
 
 // New{{.Name}} creates a new empty {{.Name}}.
@@ -143,7 +144,6 @@ func New{{.Name}}WithCapacity(capacity int) *{{.Name}} {
 	return &{{.Name}}{
 		entries: make([]{{.SnakeName}}Entry, cap),
 		size:    0,
-		shift:   shiftFor{{.Name}}(cap),
 	}
 }
 
@@ -165,7 +165,7 @@ func {{.Name}}Of(values ...{{.GoType}}) *{{.Name}} {
 // guarantee.
 func {{.Name}}BulkLoad(values []{{.GoType}}, policy pump.DuplicatePolicy) (*{{.Name}}, error) {
 	c := {{.Name}}bulkCap(len(values))
-	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, c), shift: shiftFor{{.Name}}(c)}
+	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, c)}
 	for _, v := range values {
 		if s.needsResize() {
 			s.resize()
@@ -187,7 +187,7 @@ func {{.Name}}BulkLoadExact(values []{{.GoType}}, n int, policy pump.DuplicatePo
 		panic("mapdb: {{.Name}}BulkLoadExact: negative n")
 	}
 	c := {{.Name}}bulkCap(n)
-	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, c), shift: shiftFor{{.Name}}(c)}
+	s := &{{.Name}}{entries: make([]{{.SnakeName}}Entry, c)}
 	if len(values) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -203,7 +203,7 @@ func {{.Name}}BulkLoadExact(values []{{.GoType}}, n int, policy pump.DuplicatePo
 // (callers guarantee capacity), applying the duplicate policy.
 func (s *{{.Name}}) bulkAdd(value {{.GoType}}, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(s.entries) - 1
-	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}s.home(value){{end}}
 	for {
 		if !s.entries[idx].occupied {
 			s.entries[idx].key = value
@@ -238,7 +238,7 @@ func (s *{{.Name}}) Add(value {{.GoType}}) bool {
 	}
 	cap := len(s.entries)
 	mask := cap - 1
-	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}s.home(value){{end}}
 
 	for {
 		if !s.entries[idx].occupied {
@@ -268,7 +268,7 @@ func (s *{{.Name}}) Remove(value {{.GoType}}) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}s.home(value){{end}}
 
 	for {
 		if !s.entries[idx].occupied {
@@ -291,7 +291,7 @@ func (s *{{.Name}}) Contains(value {{.GoType}}) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}int(s.hash(value) >> s.shift){{end}}
+	idx := {{if .IsBool}}int(s.hash(value)) & mask{{else}}s.home(value){{end}}
 
 	for {
 		if !s.entries[idx].occupied {
@@ -540,11 +540,7 @@ func (s *{{.Name}}) Equals(other *{{.Name}}) bool {
 {{- else}}
 // hash is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the value's bit
-// pattern. A multiply's entropy is in the product's TOP bits (its low bits
-// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
-// would share one bucket under a low-bit mask), so the home bucket is the top
-// k bits of the product for a 2^k-slot table: s.shift = 64-k and
-// idx = int(hash >> s.shift). Linear probing still wraps with & mask.
+// pattern. The table index is home(), not this value.
 {{- end}}
 func (s *{{.Name}}) hash(value {{.GoType}}) uint64 {
 {{- if .IsBool}}
@@ -556,11 +552,25 @@ func (s *{{.Name}}) hash(value {{.GoType}}) uint64 {
 	return {{.HashExpr}} * 0x9E3779B97F4A7C15
 {{- end}}
 }
+{{- if not .IsBool}}
 
-// shiftFor{{.Name}} returns the top-bit index shift 64-k for a 2^k-slot table.
-func shiftFor{{.Name}}(capacity int) uint {
-	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
+// home returns the key's home bucket: the Fibonacci product's top k bits for
+// a 2^k-slot table, bit-reversed, i.e. bits.Reverse64(hash) & mask. A
+// multiply's entropy is in the product's TOP bits (its low bits depend only on
+// the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40 would share one
+// bucket under a plain low-bit mask). Reversing them, rather than taking
+// hash >> (64-k), keeps the index nested by LOW bits across table sizes: a
+// key whose home is i in a 2^k-slot table has home i mod 2^j in a 2^j-slot one.
+// Copying a table in slot order into a smaller fresh table (Select, Reject,
+// Intersect, Difference, user copy loops) therefore spreads over the whole
+// destination. With the top-k form the home buckets nest by prefix, slot order
+// is hash order, and that copy piles into one growing cluster: O(n^2)
+// (mapdb-golang b757951, fable72 finding 1).
+func (s *{{.Name}}) home(value {{.GoType}}) int {
+	h := s.hash(value)
+	return int(bits.Reverse64(h) & uint64(len(s.entries)-1))
 }
+{{- end}}
 
 func (s *{{.Name}}) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
@@ -573,7 +583,6 @@ func (s *{{.Name}}) resize() {
 		newCap = {{.SnakeName}}DefaultCapacity
 	}
 	s.entries = make([]{{.SnakeName}}Entry, newCap)
-	s.shift = shiftFor{{.Name}}(newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -587,7 +596,7 @@ func (s *{{.Name}}) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
-		ideal := {{if .IsBool}}int(s.hash(s.entries[idx].key)) & mask{{else}}int(s.hash(s.entries[idx].key) >> s.shift){{end}}
+		ideal := {{if .IsBool}}int(s.hash(s.entries[idx].key)) & mask{{else}}s.home(s.entries[idx].key){{end}}
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

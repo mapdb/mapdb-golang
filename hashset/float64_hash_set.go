@@ -26,7 +26,6 @@ type float64Entry struct {
 type Float64 struct {
 	entries []float64Entry
 	size    int
-	shift   uint // 64 - log2(len(entries)): home bucket = hash >> shift (bool sets index by & mask)
 }
 
 // NewFloat64 creates a new empty Float64.
@@ -40,7 +39,6 @@ func NewFloat64WithCapacity(capacity int) *Float64 {
 	return &Float64{
 		entries: make([]float64Entry, cap),
 		size:    0,
-		shift:   shiftForFloat64(cap),
 	}
 }
 
@@ -62,7 +60,7 @@ func Float64Of(values ...float64) *Float64 {
 // guarantee.
 func Float64BulkLoad(values []float64, policy pump.DuplicatePolicy) (*Float64, error) {
 	c := Float64bulkCap(len(values))
-	s := &Float64{entries: make([]float64Entry, c), shift: shiftForFloat64(c)}
+	s := &Float64{entries: make([]float64Entry, c)}
 	for _, v := range values {
 		if s.needsResize() {
 			s.resize()
@@ -84,7 +82,7 @@ func Float64BulkLoadExact(values []float64, n int, policy pump.DuplicatePolicy) 
 		panic("mapdb: Float64BulkLoadExact: negative n")
 	}
 	c := Float64bulkCap(n)
-	s := &Float64{entries: make([]float64Entry, c), shift: shiftForFloat64(c)}
+	s := &Float64{entries: make([]float64Entry, c)}
 	if len(values) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -100,7 +98,7 @@ func Float64BulkLoadExact(values []float64, n int, policy pump.DuplicatePolicy) 
 // (callers guarantee capacity), applying the duplicate policy.
 func (s *Float64) bulkAdd(value float64, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(s.entries) - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 	for {
 		if !s.entries[idx].occupied {
 			s.entries[idx].key = value
@@ -135,7 +133,7 @@ func (s *Float64) Add(value float64) bool {
 	}
 	cap := len(s.entries)
 	mask := cap - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -165,7 +163,7 @@ func (s *Float64) Remove(value float64) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -188,7 +186,7 @@ func (s *Float64) Contains(value float64) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -434,18 +432,26 @@ func (s *Float64) Equals(other *Float64) bool {
 
 // hash is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the value's bit
-// pattern. A multiply's entropy is in the product's TOP bits (its low bits
-// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
-// would share one bucket under a low-bit mask), so the home bucket is the top
-// k bits of the product for a 2^k-slot table: s.shift = 64-k and
-// idx = int(hash >> s.shift). Linear probing still wraps with & mask.
+// pattern. The table index is home(), not this value.
 func (s *Float64) hash(value float64) uint64 {
 	return math.Float64bits(value) * 0x9E3779B97F4A7C15
 }
 
-// shiftForFloat64 returns the top-bit index shift 64-k for a 2^k-slot table.
-func shiftForFloat64(capacity int) uint {
-	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
+// home returns the key's home bucket: the Fibonacci product's top k bits for
+// a 2^k-slot table, bit-reversed, i.e. bits.Reverse64(hash) & mask. A
+// multiply's entropy is in the product's TOP bits (its low bits depend only on
+// the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40 would share one
+// bucket under a plain low-bit mask). Reversing them, rather than taking
+// hash >> (64-k), keeps the index nested by LOW bits across table sizes: a
+// key whose home is i in a 2^k-slot table has home i mod 2^j in a 2^j-slot one.
+// Copying a table in slot order into a smaller fresh table (Select, Reject,
+// Intersect, Difference, user copy loops) therefore spreads over the whole
+// destination. With the top-k form the home buckets nest by prefix, slot order
+// is hash order, and that copy piles into one growing cluster: O(n^2)
+// (mapdb-golang b757951, fable72 finding 1).
+func (s *Float64) home(value float64) int {
+	h := s.hash(value)
+	return int(bits.Reverse64(h) & uint64(len(s.entries)-1))
 }
 
 func (s *Float64) needsResize() bool {
@@ -459,7 +465,6 @@ func (s *Float64) resize() {
 		newCap = float64DefaultCapacity
 	}
 	s.entries = make([]float64Entry, newCap)
-	s.shift = shiftForFloat64(newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -473,7 +478,7 @@ func (s *Float64) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
-		ideal := int(s.hash(s.entries[idx].key) >> s.shift)
+		ideal := s.home(s.entries[idx].key)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

@@ -25,7 +25,6 @@ type int32Entry struct {
 type Int32 struct {
 	entries []int32Entry
 	size    int
-	shift   uint // 64 - log2(len(entries)): home bucket = hash >> shift (bool sets index by & mask)
 }
 
 // NewInt32 creates a new empty Int32.
@@ -39,7 +38,6 @@ func NewInt32WithCapacity(capacity int) *Int32 {
 	return &Int32{
 		entries: make([]int32Entry, cap),
 		size:    0,
-		shift:   shiftForInt32(cap),
 	}
 }
 
@@ -61,7 +59,7 @@ func Int32Of(values ...int32) *Int32 {
 // guarantee.
 func Int32BulkLoad(values []int32, policy pump.DuplicatePolicy) (*Int32, error) {
 	c := Int32bulkCap(len(values))
-	s := &Int32{entries: make([]int32Entry, c), shift: shiftForInt32(c)}
+	s := &Int32{entries: make([]int32Entry, c)}
 	for _, v := range values {
 		if s.needsResize() {
 			s.resize()
@@ -83,7 +81,7 @@ func Int32BulkLoadExact(values []int32, n int, policy pump.DuplicatePolicy) (*In
 		panic("mapdb: Int32BulkLoadExact: negative n")
 	}
 	c := Int32bulkCap(n)
-	s := &Int32{entries: make([]int32Entry, c), shift: shiftForInt32(c)}
+	s := &Int32{entries: make([]int32Entry, c)}
 	if len(values) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -99,7 +97,7 @@ func Int32BulkLoadExact(values []int32, n int, policy pump.DuplicatePolicy) (*In
 // (callers guarantee capacity), applying the duplicate policy.
 func (s *Int32) bulkAdd(value int32, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(s.entries) - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 	for {
 		if !s.entries[idx].occupied {
 			s.entries[idx].key = value
@@ -134,7 +132,7 @@ func (s *Int32) Add(value int32) bool {
 	}
 	cap := len(s.entries)
 	mask := cap - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -164,7 +162,7 @@ func (s *Int32) Remove(value int32) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -187,7 +185,7 @@ func (s *Int32) Contains(value int32) bool {
 		return false
 	}
 	mask := cap - 1
-	idx := int(s.hash(value) >> s.shift)
+	idx := s.home(value)
 
 	for {
 		if !s.entries[idx].occupied {
@@ -433,18 +431,26 @@ func (s *Int32) Equals(other *Int32) bool {
 
 // hash is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the value's bit
-// pattern. A multiply's entropy is in the product's TOP bits (its low bits
-// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
-// would share one bucket under a low-bit mask), so the home bucket is the top
-// k bits of the product for a 2^k-slot table: s.shift = 64-k and
-// idx = int(hash >> s.shift). Linear probing still wraps with & mask.
+// pattern. The table index is home(), not this value.
 func (s *Int32) hash(value int32) uint64 {
 	return uint64(uint32(value)) * 0x9E3779B97F4A7C15
 }
 
-// shiftForInt32 returns the top-bit index shift 64-k for a 2^k-slot table.
-func shiftForInt32(capacity int) uint {
-	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
+// home returns the key's home bucket: the Fibonacci product's top k bits for
+// a 2^k-slot table, bit-reversed, i.e. bits.Reverse64(hash) & mask. A
+// multiply's entropy is in the product's TOP bits (its low bits depend only on
+// the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40 would share one
+// bucket under a plain low-bit mask). Reversing them, rather than taking
+// hash >> (64-k), keeps the index nested by LOW bits across table sizes: a
+// key whose home is i in a 2^k-slot table has home i mod 2^j in a 2^j-slot one.
+// Copying a table in slot order into a smaller fresh table (Select, Reject,
+// Intersect, Difference, user copy loops) therefore spreads over the whole
+// destination. With the top-k form the home buckets nest by prefix, slot order
+// is hash order, and that copy piles into one growing cluster: O(n^2)
+// (mapdb-golang b757951, fable72 finding 1).
+func (s *Int32) home(value int32) int {
+	h := s.hash(value)
+	return int(bits.Reverse64(h) & uint64(len(s.entries)-1))
 }
 
 func (s *Int32) needsResize() bool {
@@ -458,7 +464,6 @@ func (s *Int32) resize() {
 		newCap = int32DefaultCapacity
 	}
 	s.entries = make([]int32Entry, newCap)
-	s.shift = shiftForInt32(newCap)
 	s.size = 0
 
 	for i := range oldEntries {
@@ -472,7 +477,7 @@ func (s *Int32) rehashFrom(deleted int, mask int) {
 	c := len(s.entries)
 	idx := (deleted + 1) & mask
 	for s.entries[idx].occupied {
-		ideal := int(s.hash(s.entries[idx].key) >> s.shift)
+		ideal := s.home(s.entries[idx].key)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

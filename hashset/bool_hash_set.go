@@ -5,7 +5,6 @@ package hashset
 import (
 	"fmt"
 	"iter"
-	"math/bits"
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -25,7 +24,6 @@ type boolEntry struct {
 type Bool struct {
 	entries []boolEntry
 	size    int
-	shift   uint // 64 - log2(len(entries)): home bucket = hash >> shift (bool sets index by & mask)
 }
 
 // NewBool creates a new empty Bool.
@@ -39,7 +37,6 @@ func NewBoolWithCapacity(capacity int) *Bool {
 	return &Bool{
 		entries: make([]boolEntry, cap),
 		size:    0,
-		shift:   shiftForBool(cap),
 	}
 }
 
@@ -61,7 +58,7 @@ func BoolOf(values ...bool) *Bool {
 // guarantee.
 func BoolBulkLoad(values []bool, policy pump.DuplicatePolicy) (*Bool, error) {
 	c := BoolbulkCap(len(values))
-	s := &Bool{entries: make([]boolEntry, c), shift: shiftForBool(c)}
+	s := &Bool{entries: make([]boolEntry, c)}
 	for _, v := range values {
 		if s.needsResize() {
 			s.resize()
@@ -83,7 +80,7 @@ func BoolBulkLoadExact(values []bool, n int, policy pump.DuplicatePolicy) (*Bool
 		panic("mapdb: BoolBulkLoadExact: negative n")
 	}
 	c := BoolbulkCap(n)
-	s := &Bool{entries: make([]boolEntry, c), shift: shiftForBool(c)}
+	s := &Bool{entries: make([]boolEntry, c)}
 	if len(values) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -439,11 +436,6 @@ func (s *Bool) hash(value bool) uint64 {
 	return 0
 }
 
-// shiftForBool returns the top-bit index shift 64-k for a 2^k-slot table.
-func shiftForBool(capacity int) uint {
-	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
-}
-
 func (s *Bool) needsResize() bool {
 	return (s.size+1)*4 >= len(s.entries)*3 // 0.75 load factor, integer math
 }
@@ -455,7 +447,6 @@ func (s *Bool) resize() {
 		newCap = boolDefaultCapacity
 	}
 	s.entries = make([]boolEntry, newCap)
-	s.shift = shiftForBool(newCap)
 	s.size = 0
 
 	for i := range oldEntries {

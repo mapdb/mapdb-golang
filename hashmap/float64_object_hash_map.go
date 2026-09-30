@@ -22,7 +22,6 @@ type Float64Object[V any] struct {
 	values   []V
 	occupied []bool
 	size     int
-	shift    uint // 64 - log2(len(keys)): home bucket = hashKey >> shift
 }
 
 // NewFloat64Object creates a new empty Float64Object with default capacity.
@@ -35,7 +34,6 @@ func NewFloat64ObjectWithCapacity[V any](capacity int) *Float64Object[V] {
 	cap := nextPowerOfTwoFloat64Object(capacity)
 	return &Float64Object[V]{
 		keys:     make([]float64, cap),
-		shift:    shiftForFloat64Object(cap),
 		values:   make([]V, cap),
 		occupied: make([]bool, cap),
 		size:     0,
@@ -49,7 +47,7 @@ func (m *Float64Object[V]) Put(key float64, value V) (V, bool) {
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 
 	for {
 		if !m.occupied[idx] {
@@ -77,7 +75,7 @@ func (m *Float64Object[V]) Get(key float64) (V, bool) {
 		return zero, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 
 	for {
 		if !m.occupied[idx] {
@@ -107,7 +105,7 @@ func (m *Float64Object[V]) Remove(key float64) (V, bool) {
 		return zero, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 
 	for {
 		if !m.occupied[idx] {
@@ -243,18 +241,26 @@ func (m *Float64Object[V]) String() string {
 
 // hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern. A multiply's entropy is in the product's TOP bits (its low bits
-// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
-// would share one bucket under a low-bit mask), so the home bucket is the top
-// k bits of the product for a 2^k-slot table: m.shift = 64-k and
-// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
+// pattern. The table index is home(), not this value.
 func (m *Float64Object[V]) hashKey(key float64) uint64 {
 	return math.Float64bits(key) * 0x9E3779B97F4A7C15
 }
 
-// shiftForFloat64Object returns the top-bit index shift 64-k for a 2^k-slot table.
-func shiftForFloat64Object(capacity int) uint {
-	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
+// home returns the key's home bucket: the Fibonacci product's top k bits for
+// a 2^k-slot table, bit-reversed, i.e. bits.Reverse64(hash) & mask. A
+// multiply's entropy is in the product's TOP bits (its low bits depend only on
+// the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40 would share one
+// bucket under a plain low-bit mask). Reversing them, rather than taking
+// hash >> (64-k), keeps the index nested by LOW bits across table sizes: a
+// key whose home is i in a 2^k-slot table has home i mod 2^j in a 2^j-slot one.
+// Copying a table in slot order into a smaller fresh table (Select, Reject,
+// Intersect, Difference, user copy loops) therefore spreads over the whole
+// destination. With the top-k form the home buckets nest by prefix, slot order
+// is hash order, and that copy piles into one growing cluster: O(n^2)
+// (mapdb-golang b757951, fable72 finding 1).
+func (m *Float64Object[V]) home(key float64) int {
+	h := m.hashKey(key)
+	return int(bits.Reverse64(h) & uint64(len(m.keys)-1))
 }
 
 func (m *Float64Object[V]) needsResize() bool {
@@ -270,7 +276,6 @@ func (m *Float64Object[V]) resize() {
 		newCap = float64ObjectDefaultCapacity
 	}
 	m.keys = make([]float64, newCap)
-	m.shift = shiftForFloat64Object(newCap)
 	m.values = make([]V, newCap)
 	m.occupied = make([]bool, newCap)
 	m.size = 0
@@ -285,7 +290,7 @@ func (m *Float64Object[V]) resize() {
 func (m *Float64Object[V]) rehashFrom(deleted int, mask int) {
 	idx := (deleted + 1) & mask
 	for m.occupied[idx] {
-		ideal := int(m.hashKey(m.keys[idx]) >> m.shift)
+		ideal := m.home(m.keys[idx])
 		// Shift the entry back into the gap only when its ideal slot is NOT
 		// cyclically inside (deleted, idx]; otherwise the move would put it
 		// before its ideal slot and make it unreachable.

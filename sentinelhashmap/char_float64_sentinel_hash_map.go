@@ -27,7 +27,6 @@ type CharFloat64 struct {
 	values     []float64
 	size       int
 	tombstones int
-	shift      uint // 64 - log2(len(keys)): home bucket = hashKey >> shift
 
 	// Sentinel key storage — keys 0 and 1 are valid user keys but also
 	// serve as empty/removed markers in the table, so we store them separately.
@@ -47,7 +46,6 @@ func NewCharFloat64WithCapacity(capacity int) *CharFloat64 {
 	cap := nextPowerOfTwoCharFloat64(capacity)
 	return &CharFloat64{
 		keys:   make([]uint16, cap),
-		shift:  shiftForCharFloat64(cap),
 		values: make([]float64, cap),
 		size:   0,
 	}
@@ -157,7 +155,7 @@ func (m *CharFloat64) putRegular(key uint16, value float64) (float64, bool) {
 	}
 	cap := len(m.keys)
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 	empty := charFloat64EmptyKey
 	removed := charFloat64RemovedKey
 	firstRemoved := -1
@@ -220,7 +218,7 @@ func (m *CharFloat64) Get(key uint16) (float64, bool) {
 		return 0.0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 	empty := charFloat64EmptyKey
 
 	for probes := 0; probes < cap; probes++ {
@@ -275,7 +273,7 @@ func (m *CharFloat64) removeRegular(key uint16) (float64, bool) {
 		return 0.0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 	empty := charFloat64EmptyKey
 
 	for probes := 0; probes < cap; probes++ {
@@ -489,11 +487,7 @@ func (m *CharFloat64) String() string {
 
 // hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern. A multiply's entropy is in the product's TOP bits (its low bits
-// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
-// would share one bucket under a low-bit mask), so the home bucket is the top
-// k bits of the product for a 2^k-slot table: m.shift = 64-k and
-// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
+// pattern. The table index is home(), not this value.
 func (m *CharFloat64) hashKey(key uint16) uint64 {
 	return uint64(key) * 0x9E3779B97F4A7C15
 }
@@ -510,9 +504,21 @@ func (m *CharFloat64) needsResize() bool {
 	return (regularEntries+1)*4 >= len(m.keys)*3 // 0.75 load factor, integer math
 }
 
-// shiftForCharFloat64 returns the top-bit index shift 64-k for a 2^k-slot table.
-func shiftForCharFloat64(capacity int) uint {
-	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
+// home returns the key's home bucket: the Fibonacci product's top k bits for
+// a 2^k-slot table, bit-reversed, i.e. bits.Reverse64(hash) & mask. A
+// multiply's entropy is in the product's TOP bits (its low bits depend only on
+// the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40 would share one
+// bucket under a plain low-bit mask). Reversing them, rather than taking
+// hash >> (64-k), keeps the index nested by LOW bits across table sizes: a
+// key whose home is i in a 2^k-slot table has home i mod 2^j in a 2^j-slot one.
+// Copying a table in slot order into a smaller fresh table (Select, Reject,
+// Intersect, Difference, user copy loops) therefore spreads over the whole
+// destination. With the top-k form the home buckets nest by prefix, slot order
+// is hash order, and that copy piles into one growing cluster: O(n^2)
+// (mapdb-golang b757951, fable72 finding 1).
+func (m *CharFloat64) home(key uint16) int {
+	h := m.hashKey(key)
+	return int(bits.Reverse64(h) & uint64(len(m.keys)-1))
 }
 
 func (m *CharFloat64) needsRehash() bool {
@@ -542,7 +548,6 @@ func (m *CharFloat64) resize(newCap int) {
 	savedOneValue := m.oneKeyValue
 
 	m.keys = make([]uint16, newCap)
-	m.shift = shiftForCharFloat64(newCap)
 	m.values = make([]float64, newCap)
 	m.size = 0
 	m.tombstones = 0

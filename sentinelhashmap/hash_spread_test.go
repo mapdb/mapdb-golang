@@ -9,7 +9,7 @@ import (
 // §"Hash function": 64-bit Fibonacci multiply; its entropy is in the product's
 // HIGH bits, so a low-bit mask must see them). Each case inserts a key family
 // into a real table and counts the distinct HOME buckets the table itself
-// computes (its own hash >> its real index shift), requiring at least 40% of
+// computes (its home(), the index the table really uses), requiring at least 40% of
 // min(n, capacity) distinct buckets. Before the fix, float keys 1..1000, i/2
 // and powers of two all landed in a single bucket.
 
@@ -105,7 +105,7 @@ func TestHashSpread_Float64Int32Sentinel(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, int32(i))
 		}
-		checkSpread(t, "sentinel Float64Int32 "+fam, keys, len(m.keys), func(k float64) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "sentinel Float64Int32 "+fam, keys, len(m.keys), func(k float64) int { return m.home(k) },
 			func(i int) (float64, bool) { return m.keys[i], m.keys[i] != 0 })
 	}
 }
@@ -117,7 +117,7 @@ func TestHashSpread_Float32Int32Sentinel(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, int32(i))
 		}
-		checkSpread(t, "sentinel Float32Int32 "+fam, keys, len(m.keys), func(k float32) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "sentinel Float32Int32 "+fam, keys, len(m.keys), func(k float32) int { return m.home(k) },
 			func(i int) (float32, bool) { return m.keys[i], m.keys[i] != 0 })
 	}
 }
@@ -129,7 +129,7 @@ func TestHashSpread_Int64Int32Sentinel(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, int32(i))
 		}
-		checkSpread(t, "sentinel Int64Int32 "+fam, keys, len(m.keys), func(k int64) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "sentinel Int64Int32 "+fam, keys, len(m.keys), func(k int64) int { return m.home(k) },
 			func(i int) (int64, bool) { return m.keys[i], m.keys[i] != 0 })
 	}
 }

@@ -28,7 +28,6 @@ type float64Float32Entry struct {
 type Float64Float32 struct {
 	entries []float64Float32Entry
 	size    int
-	shift   uint // 64 - log2(len(entries)): home bucket = hashKey >> shift
 }
 
 // NewFloat64Float32 creates a new empty Float64Float32 with default capacity.
@@ -42,7 +41,6 @@ func NewFloat64Float32WithCapacity(capacity int) *Float64Float32 {
 	return &Float64Float32{
 		entries: make([]float64Float32Entry, cap),
 		size:    0,
-		shift:   shiftForFloat64Float32(cap),
 	}
 }
 
@@ -75,7 +73,7 @@ func Float64Float32BulkLoad(keys []float64, values []float32, policy pump.Duplic
 		panic("mapdb: Float64Float32BulkLoad: len(keys) != len(values)")
 	}
 	c := Float64Float32bulkCap(len(keys))
-	m := &Float64Float32{entries: make([]float64Float32Entry, c), shift: shiftForFloat64Float32(c)}
+	m := &Float64Float32{entries: make([]float64Float32Entry, c)}
 	if err := m.bulkInsert(keys, values, policy); err != nil {
 		return nil, err
 	}
@@ -95,7 +93,7 @@ func Float64Float32BulkLoadExact(keys []float64, values []float32, n int, policy
 		panic("mapdb: Float64Float32BulkLoadExact: negative n")
 	}
 	c := Float64Float32bulkCap(n)
-	m := &Float64Float32{entries: make([]float64Float32Entry, c), shift: shiftForFloat64Float32(c)}
+	m := &Float64Float32{entries: make([]float64Float32Entry, c)}
 	if len(keys) > n {
 		return nil, pump.ErrTooManyElements
 	}
@@ -128,7 +126,7 @@ func (m *Float64Float32) bulkInsert(keys []float64, values []float32, policy pum
 // whether the key was already present.
 func (m *Float64Float32) bulkPut(key float64, value float32, policy pump.DuplicatePolicy) (bool, error) {
 	mask := len(m.entries) - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 	for {
 		if !m.entries[idx].occupied {
 			m.entries[idx].key = key
@@ -165,7 +163,7 @@ func (m *Float64Float32) Put(key float64, value float32) (float32, bool) {
 	}
 	cap := len(m.entries)
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -191,7 +189,7 @@ func (m *Float64Float32) Get(key float64) (float32, bool) {
 		return 0.0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -219,7 +217,7 @@ func (m *Float64Float32) Remove(key float64) (float32, bool) {
 		return 0.0, false
 	}
 	mask := cap - 1
-	idx := int(m.hashKey(key) >> m.shift)
+	idx := m.home(key)
 
 	for {
 		if !m.entries[idx].occupied {
@@ -597,7 +595,7 @@ func (e Float64Float32Entry) AndModify(f func(*float32)) Float64Float32Entry {
 		return e
 	}
 	mask := cap - 1
-	idx := int(e.m.hashKey(e.key) >> e.m.shift)
+	idx := e.m.home(e.key)
 	for {
 		if !e.m.entries[idx].occupied {
 			return e
@@ -621,18 +619,26 @@ func (e Float64Float32Entry) AndModify(f func(*float32)) Float64Float32Entry {
 
 // hashKey is mapdb's 64-bit Fibonacci hash (spec algorithms.md "Hash
 // function": golden-ratio multiply by 0x9E3779B97F4A7C15) of the key's bit
-// pattern. A multiply's entropy is in the product's TOP bits (its low bits
-// depend only on the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40
-// would share one bucket under a low-bit mask), so the home bucket is the top
-// k bits of the product for a 2^k-slot table: m.shift = 64-k and
-// idx = int(hash >> m.shift). Linear probing still wraps with & mask.
+// pattern. The table index is home(), not this value.
 func (m *Float64Float32) hashKey(key float64) uint64 {
 	return math.Float64bits(key) * 0x9E3779B97F4A7C15
 }
 
-// shiftForFloat64Float32 returns the top-bit index shift 64-k for a 2^k-slot table.
-func shiftForFloat64Float32(capacity int) uint {
-	return uint(64 - bits.TrailingZeros64(uint64(capacity)))
+// home returns the key's home bucket: the Fibonacci product's top k bits for
+// a 2^k-slot table, bit-reversed, i.e. bits.Reverse64(hash) & mask. A
+// multiply's entropy is in the product's TOP bits (its low bits depend only on
+// the input's low bits: float64 1.0, 0.5, 2^k or int64 i<<40 would share one
+// bucket under a plain low-bit mask). Reversing them, rather than taking
+// hash >> (64-k), keeps the index nested by LOW bits across table sizes: a
+// key whose home is i in a 2^k-slot table has home i mod 2^j in a 2^j-slot one.
+// Copying a table in slot order into a smaller fresh table (Select, Reject,
+// Intersect, Difference, user copy loops) therefore spreads over the whole
+// destination. With the top-k form the home buckets nest by prefix, slot order
+// is hash order, and that copy piles into one growing cluster: O(n^2)
+// (mapdb-golang b757951, fable72 finding 1).
+func (m *Float64Float32) home(key float64) int {
+	h := m.hashKey(key)
+	return int(bits.Reverse64(h) & uint64(len(m.entries)-1))
 }
 
 func (m *Float64Float32) needsResize() bool {
@@ -646,7 +652,6 @@ func (m *Float64Float32) resize() {
 		newCap = float64Float32DefaultCapacity
 	}
 	m.entries = make([]float64Float32Entry, newCap)
-	m.shift = shiftForFloat64Float32(newCap)
 	m.size = 0
 
 	for i := range oldEntries {
@@ -661,7 +666,7 @@ func (m *Float64Float32) rehashFrom(deleted int, mask int) {
 	c := len(m.entries)
 	idx := (deleted + 1) & mask
 	for m.entries[idx].occupied {
-		ideal := int(m.hashKey(m.entries[idx].key) >> m.shift)
+		ideal := m.home(m.entries[idx].key)
 		distCurrent := (idx - ideal + c) & mask
 		distGap := (deleted - ideal + c) & mask
 		if distCurrent > distGap {

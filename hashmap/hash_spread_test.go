@@ -9,7 +9,7 @@ import (
 // §"Hash function": 64-bit Fibonacci multiply; its entropy is in the product's
 // HIGH bits, so a low-bit mask must see them). Each case inserts a key family
 // into a real table and counts the distinct HOME buckets the table itself
-// computes (its own hash >> its real index shift), requiring at least 40% of
+// computes (its home(), the index the table really uses), requiring at least 40% of
 // min(n, capacity) distinct buckets. Before the fix, float keys 1..1000, i/2
 // and powers of two all landed in a single bucket.
 
@@ -104,7 +104,7 @@ func TestHashSpread_Float64Int32(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, int32(i))
 		}
-		checkSpread(t, "Float64Int32 "+fam, keys, len(m.entries), func(k float64) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "Float64Int32 "+fam, keys, len(m.entries), func(k float64) int { return m.home(k) },
 			func(i int) (float64, bool) { return m.entries[i].key, m.entries[i].occupied })
 	}
 }
@@ -115,7 +115,7 @@ func TestHashSpread_Float32Int32(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, int32(i))
 		}
-		checkSpread(t, "Float32Int32 "+fam, keys, len(m.entries), func(k float32) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "Float32Int32 "+fam, keys, len(m.entries), func(k float32) int { return m.home(k) },
 			func(i int) (float32, bool) { return m.entries[i].key, m.entries[i].occupied })
 	}
 }
@@ -126,7 +126,7 @@ func TestHashSpread_Float64Object(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, i)
 		}
-		checkSpread(t, "Float64Object "+fam, keys, len(m.keys), func(k float64) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "Float64Object "+fam, keys, len(m.keys), func(k float64) int { return m.home(k) },
 			func(i int) (float64, bool) { return m.keys[i], m.occupied[i] })
 	}
 }
@@ -137,7 +137,7 @@ func TestHashSpread_Float32Object(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, i)
 		}
-		checkSpread(t, "Float32Object "+fam, keys, len(m.keys), func(k float32) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "Float32Object "+fam, keys, len(m.keys), func(k float32) int { return m.home(k) },
 			func(i int) (float32, bool) { return m.keys[i], m.occupied[i] })
 	}
 }
@@ -148,7 +148,7 @@ func TestHashSpread_Int64Int32(t *testing.T) {
 		for i, k := range keys {
 			m.Put(k, int32(i))
 		}
-		checkSpread(t, "Int64Int32 "+fam, keys, len(m.entries), func(k int64) int { return int(m.hashKey(k) >> m.shift) },
+		checkSpread(t, "Int64Int32 "+fam, keys, len(m.entries), func(k int64) int { return m.home(k) },
 			func(i int) (int64, bool) { return m.entries[i].key, m.entries[i].occupied })
 	}
 }
@@ -157,7 +157,7 @@ func TestHashSpread_Int64Int32(t *testing.T) {
 // default 16-slot table they must not share a home bucket.
 func TestHashSpread_Int64HighWordPair(t *testing.T) {
 	m := NewInt64Int32()
-	a, b := int(m.hashKey(1)>>m.shift), int(m.hashKey(1<<32+1)>>m.shift)
+	a, b := m.home(1), m.home(1<<32+1)
 	if a == b {
 		t.Fatalf("keys 1 and 2^32+1 share home bucket %d of %d", a, len(m.entries))
 	}

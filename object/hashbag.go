@@ -187,8 +187,11 @@ func (b *HashBag[T]) Clear() {
 // ── Top/Bottom occurrences ────────────────────────────────────────────
 
 // TopOccurrences returns the n most frequent values as (value, count) pairs,
-// sorted by descending count.
+// sorted by descending count. A negative n panics.
 func (b *HashBag[T]) TopOccurrences(n int) []ValueCount[T] {
+	if n < 0 {
+		panic("mapdb: TopOccurrences: negative count")
+	}
 	pairs := b.toValueCounts()
 	slices.SortFunc(pairs, func(a, c ValueCount[T]) int { return c.Count - a.Count })
 	if n > len(pairs) {
@@ -197,8 +200,11 @@ func (b *HashBag[T]) TopOccurrences(n int) []ValueCount[T] {
 	return pairs[:n]
 }
 
-// BottomOccurrences returns the n least frequent values.
+// BottomOccurrences returns the n least frequent values. A negative n panics.
 func (b *HashBag[T]) BottomOccurrences(n int) []ValueCount[T] {
+	if n < 0 {
+		panic("mapdb: BottomOccurrences: negative count")
+	}
 	pairs := b.toValueCounts()
 	slices.SortFunc(pairs, func(a, c ValueCount[T]) int { return a.Count - c.Count })
 	if n > len(pairs) {

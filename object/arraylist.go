@@ -34,7 +34,11 @@ func NewArrayListFrom[T comparable](values ...T) *ArrayList[T] {
 }
 
 // NewArrayListWithCapacity creates an ArrayList with pre-allocated capacity.
+// A negative capacity panics.
 func NewArrayListWithCapacity[T comparable](capacity int) *ArrayList[T] {
+	if capacity < 0 {
+		panic("mapdb: NewArrayListWithCapacity: negative capacity")
+	}
 	return &ArrayList[T]{items: make([]T, 0, capacity)}
 }
 

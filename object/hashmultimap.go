@@ -52,7 +52,11 @@ func (h *HashMultimap[K, V]) Put(k K, v V) {
 }
 
 // PutAll appends every value in values to the list at key k.
+// An empty values list leaves the multimap unchanged.
 func (h *HashMultimap[K, V]) PutAll(k K, values ...V) {
+	if len(values) == 0 {
+		return
+	}
 	vs, _ := h.m.get(k)
 	h.m.put(k, append(vs, values...))
 	h.totalSize += len(values)

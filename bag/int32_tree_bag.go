@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"fmt"
 	"iter"
+	"math"
 	"slices"
 	"strings"
 
@@ -109,8 +110,19 @@ func (b *TreeInt32) search(value int32) (int, bool) {
 	return lo, false
 }
 
-// Add adds one occurrence of the value.
+// checkAdd panics before any mutation if adding occurrences (>= 0) would
+// overflow the total size. Every per-value count is at most the total size,
+// so this also bounds the count being incremented.
+func (b *TreeInt32) checkAdd(occurrences int) {
+	if occurrences > math.MaxInt-b.size {
+		panic(fmt.Sprintf("TreeInt32: cannot add %d occurrences: size %d would overflow", occurrences, b.size))
+	}
+}
+
+// Add adds one occurrence of the value. Panics, leaving the bag unchanged,
+// if the total size would overflow int.
 func (b *TreeInt32) Add(value int32) {
+	b.checkAdd(1)
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
@@ -125,11 +137,14 @@ func (b *TreeInt32) Add(value int32) {
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
-// Returns the new count for this value. Panics if occurrences is negative.
+// Returns the new count for this value. Panics if occurrences is negative or
+// if the total size would overflow int; a panicking call leaves the bag
+// unchanged.
 func (b *TreeInt32) AddOccurrences(value int32, occurrences int) int {
 	if occurrences < 0 {
 		panic(fmt.Sprintf("TreeInt32: cannot add negative occurrences: %d", occurrences))
 	}
+	b.checkAdd(occurrences)
 	if occurrences == 0 {
 		idx, found := b.search(value)
 		if found {
@@ -422,6 +437,7 @@ func (b *TreeInt32) RemoveReturning(value int32) *TreeInt32 {
 
 // WithAll returns the bag after adding all values (fluent API).
 func (b *TreeInt32) AddAllReturning(values ...int32) *TreeInt32 {
+	b.checkAdd(len(values)) // all or nothing: refuse before the first Add
 	for _, v := range values {
 		b.Add(v)
 	}

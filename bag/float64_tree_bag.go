@@ -110,8 +110,19 @@ func (b *TreeFloat64) search(value float64) (int, bool) {
 	return lo, false
 }
 
-// Add adds one occurrence of the value.
+// checkAdd panics before any mutation if adding occurrences (>= 0) would
+// overflow the total size. Every per-value count is at most the total size,
+// so this also bounds the count being incremented.
+func (b *TreeFloat64) checkAdd(occurrences int) {
+	if occurrences > math.MaxInt-b.size {
+		panic(fmt.Sprintf("TreeFloat64: cannot add %d occurrences: size %d would overflow", occurrences, b.size))
+	}
+}
+
+// Add adds one occurrence of the value. Panics, leaving the bag unchanged,
+// if the total size would overflow int.
 func (b *TreeFloat64) Add(value float64) {
+	b.checkAdd(1)
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
@@ -126,11 +137,14 @@ func (b *TreeFloat64) Add(value float64) {
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
-// Returns the new count for this value. Panics if occurrences is negative.
+// Returns the new count for this value. Panics if occurrences is negative or
+// if the total size would overflow int; a panicking call leaves the bag
+// unchanged.
 func (b *TreeFloat64) AddOccurrences(value float64, occurrences int) int {
 	if occurrences < 0 {
 		panic(fmt.Sprintf("TreeFloat64: cannot add negative occurrences: %d", occurrences))
 	}
+	b.checkAdd(occurrences)
 	if occurrences == 0 {
 		idx, found := b.search(value)
 		if found {
@@ -423,6 +437,7 @@ func (b *TreeFloat64) RemoveReturning(value float64) *TreeFloat64 {
 
 // WithAll returns the bag after adding all values (fluent API).
 func (b *TreeFloat64) AddAllReturning(values ...float64) *TreeFloat64 {
+	b.checkAdd(len(values)) // all or nothing: refuse before the first Add
 	for _, v := range values {
 		b.Add(v)
 	}

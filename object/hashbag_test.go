@@ -7,6 +7,7 @@
 package object
 
 import (
+	"math"
 	"testing"
 )
 
@@ -284,4 +285,57 @@ func TestHashBag_String(t *testing.T) {
 	if s != "{42\u00d71}" {
 		t.Errorf("String() = %q, want %q", s, "{42\u00d71}")
 	}
+}
+
+// Adding past math.MaxInt total occurrences panics and leaves the bag
+// unchanged, for the per-value count and for the total size.
+func TestHashBagOccurrenceOverflowPanicsAndLeavesBagUnchanged(t *testing.T) {
+	state := func(b *HashBag[string]) map[string]int {
+		m := map[string]int{"#len": b.Len(), "#distinct": b.SizeDistinct()}
+		b.ForEachWithOccurrences(func(v string, n int) { m[v] = n })
+		return m
+	}
+	refused := func(b *HashBag[string], what string, op func()) {
+		t.Helper()
+		before := state(b)
+		panicked := func() (p bool) {
+			defer func() { p = recover() != nil }()
+			op()
+			return false
+		}()
+		if !panicked {
+			t.Fatalf("%s: no overflow panic", what)
+		}
+		after := state(b)
+		if len(after) != len(before) {
+			t.Fatalf("%s: bag changed: %v -> %v", what, before, after)
+		}
+		for k, v := range before {
+			if after[k] != v {
+				t.Fatalf("%s: bag changed: %v -> %v", what, before, after)
+			}
+		}
+	}
+
+	b := NewHashBag[string]()
+	b.AddOccurrences("a", math.MaxInt-1)
+	b.Add("a")
+	if b.OccurrencesOf("a") != math.MaxInt || b.Len() != math.MaxInt {
+		t.Fatalf("exact max: count %d Len %d", b.OccurrencesOf("a"), b.Len())
+	}
+	refused(b, "Add(a)", func() { b.Add("a") })
+	refused(b, "Add(b)", func() { b.Add("b") })
+	refused(b, "AddOccurrences(a, MaxInt)", func() { b.AddOccurrences("a", math.MaxInt) })
+	refused(b, "AddOccurrences(b, 1)", func() { b.AddOccurrences("b", 1) })
+	if b.Contains("b") {
+		t.Fatal("refused add of a new value left it present")
+	}
+
+	b = NewHashBag[string]()
+	b.AddOccurrences("a", math.MaxInt/2+1)
+	b.AddOccurrences("b", math.MaxInt/2)
+	if b.Len() != math.MaxInt {
+		t.Fatalf("exact total max: Len %d", b.Len())
+	}
+	refused(b, "AddOccurrences(b, 1) past total", func() { b.AddOccurrences("b", 1) })
 }

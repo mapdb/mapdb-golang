@@ -9,6 +9,7 @@ package object
 import (
 	"fmt"
 	"iter"
+	"math"
 	"slices"
 	"strings"
 )
@@ -148,17 +149,31 @@ func (b *HashBag[T]) ToSlice() []T {
 
 // ── MutableBag ────────────────────────────────────────────────────────
 
+// checkAdd panics before any mutation if adding occurrences (>= 0) would
+// overflow the total size. Every per-value count is at most the total size,
+// so this also bounds the count being incremented.
+func (b *HashBag[T]) checkAdd(occurrences int) {
+	if occurrences > math.MaxInt-b.size {
+		panic(fmt.Sprintf("HashBag: cannot add %d occurrences: size %d would overflow", occurrences, b.size))
+	}
+}
+
+// Add adds one occurrence of value. Panics, leaving the bag unchanged, if the
+// total size would overflow int.
 func (b *HashBag[T]) Add(value T) {
+	b.checkAdd(1)
 	n, _ := b.counts.get(value)
 	b.counts.put(value, n+1)
 	b.size++
 }
 
-// AddOccurrences adds multiple occurrences of value.
+// AddOccurrences adds multiple occurrences of value. Panics, leaving the bag
+// unchanged, if the total size would overflow int.
 func (b *HashBag[T]) AddOccurrences(value T, occurrences int) {
 	if occurrences <= 0 {
 		return
 	}
+	b.checkAdd(occurrences)
 	n, _ := b.counts.get(value)
 	b.counts.put(value, n+occurrences)
 	b.size += occurrences

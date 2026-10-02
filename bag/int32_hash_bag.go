@@ -5,6 +5,7 @@ package bag
 import (
 	"fmt"
 	"iter"
+	"math"
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -65,8 +66,19 @@ func HashInt32BulkLoadExact(values []int32, n int) (*HashInt32, error) {
 	return b, nil
 }
 
-// Add adds one occurrence of the value.
+// checkAdd panics before any mutation if adding occurrences (>= 0) would
+// overflow the total size. Every per-value count is at most the total size,
+// so this also bounds the count being incremented.
+func (b *HashInt32) checkAdd(occurrences int) {
+	if occurrences > math.MaxInt-b.size {
+		panic(fmt.Sprintf("HashInt32: cannot add %d occurrences: size %d would overflow", occurrences, b.size))
+	}
+}
+
+// Add adds one occurrence of the value. Panics, leaving the bag unchanged,
+// if the total size would overflow int.
 func (b *HashInt32) Add(value int32) {
+	b.checkAdd(1)
 	if b.counts == nil {
 		b.counts = make(map[int32]int)
 	}
@@ -75,11 +87,14 @@ func (b *HashInt32) Add(value int32) {
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
-// Returns the new count for this value. Panics if occurrences is negative.
+// Returns the new count for this value. Panics if occurrences is negative or
+// if the total size would overflow int; a panicking call leaves the bag
+// unchanged.
 func (b *HashInt32) AddOccurrences(value int32, occurrences int) int {
 	if occurrences < 0 {
 		panic(fmt.Sprintf("HashInt32: cannot add negative occurrences: %d", occurrences))
 	}
+	b.checkAdd(occurrences)
 	if occurrences == 0 {
 		return b.counts[value]
 	}
@@ -363,6 +378,7 @@ func (b *HashInt32) String() string {
 
 // WithAll returns the bag after adding all values (fluent API).
 func (b *HashInt32) AddAllReturning(values ...int32) *HashInt32 {
+	b.checkAdd(len(values)) // all or nothing: refuse before the first Add
 	for _, v := range values {
 		b.Add(v)
 	}

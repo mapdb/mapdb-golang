@@ -122,9 +122,7 @@ const hashBagTmpl = genHeader + `package bag
 import (
 	"fmt"
 	"iter"
-{{- if .IsFloat}}
 	"math"
-{{- end}}
 	"strings"
 
 	"github.com/mapdb/mapdb-golang/pump"
@@ -202,8 +200,19 @@ func Hash{{.Name}}BulkLoadExact(values []{{.GoType}}, n int) (*Hash{{.Name}}, er
 	return b, nil
 }
 
-// Add adds one occurrence of the value.
+// checkAdd panics before any mutation if adding occurrences (>= 0) would
+// overflow the total size. Every per-value count is at most the total size,
+// so this also bounds the count being incremented.
+func (b *Hash{{.Name}}) checkAdd(occurrences int) {
+	if occurrences > math.MaxInt-b.size {
+		panic(fmt.Sprintf("Hash{{.Name}}: cannot add %d occurrences: size %d would overflow", occurrences, b.size))
+	}
+}
+
+// Add adds one occurrence of the value. Panics, leaving the bag unchanged,
+// if the total size would overflow int.
 func (b *Hash{{.Name}}) Add(value {{.GoType}}) {
+	b.checkAdd(1)
 	if b.counts == nil {
 		b.counts = make(map[{{if .IsFloat}}{{.BitsType}}]{{.SnakeName}}BagEntry{{else}}{{.GoType}}]int{{end}})
 	}
@@ -221,11 +230,14 @@ func (b *Hash{{.Name}}) Add(value {{.GoType}}) {
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
-// Returns the new count for this value. Panics if occurrences is negative.
+// Returns the new count for this value. Panics if occurrences is negative or
+// if the total size would overflow int; a panicking call leaves the bag
+// unchanged.
 func (b *Hash{{.Name}}) AddOccurrences(value {{.GoType}}, occurrences int) int {
 	if occurrences < 0 {
 		panic(fmt.Sprintf("Hash{{.Name}}: cannot add negative occurrences: %d", occurrences))
 	}
+	b.checkAdd(occurrences)
 {{- if .IsFloat}}
 	k := {{.BitsFn}}(value)
 	if occurrences == 0 {
@@ -682,6 +694,7 @@ func (b *Hash{{.Name}}) String() string {
 
 // WithAll returns the bag after adding all values (fluent API).
 func (b *Hash{{.Name}}) AddAllReturning(values ...{{.GoType}}) *Hash{{.Name}} {
+	b.checkAdd(len(values)) // all or nothing: refuse before the first Add
 	for _, v := range values {
 		b.Add(v)
 	}
@@ -1180,9 +1193,7 @@ import (
 	"cmp"
 	"fmt"
 	"iter"
-{{- if .IsFloat}}
 	"math"
-{{- end}}
 	"slices"
 	"strings"
 
@@ -1286,8 +1297,19 @@ func (b *Tree{{.Name}}) search(value {{.GoType}}) (int, bool) {
 	return lo, false
 }
 
-// Add adds one occurrence of the value.
+// checkAdd panics before any mutation if adding occurrences (>= 0) would
+// overflow the total size. Every per-value count is at most the total size,
+// so this also bounds the count being incremented.
+func (b *Tree{{.Name}}) checkAdd(occurrences int) {
+	if occurrences > math.MaxInt-b.size {
+		panic(fmt.Sprintf("Tree{{.Name}}: cannot add %d occurrences: size %d would overflow", occurrences, b.size))
+	}
+}
+
+// Add adds one occurrence of the value. Panics, leaving the bag unchanged,
+// if the total size would overflow int.
 func (b *Tree{{.Name}}) Add(value {{.GoType}}) {
+	b.checkAdd(1)
 	idx, found := b.search(value)
 	if found {
 		b.entries[idx].count++
@@ -1302,11 +1324,14 @@ func (b *Tree{{.Name}}) Add(value {{.GoType}}) {
 }
 
 // AddOccurrences adds the given number of occurrences of the value.
-// Returns the new count for this value. Panics if occurrences is negative.
+// Returns the new count for this value. Panics if occurrences is negative or
+// if the total size would overflow int; a panicking call leaves the bag
+// unchanged.
 func (b *Tree{{.Name}}) AddOccurrences(value {{.GoType}}, occurrences int) int {
 	if occurrences < 0 {
 		panic(fmt.Sprintf("Tree{{.Name}}: cannot add negative occurrences: %d", occurrences))
 	}
+	b.checkAdd(occurrences)
 	if occurrences == 0 {
 		idx, found := b.search(value)
 		if found {
@@ -1600,6 +1625,7 @@ func (b *Tree{{.Name}}) RemoveReturning(value {{.GoType}}) *Tree{{.Name}} {
 
 // WithAll returns the bag after adding all values (fluent API).
 func (b *Tree{{.Name}}) AddAllReturning(values ...{{.GoType}}) *Tree{{.Name}} {
+	b.checkAdd(len(values)) // all or nothing: refuse before the first Add
 	for _, v := range values {
 		b.Add(v)
 	}

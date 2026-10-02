@@ -320,6 +320,9 @@ type {{.EntryStem}}Entry struct {
 type {{.MapName}} struct {
 	entries []{{.EntryStem}}Entry
 	size    int
+	// inCallback is set while an Entry callback (AndModify, OrInsertWith)
+	// runs; every mutator panics before changing anything while it is set.
+	inCallback bool
 }
 
 // New{{.MapName}} creates a new empty {{.MapName}} with default capacity.
@@ -450,6 +453,7 @@ func {{.MapName}}bulkCap(n int) int {
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}) Put(key {{.KeyType}}, value {{.ValType}}) ({{.ValType}}, bool) {
+	m.checkNotInCallback("Put")
 	if m.needsResize() {
 		m.resize()
 	}
@@ -504,6 +508,7 @@ func (m *{{.MapName}}) GetOrDefault(key {{.KeyType}}, defaultValue {{.ValType}})
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *{{.MapName}}) Remove(key {{.KeyType}}) ({{.ValType}}, bool) {
+	m.checkNotInCallback("Remove")
 	cap := len(m.entries)
 	if cap == 0 {
 		return {{.ValZero}}, false
@@ -556,6 +561,7 @@ func (m *{{.MapName}}) Len() int {
 
 // Clear removes all entries from the map.
 func (m *{{.MapName}}) Clear() {
+	m.checkNotInCallback("Clear")
 	for i := range m.entries {
 		m.entries[i] = {{.EntryStem}}Entry{}
 	}
@@ -841,6 +847,11 @@ func (m *{{.MapName}}) SumOfValues() {{.ValType}} {
 // modelled on Rust's std::collections::hash_map::Entry, not on Java's
 // ConcurrentMap.compute; there is no internal locking, no CAS, and no
 // atomicity guarantee across callback invocation.
+//
+// Entry callbacks (AndModify, OrInsertWith) must not mutate the map: while
+// one runs, Put, Remove, Clear and every method built on them (OrInsert,
+// AddToValue, UpdateValue, PutReturning, RemoveKeyReturning, WithoutAllKeys)
+// panic before changing anything. Reads are allowed.
 func (m *{{.MapName}}) Entry(key {{.KeyType}}) {{.MapName}}Entry {
 	return {{.MapName}}Entry{m: m, key: key}
 }
@@ -862,12 +873,13 @@ func (e {{.MapName}}Entry) OrInsert(defaultValue {{.ValType}}) {{.ValType}} {
 }
 
 // OrInsertWith inserts the value from the function if the key is absent,
-// and returns the current value.
+// and returns the current value. f must not mutate the map (see Entry); a
+// mutation panics before it changes anything.
 func (e {{.MapName}}Entry) OrInsertWith(f func() {{.ValType}}) {{.ValType}} {
 	if v, ok := e.m.Get(e.key); ok {
 		return v
 	}
-	val := f()
+	val := e.m.callWith(f)
 	e.m.Put(e.key, val)
 	return val
 }
@@ -876,11 +888,10 @@ func (e {{.MapName}}Entry) OrInsertWith(f func() {{.ValType}}) {{.ValType}} {
 // and returns the entry for fluent chaining. If the key is absent, f is
 // not called and the entry is returned unchanged.
 //
-// CAUTION: f must not call Put / OrInsert / OrInsertWith on the same map.
-// Those calls may trigger a resize that reallocates the underlying
-// entries slice, leaving f's pointer dangling into the old slice. To
-// guard against silent data loss this path panics if it detects a
-// resize happened during f — see the post-call check below.
+// The pointer targets the live slot, so f must not mutate the map (see
+// Entry): a Remove could backward-shift another key into that slot and a
+// Put could reallocate it, sending the write to the wrong key or nowhere.
+// Any such mutation panics before it changes anything.
 func (e {{.MapName}}Entry) AndModify(f func(*{{.ValType}})) {{.MapName}}Entry {
 	cap := len(e.m.entries)
 	if cap == 0 {
@@ -893,19 +904,41 @@ func (e {{.MapName}}Entry) AndModify(f func(*{{.ValType}})) {{.MapName}}Entry {
 			return e
 		}
 		if {{if .KeyIsFloat}}{{.KeyBitsFn}}(e.m.entries[idx].key) == {{.KeyBitsFn}}(e.key){{else}}e.m.entries[idx].key == e.key{{end}} {
-			// Detect backing-slice identity before and after the callback.
-			// If the slice header changed (resize) or length changed (rehash),
-			// the pointer we passed to f aliased the pre-resize storage and
-			// the mutation is lost. Panic rather than silently dropping data.
-			prevPtr := &e.m.entries[0]
-			prevLen := len(e.m.entries)
-			f(&e.m.entries[idx].value)
-			if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
-				panic("{{.MapName}}Entry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
-			}
+			e.m.callModify(f, &e.m.entries[idx].value)
 			return e
 		}
 		idx = (idx + 1) & mask
+	}
+}
+
+// callModify runs an AndModify callback with the map's mutators locked. The
+// previous state is restored on return, also when f panics, so a recovered
+// panic leaves the map usable and a nested callback does not unlock an
+// outer one.
+func (m *{{.MapName}}) callModify(f func(*{{.ValType}}), p *{{.ValType}}) {
+	prev := m.inCallback
+	m.inCallback = true
+	defer m.endCallback(prev)
+	f(p)
+}
+
+// callWith runs an OrInsertWith callback with the map's mutators locked; see
+// callModify.
+func (m *{{.MapName}}) callWith(f func() {{.ValType}}) {{.ValType}} {
+	prev := m.inCallback
+	m.inCallback = true
+	defer m.endCallback(prev)
+	return f()
+}
+
+func (m *{{.MapName}}) endCallback(prev bool) {
+	m.inCallback = prev
+}
+
+// checkNotInCallback panics if an Entry callback is running on this map.
+func (m *{{.MapName}}) checkNotInCallback(op string) {
+	if m.inCallback {
+		panic("{{.MapName}}." + op + ": map mutated from within an Entry callback — Entry callbacks must not mutate the map")
 	}
 }
 

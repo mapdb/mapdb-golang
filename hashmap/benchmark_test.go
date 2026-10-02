@@ -23,6 +23,31 @@ func BenchmarkInt32Int64_Get(b *testing.B) {
 	}
 }
 
+func BenchmarkInt32Int64_RemovePut(b *testing.B) {
+	m := NewInt32Int64()
+	for i := int32(0); i < 10000; i++ {
+		m.Put(i, int64(i*10))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		k := int32(i % 10000)
+		m.Remove(k)
+		m.Put(k, int64(i))
+	}
+}
+
+func BenchmarkInt32Int64_AndModify(b *testing.B) {
+	m := NewInt32Int64()
+	for i := int32(0); i < 10000; i++ {
+		m.Put(i, int64(i*10))
+	}
+	inc := func(v *int64) { *v++ }
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Entry(int32(i % 10000)).AndModify(inc)
+	}
+}
+
 func BenchmarkGoBuiltinMap_Put(b *testing.B) {
 	m := make(map[int32]int64, b.N*2)
 	b.ResetTimer()

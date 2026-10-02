@@ -28,6 +28,9 @@ type float64CharEntry struct {
 type Float64Char struct {
 	entries []float64CharEntry
 	size    int
+	// inCallback is set while an Entry callback (AndModify, OrInsertWith)
+	// runs; every mutator panics before changing anything while it is set.
+	inCallback bool
 }
 
 // NewFloat64Char creates a new empty Float64Char with default capacity.
@@ -158,6 +161,7 @@ func Float64CharbulkCap(n int) int {
 
 // Put inserts or updates a key-value pair. Returns the previous value and true if the key existed.
 func (m *Float64Char) Put(key float64, value uint16) (uint16, bool) {
+	m.checkNotInCallback("Put")
 	if m.needsResize() {
 		m.resize()
 	}
@@ -212,6 +216,7 @@ func (m *Float64Char) GetOrDefault(key float64, defaultValue uint16) uint16 {
 
 // Remove deletes the entry for the given key. Returns the previous value and true if the key existed.
 func (m *Float64Char) Remove(key float64) (uint16, bool) {
+	m.checkNotInCallback("Remove")
 	cap := len(m.entries)
 	if cap == 0 {
 		return 0, false
@@ -264,6 +269,7 @@ func (m *Float64Char) Len() int {
 
 // Clear removes all entries from the map.
 func (m *Float64Char) Clear() {
+	m.checkNotInCallback("Clear")
 	for i := range m.entries {
 		m.entries[i] = float64CharEntry{}
 	}
@@ -549,6 +555,11 @@ func (m *Float64Char) SumOfValues() uint16 {
 // modelled on Rust's std::collections::hash_map::Entry, not on Java's
 // ConcurrentMap.compute; there is no internal locking, no CAS, and no
 // atomicity guarantee across callback invocation.
+//
+// Entry callbacks (AndModify, OrInsertWith) must not mutate the map: while
+// one runs, Put, Remove, Clear and every method built on them (OrInsert,
+// AddToValue, UpdateValue, PutReturning, RemoveKeyReturning, WithoutAllKeys)
+// panic before changing anything. Reads are allowed.
 func (m *Float64Char) Entry(key float64) Float64CharEntry {
 	return Float64CharEntry{m: m, key: key}
 }
@@ -570,12 +581,13 @@ func (e Float64CharEntry) OrInsert(defaultValue uint16) uint16 {
 }
 
 // OrInsertWith inserts the value from the function if the key is absent,
-// and returns the current value.
+// and returns the current value. f must not mutate the map (see Entry); a
+// mutation panics before it changes anything.
 func (e Float64CharEntry) OrInsertWith(f func() uint16) uint16 {
 	if v, ok := e.m.Get(e.key); ok {
 		return v
 	}
-	val := f()
+	val := e.m.callWith(f)
 	e.m.Put(e.key, val)
 	return val
 }
@@ -584,11 +596,10 @@ func (e Float64CharEntry) OrInsertWith(f func() uint16) uint16 {
 // and returns the entry for fluent chaining. If the key is absent, f is
 // not called and the entry is returned unchanged.
 //
-// CAUTION: f must not call Put / OrInsert / OrInsertWith on the same map.
-// Those calls may trigger a resize that reallocates the underlying
-// entries slice, leaving f's pointer dangling into the old slice. To
-// guard against silent data loss this path panics if it detects a
-// resize happened during f — see the post-call check below.
+// The pointer targets the live slot, so f must not mutate the map (see
+// Entry): a Remove could backward-shift another key into that slot and a
+// Put could reallocate it, sending the write to the wrong key or nowhere.
+// Any such mutation panics before it changes anything.
 func (e Float64CharEntry) AndModify(f func(*uint16)) Float64CharEntry {
 	cap := len(e.m.entries)
 	if cap == 0 {
@@ -601,19 +612,41 @@ func (e Float64CharEntry) AndModify(f func(*uint16)) Float64CharEntry {
 			return e
 		}
 		if math.Float64bits(e.m.entries[idx].key) == math.Float64bits(e.key) {
-			// Detect backing-slice identity before and after the callback.
-			// If the slice header changed (resize) or length changed (rehash),
-			// the pointer we passed to f aliased the pre-resize storage and
-			// the mutation is lost. Panic rather than silently dropping data.
-			prevPtr := &e.m.entries[0]
-			prevLen := len(e.m.entries)
-			f(&e.m.entries[idx].value)
-			if prevLen != len(e.m.entries) || prevPtr != &e.m.entries[0] {
-				panic("Float64CharEntry.AndModify: map was resized during callback — do not mutate the map from within AndModify")
-			}
+			e.m.callModify(f, &e.m.entries[idx].value)
 			return e
 		}
 		idx = (idx + 1) & mask
+	}
+}
+
+// callModify runs an AndModify callback with the map's mutators locked. The
+// previous state is restored on return, also when f panics, so a recovered
+// panic leaves the map usable and a nested callback does not unlock an
+// outer one.
+func (m *Float64Char) callModify(f func(*uint16), p *uint16) {
+	prev := m.inCallback
+	m.inCallback = true
+	defer m.endCallback(prev)
+	f(p)
+}
+
+// callWith runs an OrInsertWith callback with the map's mutators locked; see
+// callModify.
+func (m *Float64Char) callWith(f func() uint16) uint16 {
+	prev := m.inCallback
+	m.inCallback = true
+	defer m.endCallback(prev)
+	return f()
+}
+
+func (m *Float64Char) endCallback(prev bool) {
+	m.inCallback = prev
+}
+
+// checkNotInCallback panics if an Entry callback is running on this map.
+func (m *Float64Char) checkNotInCallback(op string) {
+	if m.inCallback {
+		panic("Float64Char." + op + ": map mutated from within an Entry callback — Entry callbacks must not mutate the map")
 	}
 }
 

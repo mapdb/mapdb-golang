@@ -934,24 +934,25 @@ func i32KeySuffix(k int32) string {
 
 // noteTraceKey records a key field for the absent-99 rule. probe keys are the
 // distinct put/remove keys; a get key only sets saw99.
-func noteTraceKey(keys []int32, seen map[int32]struct{}, k int32, saw99, probe bool) ([]int32, bool) {
+func noteTraceKey(keys []int32, seen map[string]struct{}, k int32, saw99, probe bool) ([]int32, bool) {
 	if k == 99 {
 		saw99 = true
 	}
 	if !probe {
 		return keys, saw99
 	}
-	if _, ok := seen[k]; ok {
+	sk := i32KeySuffix(k)
+	if _, ok := seen[sk]; ok {
 		return keys, saw99
 	}
-	seen[k] = struct{}{}
+	seen[sk] = struct{}{}
 	return append(keys, k), saw99
 }
 
 // traceMapOps applies the M1 map allow-list. get does not change state.
 // Anything else (addToValue, get_or_default, poll_*, add, ...) is fatal.
 func traceMapOps(ops []map[string]any, kind string, put func(int32, int32), remove func(int32), clear func(), get func(int32)) (keys []int32, saw99 bool) {
-	seen := make(map[int32]struct{})
+	seen := make(map[string]struct{})
 	for _, op := range ops {
 		switch op["op"] {
 		case "put":
